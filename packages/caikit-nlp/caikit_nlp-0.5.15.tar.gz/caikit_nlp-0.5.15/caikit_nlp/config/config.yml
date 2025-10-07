@@ -1,0 +1,63 @@
+# Copyright The Caikit Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+## Config elements for module boot-time configurations ##
+
+# Disallow downloading from arbitrary URLs in model bootstrapping. This defaults
+# to false for security, but can be enabled for bootstrapping
+allow_downloads: false
+torch_dtype: float32
+
+# Path of folder that will contain all the source prompts
+source_prompt_base: ""
+
+# Path for searching base models from
+base_models_dir: ""
+
+# Whether or not to purge TGIS prompts on model deletion
+unload_tgis_prompt_artifacts: false
+# Torchrun elastic launch configuration, e.g., for fine tuning on multiple GPUs
+master_addr: localhost
+master_port: 29550
+
+training_data_limit:
+  __default__: -1
+  # Configuration for PeftPromptTuning module
+  6655831b-960a-4dc5-8df4-867026e2cd41:
+    add_model_name_here: 10000
+
+# Config used only in EmbeddingModule. Set here or use env vars like EMBEDDING_RETRIES=32
+embedding:
+  # Allow models with remote code.
+  trust_remote_code: false
+  # Number of times to retry on error. Most deployments should use 0 retries.
+  retries: 0
+  # Batch size for encode() if <= 0 or invalid, the sentence-transformers default is used
+  batch_size: 0
+  # Should implicit truncation (with truncate_input_tokens=0) throw error for truncation (default) or disable this
+  implicit_truncation_errors: true
+  # Attempt to optimize with PyTorch compile()
+  pt2_compile: false
+  # Use IPEX optimize. Works best when used with autocast (bfloat16) below.
+  ipex: false
+  # Use autocast in encode with its default dtype (bfloat16)
+  autocast: false
+  # For testing, set device to "mps" on MacOS or "xpu" for IPEX GPU.
+  # Otherwise, the default does automatic checks for cuda GPU (else cpu).
+  device: ""
+
+runtime:
+  library: caikit_nlp
+
+# Configure request timeout for TGIS backend (in seconds)
+tgis_request_timeout: 60
