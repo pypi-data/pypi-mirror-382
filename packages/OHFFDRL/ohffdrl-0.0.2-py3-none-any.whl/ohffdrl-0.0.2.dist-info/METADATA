@@ -1,0 +1,93 @@
+Metadata-Version: 2.4
+Name: OHFFDRL
+Version: 0.0.2
+Summary: Optimized Hierarchical Fused Fuzzy Deep Reinforcement Learning
+Project-URL: source, https://github.com/arman-daliri/OHFFDRL
+Author-email: Arman Daliri <daliriwork2@gmail.com>
+License-Expression: MIT
+License-File: LICENSE
+Classifier: Intended Audience :: Science/Research
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.11
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: scikit-learn
+Requires-Dist: tensorflow
+Description-Content-Type: text/markdown
+
+# OHFFDRL
+
+Optimized Hierarchical Fused Fuzzy Deep Reinforcement Learning.
+
+## Example
+```python
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+
+import OHFFDRL as oh
+
+# === Step 1: Load and preprocess data ===
+df = pd.read_csv("MAINDiagnostics.csv")
+df = df.drop(columns=["IDFILENAME", "FileName", "Beat"])
+df["Gender"] = df["Gender"].map({"MALE": 1, "FEMALE": 0})
+
+normal_group = ["SR", "SB", "ST", "SI", "SAAWR"]
+arrhythmia_group = ["AFIB", "AF", "SVT", "AT", "AVNRT", "AVRT"]
+df["Rhythm_Binary"] = df["Rhythm"].apply(lambda x: 0 if x in normal_group else (1 if x in arrhythmia_group else np.nan))
+df = df.dropna(subset=["Rhythm_Binary"])
+
+X = df.drop(columns=["Rhythm", "Rhythm_Binary"], errors='ignore').values
+y = df["Rhythm_Binary"].astype(int).values
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# === SSO-inspired oversampling for class 1 ===
+X_min = X_scaled[y == 1]
+X_maj = X_scaled[y == 0]
+n_to_generate = len(X_maj) - len(X_min)
+
+def sso_augment(X, n_samples):
+    n_features = X.shape[1]
+    augmented = []
+    for _ in range(n_samples):
+        i, j = np.random.choice(len(X), 2, replace=False)
+        alpha = np.random.uniform(-1, 1, n_features)
+        sample = X[i] + alpha * (X[j] - X[i])
+        augmented.append(sample)
+    return np.array(augmented)
+
+X_syn = sso_augment(X_min, n_to_generate)
+y_syn = np.ones(n_to_generate, dtype=int)
+
+X_bal = np.vstack([X_scaled, X_syn])
+y_bal = np.concatenate([y, y_syn])
+
+# === Train/test split ===
+X_train, X_val, y_train, y_val = train_test_split(X_bal, y_bal, test_size=0.2, random_state=42, stratify=y_bal)
+input_dim = X_train.shape[1]
+
+ohf = oh.OHFFDRL(input_dim, X_train, X_val, y_train, y_val)
+
+dim = 2 * 3 * input_dim
+opt_vector = ohf.whho_optimize(dim)
+mu_opt = opt_vector[:len(opt_vector)//2].reshape(3, input_dim)
+sigma_opt = np.abs(opt_vector[len(opt_vector)//2:].reshape(3, input_dim)) + 1e-2
+
+# === Step 5: Train final model ===
+final_model = ohf.build_model(mu_opt, sigma_opt)
+final_model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=30, batch_size=32, verbose=1)
+
+# === Step 6: Evaluate ===
+y_pred_final = np.argmax(final_model.predict(X_val), axis=1)
+print(classification_report(y_val, y_pred_final, target_names=["Normal", "Arrhythmia"]))
+```
+You can find the "MAINDiagnostics.csv" [here](https://github.com/arman-daliri/OHFFDRL/blob/main/OHFFDRL/MAINDiagnostics.csv).
+
+## Authors
+- Arman Daliri
