@@ -1,0 +1,164 @@
+#!/usr/bin/python
+
+#
+# Project Librarian: Brandon Piotrzkowski
+#              Graduate Student
+#              UW-Milwaukee Department of Physics
+#              Center for Gravitation & Cosmology
+#              <brandon.piotrzkowski@ligo.org>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+"""
+Script to calculate the joint false alarm rate of the provided candidates,
+either the spatiotemporal variant if sky information is provided, or
+just temporal if not.
+"""
+__author__ = "Brandon Piotrzkowski <brandon.piotrzkowski@ligo.org>"
+
+
+
+# Global imports.
+from ligo.raven import search
+from ligo.raven.gracedb_events import is_skymap_moc, load_skymap
+from ligo.raven.mock_gracedb import choose_gracedb
+
+import argparse
+
+
+# Command line options.
+parser = argparse.ArgumentParser(description='Perform query of GraceDB')
+parser.add_argument("-f", "--se_far", metavar="1e-3",
+                    default=None,
+                    help="FAR of superevent (required)"),
+parser.add_argument("-w", "--window", nargs=2, metavar="t", type=int,
+                    action="append", default=None,
+                    help="Time window [tl, th] seconds to search around event time (required with th > th)"),
+parser.add_argument("-j", "--joint_far_method", metavar="untargeted targeted",
+                    default=None,
+                    help="Joint FAR method ('untargeted' or 'targeted'). If left blank, will choose based on provided search/pipeline."),
+parser.add_argument("-s", "--ext_search", metavar="GRB SubGRB SubGRBTargeted HEN MDC",
+                    default=None,
+                    help="Search of external event"),
+parser.add_argument("-p", "--ext_pipeline", metavar="Fermi Swift AGILE INTEGRAL",
+                    default=None,
+                    help="Pipeline of external event."),          
+parser.add_argument("-n", "--ext_rate", metavar="1e-3", default=None,
+                    help="Detected rate external events."),
+parser.add_argument("-F", "--far_ext", metavar="1e-3",
+                    default=None,
+                    help="FAR of external event"),
+parser.add_argument("-t", "--far_gw_thresh", metavar="1.16e-5", default=None,
+                    help="Maximum cutoff for GW FAR considered in the search"),
+parser.add_argument("-T", "--far_ext_thresh", metavar="1e-4", default=None,
+                    help="Maximum cutoff for external event FAR considered in the search"),
+parser.add_argument("-S", "--gw_fitsfile", metavar="bayestar.fits.gz",
+                    default=None,
+                    help="fits(.gz) filename for superevent sky map."),
+parser.add_argument("-E", "--ext_fitsfile", metavar="glg_healpix_all_bn_v00.fit",
+                    default=None,
+                    help="fits(.gz) filename for external event sky map."),
+parser.add_argument("-m", "--gw_moc", dest="gw_moc", action="store_true",
+                    help="Assume the GW sky map is multi-ordered (MOC)."),
+parser.add_argument("-M", "--ext_moc", dest="ext_moc", action="store_true",
+                    help="Assume the external sky map is multi-ordered (MOC)."),
+parser.add_argument("-r", "--gw_ring", dest="gw_ring", action="store_true",
+                    help="Assume the GW map uses RING ordering rather than nested."),
+parser.add_argument("-R", "--ext_ring", dest="ext_ring", action="store_true",
+                    help="Assume the external sky map uses RING ordering rather than nested."),
+parser.add_argument("-c", "--ra_dec", nargs=2, metavar="c", type=float,
+                    action="append", default=None,
+                    help="RA and dec of external sky map if a single pixel sky map."),
+args = parser.parse_args()
+print(args)
+
+
+# Check required options are there
+if not args.se_far:
+    raise AssertionError('superevent FAR not given')
+else:
+    se_far = float(args.se_far)
+
+if not args.window:
+    raise AssertionError('search window not given')
+else:
+    tl, th = int(args.window[0][0]), int(args.window[0][1])
+
+if args.ext_rate:
+    ext_rate = float(args.ext_rate)
+else:
+    ext_rate = None
+
+if args.far_ext:
+    far_ext = float(args.far_ext)
+else:
+    far_ext = None
+
+if args.far_gw_thresh:
+    far_gw_thresh = float(args.far_gw_thresh)
+else:
+    far_gw_thresh = None
+
+if args.far_ext_thresh:
+    far_ext_thresh = float(args.far_ext_thresh)
+else:
+    far_ext_thresh = None
+
+gw_fitsfile = args.gw_fitsfile
+ext_fitsfile = args.ext_fitsfile
+gw_moc = args.gw_moc
+ext_moc = args.ext_moc
+
+if gw_fitsfile and (ext_fitsfile or args.use_radec):
+    incl_sky = True
+else:
+    incl_sky = False
+
+if gw_moc is False:
+    gw_moc = is_skymap_moc(gw_fitsfile)
+
+if ext_moc is False:
+    ext_moc = is_skymap_moc(ext_fitsfile)
+
+if gw_fitsfile:
+    gw_skymap = load_skymap(
+        gw_fitsfile, is_moc=gw_moc, nested=args.gw_ring
+    )
+
+if ext_fitsfile:
+    ext_skymap = load_skymap(
+        ext_fitsfile, is_moc=ext_moc, nested=args.ext_ring
+    )
+
+if args.ra_dec:
+    ra, dec = float(args.ra_dec[0][0]), float(args.ra_dec[0][1])
+    use_radec = True
+else:
+    ra, dec = None, None
+    use_radec = False
+
+results = search.coinc_far(
+              se_far, tl, th,
+              joint_far_method=args.joint_far_method,
+              ext_search=args.ext_search, ext_pipeline=args.ext_pipeline,
+              incl_sky=incl_sky,
+              gw_skymap=gw_skymap, ext_skymap=ext_skymap,
+              far_ext=far_ext, ext_rate=ext_rate,
+              far_gw_thresh=far_gw_thresh,
+              far_ext_thresh=far_ext_thresh,
+              ra=ra, dec=dec, use_radec=use_radec,
+              gw_nested=not args.gw_ring, ext_nested=not args.ext_ring)
+
+print(results)

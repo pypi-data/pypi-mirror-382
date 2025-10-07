@@ -1,0 +1,106 @@
+#!/usr/bin/python
+
+#
+# Project Librarian: Brandon Piotrzkowski
+#              Graduate Student
+#              UW-Milwaukee Department of Physics
+#              Center for Gravitation & Cosmology
+#              <brandon.piotrzkowski@ligo.org>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+"""
+Script to query GraceDB looking for a possible coincidence, using the time window
+and searching for a candidate with the properties given.
+"""
+__author__ = "Brandon Piotrzkowski <brandon.piotrzkowski@ligo.org>"
+
+
+
+# Global imports.
+from ligo.raven import search
+from ligo.raven.mock_gracedb import choose_gracedb
+
+import argparse
+
+
+# Command line options.
+parser = argparse.ArgumentParser(description='Perform query of GraceDB')
+parser.add_argument("-e", "--event_type", metavar="Superevent or External",
+                    default=None,
+                    help="Type of event querying to find (required)"),
+parser.add_argument("-t", "--gpstime", metavar="XXXXXXXXXX", default=None,
+                    help="Gpstime querying on (required)"),
+parser.add_argument("-w", "--window", nargs=2, metavar="t", type=int,
+                    action="append", default=None,
+                    help="Time window [tl, th] seconds to search around event time (required with th > th)"),
+parser.add_argument("-u", "--gracedb_url", metavar="https://gracedb.ligo.org/api/",
+                    default=None, help="Gracedb url"),
+parser.add_argument("-g", "--group", metavar="CBC or Burst", default=None,
+                    help="Group of GW event searching for."),
+parser.add_argument("-p", "--pipelines", nargs='+', metavar="Fermi Swift AGILE INTEGRAL", default=None,
+                    help="Pipelines of external event searching for."),
+parser.add_argument("-s", "--ext_searches", nargs='+', metavar="GRB SubGRB SubGRBTargeted HEN MDC", default=None,
+                    help="Searches of external event searching for.")
+parser.add_argument("-S", "--se_searches",nargs='+', metavar="AllSky BBH IMBH MDC", default=None,
+                    help="Searches of superevent searching for.")
+args = parser.parse_args()
+print(args)
+
+
+# Check required options are there
+if not args.event_type:
+    raise AssertionError('event type not given')
+else:
+    event_type = str(args.event_type)
+
+if not args.gpstime:
+    raise AssertionError('gpstime not given')
+else:
+    gpstime = float(args.gpstime)
+
+if not args.window:
+    raise AssertionError('search window not given')
+else:
+    tl, th = int(args.window[0][0]), int(args.window[0][1])
+
+
+# Load other options
+if args.gracedb_url:
+    gracedb = choose_gracedb(args.gracedb_url)
+else:
+    gracedb = None
+
+group = args.group
+
+if args.pipelines:
+    pipelines = args.pipelines
+else:
+    pipelines = []
+
+if args.ext_searches:
+    ext_searches = args.ext_searches
+else:
+    ext_searches = []
+
+if args.se_searches:
+    se_searches = args.se_searches
+else:
+    se_searches = []
+
+results = search.query(event_type, gpstime, tl, th, gracedb=gracedb,
+                       group=group, pipelines=pipelines,
+                       ext_searches=ext_searches, se_searches=se_searches)
+print(results)

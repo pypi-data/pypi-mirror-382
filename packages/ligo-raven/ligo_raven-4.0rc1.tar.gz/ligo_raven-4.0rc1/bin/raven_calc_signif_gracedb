@@ -1,0 +1,164 @@
+#!/usr/bin/python
+
+#
+# Project Librarian: Brandon Piotrzkowski
+#              Graduate Student
+#              UW-Milwaukee Department of Physics
+#              Center for Gravitation & Cosmology
+#              <brandon.piotrzkowski@ligo.org>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+"""
+Script to calculate and upload the joint false alarm rate of the provided candidates
+to GraceDB, either the spatiotemporal variant if sky information is provided, or
+just temporal if not.
+"""
+__author__ = "Brandon Piotrzkowski <brandon.piotrzkowski@ligo.org>"
+
+
+
+# Global imports.
+from ligo.raven import search
+from ligo.raven.gracedb_events import is_skymap_moc
+from ligo.raven.mock_gracedb import choose_gracedb
+
+
+import argparse
+
+
+# Command line options.
+parser = argparse.ArgumentParser(description='Perform query of GraceDB')
+parser.add_argument("-s", "--se_id", metavar="(S,MS)XXXXXXX",
+                    default=None,
+                    help="GraceDB ID of superevent (required)"),
+parser.add_argument("-e", "--ext_id", metavar="(E,M)XXXXXXX",
+                    default=None,
+                    help="GraceDB ID of external event (required)"),
+parser.add_argument("-w", "--window", nargs=2, metavar="t", type=int,
+                    action="append", default=None,
+                    help="Time window [tl, th] seconds to search around event time (required with th > th)"),
+parser.add_argument("-j", "--joint_far_method", metavar="untargeted targeted",
+                    default=None,
+                    help="Joint FAR method ('untargeted' or 'targeted'). If left blank, will choose based on provided search/pipeline."),
+parser.add_argument("-n", "--ext_rate", metavar="1e-3", default=None,
+                    help="Detected rate external events."),
+parser.add_argument("-t", "--far_gw_thresh", metavar="1.16e-5", default=None,
+                    help="Maximum cutoff for GW FAR considered in the search"),
+parser.add_argument("-T", "--far_ext_thresh", metavar="1e-4", default=None,
+                    help="Maximum cutoff for external event FAR considered in the search"),
+parser.add_argument("-u", "--gracedb_url", metavar="https://gracedb.ligo.org/api/",
+                    default=None,
+                    help="Gracedb url"),
+parser.add_argument("-U", "--gracedb_ext_url", metavar="https://gracedb.ligo.org/api/",
+                    default=None,
+                    help="External event Gracedb url"),
+parser.add_argument("-g", "--upload_to_gracedb", dest="upload_to_gracedb", action="store_true",
+                    help="Upload results to GraceDB page(s)."),            
+parser.add_argument("-S", "--gw_fitsfile", metavar="bayestar.fits.gz",
+                    default=None,
+                    help="fits(.gz) filename for superevent sky map."),
+parser.add_argument("-E", "--ext_fitsfile", metavar="glg_healpix_all_bn_v00.fit",
+                    default=None,
+                    help="fits(.gz) filename for external event sky map."),
+parser.add_argument("-m", "--gw_moc", dest="gw_moc", action="store_true",
+                    help="Assume the GW sky map is multi-ordered (MOC)."),
+parser.add_argument("-M", "--ext_moc", dest="ext_moc", action="store_true",
+                    help="Assume the external sky map is multi-ordered (MOC)."),
+parser.add_argument("-r", "--gw_ring", dest="gw_ring", action="store_true",
+                    help="Assume the GW map uses RING ordering rather than nested."),
+parser.add_argument("-R", "--ext_ring", dest="ext_ring", action="store_true",
+                    help="Assume the external sky map uses RING ordering rather than nested."),
+parser.add_argument("-c", "--use_radec", dest="use_radec", action="store_true",
+                    help="Choose to use RA and dec of external sky map if a single pixel sky map."),
+parser.add_argument("-p", "--use_preferred_event_skymap", dest="use_preferred_event_skymap", action="store_true",
+                    help="Choose to use the GW sky map in the preferred event rather than the superevent.")
+args = parser.parse_args()
+print(args)
+
+
+# Check required options are there
+if not args.se_id:
+    raise AssertionError('superevent graceid not given')
+else:
+    se_id = str(args.se_id)
+
+if not args.ext_id:
+    raise AssertionError('external event graceid not given')
+else:
+    ext_id = str(args.ext_id)
+
+if not args.window:
+    raise AssertionError('search window not given')
+else:
+    tl, th = int(args.window[0][0]), int(args.window[0][1])
+
+# Load other options
+if args.gracedb_url:
+    gracedb = choose_gracedb(args.gracedb_url)
+else:
+    gracedb = None
+
+# Load other options
+if args.gracedb_ext_url:
+    gracedb_ext = choose_gracedb(args.gracedb_ext_url)
+else:
+    gracedb_ext = None
+
+gw_fitsfile = args.gw_fitsfile
+ext_fitsfile = args.ext_fitsfile
+gw_moc = args.gw_moc
+ext_moc = args.ext_moc
+
+if args.ext_rate:
+    ext_rate = float(args.ext_rate)
+else:
+    ext_rate = None
+
+if args.far_gw_thresh:
+    far_gw_thresh = float(args.far_gw_thresh)
+else:
+    far_gw_thresh = None
+
+if args.far_ext_thresh:
+    far_ext_thresh = float(args.far_ext_thresh)
+else:
+    far_ext_thresh = None
+
+if gw_fitsfile and (ext_fitsfile or args.use_radec):
+    incl_sky = True
+else:
+    incl_sky = False
+
+if gw_moc is False:
+    gw_moc = is_skymap_moc(gw_fitsfile)
+
+if ext_moc is False:
+    ext_moc = is_skymap_moc(ext_fitsfile)
+
+results = search.calc_signif_gracedb(
+              se_id, ext_id, tl, th,
+              joint_far_method=args.joint_far_method,
+              gw_fitsfile=gw_fitsfile, ext_fitsfile=ext_fitsfile,
+              incl_sky=incl_sky, gracedb=gracedb, gracedb_ext=gracedb_ext,
+              upload_to_gracedb=args.upload_to_gracedb,
+              ext_rate=ext_rate,
+              far_gw_thresh=far_gw_thresh,
+              far_ext_thresh=far_ext_thresh,
+              gw_moc=gw_moc, ext_moc=ext_moc,
+              gw_nested=not args.gw_ring, ext_nested=not args.ext_ring,
+              use_radec=args.use_radec,
+              use_preferred_event_skymap=args.use_preferred_event_skymap)
+print(results)
