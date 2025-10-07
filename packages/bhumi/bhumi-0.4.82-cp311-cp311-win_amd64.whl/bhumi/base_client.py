@@ -1,0 +1,2062 @@
+from dataclasses import dataclass
+from typing import Optional, Dict, List, Union, AsyncIterator, Any, Callable, Type, get_type_hints
+from .utils import async_retry, extract_json_from_text, parse_json_loosely
+from .json_compat import loads as json_loads, dumps as json_dumps, JSONDecodeError
+import bhumi.bhumi as _rust
+import asyncio
+import os
+import base64
+from .map_elites_buffer import MapElitesBuffer
+import statistics
+from .tools import ToolRegistry, Tool, ToolCall
+import uuid
+import re
+import inspect
+from .structured_outputs import (
+    StructuredOutputParser, 
+    ResponseFormat, 
+    ParsedChatCompletion,
+    satya_function_tool,
+    satya_tool_schema,
+    StructuredOutputError,
+    LengthFinishReasonError,
+    ContentFilterFinishReasonError
+)
+
+@dataclass
+class LLMConfig:
+    """Configuration for LLM providers"""
+    api_key: str
+    model: str  # Format: "provider/model_name" e.g. "openai/gpt-4"
+    base_url: Optional[str] = None  # Now optional
+    provider: Optional[str] = None  # Optional, extracted from model if not provided
+    api_version: Optional[str] = None
+    organization: Optional[str] = None
+    max_retries: int = 3
+    timeout: float = 30.0
+    headers: Optional[Dict[str, str]] = None
+    debug: bool = False
+    debug_debug: bool = False
+    max_tokens: Optional[int] = None  # Add max_tokens parameter
+    extra_config: Dict[str, Any] = None
+    buffer_size: int = 131072  # Back to 128KB for optimal performance
+
+    def __post_init__(self):
+        # Extract provider from model if not provided
+        if not self.provider and "/" in self.model:
+            self.provider = self.model.split("/")[0]
+        
+        # Normalize provider alias ending with '!'
+        if self.provider and self.provider.endswith("!"):
+            self.provider = self.provider[:-1]
+        
+        # Set default base URL if not provided
+        if not self.base_url:
+            if self.provider == "openai":
+                self.base_url = "https://api.openai.com/v1"
+            elif self.provider == "anthropic":
+                self.base_url = "https://api.anthropic.com/v1"
+            elif self.provider == "gemini":
+                self.base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+            elif self.provider == "sambanova":
+                self.base_url = "https://api.sambanova.ai/v1"
+            elif self.provider == "groq":
+                self.base_url = "https://api.groq.com/openai/v1"
+            elif self.provider == "cerebras":
+                self.base_url = "https://api.cerebras.ai/v1"
+            elif self.provider == "mistral":
+                self.base_url = "https://api.mistral.ai/v1"
+            elif self.provider == "openrouter":
+                self.base_url = "https://openrouter.ai/api/v1"
+            elif self.provider == "cohere":
+                self.base_url = "https://api.cohere.ai/compatibility/v1"
+            else:
+                self.base_url = "https://api.openai.com/v1"  # Default to OpenAI
+
+def parse_streaming_chunk(chunk: str, provider: str) -> str:
+    """Parse streaming response chunk based on provider format"""
+    try:
+        # Handle Server-Sent Events format
+        lines = chunk.strip().split('\n')
+        content_parts = []
+        
+        for line in lines:
+            if line.startswith('data: '):
+                data_str = line[6:]  # Remove 'data: ' prefix
+                if data_str.strip() == '[DONE]':
+                    continue
+                    
+                try:
+                    data = json_loads(data_str)
+                    
+                    # Extract content based on provider format
+                    if provider in ['openai', 'groq', 'openrouter', 'sambanova', 'gemini', 'cerebras', 'cohere', 'mistral']:
+                        # OpenAI-compatible format
+                        if 'choices' in data and len(data['choices']) > 0:
+                            delta = data['choices'][0].get('delta', {})
+                            if 'content' in delta and delta['content']:
+                                content_parts.append(delta['content'])
+                    elif provider == 'anthropic':
+                        # Anthropic format (different streaming format)
+                        if 'delta' in data and 'text' in data['delta']:
+                            content_parts.append(data['delta']['text'])
+                except JSONDecodeError:
+                    # If not JSON, might be plain text chunk
+                    if data_str.strip():
+                        content_parts.append(data_str)
+            elif line.strip() and not line.startswith(':'):
+                # Plain text line (fallback)
+                content_parts.append(line)
+        
+        return ''.join(content_parts)
+    except Exception:
+        # Fallback: return original chunk
+        return chunk
+
+class DynamicBuffer:
+    """Original dynamic buffer implementation"""
+    def __init__(self, initial_size=8192, min_size=1024, max_size=131072):
+        self.current_size = initial_size
+        self.min_size = min_size
+        self.max_size = max_size
+        self.chunk_history = []
+        self.adjustment_factor = 1.5
+        
+    def get_size(self) -> int:
+        return self.current_size
+        
+    def adjust(self, chunk_size):
+        self.chunk_history.append(chunk_size)
+        recent_chunks = self.chunk_history[-5:]
+        avg_chunk = statistics.mean(recent_chunks) if recent_chunks else chunk_size
+        
+        if avg_chunk > self.current_size * 0.8:
+            self.current_size = min(
+                self.max_size,
+                int(self.current_size * self.adjustment_factor)
+            )
+        elif avg_chunk < self.current_size * 0.3:
+            self.current_size = max(
+                self.min_size,
+                int(self.current_size / self.adjustment_factor)
+            )
+        return self.current_size
+
+@dataclass
+class ReasoningResponse:
+    """Special response class for reasoning models"""
+    _reasoning: str
+    _output: str
+    _raw: dict
+    
+    @property
+    def think(self) -> str:
+        """Get the model's reasoning process"""
+        return self._reasoning
+    
+    def __str__(self) -> str:
+        """Default to showing just the output"""
+        return self._output
+
+# Backward compatibility alias - use new structured_outputs module instead
+StructuredOutput = StructuredOutputParser
+
+class BaseLLMClient:
+    """Generic client for OpenAI-compatible APIs"""
+    
+    def __init__(
+        self,
+        config: LLMConfig,
+        max_concurrent: int = 10,
+        debug: bool = False,
+        debug_debug: bool = False
+    ):
+        self.config = config
+        self.max_concurrent = max_concurrent
+        self.debug = debug or getattr(config, "debug", False) or (os.environ.get("BHUMI_DEBUG", "0") == "1")
+        # Super-verbose debug (gates noisy logs)
+        self.debug_debug = (
+            debug_debug
+            or getattr(config, "debug_debug", False)
+            or (os.environ.get("BHUMI_DEBUG_DEBUG", "0") == "1")
+        )
+        
+        # Create initial core
+        self.core = _rust.BhumiCore(
+            max_concurrent=max_concurrent,
+            provider=config.provider or "generic",
+            model=config.model,
+            debug=self.debug,
+            debug_debug=self.debug_debug,
+            base_url=config.base_url
+        )
+        
+        # Only initialize buffer strategy for non-streaming requests
+        # Look for MAP-Elites archive in multiple locations
+        archive_paths = [
+            # First, look in the installed package data directory
+            os.path.join(os.path.dirname(__file__), "data", "archive_latest.json"),
+            # Then look in development locations
+            "src/archive_latest.json",
+            "benchmarks/map_elites/archive_latest.json",
+            os.path.join(os.path.dirname(__file__), "../archive_latest.json"),
+            os.path.join(os.path.dirname(__file__), "../../benchmarks/map_elites/archive_latest.json")
+        ]
+        
+        for path in archive_paths:
+            if os.path.exists(path):
+                if debug:
+                    print(f"Loading MAP-Elites archive from: {path}")
+                self.buffer_strategy = MapElitesBuffer(archive_path=path)
+                break
+        else:
+            if debug:
+                print("No MAP-Elites archive found, using dynamic buffer")
+            self.buffer_strategy = DynamicBuffer()
+        
+        # Add tool registry
+        self.tool_registry = ToolRegistry()
+        self.structured_output = None
+
+    def register_tool(
+        self,
+        name: str,
+        func: Callable,
+        description: str,
+        parameters: Dict[str, Any],
+        *,
+        aliases: Optional[Dict[str, str]] = None,
+        on_unknown: str = "drop",
+    ) -> None:
+        """Register a new tool that can be called by the model"""
+        self.tool_registry.register(
+            name=name,
+            func=func,
+            description=description,
+            parameters=parameters,
+            aliases=aliases,
+            on_unknown=on_unknown,
+        )
+
+    def set_structured_output(self, model: Type[Any]) -> None:
+        """
+        Set up structured output handling with a Satya model.
+        
+        Note: This method is deprecated. Use the parse() method instead for better
+        OpenAI/Anthropic compatibility.
+        
+        Args:
+            model: Satya Model class for structured output validation
+        """
+        # Register a tool for structured output  
+        self.register_tool(
+            name="generate_structured_output",
+            func=self._structured_output_handler,
+            description=f"Generate structured output according to the schema: {model.__doc__}",
+            parameters={"type": "object", "properties": model.model_json_schema().get("properties", {}), "required": model.model_json_schema().get("required", []), "additionalProperties": False}
+        )
+    
+    async def _structured_output_handler(self, **kwargs) -> dict:
+        """Handle structured output generation"""
+        try:
+            return self.structured_output.response_format(**kwargs).model_dump()
+        except Exception as e:
+            raise ValueError(f"Failed to create structured output: {e}")
+
+    async def parse(
+        self,
+        messages: List[Dict[str, Any]] = None,
+        *,
+        input: List[Dict[str, Any]] = None,  # New OpenAI Responses API parameter
+        instructions: str = None,  # New OpenAI Responses API parameter
+        response_format: Type[Any] = None,  # Support Satya models
+        text_format: Type[Any] = None,  # Alternative parameter name
+        stream: bool = False,
+        debug: bool = False,
+        timeout: Optional[float] = 30.0,  # Add timeout parameter
+        **kwargs
+    ) -> Union[ParsedChatCompletion, AsyncIterator[str]]:
+        """
+        Create a completion with automatic parsing of structured outputs.
+        
+        Supports both the legacy Chat Completions API pattern and the new Responses API pattern:
+        
+        Legacy Chat Completions API pattern (all providers):
+            completion = await client.parse(
+                messages=[{"role": "user", "content": "..."}],
+                response_format=MyModel
+            )
+        
+        New OpenAI Responses API pattern (OpenAI only):
+            completion = await client.parse(
+                input=[{"role": "user", "content": "..."}],
+                text_format=MyModel
+            )
+            
+            # Or with separated instructions
+            completion = await client.parse(
+                instructions="You are a helpful assistant.",
+                input="Hello!",
+                text_format=MyModel
+            )
+        
+        Args:
+            messages: List of messages for the conversation (legacy pattern)
+            input: List of input messages or string (new Responses API pattern)
+            instructions: System instructions (new Responses API pattern)
+            response_format: Satya Model class (legacy pattern)
+            text_format: Satya Model class (new pattern)
+            stream: Whether to stream the response (not supported for parsing)
+            debug: Enable debug logging
+            timeout: Request timeout in seconds
+            **kwargs: Additional arguments passed to completion()
+            
+        Returns:
+            ParsedChatCompletion with validated structured content
+            
+        Raises:
+            ValueError: If streaming is requested or invalid parameters
+            LengthFinishReasonError: If completion finished due to length limits
+            ContentFilterFinishReasonError: If completion finished due to content filtering
+            StructuredOutputError: If parsing fails
+            
+        Note:
+            - OpenAI models automatically use the new Responses API when input= or instructions= are provided
+            - Other providers continue to use Chat Completions API
+            - Satya models provide high-performance Rust-powered validation for both APIs
+        """
+        if stream:
+            raise ValueError("Streaming is not supported with parse() method. Use completion() with stream=True instead.")
+        
+        # Determine if we should use the new Responses API (OpenAI only)
+        use_responses_api = (
+            self.config.provider == "openai" and 
+            (input is not None or instructions is not None or text_format is not None)
+        )
+        
+        if use_responses_api:
+            return await self._parse_with_responses_api(
+                input=input, 
+                instructions=instructions,
+                text_format=text_format,
+                debug=debug,
+                timeout=timeout,
+                **kwargs
+            )
+        else:
+            return await self._parse_with_chat_completions_api(
+                messages=messages,
+                response_format=response_format,
+                debug=debug,
+                timeout=timeout,
+                **kwargs
+            )
+
+    async def _parse_with_responses_api(
+        self,
+        input: Union[str, List[Dict[str, Any]]] = None,
+        instructions: str = None,
+        text_format: Type[Any] = None,
+        debug: bool = False,
+        timeout: Optional[float] = 30.0,
+        **kwargs
+    ) -> ParsedChatCompletion:
+        """Parse using OpenAI's new Responses API"""
+        if not text_format:
+            raise ValueError("text_format is required for Responses API")
+        
+        # Create text format for the model (Responses API uses text.format instead of response_format)
+        response_format_dict = ResponseFormat.from_model(text_format)
+        text_format_dict = {
+            "format": response_format_dict
+        }
+        
+        # Prepare request for Responses API
+        request_data = {
+            "model": self.config.model.split("/")[1] if "/" in self.config.model else self.config.model,
+            "text": text_format_dict,
+            **kwargs
+        }
+        
+        # Add input (can be string or list of messages)
+        if input is not None:
+            request_data["input"] = input
+        
+        # Add instructions if provided
+        if instructions is not None:
+            request_data["instructions"] = instructions
+        
+        # Use the new /v1/responses endpoint for OpenAI
+        if debug:
+            print(f"🆕 Using OpenAI Responses API: /v1/responses")
+            print(f"📋 Request: {request_data}")
+        
+        # Submit to Responses API endpoint
+        headers = {"Authorization": f"Bearer {self.config.api_key}"}
+        request = {
+            "_headers": headers,
+            "_endpoint": "/responses",  # Special marker for Responses API
+            **request_data
+        }
+        
+        # Get completion response with timeout
+        import asyncio
+        try:
+            response = await asyncio.wait_for(
+                self._submit_responses_request(request, debug=debug),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            raise ValueError(f"Responses API call timed out after {timeout} seconds.")
+        except Exception as e:
+            raise ValueError(f"Responses API call failed: {e}")
+        
+        # Parse using structured output parser
+        parser = StructuredOutputParser(text_format)
+        
+        # Convert Responses API response to Chat Completions format for parsing
+        mock_response = self._convert_responses_to_chat_format(response)
+        
+        return parser.parse_response(mock_response)
+
+    async def upload_file(
+        self,
+        file_path: str,
+        purpose: str = "ocr",
+        timeout: Optional[float] = 60.0
+    ) -> Dict[str, Any]:
+        """
+        Upload a file to Mistral API for OCR processing.
+        
+        Args:
+            file_path: Path to the file to upload
+            purpose: Purpose of the file (default: "ocr")
+            timeout: Request timeout in seconds
+            
+        Returns:
+            File upload response with file_id
+            
+        Raises:
+            ValueError: If provider is not Mistral or upload fails
+        """
+        if self.config.provider != "mistral":
+            raise ValueError("File upload is only available for Mistral provider")
+        
+        headers = {
+            "Authorization": f"Bearer {self.config.api_key}"
+        }
+        
+        url = f"{self.config.base_url}/files"
+        
+        try:
+            import aiohttp
+            with open(file_path, 'rb') as f:
+                data = aiohttp.FormData()
+                data.add_field('file', f, filename=file_path.split('/')[-1])
+                data.add_field('purpose', purpose)
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, data=data, headers=headers) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            raise ValueError(f"File upload error {response.status}: {error_text}")
+                        
+                        return await response.json()
+        except ImportError:
+            # Fallback to requests if aiohttp not available
+            import requests
+            with open(file_path, 'rb') as f:
+                files = {'file': f}
+                data = {'purpose': purpose}
+                response = requests.post(url, files=files, data=data, headers=headers)
+                if response.status_code != 200:
+                    raise ValueError(f"File upload error {response.status_code}: {response.text}")
+                return response.json()
+
+    async def ocr(
+        self,
+        document: Dict[str, Any] = None,
+        file_path: str = None,
+        model: str = "mistral-ocr-latest",  # Correct OCR model name
+        pages: List[int] = None,
+        include_image_base64: bool = False,
+        image_limit: int = None,
+        image_min_size: int = None,
+        bbox_annotation_format: Dict[str, Any] = None,
+        document_annotation_format: Dict[str, Any] = None,
+        timeout: Optional[float] = 60.0,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Perform OCR on a document using Mistral's dedicated OCR API.
+        
+        Supports two workflows:
+        1. Direct file upload: Pass file_path, and it will upload + OCR in one call
+        2. Pre-uploaded file: Pass document with file_id from previous upload
+        
+        Args:
+            document: Document to process (FileChunk, DocumentURLChunk, or ImageURLChunk)
+            file_path: Path to file to upload and process (alternative to document)
+            model: Model to use (required, defaults to mistral-ocr-latest)
+            pages: Specific pages to process (starts from 0)
+            include_image_base64: Include image URLs in response
+            image_limit: Max images to extract
+            image_min_size: Minimum height and width of image to extract
+            bbox_annotation_format: Structured output for bounding boxes
+            document_annotation_format: Structured output for entire document
+            timeout: Request timeout in seconds
+            
+        Returns:
+            OCR response with extracted text and metadata
+            
+        Raises:
+            ValueError: If provider is not Mistral or request fails
+            
+        Examples:
+            # Workflow 1: Direct file upload + OCR
+            result = await client.ocr(file_path="/path/to/document.pdf", pages=[0])
+            
+            # Workflow 2: Pre-uploaded file
+            upload_result = await client.upload_file("/path/to/document.pdf")
+            result = await client.ocr(document={"type": "file", "file_id": upload_result["id"]})
+        """
+        if self.config.provider != "mistral":
+            raise ValueError("OCR API is only available for Mistral provider")
+        
+        # Handle both workflows
+        if file_path and document:
+            raise ValueError("Cannot specify both file_path and document. Choose one workflow.")
+        
+        if file_path:
+            # Workflow 1: Upload file first, then OCR
+            print(f"📤 Uploading file: {file_path}")
+            upload_result = await self.upload_file(file_path, purpose="ocr", timeout=timeout)
+            document = {
+                "type": "file",
+                "file_id": upload_result["id"]
+            }
+            print(f"✅ File uploaded with ID: {upload_result['id']}")
+        
+        if not document:
+            raise ValueError("Must specify either file_path or document parameter")
+        
+        # Build OCR request - model is required by API
+        ocr_request = {
+            "model": model,
+            "document": document
+        }
+        
+        # Add optional parameters only if they have values
+        if pages is not None:
+            ocr_request["pages"] = pages
+        if include_image_base64 is not None:
+            ocr_request["include_image_base64"] = include_image_base64
+        if image_limit is not None:
+            ocr_request["image_limit"] = image_limit
+        if image_min_size is not None:
+            ocr_request["image_min_size"] = image_min_size
+        if bbox_annotation_format is not None:
+            ocr_request["bbox_annotation_format"] = bbox_annotation_format
+        if document_annotation_format is not None:
+            ocr_request["document_annotation_format"] = document_annotation_format
+        
+        # Add any additional kwargs
+        ocr_request.update(kwargs)
+        
+        try:
+            print(f"🔍 Running OCR on document...")
+            response = await asyncio.wait_for(
+                self._submit_ocr_request(ocr_request),
+                timeout=timeout
+            )
+            print(f"✅ OCR completed! Pages processed: {response.get('usage_info', {}).get('pages_processed', 'N/A')}")
+            return response
+        except asyncio.TimeoutError:
+            raise ValueError(f"OCR request timed out after {timeout} seconds")
+        except Exception as e:
+            raise ValueError(f"OCR request failed: {e}")
+
+    async def _submit_ocr_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Submit OCR request to Mistral API"""
+        headers = {
+            "Authorization": f"Bearer {self.config.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # Use Mistral OCR endpoint
+        url = f"{self.config.base_url}/ocr"
+        
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=request, headers=headers) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise ValueError(f"OCR API error {response.status}: {error_text}")
+                    
+                    return await response.json()
+        except ImportError:
+            # Fallback to requests if aiohttp not available
+            import requests
+            response = requests.post(url, json=request, headers=headers)
+            if response.status_code != 200:
+                raise ValueError(f"OCR API error {response.status_code}: {response.text}")
+            return response.json()
+
+    async def _parse_with_chat_completions_api(
+        self,
+        messages: List[Dict[str, Any]] = None,
+        response_format: Type[Any] = None,
+        debug: bool = False,
+        timeout: Optional[float] = 30.0,
+        **kwargs
+    ) -> ParsedChatCompletion:
+        """Parse using traditional Chat Completions API"""
+        if not messages:
+            raise ValueError("messages is required for Chat Completions API")
+        if not response_format:
+            raise ValueError("response_format is required for Chat Completions API")
+        
+        # Create response format for the model
+        response_format_dict = ResponseFormat.from_model(response_format)
+        
+        # Add response_format to kwargs
+        kwargs["response_format"] = response_format_dict
+        
+        if debug:
+            print(f"📡 Using Chat Completions API: /v1/chat/completions")
+        
+        # Get completion response with timeout
+        import asyncio
+        try:
+            response = await asyncio.wait_for(
+                self.completion(messages, stream=False, debug=debug, **kwargs),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            raise ValueError(f"Chat Completions API call timed out after {timeout} seconds.")
+        except Exception as e:
+            raise ValueError(f"Chat Completions API call failed: {e}")
+        
+        # Parse using structured output parser
+        parser = StructuredOutputParser(response_format)
+        
+        # Handle different response types
+        if isinstance(response, ReasoningResponse):
+            # For reasoning responses, create a mock API response format
+            mock_response = {
+                "id": "reasoning-" + str(uuid.uuid4()),
+                "object": "chat.completion",
+                "created": int(asyncio.get_event_loop().time()),
+                "model": self.config.model,
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": response._output
+                    },
+                    "finish_reason": "stop"
+                }]
+            }
+        elif isinstance(response, dict) and "raw_response" in response:
+            mock_response = response["raw_response"]
+        else:
+            # Create mock response from simple dict response
+            content = response.get("text", str(response)) if isinstance(response, dict) else str(response)
+            mock_response = {
+                "id": "completion-" + str(uuid.uuid4()),
+                "object": "chat.completion", 
+                "created": int(asyncio.get_event_loop().time()),
+                "model": self.config.model,
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": content
+                    },
+                    "finish_reason": "stop"
+                }]
+            }
+        
+        return parser.parse_response(mock_response)
+
+    async def _submit_responses_request(self, request: Dict[str, Any], debug: bool = False) -> Dict[str, Any]:
+        """Submit request to OpenAI Responses API"""
+        # This is a simplified implementation - in practice you'd use the Rust core
+        # with the /v1/responses endpoint instead of /v1/chat/completions
+        
+        # For now, we'll simulate the Responses API by converting to Chat Completions format
+        # and using the existing infrastructure, but with Responses API semantics
+        
+        # Convert Responses API request to Chat Completions format
+        chat_request = self._convert_responses_to_chat_request(request)
+        
+        if debug:
+            print(f"🔄 Converting Responses API request to Chat Completions format")
+            print(f"📋 Converted request: {chat_request}")
+        
+        # Submit using existing Chat Completions infrastructure
+        self.core._submit(json_dumps(chat_request))
+        
+        while True:
+            if response := self.core._get_response():
+                try:
+                    response_data = json_loads(response)
+                    if debug:
+                        print(f"📨 Raw Chat Completions response: {response_data}")
+                    
+                    # Convert back to Responses API format
+                    responses_format = self._convert_chat_to_responses_format(response_data)
+                    
+                    if debug:
+                        print(f"🆕 Converted to Responses API format: {responses_format}")
+                    
+                    return responses_format
+                except Exception as e:
+                    if debug:
+                        print(f"❌ Error processing response: {e}")
+                    raise
+
+    def _convert_responses_to_chat_request(self, responses_request: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert Responses API request to Chat Completions format"""
+        chat_request = {
+            "_headers": responses_request.get("_headers", {}),
+            "model": responses_request["model"],
+            "stream": False
+        }
+        
+        # Convert input to messages
+        input_data = responses_request.get("input")
+        instructions = responses_request.get("instructions")
+        
+        messages = []
+        
+        # Add instructions as system message
+        if instructions:
+            messages.append({"role": "system", "content": instructions})
+        
+        # Handle input
+        if isinstance(input_data, str):
+            messages.append({"role": "user", "content": input_data})
+        elif isinstance(input_data, list):
+            messages.extend(input_data)
+        
+        chat_request["messages"] = messages
+        
+        # Convert text.format to response_format
+        if "text" in responses_request and "format" in responses_request["text"]:
+            chat_request["response_format"] = responses_request["text"]["format"]
+        
+        # Copy other parameters
+        for key, value in responses_request.items():
+            if key not in ["input", "instructions", "text", "_headers", "_endpoint"]:
+                chat_request[key] = value
+        
+        return chat_request
+
+    def _convert_chat_to_responses_format(self, chat_response: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert Chat Completions response to Responses API format"""
+        # Simulate Responses API response structure
+        responses_response = {
+            "id": f"resp_{chat_response.get('id', 'unknown')}",
+            "object": "response",
+            "created_at": chat_response.get("created", 0),
+            "model": chat_response.get("model", ""),
+            "output": []
+        }
+        
+        # Convert choices to output items
+        if "choices" in chat_response:
+            for choice in chat_response["choices"]:
+                message = choice.get("message", {})
+                content = message.get("content", "")
+                
+                # Create message item
+                message_item = {
+                    "id": f"msg_{chat_response.get('id', 'unknown')}",
+                    "type": "message",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": content,
+                            "annotations": [],
+                            "logprobs": []
+                        }
+                    ],
+                    "role": "assistant"
+                }
+                
+                responses_response["output"].append(message_item)
+        
+        # Copy usage and other metadata
+        if "usage" in chat_response:
+            responses_response["usage"] = chat_response["usage"]
+        
+        return responses_response
+
+    def _convert_responses_to_chat_format(self, responses_response: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert Responses API response to Chat Completions format for parsing"""
+        chat_response = {
+            "id": responses_response.get("id", "").replace("resp_", "chatcmpl-"),
+            "object": "chat.completion",
+            "created": responses_response.get("created_at", 0),
+            "model": responses_response.get("model", ""),
+            "choices": []
+        }
+        
+        # Convert output items to choices
+        output_items = responses_response.get("output", [])
+        for i, item in enumerate(output_items):
+            if item.get("type") == "message":
+                content_items = item.get("content", [])
+                text_content = ""
+                
+                # Extract text from content items
+                for content_item in content_items:
+                    if content_item.get("type") == "output_text":
+                        text_content += content_item.get("text", "")
+                
+                choice = {
+                    "index": i,
+                    "message": {
+                        "role": "assistant",
+                        "content": text_content,
+                        "refusal": None
+                    },
+                    "finish_reason": "stop"
+                }
+                
+                chat_response["choices"].append(choice)
+        
+        # Copy usage and other metadata
+        if "usage" in responses_response:
+            chat_response["usage"] = responses_response["usage"]
+        
+        return chat_response
+
+    async def _handle_tool_calls(
+        self,
+        messages: List[Dict[str, Any]],
+        tool_calls: List[Dict[str, Any]],
+        debug: bool = False
+    ) -> List[Dict[str, Any]]:
+        """Handle tool calls and append results to messages"""
+        if debug:
+            print("\nHandling tool calls...")
+        
+        # First add the assistant's message with tool calls
+        messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": tool_calls
+        })
+        
+        # Then handle each tool call
+        for tool_call in tool_calls:
+            if self.debug_debug:
+                print(f"\nProcessing tool call: {json_dumps(tool_call)}")
+            
+            # Create ToolCall object
+            call = ToolCall(
+                id=tool_call.get("id", str(uuid.uuid4())),
+                type=tool_call.get("type", "function"),  # Default to "function" if not provided
+                function=tool_call["function"]
+            )
+            
+            try:
+                # Execute the tool
+                if self.debug_debug:
+                    print(f"\nExecuting tool: {call.function['name']}")
+                    print(f"Arguments: {call.function['arguments']}")
+                
+                result = await self.tool_registry.execute_tool(call)
+                
+                if self.debug_debug:
+                    print(f"Tool execution result: {result}")
+                
+                # Add tool result to messages
+                tool_message = {
+                    "role": "tool",
+                    "content": str(result),
+                    "tool_call_id": call.id
+                }
+                
+                messages.append(tool_message)
+                
+                if self.debug_debug:
+                    print(f"Added tool message: {json_dumps(tool_message)}")
+                    
+            except Exception as e:
+                if self.debug_debug:
+                    print(f"Error executing tool {call.function['name']}: {e}")
+                messages.append({
+                    "role": "tool",
+                    "content": f"Error: {str(e)}",
+                    "tool_call_id": call.id
+                })
+        
+        return messages
+
+    async def completion(
+        self,
+        messages: List[Dict[str, Any]] = None,
+        *,
+        input: Union[str, List[Dict[str, Any]]] = None,  # New Responses API parameter
+        instructions: str = None,  # New Responses API parameter
+        stream: bool = False,
+        debug: bool = False,
+        **kwargs
+    ) -> Union[Dict[str, Any], AsyncIterator[str]]:
+        """
+        Enhanced completion method supporting both Chat Completions and Responses APIs.
+        
+        Chat Completions API (traditional):
+            response = await client.completion([{"role": "user", "content": "Hello"}])
+            
+        Responses API (OpenAI only):
+            response = await client.completion(input="Hello", instructions="You are helpful")
+            
+        Args:
+            messages: List of messages for Chat Completions API
+            input: Input for Responses API (string or list of messages)
+            instructions: System instructions for Responses API
+            stream: Whether to stream the response
+            debug: Enable debug logging
+            **kwargs: Additional parameters
+        """
+        # Set debug mode for this request
+        debug = debug or self.debug
+        
+        # Determine if we should use Responses API (OpenAI only)
+        use_responses_api = (
+            self.config.provider == "openai" and 
+            (input is not None or instructions is not None)
+        )
+        
+        if use_responses_api:
+            if debug:
+                print(f"🆕 Using OpenAI Responses API (stream={stream})")
+            
+            # Use the actual Responses API endpoint and format
+            return await self._responses_api_completion(
+                input=input,
+                instructions=instructions,
+                stream=stream,
+                debug=debug,
+                **kwargs
+            )
+        else:
+            if not messages:
+                raise ValueError("'messages' is required for Chat Completions API")
+            
+            if debug:
+                print(f"📡 Using Chat Completions API (stream={stream})")
+            
+            return await self._completion_chat_api(messages, stream=stream, debug=debug, **kwargs)
+
+    async def _responses_api_completion(
+        self,
+        input: Union[str, List[Dict[str, Any]]] = None,
+        instructions: str = None,
+        stream: bool = False,
+        debug: bool = False,
+        **kwargs
+    ) -> Union[Dict[str, Any], AsyncIterator[str]]:
+        """Handle completion using OpenAI's Responses API with fallback"""
+        if debug:
+            print(f"🚀 Trying Responses API (stream={stream})")
+        
+        # For now, fall back to Chat Completions API with conversion
+        # TODO: Implement true Responses API when Rust core supports /responses endpoint
+        if debug:
+            print("⚠️  Responses API not yet implemented in Rust core, falling back to Chat Completions")
+        
+        # Convert Responses API format to Chat Completions format
+        converted_messages = []
+        
+        if instructions:
+            converted_messages.append({"role": "system", "content": instructions})
+        
+        if isinstance(input, str):
+            converted_messages.append({"role": "user", "content": input})
+        elif isinstance(input, list):
+            converted_messages.extend(input)
+        else:
+            raise ValueError("'input' must be a string or list of messages")
+        
+        if debug:
+            print(f"🔄 Converting to Chat Completions format: {converted_messages}")
+        
+        # Use Chat Completions API with converted messages
+        return await self._completion_chat_api(converted_messages, stream=stream, debug=debug, **kwargs)
+
+    async def _completion_chat_api(
+        self,
+        messages: List[Dict[str, Any]],
+        stream: bool = False,
+        debug: bool = False,
+        **kwargs
+    ) -> Union[Dict[str, Any], AsyncIterator[str]]:
+        """Handle completion using Chat Completions API"""
+        # Set debug mode for this request
+        debug = debug or self.debug
+        
+        if stream:
+            # Use streaming method (debug is handled internally)
+            return self.astream_completion(messages, **kwargs)
+            
+        # Add tools to request if any are registered
+        if self.tool_registry.get_public_definitions():
+            if self.config.provider == "cerebras":
+                tools = self.tool_registry.get_cerebras_definitions()
+            elif self.config.provider == "anthropic":
+                tools = self.tool_registry.get_anthropic_definitions()
+            else:
+                tools = self.tool_registry.get_public_definitions()
+            kwargs["tools"] = tools
+            if self.debug_debug:
+                print(f"\nRegistered tools ({self.config.provider}): {json_dumps(tools)}")
+            
+        # Extract model name after provider
+        # Foundation model providers (openai, anthropic, gemini) use simple provider/model format
+        # Gateway providers (groq, openrouter, sambanova) may use provider/company/model format
+        if '/' in self.config.model:
+            parts = self.config.model.split('/')
+            if self.config.provider in ['groq', 'openrouter', 'sambanova', 'cerebras']:
+                # Gateway providers: keep everything after provider (handles company/model)
+                model = "/".join(parts[1:])
+                pass  # Gateway provider parsing
+            else:
+                # Foundation providers: just take model name after provider
+                model = parts[1]
+        else:
+            model = self.config.model
+        
+        # Prepare headers based on provider
+        if self.config.provider == "anthropic":
+            headers = {
+                "x-api-key": self.config.api_key,
+                "anthropic-version": "2023-06-01",
+            }
+        elif self.config.provider == "mistral":
+            headers = {
+                "Authorization": f"Bearer {self.config.api_key}"
+            }
+        else:
+            headers = {
+                "Authorization": f"Bearer {self.config.api_key}"
+            }
+        
+        # Remove debug from kwargs if present
+        kwargs.pop('debug', None)
+        
+        # Prepare request
+        # Only include max_tokens if provided (avoid null/None in provider payloads)
+        req_max_tokens = kwargs.pop("max_tokens", self.config.max_tokens)
+        # Anthropic requires max_tokens; default if missing
+        if self.config.provider == "anthropic" and req_max_tokens is None:
+            req_max_tokens = 1024
+        request = {
+            "_headers": headers,
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            **kwargs
+        }
+        if req_max_tokens is not None:
+            # GPT-5 models expect 'max_completion_tokens' instead of 'max_tokens'
+            try:
+                is_gpt5 = bool(re.search(r"(?:^|/)gpt-5", model))
+            except Exception:
+                is_gpt5 = isinstance(model, str) and model.startswith("gpt-5")
+            token_field = "max_completion_tokens" if is_gpt5 else "max_tokens"
+            request[token_field] = req_max_tokens
+        
+        # Gemini now uses OpenAI-compatible chat/completions path; no special formatting.
+        
+        # Provider-specific payload normalization
+        if self.config.provider == "anthropic":
+            # Transform messages to Anthropic block schema if needed
+            norm_msgs = []
+            for m in request.get("messages", []):
+                content = m.get("content", "")
+                if isinstance(content, str):
+                    content = [{"type": "text", "text": content}]
+                norm_msgs.append({"role": m.get("role", "user"), "content": content})
+            request["messages"] = norm_msgs
+
+        if self.debug_debug:
+            print(f"\nSending request: {json_dumps(request)}")
+        
+        # Submit request
+        self.core._submit(json_dumps(request))
+        
+        while True:
+            if response := self.core._get_response():
+                try:
+                    if debug:
+                        print(f"\nRaw response: {response}")
+                    
+                    response_data = json_loads(response)
+                    
+                    # Anthropic non-streaming AFC: detect tool_use blocks, execute, and continue
+                    if (
+                        (self.config.provider == "anthropic")
+                        and isinstance(response_data, dict)
+                        and isinstance(response_data.get("content"), list)
+                    ):
+                        content_blocks = response_data.get("content", [])
+                        tool_use_blocks = [b for b in content_blocks if isinstance(b, dict) and b.get("type") == "tool_use"]
+                        if tool_use_blocks:
+                            # Append the assistant tool_use message as-is
+                            messages.append({
+                                "role": "assistant",
+                                "content": content_blocks,
+                            })
+
+                            # Execute tools and build tool_result blocks
+                            tool_results: List[Dict[str, Any]] = []
+                            for tub in tool_use_blocks:
+                                call = ToolCall(
+                                    id=tub.get("id") or str(uuid.uuid4()),
+                                    type="function",
+                                    function={
+                                        "name": tub.get("name"),
+                                        "arguments": tub.get("input", {}),
+                                    },
+                                )
+                                try:
+                                    result = await self.tool_registry.execute_tool(call)
+                                    tool_results.append({
+                                        "type": "tool_result",
+                                        "tool_use_id": call.id,
+                                        "content": str(result),
+                                    })
+                                except Exception as e:
+                                    tool_results.append({
+                                        "type": "tool_result",
+                                        "tool_use_id": call.id,
+                                        "content": f"Error: {e}",
+                                    })
+
+                            # Continue conversation with tool results as user blocks
+                            messages.append({
+                                "role": "user",
+                                "content": tool_results,
+                            })
+
+                            # Re-normalize anthropic block schema and resubmit
+                            next_request = dict(request)
+                            norm_msgs: List[Dict[str, Any]] = []
+                            for m in messages:
+                                c = m.get("content", "")
+                                if isinstance(c, str):
+                                    c = [{"type": "text", "text": c}]
+                                norm_msgs.append({"role": m.get("role", "user"), "content": c})
+                            next_request["messages"] = norm_msgs
+                            if self.debug_debug:
+                                try:
+                                    print(f"\n[anthropic][non-stream AFC] resubmitting with tool_results: {json_dumps(tool_results)}")
+                                except Exception:
+                                    pass
+                            self.core._submit(json_dumps(next_request))
+                            continue
+
+                    # Check for tool calls in response
+                    message = response_data.get("choices", [{}])[0].get("message", {})
+                    tool_calls = message.get("tool_calls")
+                    if tool_calls and isinstance(tool_calls, list) and len(tool_calls) > 0:
+                        if debug:
+                            print("\nFound tool calls in response")
+                        
+                        # Handle tool calls and update messages
+                        messages = await self._handle_tool_calls(messages, tool_calls, debug)
+                        
+                        # Continue conversation with tool results
+                        if self.debug_debug:
+                            print(f"\nContinuing conversation with updated messages: {json_dumps(messages)}")
+                        
+                        # Make a new request with the updated messages
+                        request["messages"] = messages
+                        self.core._submit(json_dumps(request))
+                        continue
+                    
+                    # For Gemini responses
+                    if self.config.provider == "gemini":
+                        if "candidates" in response_data:
+                            candidate = response_data["candidates"][0]
+                            
+                            # Check for function calls
+                            if "functionCall" in candidate:
+                                if debug:
+                                    print("\nFound function call in Gemini response")
+                                
+                                function_call = candidate["functionCall"]
+                                tool_calls = [{
+                                    "id": str(uuid.uuid4()),
+                                    "type": "function",
+                                    "function": {
+                                        "name": function_call["name"],
+                                        "arguments": function_call["args"]
+                                    }
+                                }]
+                                
+                                # Handle tool calls and update messages
+                                messages = await self._handle_tool_calls(messages, tool_calls, debug)
+                                
+                                # Continue conversation with tool results
+                                if self.debug_debug:
+                                    print(f"\nContinuing conversation with updated messages: {json_dumps(messages)}")
+                                
+                                # Make a new request with the updated messages (OpenAI-compatible continuation)
+                                request["messages"] = messages
+                                self.core._submit(json_dumps(request))
+                                continue
+                            
+                            # Handle regular response
+                            text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
+                            return {
+                                "text": text or str(response_data),
+                                "raw_response": response_data
+                            }
+                    
+                    # Handle responses in completion method
+                    if "choices" in response_data:
+                        message = response_data["choices"][0]["message"]
+                        content = message.get("content", "")
+                        
+                        # First check for tool calls
+                        tool_calls = message.get("tool_calls")
+                        if tool_calls and isinstance(tool_calls, list) and len(tool_calls) > 0:
+                            if debug:
+                                print("\nFound tool calls in response")
+                            
+                            # Handle tool calls and update messages
+                            messages = await self._handle_tool_calls(messages, tool_calls, debug)
+                            
+                            # Continue conversation with tool results
+                            if self.debug_debug:
+                                print(f"\nContinuing conversation with updated messages: {json_dumps(messages)}")
+                            
+                            # Make a new request with the updated messages
+                            request["messages"] = messages
+                            self.core._submit(json_dumps(request))
+                            continue
+                        
+                        # Extract function call from content if present
+                        function_match = re.search(r'<function-call>(.*?)</function-call>', content, re.DOTALL)
+                        if function_match:
+                            try:
+                                function_data = json_loads(function_match.group(1).strip())
+                                tool_calls = [{
+                                    "id": str(uuid.uuid4()),
+                                    "type": "function",
+                                    "function": {
+                                        "name": function_data["name"],
+                                        "arguments": json_dumps(function_data["arguments"])
+                                    }
+                                }]
+                                
+                                # Handle tool calls and update messages
+                                messages = await self._handle_tool_calls(messages, tool_calls, debug)
+                                
+                                # Continue conversation with tool results
+                                if debug:
+                                    print(f"\nContinuing conversation with updated messages: {json_dumps(messages)}")
+                                
+                                # Make a new request with the updated messages
+                                request["messages"] = messages
+                                self.core._submit(json_dumps(request))
+                                continue
+                            except JSONDecodeError as e:
+                                if debug:
+                                    print(f"Error parsing function call JSON: {e}")
+                        
+                        # Then check for reasoning format
+                        think_match = re.search(r'<think>(.*?)</think>', content, re.DOTALL)
+                        if think_match or message.get("reasoning"):
+                            # Get reasoning either from think tags or reasoning field
+                            reasoning = think_match.group(1).strip() if think_match else message.get("reasoning", "")
+                            
+                            # Get output - either after </think> or full content if no think tags
+                            output = content[content.find("</think>") + 8:].strip() if think_match else content
+                            
+                            # Create ReasoningResponse
+                            return ReasoningResponse(
+                                _reasoning=reasoning,
+                                _output=output,
+                                _raw=response_data
+                            )
+                        
+                        # Regular response if no reasoning found
+                        return {
+                            "text": content,
+                            "raw_response": response_data
+                        }
+                    
+                    # Handle final response
+                    if "choices" in response_data:
+                        message = response_data["choices"][0]["message"]
+                        text = message.get("content")
+                        
+                        if self.debug_debug:
+                            print(f"\nFinal message: {json_dumps(message)}")
+                        
+                        return {
+                            "text": text or str(response_data),
+                            "raw_response": response_data
+                        }
+                    
+                    # Handle different response formats
+                    if "candidates" in response_data:
+                        text = response_data["candidates"][0]["content"]["parts"][0]["text"]
+                    elif "choices" in response_data:
+                        text = response_data["choices"][0]["message"]["content"]
+                    else:
+                        text = response_data.get("text", str(response_data))
+                    
+                    if debug:
+                        print(f"\nExtracted text: {text}")
+                    
+                    if not text:
+                        if debug:
+                            print("\nWarning: Extracted text is empty or None")
+                        text = str(response_data)
+                    
+                    return {
+                        "text": text,
+                        "raw_response": response_data
+                    }
+                    
+                except Exception as e:
+                    if debug:
+                        print(f"\nError parsing response: {e}")
+                    return {
+                        "text": str(response),
+                        "raw_response": {"text": str(response)}
+                    }
+            await asyncio.sleep(0.1)
+
+    async def generate_image(
+        self,
+        prompt: str,
+        *,
+        model: Optional[str] = None,
+        size: str = "1024x1024",
+        n: int = 1,
+        response_format: str = "b64_json",
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """
+        Generate image(s) via OpenAI-compatible v1 images endpoint.
+        Returns the raw JSON dict from the provider.
+        """
+        base_url = self.config.base_url or "https://api.openai.com/v1"
+        endpoint = f"{base_url}/images/generations"
+
+        headers = (
+            {"x-api-key": self.config.api_key}
+            if self.config.provider == "anthropic"
+            else {"Authorization": f"Bearer {self.config.api_key}"}
+        )
+
+        if model is None:
+            if "/" in self.config.model:
+                model = self.config.model.split("/")[-1]
+            else:
+                model = self.config.model
+
+        request: Dict[str, Any] = {
+            "_headers": headers,
+            "_endpoint": endpoint,
+            "model": model,
+            "prompt": prompt,
+            "n": n,
+            "size": size,
+            "response_format": response_format,
+            **kwargs,
+        }
+
+        if self.debug_debug:
+            try:
+                print(f"\nSending image generation request: {json_dumps(request)[:1000]}...")
+            except Exception:
+                pass
+
+        self.core._submit(json_dumps(request))
+
+        start = asyncio.get_event_loop().time()
+        while True:
+            if response := self.core._get_response():
+                try:
+                    return json_loads(response)
+                except Exception:
+                    return {"raw": response}
+            if asyncio.get_event_loop().time() - start > self.config.timeout:
+                raise TimeoutError("Image generation timed out")
+            await asyncio.sleep(0.05)
+
+    async def analyze_image(
+        self,
+        *,
+        prompt: str,
+        image_path: str,
+        max_tokens: int = 128,
+    ) -> Dict[str, Any]:
+        """Analyze/describe an image with a text prompt via provider VLM APIs.
+
+        Providers:
+        - anthropic: messages API with image block
+        - gemini: native generateContent with inline_data
+        """
+        # Derive short model name
+        if '/' in self.config.model:
+            model = self.config.model.split('/')[-1]
+        else:
+            model = self.config.model
+
+        # Base64 encode image and guess MIME
+        ext = os.path.splitext(image_path)[1].lower()
+        mime = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+        }.get(ext, "image/png")
+        with open(image_path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("utf-8")
+
+        if self.config.provider == "anthropic":
+            headers = {"x-api-key": self.config.api_key}
+            # Determine token field for GPT-5
+            try:
+                is_gpt5_img = bool(re.search(r"(?:^|/)gpt-5", model))
+            except Exception:
+                is_gpt5_img = isinstance(model, str) and model.startswith("gpt-5")
+            token_field_img = "max_completion_tokens" if is_gpt5_img else "max_tokens"
+            request: Dict[str, Any] = {
+                "_headers": headers,
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image",
+                                "source": {"type": "base64", "media_type": mime, "data": b64},
+                            },
+                        ],
+                    }
+                ],
+                token_field_img: max_tokens,
+            }
+        elif self.config.provider in ("gemini", "openai", "mistral", "groq"):
+            # Use standard Chat Completions format for all models (including GPT-5)
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+                    ],
+                }
+            ]
+
+            # Choose provider-appropriate base URL, but allow explicit override via config.base_url
+            default_base = (
+                "https://api.openai.com/v1" if self.config.provider == "openai" else
+                "https://api.mistral.ai/v1" if self.config.provider == "mistral" else
+                "https://api.groq.com/openai/v1" if self.config.provider == "groq" else
+                "https://generativelanguage.googleapis.com/v1beta/openai"
+            )
+            endpoint = f"{(self.config.base_url or default_base)}/chat/completions"
+            # Determine token field for GPT-5
+            try:
+                is_gpt5_img2 = bool(re.search(r"(?:^|/)gpt-5", model))
+            except Exception:
+                is_gpt5_img2 = isinstance(model, str) and model.startswith("gpt-5")
+            token_field_img2 = "max_completion_tokens" if is_gpt5_img2 else "max_tokens"
+            request = {
+                "_headers": {"Authorization": f"Bearer {self.config.api_key}"},
+                "_endpoint": endpoint,
+                "model": model,
+                "messages": messages,
+                token_field_img2: max_tokens,
+            }
+        else:
+            raise ValueError(f"analyze_image not supported for provider: {self.config.provider}")
+
+        if self.debug_debug:
+            try:
+                dbg = {k: v for k, v in request.items() if k != "_headers"}
+                print(f"\nSending image analysis request: {json_dumps(dbg)[:1000]}...")
+            except Exception:
+                pass
+        if self.config.provider == "gemini":
+            try:
+                print(f"Gemini analyze_image debug: prompt_len={len(prompt)}, b64_len={len(b64)}, mime={mime}")
+            except Exception:
+                pass
+
+        self.core._submit(json_dumps(request))
+
+        start = asyncio.get_event_loop().time()
+        while True:
+            if response := self.core._get_response():
+                try:
+                    data = json_loads(response)
+                except Exception:
+                    return {"raw_response": response}
+
+                if self.config.provider == "anthropic":
+                    text = None
+                    try:
+                        text = data.get("content", [{}])[0].get("text")
+                    except Exception:
+                        pass
+                    return {"text": text or str(data), "raw_response": data}
+                elif self.config.provider == "gemini":
+                    text = None
+                    try:
+                        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                        for p in parts:
+                            if isinstance(p, dict) and "text" in p:
+                                text = p["text"]
+                                break
+                    except Exception:
+                        pass
+                    return {"text": text or str(data), "raw_response": data}
+                elif self.config.provider in ("openai", "mistral", "groq"):
+                    # OpenAI, Mistral, and Groq use standard OpenAI format
+                    text = None
+                    try:
+                        text = data.get("choices", [{}])[0].get("message", {}).get("content")
+                    except Exception:
+                        pass
+                    return {"text": text or str(data), "raw_response": data}
+            if asyncio.get_event_loop().time() - start > self.config.timeout:
+                raise TimeoutError("Image analysis timed out")
+            await asyncio.sleep(0.05)
+
+    def register_image_tool(self) -> None:
+        """Register a tool named 'generate_image' available to the model."""
+        async def _image_tool(prompt: str, size: str = "1024x1024", n: int = 1) -> Dict[str, Any]:
+            return await self.generate_image(prompt=prompt, size=size, n=n)
+
+        self.register_tool(
+            name="generate_image",
+            func=_image_tool,
+            description="Generate image(s) from a text prompt using the provider's image API.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "Text prompt to generate images"},
+                    "size": {"type": "string", "enum": ["256x256", "512x512", "1024x1024"]},
+                    "n": {"type": "integer", "minimum": 1, "maximum": 10},
+                },
+                "required": ["prompt"],
+                "additionalProperties": False,
+            },
+        )
+    
+    async def astream_completion(
+        self,
+        messages: List[Dict[str, Any]],
+        **kwargs
+    ) -> AsyncIterator[str]:
+        """Stream completion responses"""
+        # Extract model name after provider
+        if '/' in self.config.model:
+            parts = self.config.model.split('/')
+            if self.config.provider in ['groq', 'openrouter', 'sambanova']:
+                # Gateway providers: keep everything after provider (handles company/model)
+                model = "/".join(parts[1:])
+            else:
+                # Foundation providers: just take model name after provider
+                model = parts[1]
+        else:
+            model = self.config.model
+        
+        # Prepare headers consistent with non-streaming path
+        if self.config.provider == "anthropic":
+            headers = {
+                "x-api-key": self.config.api_key,
+                "anthropic-version": "2023-06-01",
+            }
+        elif self.config.provider == "mistral":
+            headers = {"Authorization": f"Bearer {self.config.api_key}"}
+        else:
+            headers = {"Authorization": f"Bearer {self.config.api_key}"}
+        
+        # Prepare base streaming request
+        # Determine token field based on model (GPT-5 uses 'max_completion_tokens')
+        try:
+            is_gpt5_stream = bool(re.search(r"(?:^|/)gpt-5", model))
+        except Exception:
+            is_gpt5_stream = isinstance(model, str) and model.startswith("gpt-5")
+        token_field_stream = "max_completion_tokens" if is_gpt5_stream else "max_tokens"
+        req_max_tokens_stream = kwargs.pop("max_tokens", 1024)
+        request = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+            "_headers": headers,
+            token_field_stream: req_max_tokens_stream,
+            **kwargs
+        }
+
+        # Normalize Anthropics messages to block schema (same as non-streaming)
+        if self.config.provider == "anthropic":
+            norm_msgs: List[Dict[str, Any]] = []
+            for m in request.get("messages", []):
+                content = m.get("content", "")
+                if isinstance(content, str):
+                    content = [{"type": "text", "text": content}]
+                norm_msgs.append({"role": m.get("role", "user"), "content": content})
+            request["messages"] = norm_msgs
+        
+        # Add tools if any are registered
+        public_tools = self.tool_registry.get_public_definitions()
+        if public_tools:
+            if self.config.provider == "cerebras":
+                request["tools"] = self.tool_registry.get_cerebras_definitions()
+            elif self.config.provider == "anthropic":
+                request["tools"] = self.tool_registry.get_anthropic_definitions()
+            else:
+                request["tools"] = public_tools
+        
+        if self.debug:
+            print(f"Sending streaming request for {self.config.provider}")
+        
+        # Local copy of messages that we will mutate when handling tool calls
+        running_messages = list(messages)
+
+        # Function-call accumulation for OpenAI-compatible streaming
+        tool_accum: Dict[int, Dict[str, Any]] = {}
+        # Anthropic tool_use accumulation during streaming
+        anthropic_tools: Dict[int, Dict[str, Any]] = {}
+        # Debug state
+        round_idx = 1
+        chunk_count = 0
+
+        if self.debug:
+            try:
+                print(f"[bhumi] submit stream round={round_idx} provider={self.config.provider} model={model}")
+                print(f"[bhumi] tools_registered={bool(public_tools)} timeout={self.config.timeout}")
+            except Exception:
+                pass
+        self.core._submit(json_dumps(request))
+        start = asyncio.get_event_loop().time()
+        
+        while True:
+            chunk = self.core._get_stream_chunk()
+            if chunk == "[DONE]":
+                # Try to harvest a final non-stream response (common after tool-calls).
+                # Poll briefly because the core may enqueue it slightly after [DONE].
+                try:
+                    get_resp = getattr(self.core, "_get_response", None)
+                except Exception:
+                    get_resp = None
+                if callable(get_resp):
+                    harvest_start = asyncio.get_event_loop().time()
+                    while True:
+                        resp = get_resp()
+                        if resp:
+                            try:
+                                data = json_loads(resp)
+                                text_out = None
+                                if isinstance(data, dict) and "choices" in data:
+                                    text_out = (
+                                        data.get("choices", [{}])[0]
+                                        .get("message", {})
+                                        .get("content")
+                                    )
+                                elif isinstance(data, dict) and "candidates" in data:
+                                    try:
+                                        text_out = (
+                                            data["candidates"][0]
+                                            .get("content", {})
+                                            .get("parts", [{}])[0]
+                                            .get("text")
+                                        )
+                                    except Exception:
+                                        text_out = None
+                                if text_out:
+                                    if self.debug:
+                                        print("[bhumi] harvested final text after [DONE]")
+                                    yield text_out
+                                    break
+                                else:
+                                    # Unknown dict payload; yield raw
+                                    yield json_dumps(data)
+                                    break
+                            except Exception:
+                                # Non-JSON payload; yield raw response text
+                                yield str(resp)
+                                break
+                        # Timeout after ~2.0s of waiting
+                        if asyncio.get_event_loop().time() - harvest_start > 2.0:
+                            break
+                        await asyncio.sleep(0.01)
+                break
+            if chunk:
+                # Process any chunk we receive
+                try:
+                    # Try to parse as JSON first (for proper SSE format)
+                    data = json_loads(chunk)
+                    # Surface provider error bodies that were forwarded via stream chunks
+                    if isinstance(data, dict) and data.get("error"):
+                        # OpenAI-style error object: {"error": {"message": "...", ...}}
+                        err = data.get("error")
+                        if isinstance(err, dict):
+                            msg = err.get("message") or json_dumps(err)
+                        else:
+                            msg = str(err)
+                        raise RuntimeError(f"Provider error during streaming: {msg}")
+                    
+                    # If provider returns a JSON primitive (string/number), yield it directly
+                    # This happens for some providers when streaming simple tokens like digits.
+                    if not isinstance(data, dict):
+                        text = str(data)
+                        if text:
+                            yield text
+                        continue
+                        
+                    if self.config.provider == "anthropic":
+                        # Handle Anthropic's SSE format
+                        evt_type = data.get("type")
+                        # Some providers may return a full non-SSE JSON message as a single chunk
+                        # e.g., {"type":"message","content":[{"type":"text","text":"..."}], ...}
+                        if not evt_type and isinstance(data, dict) and data.get("content"):
+                            try:
+                                parts = data.get("content") or []
+                                texts = []
+                                for p in parts:
+                                    if isinstance(p, dict) and p.get("type") == "text":
+                                        t = p.get("text")
+                                        if t:
+                                            texts.append(t)
+                                final_text = "".join(texts)
+                                if final_text:
+                                    yield final_text
+                                    break
+                            except Exception:
+                                pass
+                        if evt_type == "content_block_start":
+                            cb = data.get("content_block", {})
+                            if cb.get("type") == "tool_use":
+                                idx = data.get("index", 0)
+                                anthropic_tools[idx] = {
+                                    "id": cb.get("id") or str(uuid.uuid4()),
+                                    "type": "function",
+                                    "function": {"name": cb.get("name", ""), "arguments": ""},
+                                }
+                        elif evt_type == "content_block_delta":
+                            delta = data.get("delta", {})
+                            if delta.get("type") == "text_delta":
+                                text_piece = delta.get("text", "")
+                                if text_piece:
+                                    if self.debug:
+                                        chunk_count += 1
+                                    yield text_piece
+                            elif delta.get("type") == "input_json_delta":
+                                idx = data.get("index", 0)
+                                acc = anthropic_tools.setdefault(idx, {"function": {"arguments": ""}})
+                                acc_fn = acc.setdefault("function", {"name": "", "arguments": ""})
+                                acc_fn["arguments"] += delta.get("partial_json", "")
+                        elif evt_type == "message_stop":
+                            # If we accumulated tool_use calls, execute and continue conversation
+                            if anthropic_tools:
+                                tool_calls_list = []
+                                for idx in sorted(anthropic_tools.keys()):
+                                    tc = anthropic_tools[idx]
+                                    # Fallback to empty JSON if arguments are missing
+                                    if not tc.get("function", {}).get("arguments"):
+                                        tc["function"]["arguments"] = "{}"
+                                    tool_calls_list.append(tc)
+
+                                # Execute tools and build Anthropic tool_result message
+                                tool_results = []
+                                for tc in tool_calls_list:
+                                    call = ToolCall(
+                                        id=tc.get("id") or str(uuid.uuid4()),
+                                        type=tc.get("type", "function"),
+                                        function=tc.get("function", {}),
+                                    )
+                                    try:
+                                        result = await self.tool_registry.execute_tool(call)
+                                        tool_results.append({
+                                            "type": "tool_result",
+                                            "tool_use_id": call.id,
+                                            "content": str(result),
+                                        })
+                                    except Exception as e:
+                                        tool_results.append({
+                                            "type": "tool_result",
+                                            "tool_use_id": call.id,
+                                            "content": f"Error: {e}",
+                                        })
+
+                                # Append as a user message with tool_result blocks
+                                running_messages.append({
+                                    "role": "user",
+                                    "content": tool_results,
+                                })
+
+                                # Reset accumulators and continue with updated messages
+                                anthropic_tools = {}
+                                next_request = dict(request)
+                                # Re-normalize anthropic message blocks for continuation
+                                norm_msgs: List[Dict[str, Any]] = []
+                                for m in running_messages:
+                                    content = m.get("content", "")
+                                    if isinstance(content, str):
+                                        content = [{"type": "text", "text": content}]
+                                    norm_msgs.append({"role": m.get("role", "user"), "content": content})
+                                next_request["messages"] = norm_msgs
+                                self.core._submit(json_dumps(next_request))
+                                continue
+                            else:
+                                break
+                    # Gemini uses OpenAI-compatible SSE via the /openai path; handle in the default branch.
+                    else:
+                        # Handle OpenAI-compatible providers (OpenAI, Groq, OpenRouter, SambaNova)
+                        if "choices" in data:
+                            choice = data["choices"][0]
+                            if "delta" in choice:
+                                delta = choice["delta"]
+                                # 1) Content deltas
+                                if "content" in delta and delta["content"]:
+                                    yield delta["content"]
+                                # 2) Tool call deltas
+                                if "tool_calls" in delta and isinstance(delta["tool_calls"], list):
+                                    for item in delta["tool_calls"]:
+                                        idx = item.get("index", 0)
+                                        acc = tool_accum.setdefault(
+                                            idx,
+                                            {
+                                                "id": item.get("id"),
+                                                "type": item.get("type", "function"),
+                                                "function": {"name": "", "arguments": ""},
+                                            },
+                                        )
+                                        fn = item.get("function") or {}
+                                        if "name" in fn and fn["name"]:
+                                            acc["function"]["name"] = fn["name"]
+                                        if "arguments" in fn and fn["arguments"]:
+                                            # Accumulate JSON argument string fragments
+                                            acc["function"]["arguments"] += fn["arguments"]
+                            else:
+                                # Non-delta JSON chunk (provider sent final full message mid-stream)
+                                msg = choice.get("message", {})
+                                # If this is a tool_call result, let finish_reason logic handle it below
+                                if isinstance(msg, dict) and msg.get("content"):
+                                    yield msg.get("content")
+                                    break
+
+                            # Check for finish reason
+                            finish_reason = choice.get("finish_reason")
+                            if self.debug:
+                                try:
+                                    print(
+                                        f"DEBUG stream: finish_reason={finish_reason} accum_keys={list(tool_accum.keys())} accum={json_dumps(tool_accum)}"
+                                    )
+                                except Exception:
+                                    print(
+                                        f"DEBUG stream: finish_reason={finish_reason} accum_keys={list(tool_accum.keys())}"
+                                    )
+                            if finish_reason == "tool_calls":
+                                # Execute accumulated tools, then continue streaming with updated messages
+                                tool_calls_list = []
+                                for idx in sorted(tool_accum.keys()):
+                                    tc = tool_accum[idx]
+                                    tool_calls_list.append(
+                                        {
+                                            "id": tc.get("id") or str(uuid.uuid4()),
+                                            "type": tc.get("type", "function"),
+                                            "function": {
+                                                "name": tc.get("function", {}).get("name"),
+                                                "arguments": tc.get("function", {}).get("arguments", "{}"),
+                                            },
+                                        }
+                                    )
+
+                                # Handle tool calls (executes and appends tool results)
+                                running_messages = await self._handle_tool_calls(
+                                    running_messages, tool_calls_list, debug=self.debug
+                                )
+
+                                # Reset accumulators for next round
+                                tool_accum = {}
+
+                                # Continue conversation by resubmitting with updated messages
+                                next_request = dict(request)
+                                next_request["messages"] = running_messages
+                                # Force final answer phase: do not allow further tool calls
+                                # Keep tools present (some providers require tools when tool_choice is provided)
+                                next_request["tool_choice"] = "none"
+                                # For OpenAI, request a non-stream final round to ensure we get the full answer
+                                # without requiring environment flags.
+                                if self.config.provider in ("openai",):
+                                    next_request["stream"] = False
+                                    # Submit and harvest a single final response immediately
+                                    self.core._submit(json_dumps(next_request))
+                                    harvest_start = asyncio.get_event_loop().time()
+                                    while True:
+                                        _gr = getattr(self.core, "_get_response", None)
+                                        resp = _gr() if callable(_gr) else None
+                                        if resp:
+                                            try:
+                                                data = json_loads(resp)
+                                                text = None
+                                                if isinstance(data, dict) and "choices" in data:
+                                                    text = (
+                                                        data.get("choices", [{}])[0]
+                                                        .get("message", {})
+                                                        .get("content")
+                                                    )
+                                                if text:
+                                                    yield text
+                                                else:
+                                                    # Unknown dict payload; yield raw
+                                                    yield json_dumps(data)
+                                                break
+                                            except Exception:
+                                                # Non-JSON payload; yield raw response text
+                                                yield str(resp)
+                                                break
+                                        if asyncio.get_event_loop().time() - harvest_start > self.config.timeout:
+                                            raise TimeoutError("Final non-stream round timed out")
+                                        await asyncio.sleep(0.01)
+                                    break
+
+                                # Optional hybrid fallback for providers with unstable multi-round streams
+                                # Enable by setting BHUMI_HYBRID_TOOLS=1
+                                use_hybrid = os.environ.get("BHUMI_HYBRID_TOOLS", "0") == "1"
+                                if use_hybrid and self.config.provider in ("openai",):
+                                    if self.debug:
+                                        print("[bhumi] tool_calls finish -> using hybrid non-stream round")
+                                    next_request["stream"] = False
+                                    self.core._submit(json_dumps(next_request))
+                                    # Read single final response, yield its text, and finish
+                                    hybrid_start = asyncio.get_event_loop().time()
+                                    while True:
+                                        # Guard for cores that may not implement _get_response (e.g., MockCore)
+                                        _gr = getattr(self.core, "_get_response", None)
+                                        resp = _gr() if callable(_gr) else None
+                                        if resp:
+                                            try:
+                                                data = json_loads(resp)
+                                                text = None
+                                                if isinstance(data, dict) and "choices" in data:
+                                                    text = (
+                                                        data.get("choices", [{}])[0]
+                                                        .get("message", {})
+                                                        .get("content")
+                                                    )
+                                                if text:
+                                                    yield text
+                                                break
+                                            except Exception:
+                                                yield str(resp)
+                                                break
+                                        if asyncio.get_event_loop().time() - hybrid_start > self.config.timeout:
+                                            raise TimeoutError("Hybrid tools round timed out")
+                                        await asyncio.sleep(0.01)
+                                    break
+                                else:
+                                    # Continue streaming normally (AFC-style)
+                                    round_idx += 1
+                                    if self.debug:
+                                        print(f"[bhumi] tool_calls finish -> submit stream round={round_idx}")
+                                    self.core._submit(json_dumps(next_request))
+                                    # Continue loop to process next streaming round
+                                    continue
+                            elif finish_reason:
+                                break
+                except JSONDecodeError:
+                    # If not JSON, check for SSE format
+                    if chunk.startswith("data: "):
+                        data = chunk.removeprefix("data: ")
+                        if data != "[DONE]":
+                            try:
+                                parsed = json_loads(data)
+                                if isinstance(parsed, dict) and "choices" in parsed:
+                                    content = (parsed.get("choices", [{}])[0]
+                                             .get("delta", {})
+                                             .get("content"))
+                                    if content:
+                                        if self.debug:
+                                            chunk_count += 1
+                                        yield content
+                            except JSONDecodeError:
+                                # Raw SSE data that's not JSON
+                                if data.strip():
+                                    if self.debug:
+                                        chunk_count += 1
+                                    yield data
+                    else:
+                        # Raw text chunk - yield directly (this handles the case we're seeing)
+                        if self.debug:
+                            chunk_count += 1
+                        yield chunk
+            # Check for any immediate non-stream error/response from core
+            # Some test cores (e.g., MockCore) do not implement _get_response; guard accordingly.
+            get_resp = None
+            try:
+                get_resp = getattr(self.core, "_get_response", None)
+            except Exception:
+                get_resp = None
+            if callable(get_resp):
+                resp = get_resp()
+                if resp:
+                    try:
+                        data = json_loads(resp)
+                        # Surface provider errors early
+                        if isinstance(data, dict) and data.get("error"):
+                            raise RuntimeError(f"Provider error during streaming: {data['error']}")
+                        # If it's a normal response, try to extract final text and yield it
+                        text_out = None
+                        if isinstance(data, dict):
+                            if "choices" in data:
+                                text_out = (
+                                    data.get("choices", [{}])[0]
+                                    .get("message", {})
+                                    .get("content")
+                                )
+                            elif "candidates" in data:
+                                try:
+                                    text_out = (
+                                        data["candidates"][0]
+                                        .get("content", {})
+                                        .get("parts", [{}])[0]
+                                        .get("text")
+                                    )
+                                except Exception:
+                                    text_out = None
+                        if text_out:
+                            if self.debug:
+                                print(
+                                    f"[bhumi] non-stream response mid-stream -> yielding final text; chunks={chunk_count}"
+                                )
+                            yield text_out
+                        else:
+                            if self.debug:
+                                print(
+                                    f"[bhumi] non-stream response mid-stream with no extractable text; chunks={chunk_count}"
+                                )
+                        break
+                    except Exception:
+                        # Unknown payload; yield raw response text and end
+                        if self.debug:
+                            print("[bhumi] non-stream response mid-stream (unknown format); yielding raw text")
+                        yield str(resp)
+                        break
+
+            # Timeout handling for stuck streams
+            now = asyncio.get_event_loop().time()
+            if now - start > self.config.timeout:
+                raise TimeoutError(f"Streaming timed out after {self.config.timeout} seconds for provider {self.config.provider}")
+            await asyncio.sleep(0.01)
