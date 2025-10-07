@@ -1,0 +1,143 @@
+Metadata-Version: 2.4
+Name: clss-model
+Version: 0.3.3
+Summary: Contrastive Learning for Sequence and Structure - co-embeds protein sequences and structures
+Author: Guy Yanai, Gabriel Axel, Liam M. Longo, Nir Ben-Tal, Rachel Kolodny
+Maintainer-email: Guy Yanai <guy@shay.co.il>
+License: MIT
+Project-URL: Homepage, https://github.com/guyyanai/CLSS
+Project-URL: Repository, https://github.com/guyyanai/CLSS
+Project-URL: Bug Tracker, https://github.com/guyyanai/CLSS/issues
+Project-URL: Documentation, https://github.com/guyyanai/CLSS
+Project-URL: Paper, https://www.biorxiv.org/content/10.1101/2025.09.05.674454v3.full.pdf
+Keywords: protein,machine-learning,contrastive-learning,bioinformatics,structure,sequence
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=1.11.0
+Requires-Dist: pytorch-lightning>=1.6.0
+Requires-Dist: transformers>=4.20.0
+Requires-Dist: esm>=2.0.0
+Requires-Dist: pandas>=1.3.0
+Requires-Dist: scikit-learn>=1.0.0
+Requires-Dist: wandb>=0.12.0
+Requires-Dist: tqdm>=4.62.0
+Requires-Dist: huggingface-hub>=0.8.0
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0; extra == "dev"
+Requires-Dist: pytest-cov>=2.10; extra == "dev"
+Requires-Dist: black>=22.0; extra == "dev"
+Requires-Dist: isort>=5.0; extra == "dev"
+Requires-Dist: flake8>=4.0; extra == "dev"
+Requires-Dist: mypy>=0.900; extra == "dev"
+Requires-Dist: pre-commit>=2.15.0; extra == "dev"
+Provides-Extra: notebooks
+Requires-Dist: jupyter>=1.0.0; extra == "notebooks"
+Requires-Dist: matplotlib>=3.3.0; extra == "notebooks"
+Requires-Dist: seaborn>=0.11.0; extra == "notebooks"
+Requires-Dist: plotly>=5.0.0; extra == "notebooks"
+Requires-Dist: ipywidgets>=7.6.0; extra == "notebooks"
+Provides-Extra: docs
+Requires-Dist: sphinx>=4.0.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.0.0; extra == "docs"
+Requires-Dist: myst-parser>=0.15.0; extra == "docs"
+Dynamic: license-file
+
+# CLSS: Contrastive learning unites sequence and structure in a global representation of protein space
+
+**Paper:** [https://www.biorxiv.org/content/10.1101/2025.09.05.674454.full.pdf](https://www.biorxiv.org/content/10.1101/2025.09.05.674454.full.pdf)
+
+**DOI:** [https://doi.org/10.1101/2025.09.05.674454](https://doi.org/10.1101/2025.09.05.674454)
+
+**GitHub repository:** [https://github.com/guyyanai/CLSS](https://github.com/guyyanai/CLSS)
+
+**Interactive viewer:** [https://gabiaxel.github.io/clss-viewer/](https://gabiaxel.github.io/clss-viewer/)
+
+---
+
+## Abstract
+
+> Amino acid sequence dictates the three-dimensional structure and biological function of proteins. Yet, despite decades of research, our understanding of the interplay between sequence and structure is incomplete. To meet this challenge, we introduce Contrastive Learning Sequence-Structure (CLSS), an AI-based contrastive learning model trained to co-embed sequence and structure information in a self-supervised manner. We trained CLSS on large and diverse sets of protein building blocks called domains. CLSS represents both sequences and structures as vectors in the same high-dimensional space, where distance relates to sequence-structure similarity. Thus, CLSS provides a natural way to represent the protein universe, reflecting evolutionary relationships, as well as structural changes. We find that CLSS refines expert knowledge about the global organization of protein space, and highlights transitional forms that resist hierarchical classification. CLSS reveals linkage between domains of seemingly separate lineages, thereby significantly improving our understanding of evolutionary design.
+
+---
+
+## TL;DR
+
+**CLSS** is a self-supervised, two-tower contrastive model that co-embeds **protein sequences** and **structures** into a **shared 32‑D space**, enabling unified mapping of protein space across modalities.
+
+---
+
+## Key ideas
+
+* **Two-tower architecture:** sequence tower (ESM2‑like, \~35M params) co-trained; structure tower (ESM3) kept frozen; both feed **32‑D L2‑normalized adapters**.
+* **Segment-aware training:** contrastive pairs match **full-domain structures** with **random sequence sub-segments (≥10 aa)** to encode contextual compatibility.
+* **Unified embeddings:** sequences, structures, and subsequences align in a **single space**; distances track ECOD hierarchy and reveal cross-fold relationships.
+* **Scale & efficiency:** \~36M trainable params, compact embeddings (32‑D) supporting efficient inference and training.
+* **Resources:** code + weights, and a public **CLSS viewer** for exploration.
+
+> See paper for full details, datasets, ablations, and comparisons.
+
+---
+
+## Quick Start
+
+### Installation
+
+```bash
+pip install clss-model
+```
+
+### Examples
+
+Complete examples are available in the [`examples/`](examples/) directory:
+
+- **[`examples/training/`](examples/training/)** - Full training pipeline
+  - `train.py` - Main training script with PyTorch Lightning
+  - `dataset.py` - ECOD dataset loading and preprocessing  
+  - `args.py` - Command-line argument parsing
+  - `infra.py` - Infrastructure setup (distributed training, logging)
+
+- **[`examples/inference/`](examples/inference/)** - Inference and embedding
+  - `infer.py` - Protein sequence and structure embedding
+  - `sample-pdbs/` - Example PDB files for testing
+
+---
+
+## Data
+
+* **ECOD‑AF2 domains** (training/validation set).
+
+---
+
+## Citation
+
+If you use this repository, please cite:
+
+```bibtex
+@article{Yanai2025CLSS,
+  title={Contrastive learning unites sequence and structure in a global representation of protein space},
+  author={Yanai, Guy and Axel, Gabriel and Longo, Liam M. and Ben-Tal, Nir and Kolodny, Rachel},
+  journal={bioRxiv},
+  year={2025},
+  doi={10.1101/2025.09.05.674454},
+  url={https://www.biorxiv.org/content/10.1101/2025.09.05.674454v3.full.pdf}
+}
+```
+
+---
+
+## Acknowledgments & Contact
+
+* See the paper for funding and acknowledgments.
+* Correspondence: [llongo@elsi.jp](mailto:llongo@elsi.jp), [bental@tauex.tau.ac.il](mailto:bental@tauex.tau.ac.il), [trachel@cs.haifa.ac.il](mailto:trachel@cs.haifa.ac.il).
