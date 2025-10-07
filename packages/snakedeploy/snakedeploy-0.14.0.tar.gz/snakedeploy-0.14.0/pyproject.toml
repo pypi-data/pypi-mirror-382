@@ -1,0 +1,77 @@
+[project]
+name = "snakedeploy"
+version = "0.14.0"
+description = "Deployment and maintenance related toolbox for Snakemake"
+license = "MPL-2.0"
+authors = [
+    { name = "Johannes Koester", email = "johannes.koester@uni-due.de"},
+    { name = "Vanessa Sochat", email = "vsochat@stanford.edu" }
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "jinja2>=3.1.6",
+    "packaging>=25.0",
+    "pandas>=2.3.1",
+    "pygithub>=2.6.1",
+    "pyyaml>=6.0.2",
+    "requests>=2.32.4",
+    "reretry>=0.11.8",
+    "toml>=0.10.2",
+]
+
+[project.urls]
+Homepage = "https://snakedeploy.readthedocs.io"
+Repository = "https://github.com/snakemake/snakedeploy"
+Documentation = "https://snakedeploy.readthedocs.io"
+
+[project.scripts]
+snakedeploy = "snakedeploy.client:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "ruff>=0.12.4",
+    "sphinx>=7.2.6,<8",
+    "sphinx-argparse>=0.4.0,<0.5",
+    "sphinxawesome-theme>=5.2.0,<6",
+    "twine>=6.1.0,<7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pixi.workspace]
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64", "osx-arm64"]
+
+[tool.pixi.pypi-dependencies]
+snakedeploy = { path = ".", editable = true }
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
+publish = { features = ["publish"] }
+
+[tool.pixi.tasks]
+
+[tool.pixi.feature.dev.tasks]
+format = "ruff format"
+check = "ruff check"
+test = "/bin/bash tests/test_client.sh"
+build-docs = "sphinx-build -b html docs/ docs/_build/html"
+
+
+[tool.pixi.feature.dev.dependencies]
+conda = ">=25.7.0,<26"
+
+[tool.pixi.feature.publish.dependencies]
+twine = ">=6.1.0,<7"
+python-build = ">=1.2.2,<2"
+
+[tool.pixi.feature.publish.tasks]
+build = { cmd = "python -m build", description = "Build the package into the dist/ directory" }
+check-build = { cmd = "python -m twine check dist/*", depends-on = [
+  "build",
+], description = "Check that the package can be uploaded" }
