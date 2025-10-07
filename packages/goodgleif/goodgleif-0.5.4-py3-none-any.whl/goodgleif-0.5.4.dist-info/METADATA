@@ -1,0 +1,338 @@
+Metadata-Version: 2.4
+Name: goodgleif
+Version: 0.5.4
+Summary: Lightweight tools for working with GLEIF LEI data: preprocess, load, fuzzy query.
+Author: Peter Cotton
+License: MIT License
+        
+        Copyright (c) 2025 Peter Cotton
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pandas>=2.1
+Requires-Dist: pyarrow>=14.0
+Requires-Dist: rapidfuzz>=3.6
+Requires-Dist: platformdirs>=4.2
+Requires-Dist: pyyaml>=6.0.1
+Requires-Dist: requests>=2.25.0
+Provides-Extra: polars
+Requires-Dist: polars>=1.8; extra == "polars"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: ruff>=0.5.0; extra == "dev"
+Dynamic: license-file
+Dynamic: requires-python
+
+# GoodGLEIF
+
+Lightweight tools for working with GLEIF LEI data: preprocess, load, and fuzzy query company information.
+
+## Features
+
+- **Smart Data Loading**: Automatically finds and loads GLEIF data from multiple sources
+- **Fuzzy Matching**: Advanced company name matching with multiple strategies
+- **Multiple Matching Strategies**: Canonical, brief, and best matching approaches
+
+
+## Installation
+
+```bash
+pip install goodgleif
+```
+
+## Quick Start
+
+### Basic Company Matching
+
+```python
+from goodgleif.companymatcher import CompanyMatcher
+
+# Initialize (data loads automatically on first match)
+gg = CompanyMatcher()
+
+# Search for companies (loads data automatically if needed)
+matches = gg.match_best("Apple", limit=3, min_score=70)
+
+print(f"Searching for: 'Apple'")
+print("-" * 40)
+
+for i, match in enumerate(matches, 1):
+    print(f"{i}. {match['original_name']}")
+    print(f"   Score: {match['canonical_name']}")
+    print(f"   LEI: {match['lei']}")
+    print(f"   Country: {match['country']}")
+    print()
+```
+
+### Simple Usage (No Path Required)
+
+```python
+from goodgleif.companymatcher import CompanyMatcher
+
+gg = CompanyMatcher()  # Uses default classified data
+
+print("2. Searching for companies (data loads automatically)...")
+
+# Search for multiple companies
+queries = ["Apple", "Microsoft", "Tesla", "Goldman Sachs"]
+
+for query in queries:
+    print(f"\nSearching for: '{query}'")
+    matches = gg.match_best(query, limit=3, min_score=80)
+    
+    if matches:
+        for i, match in enumerate(matches, 1):
+            print(f"  {i}. {match['original_name']} (Score: {match['score']:.1f})")
+            print(f"     LEI: {match['lei']} | Country: {match['country']}")
+    else:
+        print(f"  No matches found for '{query}'")
+
+print(f"\n4. System automatically used the best available data source!")
+print("   - Partitioned files (if available)")
+print("   - Single parquet file (fallback)")
+print("   - Package resources (if distributed)")
+print("   - Helpful error messages (if missing)")
+```
+
+## Category-Specific Loading
+
+Load specific industry categories for focused matching:
+
+```python
+from goodgleif.companymatcher import CompanyMatcher
+
+# Load only mining companies
+mining_matcher = CompanyMatcher(category='obviously_mining')
+mining_matches = mining_matcher.match_best("Gold Mining Corp")
+
+# Load only financial companies  
+financial_matcher = CompanyMatcher(category='financial')
+financial_matches = financial_matcher.match_best("Goldman Sachs")
+
+# Load metals and mining companies
+metals_matcher = CompanyMatcher(category='metals_and_mining')
+metals_matches = metals_matcher.match_best("Steel Works Inc")
+```
+
+### Available Categories
+
+```python
+# See all available categories
+matcher = CompanyMatcher()
+matcher.show_available_categories()
+
+# List available categories programmatically
+categories = CompanyMatcher.list_available_categories()
+print(f"Available categories: {categories}")
+```
+
+### Category Loading Benefits
+
+- **Faster Loading**: Only load the data you need
+- **Focused Results**: Search within specific industries
+- **Smaller Memory Usage**: Reduced memory footprint
+- **Better Performance**: Faster matching for targeted searches
+
+## Matching Strategies
+
+GoodGLEIF offers three different matching strategies:
+
+### Canonical Matching
+Preserves legal suffixes like "Inc.", "Corp.", "LLC":
+
+```python
+from goodgleif.companymatcher import CompanyMatcher
+
+gg = CompanyMatcher()
+
+# Canonical matching (preserves legal suffixes)
+canonical_matches = gg.match_canonical("Apple Inc", limit=2)
+
+print(f"Canonical matching:")
+for match in canonical_matches:
+    print(f"  {match['original_name']} (Score: {match['score']})")
+```
+
+### Brief Matching
+Removes legal suffixes for broader matching:
+
+```python
+# Brief matching (removes legal suffixes)
+brief_matches = gg.match_brief("Apple Inc", limit=2)
+
+print(f"Brief matching:")
+for match in brief_matches:
+    print(f"  {match['original_name']} (Score: {match['score']})")
+```
+
+### Best Matching
+Combines both strategies for optimal results:
+
+```python
+# Best matching (combines both)
+best_matches = gg.match_best("Apple Inc", limit=2)
+
+print(f"Best matching:")
+for match in best_matches:
+    canonical_score = match.get('canonical_score', 0)
+    brief_score = match.get('brief_score', 0)
+    print(f"  {match['original_name']} (Canonical: {canonical_score}, Brief: {brief_score})")
+```
+
+## Score Threshold Analysis
+
+Analyze how different score thresholds affect your results:
+
+```python
+from goodgleif.companymatcher import CompanyMatcher
+
+gg = CompanyMatcher()
+
+query = "Apple"
+thresholds = [90, 80, 70, 60]
+
+print(f"Score threshold comparison for: '{query}'")
+print("=" * 50)
+
+for min_score in thresholds:
+    matches = gg.match_best(query, limit=3, min_score=min_score)
+    print(f"\nMin Score {min_score}: {len(matches)} matches")
+    for match in matches:
+        print(f"  {match['original_name']} (Score: {match['score']})")
+```
+
+
+
+## API Reference
+
+### CompanyMatcher
+
+The main class for company matching operations.
+
+#### Constructor
+
+- `CompanyMatcher(parquet_path=None, category=None)`: Initialize with optional path or specific category
+
+#### Methods
+
+- `match_best(query, limit=3, min_score=70)`: Find best matches using combined strategy (loads data automatically)
+- `match_canonical(query, limit=3, min_score=70)`: Find matches preserving legal suffixes (loads data automatically)
+- `match_brief(query, limit=3, min_score=70)`: Find matches removing legal suffixes (loads data automatically)
+- `show_available_categories()`: Display all available categories with descriptions
+- `list_available_categories()`: Return list of available category names
+
+#### Parameters
+
+- `query`: Company name to search for
+- `limit`: Maximum number of results to return
+- `min_score`: Minimum score threshold (0-100)
+
+#### Returns
+
+List of match dictionaries containing:
+- `original_name`: Company name from GLEIF database
+- `score`: Match confidence score
+- `lei`: Legal Entity Identifier
+- `country`: Country code
+- `canonical_name`: Standardized company name
+
+## Data Sources
+
+GoodGLEIF automatically detects and uses the best available data source:
+
+1. **Partitioned Files**: GitHub-friendly partitioned parquet files (preferred)
+2. **Single Parquet File**: Fallback to single large parquet file
+3. **Package Resources**: Embedded data if distributed
+4. **Error Messages**: Helpful guidance if data is missing
+
+## Examples
+
+All examples are available in the package and can be found at:
+**https://github.com/microprediction/goodgleif/tree/main/goodgleif/examples**
+
+All examples are available as callable functions:
+
+```python
+# Run examples directly
+from goodgleif.examples.basic_matching_example import basic_matching_example
+from goodgleif.examples.matching_strategies_example import matching_strategies_example
+from goodgleif.examples.score_thresholds_example import score_thresholds_example
+from goodgleif.examples.simple_usage_example import simple_usage_example
+from goodgleif.examples.exchange_matching_example import exchange_matching_example
+
+# Run with custom parameters
+matches = basic_matching_example("Tesla", limit=5, min_score=85)
+strategies = matching_strategies_example("Microsoft Corporation")
+```
+
+## Development
+
+### Running Examples
+
+```bash
+# Run individual examples
+python -m goodgleif.examples.basic_matching_example
+python -m goodgleif.examples.simple_usage_example
+python -m goodgleif.examples.comprehensive_example
+python -m goodgleif.examples.lei_extraction_example
+python -m goodgleif.examples.matching_strategies_example
+python -m goodgleif.examples.score_thresholds_example
+python -m goodgleif.examples.exchange_matching_example
+
+# Run all examples test suite
+python -m goodgleif.examples.run_all_examples
+```
+
+### Testing
+
+```bash
+# Run all tests
+pytest
+
+# Run example tests specifically
+pytest tests/goodgleif/examples/
+```
+
+## Requirements
+
+- Python >= 3.9
+- pandas >= 2.1
+- pyarrow >= 14.0
+- rapidfuzz >= 3.6
+- platformdirs >= 4.2
+- pyyaml >= 6.0.1
+
+## License
+
+See LICENSE file for details.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
+
+## Support
+
+For issues and questions, please use the GitHub issue tracker.
