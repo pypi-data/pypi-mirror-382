@@ -1,0 +1,2842 @@
+2025-10-07 Gavin
+
+	* CMakeLists.txt:
+	* src/welcome_message.f90:
+	* pyproject.toml:
+	* doc/HOPPET-doc.tex:
+	changed version to 2.0.0-beta1
+
+	* scripts/set-version.sh: *** ADDED ***
+	new script to set the version number in CMakeLists.txt,
+
+	
+2025-09-30 Gavin
+
+	* src/structure_functions.f90:
+	* example_f90/structure_functions_example_flavour.f90:
+	added SF_names public array with the names of the structure functions,
+	to help giving meaning to iterations over the indices. Used it in
+	structure_functions_example_flavour.f90 to print a for the output
+
+2025-09-30 gavin + Alexander
+
+	* CMakeLists.txt:
+	* example_cpp/with-lhapdf/fast_pdf_evaluation.cc -> example_cpp/with-lhapdf/lhapdf_to_hoppet.cc:
+	* example_f90/with-lhapdf/fast_pdf_evaluation.f90 -> example_f90/with-lhapdf/lhapdf_to_hoppet.f90:
+	* example_f90/with-lhapdf/fast_manypdf_evaluation.f90 -> example_f90/with-lhapdf/lhapdf_to_hoppet_allmembers.f90:
+	* example_py/tabulation_example_lhapdf.py -> example_py/lhapdf_to_hoppet.py:
+
+	trying to give more sensible names for examples that read an LHAPDF
+	set into a hoppet grid.
+
+2025-09-30 gavin
+
+	* src/welcome_message.f90:
+	* src/hoppet.h:
+	* pyinterface/hoppet.i:
+	added a hoppetVersionC function in hoppet_version module
+	and a hoppetVersion() function in hoppet.h that calls it
+	and does the allocations needed to return a std::string.
+	Also works in Python as hoppet.version().
+
+2025-09-29 gavin
+
+	* src/welcome_message.f90:
+	added a hoppet_version module with a public function
+	HoppetVersion that returns a Fortran string with the version
+	number. 
+	
+	This is now used in the welcome message, which also has
+	some bold added to it and rewording to make things more
+	compact.
+
+2025-09-29 Gavin + Alexander
+
+	* src/hoppet_term.f90: *** ADDED ***
+	new module with constants for handling colours in terminal output
+
+	* src/hoppet_to_string.f90:
+	automatically return a trimmed string
+
+	* CMakeLists.txt:
+	* example_f90/with-lhapdf/fast_manypdf_evaluation.f90:
+	* example_f90/with-lhapdf/fast_pdf_evaluation.f90:
+	* example_f90/with-lhapdf/hoppet_lhapdf.f90: *** ADDED ***
+	* src/streamlined_interface.f90:
+	new hoppet_lhapdf module takes care of loading an LHAPDF set,
+	mainly based on the code that was previously in fast_pdf_evaluation.f90.
+
+	* src/qcd_coupling.f90:
+	changed mZ to PDG value 91.1880
+
+
+2025-09-28 Gavin
+
+	* src/pdf_tabulate.F90:
+	* src/inc/pdf_tabulate_OrderNNN.F90:
+	* unit-tests/hoppet-unit-tests.F90:
+	* example_f90/with-lhapdf/fast_manypdf_evaluation.f90: *** ADDED ***
+
+	added EvalPdfTable1D_yQ and underlying hard-coded order variants 
+	to allow for fast evaluation of an array of PDF tables. Also added
+	unit-tests and code for examining speed. Note that when a hard-coded
+	order variant is missing, it just loops over a call to the 
+	0D evaluation, which is not optimal.
+
+	renamed the scalar variannts to EvalPdfTable0D_yQ and EvalPdfTable0D_xQ
+	and added interface blocks so that EvalPdfTable_yQ resolves the right one.
+
+	Open questions include whether there are any other array variants we
+	should add, and whether there is any way to get this in a
+	streamlined interface.
+
+
+2025-09-25 Gavin
+
+	* pdf_tabulate.f90:
+	PdfTableOverrideInterpOrders arguments changed to 
+	(yorder, lnlnQorder) to match the argument names
+	in the Python interface.
+
+2025-09-23  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* pyproject.toml: *** ADDED ***
+	* .github/workflows/build-wheels.yml: *** ADDED ***
+	* CMakeLists.txt:
+	Added support for python wheels building through the github CI
+	actions in addition to the local build and install
+
+	* src/streamlined_interface.f90:
+	* src/hoppet.h:
+	* pyinterface/hoppet.i:
+	* example_py/tabulation_example.py:
+	Added interface to the benchmark PDF functions which is now being
+	used in one of the python examples.
+
+2025-09-23 Gavin
+
+	* example_f90/structure_functions_example.f90:
+	replaced iargc and getarg calls with standard Fortran
+	COMMAND_ARGUMENT_COUNT and GET_COMMAND_ARGUMENT calls
+	(fixes a compilation issue with flang-21)
+
+	* src/inc/ftlMacros.inc:
+	adding special case for __flang__, to fix compilation
+	with arm flang (20)
+
+	* unit-tests/check-thread-safety.cc: *** ADDED ***
+	* unit-tests/CMakeLists.txt:
+	added a test that PDF and alphas evaluations are thread-safe, 
+	using multiple threads to check for consistency. Also
+	fixed an issue where we were linking with hoppet rather than
+	hoppet_static.
+
+	* CMakeLists.txt:
+	* example_cpp/*.cc:
+	changed include from ../src/hoppet.h -> hoppet.h so that someone
+	can copy the example and use it standalone.
+
+	* CMakeLists.txt:
+	* configure:
+	* mkmk: ***REMOVED***
+	* Makefile -> scripts/Makefile.in:
+	* hoppet-config.in -> scripts/hoppet-config.in:
+	moved some things out of the top-level directory to reduce clutter
+	and adapted configure and CMakeLists accordingly
+	
+2025-09-23 Gavin + Alexander
+
+	* benchmarking/io_utils.f90:
+	* + all files that used sub_defs_io:
+	more renaming so that io_utils (and io_utils_consts) become
+	the main module rather than sub_defs_i
+
+
+2025-09-22 Gavin
+
+	* benchmarking/io_utils.f90:
+	* benchmarking/lcl_dec.f90:
+	moved routines for accessing command-line arguments from lcl_dec.f90 
+	to io_utils.f90 so as to require compilation with just one file;
+	also added an io_utils module to provide a name that matches the 
+	filename.
+
+	* unit-tests/:
+	* unit_tests/timing.inc: *** ADDED ***
+	* unit_tests/test_interpolation.F90: *** ADDED ***
+	some reorganisation, addition of some command-line arguments
+	to control timing tests
+
+	* unit-tests/test_alphas.f90: *** ADDED ***
+	* unit-tests/gen-alphas-ref.py: *** ADDED ***
+	added code for testing alphas routines, including a Python
+	script to generate reference results
+
+	* src/qcd_coupling.f90:
+	given an type(qcd_coupling) object alphas, one can now call
+	alphas%Value(Q[,fixnf]).
+
+	* src/new_as.f90:
+
+	the na_Value routine is now a routine that uses polynominal
+	interpolation by default, but reverts to na_Value_full (the old
+	na_Value) if the requested Q is beyond the pre-calculated range
+	(overall or for that nf) or if fixnf is requested. 
+	This brings a speed fain from about 33ns/call to about 11ns/call
+	on M2Pro-gfortran15.1-O3
+	(test timing with ./unit-tests/hoppet-unit-tests -time alphas)
+	
+
+2025-09-19 Alexander + Gavin
+
+	* CMakeLists.txt:
+	* benchmarking/lhapdf_timings.cc:  *** ADDED ***
+	* benchmarking/run-many-lhapdf.sh: *** ADDED ***
+	* benchmarking/run-and-process-lhapdf-grids.sh: *** ADDED ***
+	code used to benchmark LHAPDF interpolation accuracy and
+	timings
+
+	* benchmarking/prec_and_timing.f90:
+	added an alternative test of interpolation timings, using
+	a single run over a dense x,Q grid, where density is controlled
+	with the `-nrep-interp N` option (gives a total of N points).
+	This is similar to the test used in lhapdf_timings.cc.
+
+2025-09-16  Gavin + Alexander
+
+	* CMakeLists.txt:
+	added -ffree-line-length-none option for gfortran, to allow longer lines
+
+	* benchmarking/prec_and_timing.f90:
+	now only calls overide if both -olnlnQ and -yinterp-order have values >0
+
+	* src/convolution.f90:
+	* src/inc/pdf_tabulate_OrderNNN.F90:
+	* src/interpolation.f90:
+	* src/pdf_tabulate.F90:
+	* unit-tests/hoppet-unit-tests.F90:
+	got support for different y & Q orders, and pdf_tables 
+	now automatically use the faster hard-coded routines if these are 
+	available (pointer to the routine is cached on table creation)
+
+2025-09-15  Gavin
+
+	* src/interpolation.f90:
+	added fill_interp_weights5 and fill_interp_weights6, as well as
+	corresponding coefficients
+
+	* unit-tests/hoppet-unit-tests.F90: (.f90 -> .F90)
+	added tests for fill_interp_weights5 and fill_interp_weights6;
+	also tried to add some basic timing macros and tried them out
+	on fill_interp_weights6
+
+	* benchmarking/prec_and_timing.f90:
+	* src/inc/pdf_tabulate.inc:
+	* src/inc/pdf_tabulate_OrderNNN.F90:
+	* src/pdf_tabulate.F90:
+	reworked things so that the NNNN routines are now numbered orderYQ
+	where Y is the y-order and Q is the lnlnQ order, e.g. order33
+	if both are 3. This is preparation for being able to handle
+	cases where the orders are different.
+
+2025-09-15  Alexander + Gavin
+
+	* CMakeLists.txt:
+	added better diagnostics if CMake finds traces of a Makefile build
+
+	* cmake/git_watcher.cmake:
+	* src/config/hoppet_git_state.f90.in:
+	added new GIT_F90_STATUS_UNO variable that is split into lines
+	to reduce the chance of going over 132 characters. Note that
+	long filenames could still cause problems
+
+	* src/dummy_pdfs.f90 -> src/pdfs_for_benchmarks.f90:
+	* [a range of examples and tests]:
+	renamed dummy_pdfs and functions inside to better reflect its purpose
+	and updated a range of examples and tests accordingly.
+
+	* scripts/checks:
+	* CMakeLists.txt:
+	* benchmarking/prec_and_timing.default_output/gen-default-output.sh: *** ADDED ***
+	* benchmarking/prec_and_timing.default_output/*.default_output:      *** ADDED ***
+	added tests with prec_and_timing, where the options make it easier
+	to test a range of setups; for now they cover different interpolation orders
+	and an evolution with exact NNLO splitting and thresholds.
+	Format for tests is `prec_and_timing:<option1>:<value1>:<option2>:<value2>:...`
+
+
+2025-09-15  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* src/splitting-functions/: *** ADDED ***
+	* src/mass-thresholds/:     *** ADDED ***
+	* src/param-coefs/:         *** ADDED ***
+	Created new directories to contain all the external codes that we
+	use for splitting functions and mass thresholds. Moved the
+	parametrised coefficient functions into a separate directory as
+	well.
+
+2025-09-13 Sat  <gavin.salam@physics.ox.ac.uk>
+
+	* src/inc/pdf_tabulate.inc: *** ADDED ***
+	* src/inc/pdf_tabulate_OrderNNN.F90:
+	* src/pdf_tabulate.F90:
+	moved the __HOPPET_tab_min_subgrid_ny__ and __HOPPET_tab_min_nQ__
+	definitions into pdf_tabulate.inc so that they can be separately
+	included in pdf_tabulate_OrderNNN.F90, facilitating manual
+	preprocessor checks.
+
+	Modified get_lnlnQ_wgts so that it takes into account override_order_Q.
+	separated any-order part of EvalPdfTable_yQ into EvalPdfTable_yQ_any_order
+	so that we can guarantee that we're getting that bit of code. Used
+	in the unit tests.
+
+	* src/inc/pdf_tabulate_OrderNNN.F90:
+	fixed bug in selection of nf value because we were comparing to a 
+	"lo" rather than "hi" extent of Q segment.
+
+	* unit-tests/hoppet-unit-tests.f90:
+	* unit-tests/unit_tests.f90:
+	added tests that evaluation of a single flavour at a time gives the same
+	answer as all-flavour evaluation and that the routines with fixed
+	interpolation orders give identical results to that with a flexible
+	interpolation order.
+
+	* testing-other/: *** DELETED ***
+	to reduce clutter, removed this directory, which contained outdated
+	cteq6 tests. Use an example such as
+	example_f77/compare_lhapdf_hoppet.f instead.
+
+	* example_f77/compare_lhapdf_hoppet.f:
+	changed set to CT18NNLO.
+
+	* src/hoppet_to_string.f90: *** ADDED ***
+	moved the to_string functionality into the main library, because of its
+	use in error messages
+
+2025-09-12 Fri  <gavin.salam@physics.ox.ac.uk>
+
+	* src/pdf_tabulate.F90:
+	temporarily disabled pointer-setting in PdfTableOverrideInterpOrders
+	because answers are coming out wrong. Will investigate in a separate
+	branch
+
+	* git_watcher.cmake -> cmake/git_watcher.cmake:
+	* CMakeLists.txt:
+	moved git watcher out of top-level directory, to help 
+	with cleaning that up
+
+	* test.sh: *** Deleted ***
+	not used any longer
+
+	* tarit.sh -> scripts/tarit.sh:
+	part of cleaning up TLD
+
+	* unit-tests/: *** ADDED ***
+	new directory to help carry out minimal unit tests
+
+	* src/interpolation.f90:
+	fixed coefficients for 4th order interpolation
+
+	* benchmarking/prec_and_timing.f90:
+	preev and non-preev runs were returning inconsistent results because
+	they took the initial condition at different scales (Qmin v. Qinit).
+	Now fixed and they both start at Qinit.
+
+2025-09-09 Gavin + Alexander (later)
+
+	* src/pdf_tabulate.F90:
+	* src/inc/pdf_tabulate_OrderNNN.F90:
+
+	Added EvalPdfTable_yQf_orderNNNN with NNNN = 2,3,4
+
+	Removed PDFTableSetYInterpOrder and instead introduced PdfTableOverrideInterpOrders,
+	which sets both the y and Q orders.
+
+	For special cases (2,2) (3,3) and (4,4), internal pointers are set:
+	EvalPdfTable_yQ_ptr and EvalPdfTable_yQf_ptr. If these are non-null
+	then they are used to redirect EvalPdfTable_yQ and EvalPdfTable_yQf
+	calls to the appropriate orderN routines.
+
+	Relative to a direct call to the orderN routines, this adds about
+	2ns on M2Pro-gfortran15-O3.
+
+	**BEWARE**: outside of these special cases the override is not
+	yet active as concerns the Q order.
+
+	**BEWARE**: correctness of the output has not been tested, nor has the optimal
+	choice of halfNN (currently (NN-1)/2, could also be NN/2).
+
+	* src/streamlined_interface.f90:
+	* benchmarking/prec_and_timing.f90:
+	switched these over to use PdfTableOverrideInterpOrders
+
+2025-09-09 Gavin + Alexander
+
+
+	Introduced __HOPPET_tab_min_subgrid_ny__ and __HOPPET_tab_min_nQ__,
+	and in the table allocation routines:
+
+	- made sure that the y grid and each subgrid is 
+	  at least of size __HOPPET_tab_min_subgrid_ny__
+
+    - made sure that the number of Q points is at least of size __HOPPET_tab_min_nQ__
+	  and in segments made sure that are at least __HOPPET_tab_min_nQ__ points
+	  above any single-point segment,
+
+	- adapted EvalPdfTable_get_weights_orderNNNN to use a weights of just 1,0,,0,... 
+      if we encounter a single-point segment
+
+	Also got added treatment of freeze_at_Qmin.
+
+
+	* pyinterface/*example*.py -> example_py/:
+	moved python examples into a dedicated directory
+
+	* example_f77/cpp_structure_functions_example.cc -> example_cpp/structure_functions_example.cc:
+	* example_f77/cpp_tabulation_example.cc -> example_cpp/tabulation_example.cc:
+	* example_f77/cpp_tabulation_example_qed.cc -> example_cpp/tabulation_example_qed.cc:
+	* example_f77/with-lhapdf/cpp_fast_pdf_evaluation.cc -> example_cpp/with-lhapdf/fast_pdf_evaluation.cc:
+	* CMakeLists.txt:
+	* example_cpp/tabulation_example.default_output: *** ADDED *** (symlink)
+	moved C++ examples into a new dedicated example_cpp/ directory.
+	Also added example_cpp/tabulation_example to the ctest set.
+
+	* CMakeLists.txt:
+	turned off some spurious gfortran warnings for two specific files
+
+	* src/special_functions.f90:
+	renamed dgamma as cernlib_dgamma to avoid warnings
+
+	* doc/auto/: *** ADDED ***
+	added templates for code-documentation systems (FORD, Doxygen), which
+	however, are not yet functional
+
+2025-09-09  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* pyinterface/hoppet.i:
+	* pyinterface/structure_functions_example.py: *** ADDED ***
+	Added proper support for structure functions and QED PDFs in the
+	Python interface. Compared to the previous commit, the Python
+	interface now sets up the PDF array based on whether the user
+	needs a QED PDF or not. The structure functions also live in a
+	separate NumPy array.
+
+2025-09-08  Alexander Karlberg  <karlberg@Latitude-E7470>
+
+	* pyinterface/tabulation_example_qed.py: *** ADDED ***
+	* pyinterface/hoppet.i:
+	Added QED example in python and fixed a hard coded 13 -> pdf_len
+
+	* src/streamlined_interface.f90:
+	* src/hoppet.h:
+	* pyinterface/hoppet.i:
+	Added hoppetEvalPID to access single flavour PDFs from the
+	streamlined interface
+
+2025-09-08 Alexander + Gavin
+
+	* src/inc/ftlMacros.inc: *** ADDED ***
+	some helpers for fortran macros, from the Fortran Template Library
+
+	* src/convolution.f90:
+	exposed conv_BestIsub
+
+	* src/inc/pdf_tabulate_OrderNNN.F90: *** ADDED***
+	* src/pdf_tabulate.f90 -> src/pdf_tabulate.F90:
+	started to put in code for specific orders of interpolation, 
+	using hard-coded array sizes, loops etc., using 
+	a template-style mechanism. Not yet fully tested.
+
+	* src/interpolation.f90:
+	added `module interpolation_coeffs`, with hard-coded
+	interpolation coefficients (interp_coeffsN) and simple functions to 
+	return interpolations at 1st, 2nd, 3rd and 4th order 
+	(fill_interp_weightsN).
+
+	* benchmarking/prec_and_timing.f90:
+	added temporary timing tests for the hard-coded interpolation
+	routines
+
+2025-09-06 Sat  <gavin.salam@physics.ox.ac.uk>
+
+	* src/new_as.f90:
+	* example_f90/with-lhapdf/fast_pdf_evaluation.f90:
+	added na_Value_faster(...) which evaluates alphas in about 10ns
+	rather than 30ns (M2Pro-gfortran15-O3), while maintaining ~10^{-9} accuracy.
+	That's currently what's in fast_pdf_evaluation
+
+	* src/qcd_coupling.f90:
+	make access to underlying nah object public
+
+2025-09-05  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* example_f77/with-lhapdf/cpp_fast_pdf_evaluation.cc:
+	* example_f90/with-lhapdf/fast_pdf_evaluation.f90:
+	* pyinterface/hoppet.i:
+	* pyinterface/tabulation_example.py:
+	* pyinterface/tabulation_example_lhapdf.py:
+	* src/hoppet.h:
+	* src/streamlined_interface.f90:
+	Removed hoppetAssignWithCoupling and replaced all calls in
+	examples with hoppetSetCoupling and hoppetAssign.
+
+2025-09-05 Fri  Alexander + Gavin
+
+	* src/streamlined_interface.f90:
+	added hoppetSetCoupling(alphas_Q,Q,nloop) to allow a user to set
+	the strong coupling prior to a hoppetAssign call. This will also
+	ensure that a table filled with hoppetAssign has the correct
+	mass thresholds.
+
+2025-09-05 Fri  Alexander
+
+	* example_f77/with-lhapdf/cpp_fast_pdf_evaluation.cc:
+	* example_f90/with-lhapdf/fast_pdf_evaluation.f90:
+	* pyinterface/tabulation_example_lhapdf.py:
+	examples to show how to import an LHAPDF member into Hoppet,
+	allowing for speed comparisons between them.
+
+	Note that by default the python example imports at the low scale and
+	evolves up, while the others import across all scales.
+
+2025-09-04  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* streamlined_interface.f90, hoppet.h, hoppet.i:
+	Introduced a routine hoppetAssignWithCoupling that just calls the
+	usual hoppetAssign but also sets up a coupling object based on an
+	initial condition. The lhapdf examples now use this function.
+
+2025-09-03 Wed  Gavin + Alexander
+
+	* CMakeLists.txt:
+	added HOPPET_ENABLE_DEBUG which is set to true by default, to make sure that 
+	people get debugging symbols even with the default Release (O3) build.
+
+	* src/pdf_tabulate.f90:
+	a couple more speed optimisations for PDF evaluation, 
+	avoiding the intermediate 2D wgt array in the cases with 
+	quadratic or cubic interpolation.
+
+	* src/convolution.f90:
+	added some commented-out code in conv_BestIsub to exploit the
+	ordering of the nested grid ymax values, but couldn't reliably
+	identify any speed impact.
+
+2025-09-02  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* streamlined_interface.f90:
+	Added support for the evaluation of products of splitting
+	functions up nloop = 4. Added functionality to change the
+	interpolation order yorder and lnlnQorder in the streamlined
+	interface. Exposed all the dglap_choices in the streamlined
+	interface as well through various new routines.
+
+2025-08-16 Gavin
+
+	* print_banner.sh -> scripts/print_banner.sh:
+	* CMakeLists.txt:
+	moved print_banner.sh into the scripts directory to reduce clutter
+	in the main directory
+
+2025-08-15 Alexander
+
+	* print_banner.sh: *** ADDED ***
+	* CMakeLists.txt:
+	added printout of a manner when doing make install. It alerts user
+	to the fact that the library name has changed.
+
+2025-08-12 Gavin
+
+	* src/convolution.f90:
+	added MonotonicUniqueIndices, MonotonicUniqueYValues,
+	MonotonicUniqueXValues functions, which make it possible to get
+	the indices, y or x values corresponding to a monotonically
+	increasing set of y values, prioritising smaller spacings first.
+
+	Also improved some comments.
+
+	* src/pdf_tabulate.f90:
+	reworked WriteLHAPDFFromPdfTable so that it uses MonotonicUniqueXValues
+
+	* CMakeLists.txt:
+	python interface is now disabled is swig is not found, to allow
+	people to build on a relatively "vanilla" system. Note that if
+	swig is there but python3 development files are not, you 
+	will still get an error.
+
+2025-08-12  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* src/streamlined_interface.f90:
+	* src/hoppet.h:
+	* pyinterface/hoppet.i:
+	Added support for WriteLHAPDFFromPdfTable from the streamlined
+	interface (including the python interface).
+
+2025-08-12 Gavin (+input from Alexander)
+
+	* src/pdf_tabulate.f90:
+	* benchmarking/prec_and_timing.f90:
+
+	changed the arguments in WriteLHAPDFFromPdfTable so that
+	flav_indices are optional and come at the end, chosen automatically
+	(QCD/QCD+photon/QCD+photon+leptons) based on the number of flavour
+	indices in the table.
+
+	Also changed the default iy_increment to 1 (instead of -1), based on
+	some very quick tests with dy=0.2.
+
+2025-08-12  Alexander Karlberg  <karlberg@pcth279>
+
+	* src/hoppet_v1.f90 -> hoppet.f90:
+	* src/hoppet_v1.h -> hoppet.h:
+	* CMakeLists.txt:
+	Changed hoppet_v1 -> hoppet everywhere in preparation for v2
+	release. In particular the library is now called libhoppet, the
+	module is called hoppet, and the c++ namespace is called hoppet.
+
+	* example_f90, example_f77, benchmarking, tests:
+	Updated all examples and test programs to use hoppet instead of
+	hoppet_v1.
+
+	* hoppet.config.in, CMakeLists.txt:
+	Fixed issue where the libdir in hoppet.config was hardcoed to
+	lib. On some systems the libdir in CMake is set to lib64 by
+	default. Now CMake passes the information to hoppet_config.in
+
+2025-08-11 Gavin
+
+	* src/config/hoppet_git_state.f90.in:
+	removed anything to do with HOPPET_GIT_COMMIT_BODY
+	which caused trouble when the body had newlines	
+
+	* src/pdf_tabulate.f90:
+	* benchmarking/prec_and_timing.f90:
+	renamed WritePdfTableLHAPDF -> WriteLHAPDFFromPdfTable
+	updated calls accordingly; now takes the base of a 
+	filename as an argument and writes out both the .dat
+	and the .info file (latter only if doing index 0).
+	For now, the info file is to some extent templated, 
+	to avoid excessive numbers of arguments being passed.
+	So proper usage would need to edit the .info file afterwards, 
+	but at least it can be loaded and read correctly by LHAPDF.
+
+	* CMakeLists.txt:
+	- added partial checks that there aren't bits and pieces left
+	  from a build with the old build system
+
+2025-08-10 Gavin
+
+	* src/pdf_tabulate.f90:
+	added WritePdfTableLHAPDF to write out an LHAPDF .dat file;
+	basic code taken from the LuxQED project; interface may still evolve
+
+	* benchmarking/prec_and_timing.f90:
+	added an -lhapdf-out option to specify that the resulting table
+	should be written to an LHAPDF file; mainly for elementary
+	manual testing at this stage.
+
+2025-08-04 Gavin + Alexander
+
+	* src/welcome_message.f90:
+	* CMakeLists.txt:
+	updated copyright date range to 2025, made version 2.0.0-devel
+
+	* src/dglap_objects.f90:
+	removed redundant code in cobj_ConvMTM, which was setting the light
+	flavours incorrectly, but then being overwritten by the correct
+	setup.
+
+2025-07-31 Gavin
+
+	* src/new_as.f90:
+	tOfQ(Q) now returns a very negative value (-huge(one)) if Q
+	is negative or zero; QOft(tOfQ(zero)) should return zero.
+	+ improved some comments in the file. This is intended to resolve
+	issue #19 about some division by zero errors when one of the
+	quark masses is set to zero. Reported by Andrii Verbytskyi.
+
+2025-07-29 Gavin
+
+	* benchmarking/prec_and_timing.f90:
+	changed the default for `-nrep-eval` to 10 (from 10^5), because we
+	are now using the `get_evaluation_times_new()` function, which
+	internally uses 10^4 calls per overall repetition. Also
+	re-ordered some parts and added some comments.
+
+2025-06-29 Gavin
+
+	* scripts/NameSelect.pl:
+	some lines split to avoid long-line problems
+
+	* CMakeLists.txt:
+	* benchmarking/test_acc/compare2files_v2.f90 -> benchmarking/compare2files_v2.f90:
+	moved compare2files_v2.f90 into the benchmarking directory because we will
+	be using it also outside of the original test_acc directory
+
+	* prec_and_timing.f90:
+	various changes to make the command-line arguments more regular and small
+	improvements in the output
+
+	* benchmarking/README.md:
+	starting to populate this.
+
+2025-06-27 Gavin
+
+	* hoppet-config.in:
+	added `-Wl,-rpath,$installationdir/lib` to `hoppet-config --libs`
+	output so that things work also with dynamic libraries
+
+2025-06-27 Alexander + Gavin
+
+	* src/dglap_choices.f90:
+	changed indices for n3lo_splitting_approximation_up_to_2310_05744 etc.
+	so that they start from 100, facilitating mapping from number
+	to name without ambiguity with some of the other n3lo choices.
+	
+2025-06-26 Alexander + Gavin
+
+	* example_f90/tabulation_example_n3lo.f90:
+	* example_f90/tabulation_example_n3lo.default_output.nf4:
+	improved output slightly in ffn case, added a commented
+	line about how to convert it into a LaTeX table;
+	added default output for nf=4 (hand-coded )
+
+	* src/dglap_objects.f90:
+	In N3LO MTM, explicitly set MSbar N3LO pieces to zero, rather than leaving 
+	them undefined.
+
+	When carrying out an MTM convolution, eliminated the check that the MTM's
+	nf is equal to the global one -- not needed because the global nf
+	is not being relied on in any way.
+
+	These two fixes get pre-evolution back into a working state.
+
+	* benchmarking/prec_and_timing.f90:
+	start of some restructuring to modernise this a bit.
+
+2025-06-26  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* example_f90/tabulation_example_n3lo.f90:
+	added option to run the tabulation with fixed-flavour number nf =
+	4, to allow for comparisons with 2406.16188. The example now also
+	prints s-sbar since it is contained in that benchmark.
+
+2025-06-20 Fri  Gavin
+
+	* CMakeLists.txt:
+	in HOPPET_ENABLE_FPES, removed underflow and denormal errors
+	for gcc given that those operations may legitimately occur
+	in some places in the code (e.g. high-order expansions). 
+
+2025-06-20 Fri  Alexander + Gavin
+
+	* CMakeLists.txt:
+	* scripts/check:
+	* example_f90/tabulation_example_n3lo.default_output:
+	arranged for ctests to use scripts/check, which now has an option
+	to test just one specified test. The actual list of tests is
+	still separate (ctest has its own one-by-one list, to be able
+	to run in parallel, scripts/check when run in make checked
+	uses its own full list sequentially)	
+	
+	Added tests for example_f90/tabulation_example_n3lo.f90
+
+	* .github/workflows/main.yml:
+	- tried changing gcc versions from 10,13,14 -> 10,14,15 
+	  but it failed to find gfortran-15, so went back to 10,13,14
+    - changed some of the buils from Debug -> RelWithDebInfo, to 
+	  speed up the CI tests.
+
+	* example_f90/tabulation_example_n3lo.f90:
+	switched to dy=0.1, which gives identical results to dy=0.05
+	and runs faster, relevant notably for CI.
+
+2025-06-06  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* CMakeLists.txt
+	* NEWS
+	* doc/HOPPET-v1-doc.tex
+	* doc/HOPPET-v1.3-release.tex -> doc/HOPPET-v2.0-release.tex
+	* doc/qed-and-structure-functions.tex
+	* src/welcome_message.f90
+
+	Updated version number to 2.0.0
+
+2025-05-29 Thu  Alexander + Gavin
+
+	* example_f90/sumrules.f90 -> benchmarking/sumrules.f90:
+	* CMakeLists.txt:
+	renamed example_f90/sumrules.f90 to benchmarking/sumrules.f90, 
+	so that it gets access to command-line otions. Added 
+	various command-line option (-ymax,-dy,-Q0,-Q,-nloop) to
+	facilitate testing at higher accuracy than by default.
+
+	* LICENSE:
+	updated to reflect various N3LO contributions.
+
+2025-05-28 Gavin & Alexander
+
+	* CMakeLists.txt:
+	* Makefile:
+	* benchmarking/prec_and_timing.f90:
+	* configure:
+	* git_watcher.cmake:                    *** ADDED ***
+	* src/config/hoppet_git_state.f90.in:   *** ADDED ***
+
+	Added functionality to print git state if things are built with cmake
+	and git is available. This is done by the git_watcher.cmake file.
+	A number of variables are set in the hoppet_git_state module, 
+	which also has a hoppet_print_git_state(idev,[prefix]) function
+	to print the basic info.
+
+	With the ./configure build route, the git state info is 
+	just a set of placeholders.
+
+
+2025-05-28 Wed  Gavin
+
+	* src/dglap_objects.f90:
+	added new NSmqq_H member to mass_threshold_mat type.
+	Now the NSqq_H acts on non-singlet plus, and NSmqq_H acts on
+	on non-singlet minus. At N3LO, NSmqq_H is now initialised
+	from latest code by Johannes Blumlein.
+
+	* src/pdf_representation.f90:
+	removed some old commented lines in functions that convert
+	between Human and Evln
+
+2025-05-12 Alexander + Gavin
+
+	* momnsmod.f: *** ADDED ***
+	added code from Johannes Blumlein with the light-quark NS-minus
+	function including x-space terms (OPLUS[12],OREG,ODEL) and some moments. 
+
+	* mass_thresholds_n3lo.f90: 
+	added adapter functions OPLUS_znfasLL, OREG_znfasLL, ODEL_znfasNLL
+	to have access to these pieces with the standard order of arguments
+
+2025-05-07 Wed  Gavin
+
+	* src/dglap_objects.f90:
+	added missing deletions in cobj_DelMTM	
+
+2025-05-07 Wed  Alexander + Gavin
+
+	* src/structure_functions.f90:
+	clarified some comments
+
+	* benchmarking/evolution_n3lo_tests.f90:
+	turned on VFN by Default
+
+	* tests/with-lhapdf/tabulation_n3lo_v130_paper.f90:
+	increased output precision for Q and changed order of output to make it a
+	bit easier to compare LHAPDF and Hoppet outputs.
+
+	* CMakeLists.txt:
+	
+	if LHAPDF is found and -DHOPPET_BUILD_TESTDIR=ON, enabled
+	cmake building of tests that rely on LHAPDF.
+
+2025-04-24 Thu  <gavin.salam@physics.ox.ac.uk> + Alexander
+
+	* src/dglap_objects.f90:
+	fixed issue with nf factor in cobj_ConvMTM singlet contributions, 
+	which are only relevant for N3LO thresholds. The ambiguity
+	related to the fact that 1406.4654 includes a 1/nf in its Eq.(7.1)
+	while 1403.6356 (Eq.(32)) does not. We have checked now have
+	the right intepretation both using sum rules directly from 
+	the momN=2 moments in test-n3lo-mtm.f90 and by checking the 
+	momentum sum rule in an actual evolution with sumrules.f90.
+
+	* tests/test-n3lo-mtm.f90:
+	made ymax a command-line option and increased its default value to 
+	22.0 to help with the N=1 (number) moment.
+
+	* src/VFNSmod.f:
+	clarified comments about meaning of APS1 and APS1, following 
+	feedback from Johannes Blumlein. Does not affect our use of 
+	them. 
+
+2025-04-24 Thu  <gavin.salam@physics.ox.ac.uk>
+
+	* src/dglap_objects.f90:
+	clearer output of meaning of nf in initialisation of
+	MTM_N3LO objects.
+
+	* src/dglap_holders.f90:
+	switched off initialisation of MTM_N3LO objects
+	for inactive lowest nf (i.e. no nf=2->3). Brings
+	timging for example_f90/tabulation_example_n3lo down 
+	from 11.5s to 7.9s.
+
+2025-04-23 Wed  <gavin.salam@physics.ox.ac.uk>
+
+	* src/mass_thresholds_n3lo.f90:
+	class JB now accepts order=20n (e.g. 202, 203) to extract
+	the pure alphas^2 or alpha^3 term from the Blumlein code, 
+	using either a very small or very large alphas value so that
+	the relative contribution from the other term is negligible.
+
+	* src/dglap_objects.f90:
+	When constructing MTM_N3LO objects, the default order has been encoded as "ord3"
+	and is now 203 by rather than 103, reducing the initialisation time
+	for example_f90/tabulation_example_n3lo from about 16s to 11.6s on M2Pro.
+
+2025-04-23  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* pyinterface: *** ADDED ***
+	Added a python interface which gives access to the same
+	functionality as the streamlined_interface. A user should have a
+	look at pyinterface/tabulation_example.py for how to use it. The
+	interface is compiled by the cmake flow.
+
+2025-04-19 Sat  <gavin.salam@physics.ox.ac.uk>
+
+	* CMakeLists.txt:
+	LHAPDF is now optional. If it's missing, examples that would need it
+	are simply not built.
+
+2025-02-24  Gavin Salam & Alexander Karlberg
+
+	This update includes the alphas^3 mass thresholds. Note that an
+	F2003 compiler is now required.
+
+	* src/VFNSmod.f:   *** ADDED ***
+	* src/AQg3mod.f90: *** ADDED ***
+
+	added code for alphas^3 mass thresholds from Johannes Blumlein and
+	Kay Schonwald corresponding to J. Ablinger, A. Behring,
+	J. Blumlein, A. De Freitas, A. von Manteuffel, C. Schneider,
+	K. Schonwald, The Variable Flavor Number Scheme at
+	Next-to-Next-to-Leading Order (DESY 24-037).
+
+	* src/daind_fake.f90: *** ADDED ***
+	additional file needed with some of the VFNSmod.f tests
+
+	* src/dglap_choices.f90:
+	* src/dglap_objects.f90:
+	* src/mass_thresholds_n3lo.f90:
+	* example_f90/tabulation_example_n3lo.f90:
+	updated to finalise support for N3LO mass thresholds
+
+	* src/exact-coefs/hplog5.f -> src/hplog5.f:
+	needed for VFNSmod.f to placed in main compilation run
+
+	* tests/test-n3lo-mtm.f90:
+	run basic tests of the mass threshold terms
+
+	* tests/with-lhapdf/tabulation_n3lo_v130_paper.f90:
+	for examining the impact of different parts of the n3lo terms
+
+	* .github/workflows/main.yml:
+	turned off IBM XL support in CI because it runs very slowly and is
+	also difficult to test locally. The commented version includes
+	flags needed for F2003.
+
+	* NEWS:
+	updated to reflect mass thresholds
+
+2024-12-30 Mon  <gavin.salam@physics.ox.ac.uk>
+
+	* CMakeLists.txt:
+	* cmake/Tests/array_bound_bug.f90: *** ADDED ***
+
+	defined a variable with a common warning message for compilers with
+	the array bounds bug, including a link to the nvidia fortran bug
+	report and added an explicit test for the bug, which compiles and
+	runs array_bound_bug when cmake is invoked. Removed the manual
+	warning message for each compiler in light of Andrii's 
+	observation that ARM 24.10.1 is now OK.
+	(https://community.arm.com/support-forums/f/compilers-and-libraries-forum/56737/bugreport-for-the-fortran-compiler-treatment-of-array-bounds-in-the-specification-part)
+
+	NB: this test is left out for XLF, where it sometimes hangs and other
+	times seg faults in the CI. But this may be as much to 
+	do with the allocatable assignment as other things, because
+	ctest passes for XLF.
+
+2024-12-24 Tue  <gavin.salam@physics.ox.ac.uk>
+
+	* README.md:
+	updated section on examples and Fortran compilers.
+
+	* .github/workflows/main.yml:
+	- added gfortran 14 to the CI matrix
+	- updated name of MacOS test to reflect fact that it is no 
+	  longer running on intel + added output from unamea
+
+2024-12-09 Mon  <gavin.salam@physics.ox.ac.uk>
+
+	* src/splitting_functions_n3lo.f90:
+	added use of dglap_choices, to get access to n3lo_splitting_variant,
+	needed for initialisation of approx N3LO splitting functions.
+
+2024-11-29 Fri  <gavin.salam@physics.ox.ac.uk>
+
+	* ../src/pdf_tabulate.f90:
+	added PDFTableSetYInterpOrder(order), which sets a global
+	order for the interpolation of the y values in the PDF table.
+	Intended to allow investigation of speed an accuracy of 
+	interpolations that use fewer x points than the intrinsic
+	grid order (typically in conjunction with fewer lnlnQ points).
+	Some timing explicitly included in the code, in the EvalPdfTable_yQ 
+	function. Interface may evolve.
+
+	* ../benchmarking/prec_and_timing.f90:
+	added -yinterp I for controlling the y interpolation order
+	in PDF tables.
+
+	* CMakeLists.txt:
+	* benchmarking/test_acc/compare2files_v2.f90:
+	added CMake compilation of compare2files_v2.f90, and 
+	added a bit more documentation as part of the output.
+
+	* .github/workflows/main.yml:
+	turned off ifort because it's failing in CI
+
+	* src/convolution.f90:
+	WgtGridQuant_noalloc now takes an optional npnt_in argument, which,
+	if positive specifies the number of points to be used; plus some
+	small attempts at optimisation of the BestIsub routing 
+	(not clear if they have any impact; some parts still commented); 	
+
+	* benchmarking/io_utils.f90:
+	added get_hostname(hostname), using gethostname() from C, so 
+	that we can include the hostname in the output of Fortran
+	test programs.
+
+2024-08-05  Gavin Salam  <gavin.salam@physics.ox.ac.uk> + Alexander
+
+	* src/pdf_tabulate.f90:
+	fixed issue where get_lnlnQ_weights was giving an error when
+	trying to get the lnlnQ weight for a nf interval with a very
+	narrow range of Q values (below some threshold, the table
+	gets just a single entry).
+
+2024-05-17  Gavin Salam  
+
+	* src/welcome_message.f90:
+	updated copyright date range.
+
+	* src/hoppet_v1.h:
+	* src/streamlined_interface.f90:
+	added hoppetDeleteAll() to free all memory associated with the main
+	streamlined interface. NB: does not do anything to the structure
+	function interface objects.
+
+	* example_f90/tabulation_example_qed.f90:
+	* example_f90/tabulation_example_qed_streamlined.f90:
+	* example_f77/cpp_tabulation_example_qed.cc:
+	* example_f77/cpp_tabulation_example.cc:
+	* example_f77/tabulation_example.f:
+	added calls to hoppetDeleteAll()
+
+2024-03-26 Gavin + Alexander
+
+	* src/dglap_objects.f90:
+	fixed nf factors in normalisation of PSqq_H and Sqg_H contributions to the 
+	mass threshold. Relevant only for N3LO evolution.
+
+2024-03-22  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* src/streamlined_interface.f90:
+	un-commented a block of code that prevented table_loop_from_index
+	from being set correctly (reported by Melissa van Beekveld)
+
+2024-02-28 Alexander + Gavin
+
+	* src/dglap_objects.f90:
+	added support in MTM type for pieces that arise at N3LO and
+	also added an AddWithCoeff function for MTMs
+
+	* src/assertions.f90:
+	* src/evolution.f90:
+	* src/sort.f90:
+	* src/splitting_functions.f90:
+	* src/structure_functions.f90:
+	* src/warnings_and_errors.f90:
+	replaced stop with error stop (or call to wae_error) to facilitate
+	debugging (e.g. backtrace in debuggers)
+
+2024-02-27 Alexander + Gavin
+
+	* example_f90/tabulation_example_up_and_down.default_output:
+	* example_f90/tabulation_example_up_and_down.f90:
+	* CMakeLists.txt:
+	* scripts/check:
+
+	added example of evolution up and down, to verify evolution and mass
+	thresholds in both directions. Left out of make check and CI,
+	because of amplification of (system-dependent) rounding errors in
+	the downwards evolution. Current default_output is for gfortran-13 on
+	a Mac M2.
+
+
+2024-02-26 Gavin + Alexander
+
+	* src/dglap_holders.f90:
+	* src/dglap_objects.f90:
+	* src/evolution.f90:
+	Started work on support for mass-threshold matrices beyond NNLO. 
+	dglap_holder now has an allMTM(3:nloop,nflo+1:nfhi) array, and
+	setting nf sets up pointers from MTM_NNLO and MTM_N3LO to the
+	right parts of allMTM.
+	
+	This replaces the previous MTM2 array, whose structure was
+	nf-independent other than for internal nf_int variable. Use of the
+	MTM2 object and MTM2_exists variable is now deprecated.
+
+	Also added dh%SetNf(...) as start of experimentation of the
+	potential of a more object-oriented approach. And then
+	turned it off, because it causes failures with IBMM compiler
+	on CI.
+
+2024-02-24  Gavin Salam  <gavin.salam@physics.ox.ac.uk>
+
+	* src/integrator.f90:
+	fixed bug in array sizes for integral splitting.
+
+2024-02-11 Sun  <gavin.salam@physics.ox.ac.uk>
+
+	Work on speeding up evaluation of single and full-flavour PDFs.
+	Prior to this commit, the main native option for evaluating 
+	a pdf_table was the EvalPdfTable_yQ (and related) call which
+	filled all flavours. 
+
+    Using `./benchmarking/prec_and_timing -dy 0.1 -output -outputgrid -nrep 10 -nrep-eval 10000000 -order -6`
+	timing for one call of EvalPdfTable_yQ on a Mac M2 Pro (gfortran 13.2.0) was
+	about 315 ns, and is now 243 ns.
+
+	- EvalPdfTable_yQ
+	  * various improvements, including that of uniform_interpolation_weights
+	    (315 ns -> 286 ns)
+	  * fixed max_lnlnQ_order (286 ns -> 266 ns)
+	  * fixed y_wgts(0:WeightGridQuand_npnt_max-1) (266 ns -> 251 ns)
+      * removing dynamic wgts(:,:) array (251 ns -> 243 ns)
+	    (193 ns for order = -4)
+
+    - uniform_interpolation_weights(...), uses a fixed-size rather than
+	  dynamic-sized temporary dists array, and one loop is avoided
+	  (prod=product(dists) is merged into the previous loop).
+
+	- addition of EvalPdfTable_yQf(...) and _xQf(...) version to
+	  evaluate a single flavour. _yQf takes 71ns.
+
+	* src/pdf_tabulate.f90:
+
+	- Added max_lnlnQ_order, currently set to 6, to avoid the need for dynamic allocation. 
+    - added EvalPdfTable_yQf(...) and _xQf(...) functions, which take O(70ns)
+	  to give a single flavour rather than O(250ns) for all flavours.
+    - EvalPdfTable_yQ(...) now uses sub-parts of various fixed-sized arrays
+	  rather than allocating things
+	
+	* src/convolution.f90:
+	- public parameter WeightGridQuand_npnt_max, which is the maximum number of
+	  points in a WeightGridQuant interpolation
+	- new WgtGridQuant_noalloc, which gives the weight for a grid quantity
+	  without any dynamic allocations
+
+	* src/interpolation.f90:
+	- uniform_interpolation_weights(...), uses a fixed-size rather than
+	  dynamic-sized temporary dists array, and one loop is avoided
+	  (prod=product(dists)) to avoid allocations and two loops merged
+	  into each other.
+
+2024-02-09 Fri  <gavin.salam@physics.ox.ac.uk>
+
+	* src/convolution.f90:
+	* src/integrator.f90:
+	* tests/test_split_integration.f90:
+
+	added functionality in InitGridConv and underlying integrators to
+	split the integration regions so as to handle non-smooth or
+	discontinuous convolution function (with an optional "split" array
+	argument). Handling is still preliminary (e.g. ig_PolyWeight_expand
+	does not yet have this functionality, which impose a limit that the 
+	first split point needs to be beyond dy).
+
+2024-02-06 Tue  <gavin.salam@physics.ox.ac.uk>
+
+	Investigation of small differences in PDF outputs (at fairly large x
+	values) between this version of hoppet and 1.2.x series, which are
+	typically of the kind [-5.436262e-05-] v. {+5.436261e-05+},
+	i.e. at the level of 2e-7. Some differences are up to 6e-7 (possibly
+	rounding-amplified), and mostly at larger x values. 
+
+	The differences turn out to be due to the replacement, in
+	convolution.f90, of a call to ig_PolyWeight with one to
+	ig_PolyWeight_expand. The latter uses a second order expansion of the
+	interpolation when close to y=0, which was originally introduced in
+	order to work around issues with coefficient functions (which have
+	[log^n(1-x)]_+ structures that are delicate near x=1). 
+
+	However the transition, at 1e-5, seems to be a bit too early, and
+	should instead be at epsilon**(1/3) * dy. Reducing it changes one
+	structure function "make check" point (F3Z(NNLO), x=1.0000E-04,
+	Q=100; near a zero of F3Z, so extra delicate) by about 1e-6
+	relative; other choices seem stable at the level of 2e-8;
+
+	    -3.8985528E-04:  1e-5 (i.e. original code @f199aac48)
+		-3.8985487E-04:  3e-6_dp
+        -3.8985485E-04:  3e-6_dp * dy (NEW CODE)
+        -3.8985486E-04:  quad precision for interp operations, no expansion
+        -3.8985487E-04"  third order, 1e-4*dy     
+
+	Ultimately, we will go with 3e-6_dp * dy and second order. This
+	change also seems to bring us back in agreement with 1.2.x series
+	for the PDF evolution results (at least for the 7 digits printed in
+	the above test). 
+
+	* src/types.f90:
+	added commented out qp definition
+
+	* src/integrator.f90:
+	switched transition point as indicated above
+
+	* example_f90/structure_functions_example.default_output:
+	changed F3Z point (cf above) from -3.8986E-04 to -3.8985E-04
+
+2024-02-05  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* src/hoppet_v1.h: Forgot to propagate change in StartStrFct and
+	InitStrFct to the C++ interface.
+
+2024-01-31  Alexander Karlberg  <karlberg@karlberg-ThinkPad-X1-Extreme-Gen-3>
+
+	* src/structure_function.f90:
+	Moved the setting of muF and muR to InitStrFcts so that one only
+	has to start once to run with different scales. At the same time
+	streamlined how the scales are passed around and put in some
+	checks that the structure functions are actually called with the
+	scales that they initialised with. Propagated changes to the
+	examples.
+
+2024-01-04 Thu  <gavin.salam@physics.ox.ac.uk>
+
+	* src/NameSelect.pl:
+	* benchmarking/NameSelect.f90:
+	changed generation script to incorporate longer name length as 
+	included in PR #5
+
+	* [various]:
+	merged changes from Andrii Verbytskii (PR #5) to CI, renaming of
+	random -> hoppetrandom (to avoid conflicts), addressing some
+	implicit variable typing but not all. 
+
+2024-01-03 Wed  <gavin.salam@physics.ox.ac.uk>
+
+	* src/qed_splitting_functions.f90: moved calculation of ln1mx inside
+	case(cc_REAL,cc_REALVIRT), as in QCD splitting functions, so that
+	it's not called when all that's being done is evaluation of the
+	DELTA piece. This should resolve an FPE issue reported by Andrii
+	Verbytskyi, which came about because the cc_DELTA piece is always
+	called with y=0, x=1.
+
+	* src/streamlined_interface.f90:
+	trying another solution for the variables bounds issue in hoppetEval.
+
+2023-12-22 Fri  <gavin.salam@physics.ox.ac.uk>
+
+	* src/pdf_representation.f90:
+	* src/random.f90:
+	replaced ran() -> ran_one() to avoid conflict with intrinsic fortran
+	function.
+
+	* src/welcome_message.f90:
+	* CMakeLists.txt:
+	updated version numbers to reflect 1.3.0-devel
+
+2023-12-04 Mon  <gavin.salam@physics.ox.ac.uk> + Alexander
+
+	* src/hoppet_v1.h:
+	- alignment of interfaces with changes below, including a StrFctNoMu
+	  for evaluations with muR and muF as they are constrained by the
+	  scale choice.
+	- also put structure function and scale-choice indices (new in C++
+	  interface) into a new hoppet namespace
+
+	* src/structure_functions.f90:
+	added checks on muR and muF in StrFct calls (consistency and/or presence
+	as appropriate depending on the scale choice)
+
+	* src/structure_functions.f90:
+	* example_f90/structure_functions_example.f90:
+	* example_f90/structure_functions_example.default_output:
+	- removed redundant Qmin_PDF argument from StartStrFct 
+	  (and associated usage in example)
+	- updated default mW and mZ values to 2022 PDG and 
+	  regenerated default validation output (checking
+	  that things passed prior to the change).
+
+
+2023-11-12 Sun  <gavin.salam@physics.ox.ac.uk>
+
+	* LICENSE: *** ADDED ***
+	added a license file to reflect GPLv3 status
+
+2023-10-27  Gavin Salam  <gavin.salam@physics.ox.ac.uk> + Paolo + Alexander
+
+	* scripts/check:
+	* example_f90/tabulation_example_qed_streamlined.default_output: (*** ADDED ***, symlink)
+	* example_f90/tabulation_example_qed_streamlined.f90:
+	arranged for tabulation_example_qed_streamlined to be added to make check
+
+    * src/hoppet-config.in:
+	added --version output flag
+
+	* many files:
+
+	merged the QED and struct-func-devel-exact-coefficient-functions
+	branches into a new 2023-10-pre1.3.0 branch, which is what we
+	should use going forward.
+
+2023-10-27 NOTE That preceding months involve two streams of change (QED and structure functions) which have been kept separate
+
+2023-10-23 Mon  <gavin.salam@physics.ox.ac.uk> + Giulia + Paolo + Alexander
+
+	* example_f90/tabulation_example_qed.f90:
+	* src/pdf_tabulate.f90:
+	* src/qed_evolution.f90:
+	* src/streamlined_interface.f90:
+	added with_Plq_nnloqed argument to EvolvePdfTableQED and
+	QEDQCDEvolvePDF and removed the global variable that 
+	was being used previously.
+	Also added check:
+	* with_Plq_nnloqed==.true. is not being used with with_nqcdloop_qed==0 
+	* mismatches of quark masses between QCD and QED couplings
+    * that nqcdloop_qed <= 1
+	
+2023-10-03 Tue  <gavin.salam@physics.ox.ac.uk> with Giulia and Paolo
+
+	* src/pdf_general.f90:
+	InitPDF_LHAPDF() used to expect the LHAsub to set -6:6; 
+	now it expects -6:6 with plain QCD evolution, but
+	the full size of the flavour dimension if the upper limit
+	is anything other than ncompax=7 (e.g. for QED evolution 
+	it should go up to ncompmaxLeptons=11).
+
+	* src/streamlined_interface.f90:
+	switched this over the version prepared by Giulia and Paolo
+
+	* example_f90/tabulation_example_qed.default_output:
+	* example_f90/tabulation_example_qed.f90:
+
+	reworked the QED initial condition that had been put in a few
+	commits ago (no ChangeLog entry) so that it conserves momentum sum
+	rule and updated the default output so that make check works...
+
+2023-09-21 Thu  <gavin.salam@physics.ox.ac.uk> + Giulia
+
+	* example_f90/tabulation_example.f90:
+	* example_f90/tabulation_example_qed.f90:
+	switched these over to use InitGridDefDefault
+
+	* src/qed_objects.f90:
+	added Delete for the QED splitting matrices
+
+	* src/qed_evolution.f90:
+	fixed serious memory leak in QEDQCDEvolvePDF where internal
+	coupling_qcd_zero was not being deleted at the end of the function.
+
+	* src/dglap_objects.f90:
+	fixed minor memory leak, where Delete(MassThresholdMat) was leaving
+	out one piece of the deletion
+
+2023-09-16 Sat  <gavin.salam@physics.ox.ac.uk>
+
+	* example_f90/tabulation_example_qed.f90:  *** ADDED ***
+	* example_f90/tabulation_example_qed.default_output:  *** ADDED ***
+	added this example to show how to use basic QED + QCD evolution
+	to obtain a tabulated QED PDF and included default output
+
+	* src/qed_coupling.f90:
+	updated alpha(0) and lepton masses to 2022 PDG value_at_scale_0.
+
+	Also updated interface to InitQEDCoupling so that the user can
+	make their own choice for the effective light quark masses,
+	which they can tune so that alpha(0) and alpha(mZ) are both
+	reasonably sensible.
+
+	* src/hoppet_v1.f90:
+	included the QED modules
+
+	* src/pdf_tabulate.f90:
+	fixed an issue where tab%tab_iflv_max was not being sets
+	correctly, causing returned PDF to be unset beyond iflv=6
+
+	* scripts/check:
+	added a loop over tests to run and make sure failure causes exit 1
+
+2023-09-13  Giulia Zanderighi  <zanderi@mpp.mpg.de>
+
+	* src/qed_evolution.f90:
+	* src/qed_objects.f90:
+	* src/qed_splitting_functions.f90:
+	incorporated NNLO QED Plq splitting function, as used in Lepton PDF project.
+
+2023-10-26  Alexander Karlberg  <alexander.karlberg@cern.ch>
+
+	* benchmarking/structure_functions_benchmark_checks.f90
+	* doc/HOPPET-v1-doc.tex
+	* example_f77/cpp_structure_functions_example.cc
+	* example_f90/structure_functions_example.f90
+	* src/hoppet_v1.h
+	* src/structure_functions.f90:
+	Created sf_tables that now hold the structure functions such that
+	the stream lined tables can still be used independently. Also
+	removed unused 'rts' from structure functions. This needs to
+	propagate to proVBFH and disorder. Examples modified and checked.
+
+
+2023-10-16  Alexander Karlberg  <alexander.karlberg@cern.ch>
+
+	* src/structure_functions.f90:
+	Added Doxygen style comments. Relabelled all structure function indices. 
+
+2023-10-14 Sat  <gavin.salam@physics.ox.ac.uk>
+
+	* src/structure_functions.f90:
+	some work on comments
+2023-10-13  Alexander Karlberg  <alexander.karlberg@cern.ch>
+
+	* src/structure_functions.f90:
+	Changed the two public functions muR, muF to sf_muR, sf_muF due to
+	conflicts in other programs that depend on hoppet (reported by
+	Andrea Banfi for H1jet and HELAC+OpenLoops)
+2023-09-22  Alexander Karlberg  <alexander.karlberg@cern.ch>
+
+	* src/xc*p.f:
+	Rewrote all NNLO and N3LO parametrised coefficient functions to
+	use proper doubles rather than just float. Moved some divisions by
+	constants into parameters and multiplications.
+
+2023-09-18  Alexander Karlberg  <alexander.karlberg@cern.ch>
+
+	* src/streamlined_interface.f90 (hoppetSetExactDGLAP)
+	* src/hoppet_v1.h:
+	added a function to the streamlined_interface that allows the user
+	to swap to the exact DGLAP objects
+
+2023-09-16 Sat  <gavin.salam@physics.ox.ac.uk>
+
+	* .github/workflows/CI.yml:
+	added gfortran-13 to matrix of compilers to test
+
+2023-09-16 Sat  <gavin.salam@physics.ox.ac.uk>
+
+	* src/CMakeLists.txt:
+	reworked this to enable conditional compilation of exact
+	coefficient functions, and to allow for installation
+	of library + include files (but not yet .mod files)
+
+	* src/{ => unused}/xclns3p-orig.f:
+	moved this out of the way to avoid confusing build system without
+	two identical copies
+
+	* src/integrator.f90:
+	* src/xclns3p.f:
+	removed some DO with line label termination (which is a deleted
+	feature in F2018 and so was causing warnings)
+
+2023-09-15 Fri  <gavin.salam@physics.ox.ac.uk>
+
+	* benchmarking/structure_functions_benchmark_checks.f90:
+	added options -exact-coefs (to turn on exact coefficient functions,
+	instead of parametrised) and -outdir to select the output directory.
+
+	* src/coefficient_functions_holder.f90:
+	* src/exact-coeffs/coefficient_functions_holder_exact.f90:
+	moved exact NNLO and N3LO coefficient functions into a separate
+	file, with a view to facilitating conditional compilation
+
+	* src/no-exact-coefs/coefficient_functions_holder_exact.f90:
+	the alternative file to use when exact coefficient functions 
+	are not being compiled in 
+
+	* configure:
+	added --enable-exact-coefs option to turn on compilation
+	of exact coefficient special_functions (looks for anything in an
+	exact-coefs sub-directory; without the option looks for anything in
+	a no-exact-coefs sub-directory)
+
+	* src/xc*e.f -> src/exact-coefs/:
+	moved all the exact coefficient function files into a separate
+	directory, which is only included if the --enable-exact-coefs option
+	is passed to configure
+
+	* example_f90/{ => exact-coefs}/coefficient_functions_test.f90:
+	moved this into a sub-directory so that it is compiled
+	only when exact coefficient functions are included
+
+	* .github/workflows/CI.yml:
+	added a check that the exact coefficient functions compile
+
+2023-09-15  Alexander Karlberg  <alexander.karlberg@cern.ch>
+
+	* src/streamlined_interface.f90:
+	* src/structure_functions.f90:
+	* src/hoppet_v1.h:
+	changed the argument that StrFct() etc takes from y = -log(x) to x
+	to conform with the rest of the code. Moved the call to
+	hoppetStartExtended outside the structure functions so a user can
+	more easily decide on the grids to use.
+
+2023-09-14  Alexander Karlberg  <alexander.karlberg@cern.ch>
+
+	* src/streamlined_interface.f90
+	* src/hoppet_v1.h:
+	added functions to call the structure functions in the
+	streamlined interface
+
+	* example_f77/cpp_structure_functions_example.cc:
+	added a C++ example for structure functions use
+
+	* example_f90/structure_functions_example.f90:
+	added an F90 example for structure functions use
+
+	* src/coefficient_functions_holder.f90
+	* src/structure_functions.f90
+	* src/hplog5.f
+	* src/xc2gl3e.f
+	* src/xc2ns3e.f
+	* src/xc2ps3e.f
+	* src/xc3ns3e.f
+	* src/xclgl3e.f
+	* src/xclns3e.f
+	* src/xclps3e.f:
+	added the exact 3-loop DIS coefficient functions. Currently they
+	do not work due to a numerical issue in hplog5. Removed factor 2
+	in structure functions introduced for VBF but which should not be
+	there in the DIS definition. Swapped Wp/Wm to align with DIS
+	convention. Fixed a number of bugs in the fl11 term of the NC N3LO
+	structure functions as reported by Valerio Bertone. Fixed
+	couplings for the EM and Zgamma structure functions which were
+	never used in VBF and therefore not tested.
+
+	* benchmarking/structure_functions_benchmark_checks.f90:
+	added file for structure function benchmarks. Should reproduce the
+	results that will be published with Valerio Bertone.
+
+	* scripts/check:
+	added a check for the structure functions
+
+2023-03-12 Gavin Salam  <gavin.salam@physics.ox.ac.uk>
+
+	* .github/workflows/CI.yml:
+	added an attempt at continuous integration using github actions
+
+2023-03-12  Alexander Puck Neuwirth + small mods by Gavin Salam  <gavin.salam@physics.ox.ac.uk> 
+
+	* src/warnings_and_errors.f90:
+	wae_error(...): replaced "stop" with "call exit(-1)", which
+	should return a failure exit code. Note, this is non-standard, but
+	seems to be supported in both intel and gfortran.
+
+	* src/convolution.f90:
+	replaced several "stop" instructions with calls to wae_error(...)
+
+2023-02-01  Alexander Karlberg  <alexander.karlberg@cern.ch> 
+
+	* src/structure_functions.f90:
+	Fixed wrong couplings used in the FgZ structure functions. Now
+	initialising non-standard iflv_max and fixed bug where F3gZ was
+	set equal to F3Z
+
+2023-02-01  Gavin Salam  <gavin.salam@physics.ox.ac.uk> (with Alexander Karlberg)
+
+	* src/pdf_tabulate.f90:
+	started to add support for table interpolation to use a
+	non-standard iflv_max
+
+2023-01-29  Gavin Salam  <gavin.salam@physics.ox.ac.uk>
+
+	* src/welcome_message.f90:
+	updated date in welcome message
+
+2022-07-20  Gavin Salam  <gavin.salam@physics.ox.ac.uk>
+
+	* src/dglap_holders.f90 (InitDglapHolder): 
+	* src/dglap_objects.f90 (InitSplitMatTimeNLO): 
+	* src/splitting_functions.f90:
+	added ingredients needed for FFN time-like evolution at NLO. Tests
+	ongoing. 
+
+2021-09-22 Wed  <gavin.salam@physics.ox.ac.uk>
+
+	* src/convolution.f90:
+	arrange in-range tests for y-in-range to make sure that if y is nan
+	then the test fails.
+
+2021-07-25  Gavin Salam  <gavin.salam@physics.ox.ac.uk>
+
+	* src/convolution.f90:
+	added DisableGridLocking() and RestoreGridLocking()
+	for user programs to be able to more safely handle
+	grid locking suspension.
+
+	Implemented minor fix to grid_conv initialisation with negative
+	orders, whereby the ny entry of the grid_conv matrix missed one
+	contribution. This doesn't affect normal evolution with physical
+	PDFs, because that element of the grid_conv entry multiplies the
+	pdf at iy=0, which is zero in physical PDFs. But it can affect the
+	use of the grid_conv entries when they are to be interpreted as
+	physical quantities in their own right.
+
+2021-05-21  Gavin Salam  <gavin.salam@physics.ox.ac.uk>
+
+	* src/special_functions.f90:
+	* src/integrator.f90:
+	replaced a set of number-terminated do loops with end do
+	constructs; ran make check to verify results have not changed.
+
+2021-05-12  Gavin Salam  <gavin.salam@physics.ox.ac.uk>
+
+	* src/CMakeLists.txt:
+	added this from Gregory Soyez to facilitate
+	use with other projects
+
+2020-08-29 Gavin Salam<gavin.salam@physics.ox.ac.uk>
+
+	* src/pdf_tabulate.f90:
+	replaced intent(out) with intent(inout) so that
+	automatic deletion works
+
+2020-08-27 Gavin Salam<gavin.salam@physics.ox.ac.uk>
+
+	* src/pdf_tabulate.f90
+	This should now detect if a table had previously been allocated
+	and delete it accordingly.
+
+2020-07-08  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/pdf_representation.f90:
+	removed "pure" from pdfr_HumanToEvln_sc, because it wasn't being
+	relied on and caused issues with the -fno-automatic option
+	that is used in POWHEG.
+
+2020-04-14  Gavin Salam  <gavin.salam@cern.ch>
+
+	* benchmarking/benchmark.f90:
+	changed sub_defs_io "use" to avoid conflicts with 
+	Value(...) from hoppet (as reported by Federico Buccioni)
+
+
+2018-12-27  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/qed_evolution.f90:
+	this now handles evolution below the QCD scale, using a zero QCD
+	coupling to signal to the evolution.f90 routine that it should not
+	do any QCD evolution there.
+
+	* src/evolution.f90:
+	some small changes to aid communibation with the QED evolution
+	code, including skipping certain bits of code when alphas = 0, and
+	changing ev_force_old_dt to be a variable (rather than a
+	parameter), so that one can play with it.
+
+	* src/qed_coupling.f90 (qed_coupling_module):
+	switched the scale for the turn-on of 3 light flavours
+	to be 1 GeV, to avoid issues with QCD couplings that aren't
+	defined below that scale. 
+
+	* src/qcd_coupling.f90: 
+	* src/new_as.f90:
+	added support for nloop = 0, i.e. fixed coupling. It sets up all
+	the usual infrastructure (flavour thresholds, etc.), but then when
+	you ask for the coupling, it just returns the fixed value that it
+	was initialised with.
+
+	* tests/coupling-fixed.f90: *** ADDED ***
+	for running a quick test that the new fixed-coupling functionality
+	works.
+
+2017-10-31  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/welcome_message.f90 (HoppetWelcomeMessage):
+	switched to 1.2.1-devel
+
+2017-10-30  Gavin Salam  <gavin.salam@cern.ch>
+
+	* NEWS:
+	finalised NEWS file for 1.2.0 release
+
+	* src/welcome_message.f90 (HoppetWelcomeMessage):
+	changed version to 1.2.0
+
+	* src/new_as.f90 (na_Init): 
+	fixed bug that arises when nloop is not specified (use of optional
+	nloop argument instead of nah%nloop)
+
+	* doc/HOPPET-v1-doc.tex: 
+	* tarit.sh:
+	added pdf files to tarball and added a whole bunch of pdf files +
+	changed documentation so that it works with both pdflatex and
+	latex.
+	Also changed front page to reflect contributions from Frederic and
+	Alexander. 
+
+	* tests/README-hoppet-tests.org:
+	added some old test output (from April 22)
+
+2017-02-02  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/evolution.f90 (ev_CrossMassThreshold):
+	bug fix to address issue reported by Florian Lyonnet of error of
+
+	   FATAL ERROR in cobj_ConvMTM:
+           Mass threshold matrix is undefined
+
+	when using 2-loop cached evolution. It was caused by
+	evop%cross_mass_threshold not being properly initialised to
+	.false. in that situation. Also removed some redundant code
+	lines.
+
+2016-07-XX NOTE That preceding months involve two streams of change (QED and structure functions) which have been kept separate
+
+2016-07-06  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/qed_objects.f90 (qed_objects):
+	added routine (Copy) for copying qed_split_mat objects (and
+	sub-object)
+
+	* src/sort.f90 (sort):
+	added sort_array() routine which acts as if an in-place sort is
+	carried out (relying on idx); made it public (and also swap)
+
+	* src/pdf_tabulate.f90 (FillPdfTable_LHAPDF):
+	fixed serious issue for tabulations where nf info is associated,
+	where Q was being recalculated wrongly for each iQ rather than
+	read in from the table%Q_vals array.
+
+2016-06-26  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/couplings.f90:         *** ADDED ***
+	* src/qcd_qed_coupling.f90:  *** ADDED ***
+	* src/qed_coupling.f90:
+	* tests/test_qed.f90
+	copied couplings.f90 over from hopper (aborted OO v2 of
+	hoppet). It has the small adaptation that any segment should
+	always have at least n_interp+1 nodes.
+
+	Then used it to build the QCDQEDCoupling type in
+	qcd_qed_coupling. Interface may yet evolve.
+
+	Small mods also to qed_coupling.f90 to make useful pieces public.
+
+	Conclusion from tests/test_qed.f90 is that effect of mixed QCD/QED
+	effects in the running coupling are ~0.2% on the QED coupling,
+	which, given that we don't have a proper treatment of hadronic
+	thresholds, is irrelevant.
+
+           mu      1/alpha    1/al(new)         diff       alphas  alphas(new)         diff
+     0.000255  137.0359991  137.2400777   -0.2040786  0.000000000  0.476340982 -0.476340982
+     0.010000  136.4049024  136.6089810   -0.2040786  0.000000000  0.476340982 -0.476340982
+     0.100000  135.9162787  136.1203573   -0.2040786  0.000000000  0.476340982 -0.476340982
+     1.000000  134.6565304  134.8606091   -0.2040786  0.476606222  0.476340982  0.000265241
+     1.680000  134.2144754  134.3909726   -0.1764972  0.328186836  0.328080169  0.000106667
+    10.000000  131.7767815  131.8555300   -0.0787485  0.178150999  0.178134081  0.000016918
+    91.200000  128.6496065  128.6496065   -0.0000000  0.118000000  0.118000000 -0.000000000
+   100.000000  128.5192900  128.5166165    0.0026735  0.116380683  0.116380983 -0.000000300
+  1000.000000  124.7657300  124.6901403    0.0755898  0.088496149  0.088501936 -0.000005787
+
+	where diff is the difference between running without and with the
+	mixed terms. (If running with pure QCD and QED evolutions the
+	differences are zero).
+
+
+2016-06-23  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/pdf_general.f90:
+	started introducing support for PDFs with non-standard number of
+	flavours. WORK HERE IS INCOMPLETE
+
+	* src/pdf_tabulate.f90
+	added support for non-standard number of flavours and for a
+	tabulation that uses QED evolution. Currently untested.
+
+	* example_f77/compare_lhapdf_hoppet.f:
+	changed the default pdf
+
+
+2016-06-07  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/qed_objects.f90 (qed_objects):
+	tried to get rid of Fortran-2003 constructs
+
+2016-06-07  Gavin Salam  <gsalam@lxplus0031.cern.ch>
+
+	* scripts/makef95makefile: 
+	this now handles gfortran compiler names such as gfortran-61, etc.
+
+2016-05-27  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/qed_objects.f90 (AllocPDFWithLeptons):
+	fixed wrong upper bound for flavour dimension
+
+	* src/qed_coupling.f90 (qed_coupling_module):
+	added an option to pass value_at_scale_0 when initialising
+	the coupling (e.g. to test sensitivity to higher orders, etc.)
+
+	Also changed the "light quarks" mass to 0.5GeV.
+
+	* src/qed_evolution.f90 (QEDQCDEvolvePDF):
+	fixed a bug with the initial nf values
+
+2016-05-26  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/welcome_message.f90 (HoppetWelcomeMessage):
+	updated date!
+
+	* src/qed_coupling.f90:
+	added info on n_thresholds inside the qed_coupling type and
+	extended the bounds of some of the arrays to make it easier to
+	access threshold information without worrying about out-of-bounds
+	accesses. 
+
+	* src/qed_evolution.f90:  *** ADDED ***
+	added this routine for QED evolution, including thresholds;
+	comprehensive testing still remains to be performed.
+
+	For now alphas and alpha_QED still have separate evolutions
+	(whereas with O(alpha alpha_s) splitting kernels they should have
+	coupled evolution).
+
+	* src/evolution.f90:
+	factored out some part of the machinery into a new module,
+	evolution_helper, so that it can be used by the QED
+	evolution. Nothing should change in the public interface.
+
+	* scripts/makef95makefile:
+	added a "-g" option to gfortran by default, to aid with debugging
+
+	* src/qed_objects.f90: *** ADDED ***
+	started work on a module for holding QED splitting matrices,
+	performing the flavour convolutions, etc. Currently the LO
+	QED splitting matrix appears to be working. The NLO is also mostly
+	tested. 
+
+	* src/streamlined_interface.f90 (hoppetStartExtended):
+	this now uses InitGridDefDefault for creating its grid
+
+	* src/convolution.f90:
+	added InitGridDefDefault(grid, dy, ymax, order) to make it
+	a bit easier to create good grids
+
+	added 2d version of TruncatedMoment
+
+2016-05-15  Gavin Salam  <gavin.salam@cern.ch>
+
+	* tests/test_qed.f90:
+	added tests of moments of the QED splitting functions.
+
+	* src/splitting_functions.f90:
+	made sf_S2(x) public, for us in the qed_splitting_functions
+
+	* src/qed_splitting_functions.f90: *** ADDED ***
+	added the QED splitting functions from 1512.00612
+
+2016-05-10  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/qed_coupling.f90:
+	put in correct values for lepton masses and fine structure
+	constant + removed diagnostic printouts.
+
+2016-04-24  Gavin Salam  <gavin.salam@cern.ch>
+
+	* tests/test_qed.f90: *** ADDED ***
+	file for first tests of QED coupling
+
+	* src/qed_coupling.f90: *** ADDED ***
+	got a first basic version of a 1-loop QED coupling -- interface
+	may evolve
+2016-07-08  Frédéric Dreyer  <frederic.dreyer@gmail.com>
+
+	* src/structure_functions.f90:
+	added a third implementation of the structure functions, where we add up
+	all orders before the convolution of the coefficient functions with the
+	PDF; this is possible only for scale_choice=0,1.
+
+	* example_f90/structure_functions_example.f90 :
+	added an example program showing sample usage of structure functions module;
+	moved the handling of the pdf outside of structure_functions.f90, and into
+	the actual program.
+
+2016-06-26  Frédéric Dreyer  <frederic.dreyer@gmail.com>
+
+	* src/structure_functions.f90:
+	- added optional variable flavour-number scheme for the structure functions.
+	- added the gamma-Z structure function.
+	these features still need to be cross-checked against other codes.
+
+2016-06-09  Frédéric Dreyer  <frederic.dreyer@gmail.com>
+
+	* src/integrator.f90 (ig_PolyWeight_expand):
+	* src/convolution.f90 (conv_GCAf_Helper):
+	added an additional integrator ig_PolyWeight_expand which expands terms
+	around zero. This avoids numerical issues close to zero for real pieces.
+
+	* src/streamlined_interface.f90:
+	changed size of tables for integration of structure functions in
+	existing framework
+
+	* src/structure_functions.f90:
+	* src/coefficient_functions_holder.f90:
+	* src/xc*.f:
+	fixed numerical convergence issues at large x by taking a series
+	expansion close to x=1.
+
+2016-06-07  Frédéric Dreyer  <frederic.dreyer@gmail.com>
+
+	* src/coefficient_functions_holder.f90:
+	* src/xc*.f:
+	added all the coefficient functions, implemented up to N3LO, with
+	both the parametrised and the exact NNLO implementation.
+
+	* src/structure_functions.f90:
+	added the implementation of the structure functions, as used in proVBFH.
+
+2016-04-04  Gavin Salam  <gavin.salam@cern.ch>
+
+	* doc/HOPPET-v1-doc.tex:
+	added mention of running up to 4 loops
+
+	* src/new_as.f90 (na_Init):
+	added protection against 4-loop running with non-standard colour factors.
+
+	* src/welcome_message.f90 (HoppetWelcomeMessage):
+	added Frederic and Alexander as contributors.
+
+	* src/qcd.f90
+	* src/new_as.f90
+	* src/types.f90
+
+	Put in changes from Alexander Karlberg to support 4-loop running
+	of the coupling, including flavour thresholds. Alexander has
+	tested this against my python code (itself tested against
+	rundec). Note -- there's support only for QCD colour factors, not
+	general colour factors.
+
+2015-06-26  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/streamlined_interface.f90:
+	added some code to delete old tabulations and dglap holder if
+	hoppetStart is called more than once.
+
+2015-04-22  Gavin Salam  <gavin.salam@cern.ch>
+
+	* NEWS:
+	started work on comments for 1.2.0 release
+
+	* doc/HOPPET-v1-doc.tex:
+	added note on multi-splitting function support in
+	hoppetEvalSplit. 
+
+	* src/welcome_message.f90 (HoppetWelcomeMessage):
+	upped version number to 1.2.0-devel (will now try to follow
+	semantic version 2.0.0 numbering for releases, http://semver.org/,
+	so that patch number changes are mainly for bug fixes).
+
+	* tests/README-hoppet-tests.org: *** ADDED ***
+	added this file in order to keep track of future tests
+
+	* tests/streamlined_multisplit.f90: *** ADDED ***
+	added this routine for testing the nested splitting-function
+	convolutions.
+
+	* src/dummy_pdfs.f90: *** ADDED ***
+	added this module with dummy unpolarized PDFs (given how often
+	they are needed); interface of internal functions may still evolve
+
+	* src/streamlined_interface.f90:
+	removed commented bits of code and improved comments in some
+	places now that tests have been run for hoppetEvalSplit.
+
+2015-04-21  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/streamlined_interface.f90:
+	work in progress on getting support for composite iloop values
+	(e.g. 11, 12, 21, 111) in hoppetEvalSplit.
+
+2015-04-07  Gavin Salam  <gavin.salam@cern.ch>
+
+	* src/pdf_tabulate.f90 (EvalPdfTable_yQ):
+	removed redundant if statement for case where we are out of Q
+	bounds (correct handling was already taking place elsewhere).
+
+2015-03-24  Gavin Salam  <gavin.salam@cern.ch>
+
+	* scripts/makef95makefile:
+	removed perl warning message about unnecessary "defined" in a
+	couple of places; 
+
+2013-04-18  Gavin Salam  <gavin.salam@cern.ch>
+
+	* example_f77/Makefile (LHAPDFLIBS): 
+	  now set using lhapdf-config (assuming it's in your path).
+
+	* example_f77/compare_lhapdf_hoppet.f:
+	  now explicitly takes alphas(MZ) from LHAPDF (and set dlnlnQ
+	  automatically based on dy).
+
+2012-12-24  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/streamlined_interface.f90: 
+	  added a note that tables(0) should become a "preserved" part of
+	  the hoppet interface, for people who want the convenience of the
+	  streamlined interface, but also a little more power.
+
+2012-08-03  Gavin Salam  <gsalam@macth69.cern.ch>
+
+	* src/welcome_message.f90: 
+	  switched version over to 1.1.6-devel (but everything is for now
+	  still identical to 1.1.5)
+
+	* src/welcome_message.f90: 
+	  added publication reference to welcome message.
+
+2012-08-03  Gavin Salam  <gsalam@macth69.cern.ch>
+
+	* NEWS
+	* src/welcome_message.f90: 
+	  updated for release of version 1.1.5
+	  (HoppetWelcomeMessage): 
+
+	* doc/HOPPET-v1-doc.tex:
+	  documented PartonLuminosity(...) function.
+
+2012-07-30  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+
+	* scripts/makef95makefile: 
+	  --install-modules, if present, indicates that modules should be
+	  installed by default; --mod-prefix=... indicates a non-standard location
+
+	* configure:
+	  added support for --mod-prefix, and arranged for default
+	  mod-prefix to be PREFIX/include/hoppet + made use of the new
+	  --install-modules option of scripts/makef95makefile
+
+	* INSTALL:
+	  adapted the documentation to reflect the new module installation scheme
+
+	* hoppet-config.in:
+	  --fflags now handles the configurable modules location;
+	  --ldflags can now be used as a synonym for --libs
+
+
+2012-07-27  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* hoppet-config.in: 
+	  added error handling in case of unrecognized arguments;
+	  added an --fflags argument for flags to be used with fortran
+	  compilers.
+
+	* scripts/makef95makefile: 
+	  changed behaviour of install, so that it now also installs the
+	  .mod files (needed for programs like JetVHeto),
+	  without having to explicitly perform a "make install-mod".
+
+	  Also ensured that .h and .mod files are installed with -rw-r--r--
+	  permissions (rather than executable, as before).
+
+2012-05-17  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* README: 
+	  added a note about ranlib "no symbol" warnings. Thanks to Merjin
+	  van de Klundert for suggesting this.
+
+2012-05-13  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* README:
+	  a few small edits to update things re compilation
+
+	* tarit.sh: 
+	  ChangeLog had been left out of the tarball; so now include it.
+
+2012-05-11  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* src/pdf_tabulate.f90 (get_lnlnQ_wgts): 
+	  fixed bug that when Q was too small lnln came out as NaN, as did
+	  the PDF (while it should have been frozen or zero). The lnln
+	  function now returns a large negative number instead.
+
+	* src/dglap_objects.f90: 
+	  changed error message in case of mismatch of flavours between
+	  PDF and splitting function so that both nf values get printed.
+
+2012-04-17  Gavin Salam  <gsalam@macth69.cern.ch>
+
+	* src/qcd_coupling.f90 (qcd_coupling): 
+	  added RunningCoupling(...) interface as an alternative to the
+	  Value(...) function, whose name was rather meaningless when
+	  using the globally initialised coupling.
+
+2012-02-14  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/convolution.f90: 
+	  added a function PartonLuminosity(grid, gq1, gq2) to efficiently
+	  evaluate the partonic luminosity that comes from the "collision"
+	  of two grid quantities. Its accuracy currently relies on PDFs
+	  vanishing smoothly near y=0. While this routine functions
+	  adequately, the exact interface and internal implementation
+	  could change in the future.
+
+	* src/welcome_message.f90: 
+	  updated copyright date
+
+
+2012-01-20  Gavin Salam  <gsalam@macth69.cern.ch>
+
+	* scripts/makef95makefile:
+	  arranged for gfortran to be the default compiler for all
+	  architectures (previously was only for linux)
+
+	* scripts/check:
+	  fixed bug related to make check on mac (in if condition),
+	  following bug report by Aneesh Manohar and Juan Rojo.
+
+2011-11-23  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* src/welcome_message.f90 (HoppetWelcomeMessage): 
+	  updated version number to 1.1.4
+
+	* src/new_as.f90: 
+	* src/qcd_coupling.f90: 
+	  fixed a couple of issues with double-declared return-value
+	  variables. (Pointed out by Alberto Guffanti)
+
+2011-03-09  Gavin Salam  <gsalam@macth69.cern.ch>
+
+	* example_f77/variants/tabulation_example_exact_nnlo.f: ***ADDED***
+          variant that illustrates how to set the exact nnlo splitting
+	  functions rather than parametrised ones.
+
+2011-03-09  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* example_f77/tabulation_example.f:
+	  corrected wrong initial PDF function in the cached part of the
+	  tabulation example.
+
+2011-02-22  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* doc/HOPPET-v1-doc.tex: 
+	  documented streamlined interface to Pole v. MSbar mass choice.
+
+	* src/streamlined_interface.f90: 
+	* src/hoppet_v1.h: 
+	  added support for Pole v. MSbar masses in the streamlined
+	  interface, via the calls hoppetSetPoleMassVFN and
+	  hoppetSetMSbarMassVFN.
+
+	* src/welcome_message.f90: 
+	  updated version number to 1.1.4-devel
+
+	* src/evolution.f90: 
+	* src/dglap_holders.f90: 
+	  added support for PDF thresholds that take places at MSbar
+	  masses in the evolution. The type of masses present in the
+	  couplings determines what action occurs also in the PDF
+	  evolution. This also involved some extra "communication"
+	  functions (a little dirty?)
+
+	* src/dglap_objects.f90: 
+	  extended mass_threshold_mat so that it has all the info needed
+	  for PDF mass thresholds not just for pole-quark masses but also
+	  MSbar masses.
+
+	* src/qcd_coupling.f90: 
+	* src/new_as.f90: 
+	  added enquiry function about quark-mass scheme, 
+	  QuarkMassesAreMSbar	
+
+	* tests/msbar_tests.f90: *** ADDED ***
+	  used for checking that differences between different pole and
+	  MSbar choices are genuinely of the order they should be.
+
+2011-02-21  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/qcd_coupling.f90: 
+	* src/new_as.f90: 
+	  added support for MSbar masses to be used for crossing flavour
+	  thresholds, with the new masses_are_MSbar argument.
+	
+	* doc/HOPPET-v1-doc.tex: 
+	  added mention of MSbar masses in sections 2 and 6.1.
+	
+	* src/qcd.f90: 
+	  minor reformatting
+
+2010-11-07  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* scripts/makef95makefile: 
+
+	  added default -fPIC option to default ifort and gfortran options
+
+2010-06-17  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* src/welcome_message.f90: 
+	  upped version number to 1.1.3.1 (for new config file)
+
+	* tarit.sh: 
+	  fixed missing hoppet-config.in file.
+
+2010-05-31  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* INSTALL: 
+	* README: 
+	* Makefile: 
+	* scripts/makef95makefile: 
+	  added an install-mod target to install f90 module files and
+	  documented it.
+
+	* example_f77/Makefile: 
+	  modified things so that everything works out of the box if
+	  you're using gfortran/gcc.
+
+	* example_f77/cpp_tabulation_example.cc: 
+	  fixed missing include (cstdio)
+
+2010-05-30  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/dglap_objects.f90: 
+	  made cobj_InitSplitLinks public to allow a user to code other
+	  splitting matrices.
+
+2009-10-09  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/welcome_message.f90 (HoppetWelcomeMessage): 
+	  updated version to 1.1.3-devel
+
+	* hoppet-config.in:  *** ADDED ***
+	  template script which is processed to become hoppet-config
+	  which gives indications of library names, etc.
+	
+	* scripts/makef95makefile: 
+	  now outputs a .makef95.prefix file indicating what the prefix was
+
+	* Makefile (install): 
+	* configure: 
+	  adapted them so that hoppet-config is properly dealt with
+	
+2009-09-09  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* scripts/makef95makefile:
+	  fixed typo to do with LDFLAGS.
+
+2009-09-05  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* INSTALL:
+	  moved build / installation instructions into here.
+
+	* README:
+	  updated this for new build procedure
+
+	* configure:     *** ADDED ***
+	  script to allow for new configure/make procedure (autotools
+	  lookalike, at least in some simple respects). Is now the default.
+
+	* Makefile:      *** ADDED ***
+	  top-level Makefile added to go with the configure structure.
+
+	* scripts/makef95makefile: 
+	  added make install functionality, specification of compiler and
+	  its options via FC and FFLAGS.
+
+        * scripts/check   *** ADDED ***
+	  for running a check on the output.
+
+	* test.sh: 
+	  switched this over to the new build and test procedure
+
+	* scripts/install-sh:      *** ADDED ***
+	  to help with installation
+
+	* src/f77_pdftab.h: *** removed ***
+	  this was obsolete, so it has been removed
+
+2009-07-27  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/qcd.f90 (qcd): 
+	  corrected comment in 3-loop beta fn
+
+2008-11-22  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/dglap_choices.f90 (dglap_choices): 
+	* src/dglap_holders.f90 (InitDglapHolder): 
+
+    	  Following discussions with Wei-Tian Deng, introduced
+	  factscheme_FragMSbar, and added support for it at 1-loop; tested
+	  the momentum sum-rule and it is consistent.
+
+	  Note that for flavour thresholds to be dealt with correctly, in
+	  the initial condition one must set e.g. D_b(x,Q0^2) =
+	  D_b(x,mb^2) for Q0 < mb.
+
+2008-09-10  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* benchmarking/prec_and_timing.f90: 
+	  updated comments and fixed small warning that appears with gfortran.
+
+	* test.sh: 
+	  replaced make clean with realclean in some places (safer)
+
+	* src/convolution.f90: 
+	  small mod to out-of-range error message
+
+2008-08-04  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* example_f90/sumrules.f90 (truncated_sum_rules): 
+	  removed extraneous writes
+
+	* tarit.sh: 
+	  eliminated problem with multiple versions of .tex file ending up
+	  in tarball
+
+	* src/welcome_message.f90: 
+	  updated the version number to 1.1.1
+
+2008-08-01  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* example_f90/sumrules.f90 (truncated_sum_rules): 
+	  corrected buggy array bounds
+	
+2008-07-28  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* CHECKLIST: *** ADDED ***
+	  reminder of things to do before a new release
+
+	* doc/HOPPET-v1-doc.tex: 
+	  small typos and update of release info
+
+	* ReleaseNotes -> NEWS
+
+2008-07-26  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* doc/HOPPET-v1-doc.tex: 
+	  made a series of modifications to the documentation in line with
+	  referee requests (included moving some of the material on
+	  truncated moments).
+
+	* README: 
+	  updated this with warnings about gfortran and other
+	  typo-fixing. 
+
+	* example_f90/tabulation_example_2.f90: 
+	  added the routine tabulation_print_sum_rules(..) to show
+	  how to obtain sum rules from a tabulation
+	
+	* src/pdf_tabulate.f90: 
+	  switched evaluation of Q weights out into get_lnlnQ_wgts(...),
+	  and arranged for EvalPdfTable_yQ and EvalPdfTable_Q to make use
+	  of this.
+
+	* src/convolution.f90: 
+	* example_f90/sumrules.f90: 
+	  renamed GetTruncMoment -> TruncatedMoment
+	
+	* src/welcome_message.f90: 
+	  updated version number to 1.1.1-devel
+
+2008-07-16  Gavin SALAM  <salam@lpthe.jussieu.fr> & Juan
+
+	* src/pdf_tabulate.f90 (EvalPdfTable_Q): 
+	  added this routine to get the pdf at the given Q value [still to
+	  be completed]
+
+2008-07-15  Juan Rojo  <rojo@lpthe.jussieu.fr> 
+
+	* doc/HOPPET-v1-doc.tex
+	  Begin section on sum rules of the
+	  documentation
+
+2008-07-15  Juan Rojo  <rojo@lpthe.jussieu.fr> 
+
+	* example_f90/sumrules.f90     
+	  The computation of the sum rules is now performed
+	  with a single function the two times
+	  Sum rules are computed for a PDF set in an
+	  arbitrary representation
+
+	* src/convolution.f90
+	  Added comment on the function GetTruncMoment
+
+
+2008-07-11  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* example_f90/tabulation_example_2.f90: 
+          added comments at start to explain why we have a second example
+	  program. 
+	
+	* example_f90/sumrules.f90: 
+	  small changes to help readability, etc.
+
+2008-07-10  Juan Rojo  <rojo@lpthe.jussieu.fr> 
+
+	* src/convolution.f90
+	Updated functions to compute moments
+	arbitrary moments of grid quantities
+
+	* example_f90/sumrules.f90      *** ADDED ***
+	Added example code which shows how to compute the various
+	sum rules of a PDF set
+	
+2008-07-09  Gavin Salam  <salam@lpthe.jussieu.fr> & JR
+
+	* src/convolution.f90: 
+	  started work on one way of introducing calculation of moments of
+	  grid_quants.
+
+2008-05-13  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* src/evolution.f90: 
+	* src/dglap_holders.f90: 
+
+          added (mostly commented) changes as a skeleton outline for
+	  working with interpolated splitting functions.	
+	
+2008-05-06  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* mkmk: 
+	  replaced cp -pv with cp -p to get it to work on Solaris and
+	  added explicit verbose output.
+
+2008-04-28  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* src/streamlined_interface.f90 (hoppetAlphaS): 
+	  added error if hoppetAlphaS is called before coupling has been
+	  initialised. 
+
+2008-04-23  Gavin SALAM  <salam@lpthe.jussieu.fr> + Juan
+
+	* example_f90/tabulation_example_streamlined.f90: 
+          [ added previously by Juan ]
+	  tidied up some details.
+	
+	* src/welcome_message.f90 (HoppetWelcomeMessage): 
+	  updated the banner text and put the version number at 1.1.0
+
+2008-04-22  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* src/vanilla_interface.f90 -> src/streamlined_interface.f90: 
+	  remaned this so as to correspond to name used in docs.
+
+2008-01-30  Gavin SALAM  <salam@lpthe.jussieu.fr> + Juan
+
+	* src/evolution.f90 (EvolveGeneric): 
+	* src/dglap_objects.f90: 
+	* src/pdf_representation.f90: 
+
+	  changed pdf representation information, so that it now holds
+	  also the value for nf (to avoid incompatible PDF and spliting
+	  function nf values)
+
+	  Changes needed in manual:
+	      pdfr_Evln  ->   no longer exists
+	      GetPdfRep and LabelPdfAsRep now return number of flavours
+	                      for evolution representations
+	      GetDerivedSplitMatProbes requires an nf argument
+	                 
+	
+2008-01-30  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* scripts/makef95makefile: 
+	  modified it so that make all will now compile all programs.
+
+	* benchmarking/4pegasus    *** ADDED ***
+	  created this directory for tests with pegasus and moved some
+	  files into here
+	
+2008-01-28  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* **/Makefile
+	  removed all f90 makefiles from svn, since they are generated
+	  automatically 
+
+	* mkmk: 
+	  switched from sh to bash in order to deal with systems where sh
+	  is a more elementary shell
+
+	* README: 
+	* example_f90/tabulation_example_2.f90: 
+	  added this alternative example which does the same as
+	  tabulation_example.f90, but with the information accessed across
+	  several different modules. Noted this in the README
+	
+
+2008-01-19  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/SConstruct:       *** ADDED ***
+	  example build script for scons (should work with scons >= 0.97,
+	  maybe earlier too).
+
+	* src/dglap_objects.f90 (dglap_objects): 
+	  make some internal things non-public in the hope of eliminating
+	  some issues with ifort on windows reported by Wu-Ki
+
+2007-05-04  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+==================== tagged release 1.1.0b1 ==============================
+
+
+	* test.sh: *** ADDED ***
+	  for checking things compile and run OK; usage "test.sh compiler"
+
+	* src/welcome_message.f90
+	  updated release to 1.1.0b1
+	
+2007-05-03  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* benchmarking/test_acc/acc-pegasus.gp|eps:  *** ADDED ***
+	  results of accuracy tests with pegasus 
+
+	* benchmarking/prec_and_timing_pegasus.f90:  *** ADDED ***
+	  tool for running the accuracy and timing tests of pegasus.
+
+	* benchmarking/prec_and_timing.f90: 
+	  modified the comments at the beginning to reflect the current
+	  usage, and changed some default options.
+
+	* example_f90/tabulation_example.f90: 
+	  resolved name conflict with LHAPDF that had somehow been left
+	  in.
+
+2007-05-01  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/hoppet_v1.h:    *** ADDED ***
+	  added the defines needed for a C++ interface covering the
+	  contents of the vanilla interface.
+
+	* example_f77/cpp_tabulation_example.cc:   *** ADDED ***
+	  added example program that uses the C++ interface
+
+	* tarit.sh            *** ADDED ***
+          for making a tar archive to disttribute
+	
+	* scripts/makef95makefile: 
+	  eliminated -march=i686 with g95 option unless uname -a reveals
+	  it to be allowed.
+	
+	* src/convolution.f90: 
+	  tidied up a bunch of things highlighted with -Wall (unused
+	  variables mostly).
+	
+	* example_f90/tabulation_example.f90: 
+	* example_f77/tabulation_example.f: 
+
+	  modified both of these so that they now provide the output of a
+	  subset of table 15 of hep-ph/0511119, for ease of
+	  comparison. Parameters for the evolution grids now match those
+	  given in the documentation.
+
+	* example_f90/tabulation_example.default_output  *** ADDED *** 
+	  default output from the two above example programs.
+	
+	* example_f77/compare_lhapdf_hoppet.f: *** ADDED ***
+          example showing comparisons with LHAPDF.
+	
+	* scripts/makef95makefile: 
+	  corrected a bug in make clean
+	
+2007-04-30  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/vanilla_interface.f90: 
+	  changed the default vanilla grid to be based on 4grids
+	  (1:3:9:27), so as to correspond to what is now in paper
+	
+	* mkmk: 
+	  added this script to help automate generation of all the
+	  Makefiles
+
+	* src/new_as.f90: 
+	* src/qcd_coupling.f90: 
+	  Added SetDefaultCouplingDt(dt) and DefaultCouplingDt() in order
+	  to set and retrieve information about the coupling dt.
+	
+	* benchmarking/prec_and_timing.f90 (output_info): 
+          added -asdt and -eps options for setting DefaultCouplingDt and
+	  DefaultConvolutionEps.
+	
+2007-04-29  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* benchmarking/small_fast_tab.f90 -> prec_and_timing.f90 
+	
+	* benchmarking/small_fast_tab.f90: 
+	  added -outputgrid  option for grid output (-5:5 flavours)
+	  added -4grids option for having 4 subgrids (1:3:9:27)
+
+	  modified information in output so that one gets 
+	   (a) full info about evolution grids being used
+	   (b) printout of info on the cpu(s)
+
+	* benchmarking/test_acc/compare2files_v2.f90  *** ADDED ***
+
+	  new routine for benchmarking, which includes a "-summary" option
+	  for getting the general situation and a -channel option for
+	  examining the details of a given channel (11=all) 
+	
+	* benchmarking/       *** ADDED ***
+	  moved a whole bunch of things from the example_f90 directory
+	  into this one
+
+2007-04-23  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/pdf_tabulate.f90: 
+	  changed default lnlnQ_order -> 4
+
+	* src/vanilla_interface.f90: 
+	  changed default dlnlnQ -> dy/4
+
+2007-04-22  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* src/vanilla_interface.f90 (hoppetStartExtended): 
+          on basis of numerical studies, switched large-x grid to 15 times
+	  the base resolution.
+	
+2007-04-21  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* example_f90/benchmark.f90: *** ADDED ***
+	  added this for getting the HeraLHC benchmarks 
+
+	* example_f77/tabulation_example.f: 
+	  modified it so that it uses the new routines in the
+	  vanilla_interface.
+
+	* src/f77_pdftab.f90 -> src/vanilla_interface.f90 [later]: 
+          major extension of facilities offered, some renaming and chances
+	  of interface
+	
+	* src/pdf_tabulate.f90: 
+	  Long-overdue renaming of routines for pdf tables.
+	  Added Q_vals(:) to the tabulation.
+	  Reduced default dlnlnQ to 0.07.
+	
+	* src/f77_pdftab.f90 (dglapStart): 
+	  fixed missing initialization of order
+	  
+
+2007-03-06  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* src/f77_pdftab.f90: 
+	  added dglapStartExtended(...) to give user more control over how
+	  things are initialised
+
+	  added dglapEvolve(...) to allow a user to take an initial
+	  condition at some fixed scale and create a tabulation out of it
+
+          changed default value for dlnlnQ to be 0.5 in in the plain dglapStart.
+	
+
+	* example_f90/tabulation_example.f90:  *** ADDED ***
+          a simple example program using the f90 interface for
+	  evolving PDFs
+
+	* example_f77/tabulation_example.f:    *** ADDED ***
+	  a simple example program using the new f77 interface for
+	  evolving PDFs
+	
+2006-09-07  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+        * Added the f77_pdftab.h file (may change name at some point) to
+          provide an f77 interface to pdfs and their convolutions with
+          splitting functions.
+	
+2006-05-17  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* Added du option to the various routines in evolution.f90
+		
+	* Added test/split_mat_ops.f90 for testing operations with
+	  between splitting matrices
+
+	* fixed deallocation bug on coefficient functions in
+	  src/dglap_holder.f90 
+	
+2006-05-12  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* Added the RelaseNotes file
+	
+	* Ensured that makefiles can be generated entirely locally
+	  (including addition of a copy of makePNEW.perl as
+	  scripts/makef95makefile)
+	* Updated README to reflect current installation procedure
+
+2006-05-11  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* fixed another bug in sort routine (didn't seem to affect
+	results, but was dodgy anyway).
+
+2006-05-10  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+	* fixed bug in sort routine; more to come...
+	* added various facilities to tests/determine_accuracies.f90 
+	  (but probably needs more work) (still need to add dy_min?)
+	
+	* Changed some more names (ev_Setdu -> SetDefaultEvolutionDu)
+	* Allowed eps to be made an argument of a grid initialisation
+	* Introduced query functions for eps and du
+	  (DefaultConvolutionEps, DefaultEvolutionDu)
+	* Introduced GetGridInfoString(grid,string) to get a 
+	  description string for one's run...
+
+	* Changed default global access to be via hoppet_v1 module
+	* Changed default Qmax in f77_pdftab to 28TeV (2*LHC rts)
+	* Added: src/welcome_message.f90 + introduced "HOPPET" name
+	* Added: corresponding mods in convolution.
+
+2006-05-09  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* Added tests/determine_accuracies.f90 
+	* swtiched some errors in convolution.f90 (and elsewhere) over to
+	the "official" warnings_and_errors handling.
+
+2006-05-07  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+  	* Implemented deletion of grid_def's + some more name changes
+	(notably, pdfset -> pdf in evolution.f90
+	
+        * implemented direction=-1 for mass thresholds and tested that it
+	works properly, using the tests/birectional_mass_thresholds
+	program (and running it with various alphas values).
+
+	* more name changes (extra "Delete") + introduced InitEvlnOperator(...)
+	
+	* switched warnings_and_errors over to a new version.
+	
+	* changed interfaces in evolution.f90 and pdf_tabulate.f90 so as
+	to make nloop an optional argument, with the default number of
+	loops being deduced from the running_coupling object; also
+	introduced NumberOfLoops(coupling) function for the
+	running_coupling, allowing other routines to find out what is
+	going on.
+
+  	* changed directory structure (for now), with a new directory
+	tests/, while the old testing directory has become testing-other
+	(devoted to testing things that are not directly related the
+	program development).
+	
+	* some name changes in evolution.f90 designed to make things more
+	uniform wrt rest of program.
+
+2006-05-05  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* moved some arguments around for the running_coupling type, and
+	introduced an optional quark_masses(4:6) argument for setting the
+	charm, bottom and top (pole) masses.
+
+	* major name changes related to running coupling handling --
+	hopefully it should all become somwhat more logical...
+
+	
+2006-05-04  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* moved holders.f90 -> dglap_holders.f90 (so its name now
+	coincides with module name).
+
+	* various name changes in holders.f90 (and global name changes,
+	such that gd -> grid and sh -> dh).
+
+2006-05-02  Gavin SALAM  <salam@lpthe.jussieu.fr>
+
+   	* some more name changes in dglap_objects; removed limitation in
+	MTM convolution on absence of heavy flavour (necessary to allow
+	crossing of threshold when evolving downwards, where there is
+	almost bound to be some residual heavy-quark piece).
+
+	* one internal name change in convolution.f90 to avoid subsequent
+	problems with SetToCommutator.
+	
+	* merged dglap_objects and dglap_objects hidden (which were
+	separated only for support of legacy f90 compilers, hopefully no
+	longer in existence). Added SetToZero, SetToConvolution,
+	SetToCommutator. 
+	
+	* removed number of loops from the split_mat type (it wasn't being
+	used).
+
+2006-05-01  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+        * started work on giving consistent names to routines for
+	working with splitting functions in dglap_objects.f90
+	
+        * Moved conv_objects.f90 to dglap_objects.f90, changed 
+	  PMat -> split_mat
+	  CMat -> coeff_mat
+	  MassThresholdMat -> mass_threshold_mat
+	  
+	* Put some case-insensitivity into the convert.pl script.
+	
+        * Added version of CopyHumanPdfToEvln etc. where first argument
+	is nf (integer) rather than a pdf_rep -- that should makes its use
+	a bit more transparent to people. Also switched the rest of the
+	code to make use of the new call and removed all prep information
+	from sigma_holder. [Tested that answers are unchanged!]
+	
+	* further name changes throughout
+
+	* added Delete function for sigma_holder
+	
+        * convolution.f90: fixed various potential memory leaks automatic
+	detection of need to allocate grid_conv objects.
+	
+	* pdf_representation.f90: representation changes now leave decoupled
+	heavy flavours unchanged, rather than setting them to zero.
+
+2006-04-30  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* various name changes to simplify life for the user (mainly
+	removal of prefixes which add little information and just make for
+	more things to remember)
+
+	* added scripts/convert.pl which carries out most of the name
+	changes automatically (sometimes one or two resulting name clashes
+	then had to be fixed by hand). Hopefully this script can also be
+	used for conversion of existing example programs
+	
+	* documentation moving forwards. Section 3 on one-flavour problems
+	is now at the first draft stage. Should probably next move on to
+	section 4 for dealing with flavour problems.
+
+2006-04-28  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* switched sort.f90 to be my own version.
+  	* removed unused interpolation routines from interpolation.f90
+	
+2006-04-07  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	* Added the example_f90/small_fast_tab.f90 program to examine
+	timings and accuracies for a (by default) small tabulation.
+
+	Default parameters give 10^{-4} accuracy at 3 ms/evolution over
+	the small region (Rojo's request: 9-e3<x<0.75, Q<50). Timings
+	increase to about 8.5ms/evolution for a larger range (1e-6<x,
+	Q<14000) and I haven't checked accuracies (NB 6ms with better
+	ifort optimization). Note also that eps dependence in integrations
+	still needs to be checked.
+
+        Timings below are for small table, with default parameters (see
+	svn of this date!), on tycho and gaia (3.4GHz P4).
+	
+	                          init (s)   evln (ms)     x,Q point (mu s)
+	ifort -O                     2.2       3.0               2.8
+	ifort -O3 -axP               2.1       2.1               2.6
+        lf95 -O                      2.7       2.2               2.2 
+        gfortran -O3 -march=i686     5.9     130               180  
+	g95 -O3 -march=i686          7.8      21                22            
+	
+	* increased default interpolation order in the pdf_tabulation to 3
+	(2 was definitely too low and 4 might be better). Found that a
+	slightly small spacing than used in the f77 routine could be
+	beneficial (e.g. 0.07). NB: haven't checked correctness of results
+	with -axP on intel (there are reports [banfi] of sporadic
+	non-understood problems).
+	
+
+2006-04-06  Gavin Salam  <salam@lpthe.jussieu.fr>
+
+	Version 1.0
+	
+	* imported sources from the PDFevln package, with the addition of
+	some f77 hooks and the removal of all the main programs; also a
+	directory structure has been introduced so that the library source
+	in is src/ while the example and testing programs are in separate
+	directories.
+
+	

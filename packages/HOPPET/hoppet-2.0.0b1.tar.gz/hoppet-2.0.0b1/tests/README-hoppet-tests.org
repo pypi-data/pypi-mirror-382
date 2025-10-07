@@ -1,0 +1,154 @@
+#+TITLE: file for tracking our tests
+#+STARTUP: logdone
+
+Note, as of <2025-02-22 Sat>, these tests rely on the in-place
+compilation of hoppet rather than the new CMake build. Just run
+`./mkmk; make -j` to build everything.
+
+* Incorporation of N3LO mass threshold matrices <2025-02-22 Sat>
+
+** testing the ingredients
+   Addition of the test-n3lo-mtm.f90 program, which, runs various tests
+   on the N3LO mass-threshold contributions from Blumlein et al. In
+   particular:
+     
+   - it prints out the moments as calculated by the internal
+     integration in VFNSmod.f and from the derived form in our
+     mass threshold matrices
+   
+   - it also runs Johannes Blumlein's original test code (with
+     hard-coded nf, as4pi and LL) for comparing known moments
+     to the integration in VFNSmod.f
+   
+   Reference output is in results/2025-02-22-n3lo-mlm.dat
+
+** exploring the output
+   - code is [[file:with-lhapdf/tabulation_n3lo_v130_paper.f90]]
+   - results of tests are in [[file:2025-02-n3lo-checks-v130/][2025-02-n3lo-checks-v130]]/
+
+* time-like NLO splitting function tests <2022-07-20 Wed>
+
+  - for the coding of the splitting functions themselves, compared
+    the output from apfelxx-refs/apfelxx-testsplit with that from
+    `timelike_tests` (documented exact test in each splitting
+    function header)
+    
+  - ran an actual evolution in a region without flavour thresholds,
+    with the standard LH initial condition (which makes little sense
+    here, but serves the purpose), i.e. from 5 GeV to 100 GeV
+    
+    : ./timelike_NLOevol_tests
+    : apfelxx-refs/apfel_dglap_test_streamlined
+
+    Output from Hoppet is
+    :     # nloop = 2
+    :            Evaluating PDFs at Q =  100.000 GeV
+    :     x      u-ubar      d-dbar    2(ubr+dbr)    c+cbar       gluon
+    : 1.0E-05  9.6320E-04  5.7804E-04 -1.3078E+02 -6.6569E+01 -5.5214E+01
+    : 1.0E-04  5.9846E-03  3.5722E-03 -9.0209E+00 -5.4459E+00  5.4039E-01
+    : 1.0E-03  3.4946E-02  2.0663E-02  1.4893E+01  6.7125E+00  9.3437E+00
+    : 1.0E-02  1.8041E-01  1.0424E-01  7.9528E+00  3.4491E+00  4.7795E+00
+    : 1.0E-01  5.9845E-01  3.0656E-01  1.0842E+00  3.5978E-01  8.7285E-01
+    : 3.0E-01  4.8815E-01  1.9065E-01  9.1394E-02  2.1521E-02  1.0697E-01
+    : 5.0E-01  2.0522E-01  5.6594E-02  6.6239E-03  1.2295E-03  1.1269E-02
+    : 7.0E-01  4.2729E-02  7.0122E-03  1.7216E-04  2.5767E-05  5.2329E-04
+    : 9.0E-01  1.1294E-03  6.1400E-05  1.0124E-07  1.0477E-08  1.5777E-06
+
+    Output from apfel++ is
+
+    : # nloop = 2
+    : # muF = 100
+    : 
+    : AlphaQCD(Q) = 1.160315e-01
+    : 
+    :    x       u-ubar      d-dbar    2(ubr+dbr)    c+cbar       gluon
+    : 1.0e-05  9.6320e-04  5.7804e-04  -1.3078e+02  -6.6569e+01  -5.5214e+01
+    : 1.0e-04  5.9846e-03  3.5722e-03  -9.0209e+00  -5.4459e+00  5.4039e-01
+    : 1.0e-03  3.4946e-02  2.0663e-02  1.4893e+01  6.7125e+00  9.3437e+00
+    : 1.0e-02  1.8041e-01  1.0424e-01  7.9528e+00  3.4491e+00  4.7795e+00
+    : 1.0e-01  5.9845e-01  3.0656e-01  1.0842e+00  3.5978e-01  8.7285e-01
+    : 3.0e-01  4.8815e-01  1.9065e-01  9.1394e-02  2.1521e-02  1.0697e-01
+    : 5.0e-01  2.0522e-01  5.6594e-02  6.6239e-03  1.2295e-03  1.1269e-02
+    : 7.0e-01  4.2729e-02  7.0122e-03  1.7216e-04  2.5767e-05  5.2329e-04
+    : 9.0e-01  1.1294e-03  6.1400e-05  1.0124e-07  1.0477e-08  1.5777e-06
+
+    
+* alphas (4-loop) tests <2017-10-30 Mon>
+
+  ran cross-checks between the hoppet alphas and gavin's python code
+  (itself cross-checked at 4 loops against crundec). All is OK, cf
+  below. 
+
+: $ make coupling                                                                                             [14:44:54]
+: gfortran -O3 -fPIC -I../src -I/Users/gsalam/utils/libf90-gfortran  -c coupling.f90
+: gfortran  -o coupling coupling.o  -L/Users/gsalam/utils/libf90-gfortran -liof90 -L../src -lhoppet_v1    
+: macthxgavin:tests$ ./coupling                                                                                                [14:44:55]
+:    1.1000000000000001       0.44157703683451388     
+:    2.0000000000000000       0.30182652043651498     
+:    6.0000000000000000       0.20262695856002116     
+:    91.187600000000003       0.11799999999999999     
+:    1000.0000000000000        8.8501153525165216E-002
+: 
+:    1.1000000000000001       0.43651409159811355     
+:    2.0000000000000000       0.30149567153780843     
+:    6.0000000000000000       0.20262695855995225     
+:    91.187600000000003       0.11799999999999999     
+:    1000.0000000000000        8.8521865726016710E-002
+:
+: $ ./coupling.py                                                                                             [14:44:56]
+: c threshold: mass(pole) = 1.67, at scale mu = 1.67; b threshold: mass(pole) = 4.78, at scale mu = 4.78; t threshold: mass(pole) = 173.21, at scale mu = 173.21; 
+: 1.1 0.44157703638
+: 2.0 0.301826520425
+: 6.0 0.202626958559
+: 91.1876 0.118
+: 1000.0 0.0885011535252
+: 
+: c threshold: mass(MSbarM) = 1.275, at scale mu = 1.275; b threshold: mass(MSbarM) = 4.18, at scale mu = 4.18; t threshold: mass(MSbarM) = 161.0, at scale mu = 161.0; 
+: 1.1 0.43651409126
+: 2.0 0.301495671526
+: 6.0 0.202626958559
+: 91.1876 0.118
+: 1000.0 0.0885218657261
+  
+* streamlined_multisplit [6/6]
+  
+  Tests carried out on <2015-04-22 Wed> by running
+  file:streamlined_multisplit.f90 :
+
+    - [X] basic pdf is still correct (3 loops)
+    - [X] dynamic nf at two scales, for all combinations of split-fns
+    - [X] fixed nf in convolution, for all combinations of split-fns
+    - [X] failure for iloop inconsistent with nloop
+    - [X] failure for iloop out of bounds
+    - [X] a few printouts to make sure that caching is working
+  
+   :  Running full set with Q =    100.00000000000000      , x =   0.29999999999999999      nf =           -1
+   :    internal v. table    7.88978E-02    7.88978E-02  OK  
+   :            PLO * pdf   -4.43837E-01   -4.43837E-01  OK  
+   :           PNLO * pdf    6.08769E-01    6.08769E-01  OK  
+   :          PNNLO * pdf    7.64858E+00    7.64858E+00  OK  
+   :      PLO * PLO * pdf    2.78335E+00    2.78335E+00  OK  
+   :     PLO * PNLO * pdf   -8.09495E+00   -8.09495E+00  OK  
+   :     PNLO * PLO * pdf    4.51645E-01    4.51645E-01  OK  
+   :          PLO^3 * pdf   -1.80150E+01   -1.80150E+01  OK  
+   : 
+   :  Running full set with Q =    3.2999999999999998      , x =   0.29999999999999999      nf =           -1
+   :    internal v. table    2.11070E-01    2.11070E-01  OK  
+   :            PLO * pdf   -1.14308E+00   -1.14308E+00  OK  
+   :           PNLO * pdf   -1.89359E-01   -1.89359E-01  OK  
+   :          PNNLO * pdf    9.92964E+00    9.92964E+00  OK  
+   :      PLO * PLO * pdf    5.96431E+00    5.96431E+00  OK  
+   :     PLO * PNLO * pdf   -7.29162E+00   -7.29162E+00  OK  
+   :     PNLO * PLO * pdf    6.28659E+00    6.28659E+00  OK  
+   :          PLO^3 * pdf   -2.24481E+01   -2.24481E+01  OK  
+   : 
+   :  Running full set with Q =    3.2999999999999998      , x =   0.29999999999999999      nf =            5
+   :    internal v. table    2.11070E-01    2.11070E-01  OK  
+   :            PLO * pdf   -1.21344E+00   -1.21344E+00  OK  
+   :           PNLO * pdf    4.20046E-01    4.20046E-01  OK  
+   :          PNNLO * pdf    1.56955E+01    1.56955E+01  OK  
+   :      PLO * PLO * pdf    6.94266E+00    6.94266E+00  OK  
+   :     PLO * PNLO * pdf   -1.01154E+01   -1.01154E+01  OK  
+   :     PNLO * PLO * pdf    4.80305E+00    4.80305E+00  OK  
+   :          PLO^3 * pdf   -3.17287E+01   -3.17287E+01  OK  
+   : bison[tests] 10:14% 
