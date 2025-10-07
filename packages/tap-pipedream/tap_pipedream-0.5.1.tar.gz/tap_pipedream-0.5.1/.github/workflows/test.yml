@@ -1,0 +1,99 @@
+name: Test tap-pipedream
+
+on:
+  push:
+    branches: [main]
+    paths:
+    - tap_pipedream/**
+    - tests/**
+    - pyproject.toml
+    - tox.ini
+    - uv.lock
+    - .github/workflows/test.yml
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+    - tap_pipedream/**
+    - tests/**
+    - pyproject.toml
+    - tox.ini
+    - uv.lock
+    - .github/workflows/test.yml
+  schedule:
+  - cron: "0 10 * * *"
+  workflow_dispatch:
+
+env:
+  FORCE_COLOR: "1"
+  # renovate: datasource=pypi depName=prek
+  PREK_VERSION: 0.2.3
+  # renovate: datasource=pypi depName=tox
+  TOX_VERSION: 4.30.3
+  # renovate: datasource=pypi depName=tox-uv
+  TOX_UV_VERSION: 1.28.0
+  # renovate: datasource=pypi depName=uv
+  UV_VERSION: 0.8.22
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+        - "3.11"
+        - "3.12"
+        - "3.13"
+        - "3.14"
+
+    steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+      id: setup-python
+      with:
+        python-version: ${{ matrix.python-version }}
+        allow-prereleases: true
+    - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      with:
+        version: ${{ env.UV_VERSION }}
+    - name: Run
+      env:
+        UV_PYTHON: ${{ steps.setup-python.outputs.python-version }}
+        TAP_PIPEDREAM_TOKEN: ${{ secrets.TAP_PIPEDREAM_TOKEN }}
+      run: >
+        uvx
+        --with tox-uv==${{ env.TOX_UV_VERSION }}
+        --with tox==${{ env.TOX_VERSION }}
+        tox -e ${{ matrix.python-version }}
+
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+      id: setup-python
+      with:
+        python-version: 3.x
+    - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      with:
+        version: ${{ env.UV_VERSION }}
+    - env:
+        UV_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      run: uv tool install --with tox-uv==${{ env.TOX_UV_VERSION }} --from tox==${{ env.TOX_VERSION }} tox
+    - name: Static type checking
+      run: tox -e typing
+    - name: Unused, missing and transitive dependencies
+      run: tox -e dependencies
+
+  pre-commit:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      with:
+        version: ${{ env.UV_VERSION }}
+    - run: >
+        uvx
+        --with prek==${{ env.PREK_VERSION }}
+        prek run --show-diff-on-failure --all-files
