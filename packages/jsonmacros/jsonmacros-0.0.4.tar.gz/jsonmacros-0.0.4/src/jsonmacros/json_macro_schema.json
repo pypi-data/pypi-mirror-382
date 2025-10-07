@@ -1,0 +1,114 @@
+{
+    "title": "JRDF Macro Schema",
+    "description": "The JSON Robot Description Format (JRDF) is a JSON-based format for describing the structure and properties of robots.",
+    "type": "object",
+    "$defs": {
+        "property_name": {
+            "type": "string",
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+        },
+        "macro_name": {
+            "type": "string",
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_\\.]*$"
+        },
+        "file_name": {
+            "type": "string"
+        },
+        "base_type": {
+            "anyOf": [
+                {"$ref": "#/$defs/macro"},
+                {"$ref": "#/$defs/conditional"},
+                {"type": "string"},
+                {"type": "number"},
+                {"type": "boolean"},
+                {"type": "array"},
+                {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/base_type"
+                    }
+                }
+            ]
+        },
+        "macro_definition": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/property_name"
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/property_name"
+                    },
+                    "uniqueItems": true
+                },
+                "body": {
+                    "$ref": "#/$defs/base_type"
+                }
+            },
+            "required": ["name", "body"]
+        },
+        "macro": {
+            "type": "object",
+            "properties": {
+                "$macro": {
+                    "$ref": "#/$defs/macro_name"
+                },
+                "$params": {
+                    "anyOf": [
+                        {"$ref": "#/$defs/macro"},
+                        {
+                            "type": "object",
+                            "additionalProperties": {
+                                "$ref": "#/$defs/base_type"
+                            }
+                        }
+                    ]
+                }
+            },
+            "required": ["$macro", "$params"]
+        },
+        "conditional": {
+            "type": "object",
+            "properties": {
+                "$if": {
+                    "type": "string"
+                },
+                "$then": {
+                    "$ref": "#/$defs/base_type"
+                },
+                "$else": {
+                    "$ref": "#/$defs/base_type"
+                }
+            },
+            "required": ["$if", "$then"]
+        }
+    },
+    "properties": {
+        "$include": {
+            "description": "A list of other macro files to include.",
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/file_name"
+            }
+        },
+        "$macros": {
+            "description": "A list of macro definitions.",
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/macro_definition"
+            }
+        }
+    },
+    "additionalProperties": {
+        "anyOf": [
+            {"$ref": "#/$defs/macro"},
+            {"type": "string"},
+            {"type": "number"},
+            {"type": "boolean"},
+            {"type": "array"},
+            {"type": "object"}
+        ]
+    }
+}
