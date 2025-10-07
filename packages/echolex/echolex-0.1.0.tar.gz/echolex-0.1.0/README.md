@@ -1,0 +1,477 @@
+<p align="center">
+  <img src="images/echolex_log.png" alt="EchoLex Logo" width="250">
+</p>
+
+[![PyPI version](https://badge.fury.io/py/echolex.svg)](https://badge.fury.io/py/echolex)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+EchoLex is a CLI tool for audio transcription using OpenAI's Whisper model for speech-to-text conversion.
+
+The name “EchoLex” combines “Echo” — the voice or sound we capture — with “Lex,” drawn from lexicon, meaning words or language. 
+Together, EchoLex reflects the tool’s purpose: transforming spoken echoes into written words with accuracy and clarity.
+
+## Features
+
+- Transcribe single audio files or batch process multiple files
+- Support for multiple audio formats (m4a, mp3, wav, flac, ogg, etc.)
+- Multiple output formats: plain text, JSON with timestamps, and SRT subtitles
+- Audio file information extraction
+- Configurable Whisper model sizes (tiny, base, small, medium, large)
+- Automatic audio file detection in `audio_files/` directory
+- Organized output in `transcripts/` directory
+- Built-in dependency checking
+- SSL certificate handling for model downloads
+
+## Installation
+
+### Prerequisites
+- Python 3.8+ (3.12 recommended)
+- FFmpeg for audio processing:
+  - macOS: `brew install ffmpeg`
+  - Ubuntu/Debian: `sudo apt-get install ffmpeg`
+  - Windows: Download from [ffmpeg.org](https://ffmpeg.org/download.html)
+
+### Install from PyPI (Recommended)
+
+```bash
+# Install EchoLex
+pip install echolex
+
+# Verify installation
+echolex --help
+```
+
+### Install from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/ramonfigueiredo/echolex.git
+cd echolex
+
+# Option 1: Quick setup script
+chmod +x setup.sh
+./setup.sh
+
+# Option 2: Manual installation
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+```
+
+### Troubleshooting Installation Issues
+
+If you encounter installation errors:
+
+1. **For virtual environments:**
+```bash
+# Install packages one by one
+pip install --upgrade pip setuptools wheel
+pip install certifi
+pip install ffmpeg-python
+pip install openai-whisper
+```
+
+2. **Use the simplified script (no certifi required):**
+```bash
+python transcribe_simple.py audio_file.m4a
+```
+
+## Project Structure
+
+```
+echolex/
+├── audio_files/              # Place your audio files here
+├── transcripts/              # Transcribed files will be saved here
+├── echolex.py                # EchoLex CLI tool
+├── test_echolex.py           # Unit tests
+├── setup.sh                  # Automated setup script
+├── requirements.txt          # Python dependencies
+└── README.md                 # This file
+```
+
+## Usage
+
+### Quick Start
+
+1. Place your audio files in the `audio_files/` directory
+2. Run the transcription:
+```bash
+python echolex.py transcribe your_audio_file.m4a
+```
+3. Find the transcript in the `transcripts/` directory
+
+### Getting Help
+
+```bash
+# Show main help
+python echolex.py --help
+python echolex.py -h
+
+# Show help for specific command
+python echolex.py transcribe --help
+python echolex.py batch --help
+python echolex.py info --help
+python echolex.py check --help
+```
+
+### Commands
+
+EchoLex provides four main commands:
+
+#### 1. Transcribe a Single File
+
+```bash
+python echolex.py transcribe audio_file.m4a
+```
+
+With specific options:
+```bash
+python echolex.py transcribe audio_file.m4a --model medium --output txt json srt
+```
+
+Specify output directory:
+```bash
+python echolex.py transcribe audio_file.m4a --output-dir custom_output
+```
+
+Available options:
+- `--model`: Model size (tiny, base, small, medium, large)
+- `--language`: Language code (e.g., 'en', 'es')
+- `--output`: Output formats (txt, json, srt)
+- `--output-dir`: Output directory
+- `--device`: Device to use (cuda, cpu, or None for auto)
+- `--verbose`: Show verbose output
+- `--quiet`: Don't show transcript preview
+
+#### 2. Batch Process Multiple Files
+
+Process all audio files matching a pattern:
+```bash
+python echolex.py batch *.m4a *.mp3
+```
+
+With custom settings:
+```bash
+python echolex.py batch *.m4a --model small --output txt json srt --output-dir results
+```
+
+Available options:
+- `--model`: Model size (tiny, base, small, medium, large)
+- `--output`: Output formats (txt, json, srt)
+- `--output-dir`: Output directory
+- `--verbose`: Show verbose output
+
+#### 3. Get Audio File Information
+
+Display detailed information about an audio file:
+```bash
+python echolex.py info audio_file.m4a
+```
+
+#### 4. Check Dependencies
+
+Verify that all required dependencies are installed:
+```bash
+python echolex.py check
+```
+
+### Command-Line Help
+
+Every command supports `--help` or `-h` for detailed usage information:
+
+```bash
+# Main help menu
+python echolex.py --help
+
+# Command-specific help
+python echolex.py transcribe -h
+python echolex.py batch -h
+python echolex.py info -h
+python echolex.py check -h
+```
+
+**Example help output:**
+```
+usage: echolex [-h] {transcribe,batch,info,check} ...
+
+Audio transcription tool using OpenAI Whisper
+
+positional arguments:
+  {transcribe,batch,info,check}
+                        Available commands
+    transcribe          Transcribe a single audio file
+    batch               Batch transcribe multiple audio files
+    info                Display audio file information
+    check               Check system dependencies
+
+options:
+  -h, --help            show this help message and exit
+
+Examples:
+  # Transcribe a single file
+  python echolex.py transcribe audio.m4a
+
+  # Transcribe with specific model
+  python echolex.py transcribe audio.m4a --model medium
+
+  # Batch transcribe multiple files
+  python echolex.py batch *.m4a *.mp3
+
+  # Get audio file information
+  python echolex.py info audio.m4a
+
+  # Check dependencies
+  python echolex.py check
+```
+
+### Model Options
+
+Available models (speed vs accuracy tradeoff):
+- `tiny`: Fastest, least accurate (~39 MB)
+- `base`: Good balance - default (~74 MB)
+- `small`: Better accuracy (~244 MB)
+- `medium`: Even better accuracy (~769 MB)
+- `large`: Best accuracy, slowest (~1550 MB)
+
+## Output Files
+
+All transcripts are saved to the `transcripts/` directory by default. For each audio file, the tool can create:
+
+- `*_transcript.txt`: Plain text transcript
+- `*_transcript.json`: Detailed JSON with timestamps, segments, and metadata
+- `*_transcript.srt`: SRT subtitle file for video synchronization
+
+### JSON Output Format
+The JSON output includes:
+- Complete transcript text
+- Timestamped segments
+- Detected language
+- Processing timestamp
+- Source audio file path
+
+## Requirements
+
+- Python 3.8+
+- FFmpeg
+- 4-8GB RAM (depending on model size)
+- Disk space for Whisper models:
+  - Tiny: ~39 MB
+  - Base: ~74 MB
+  - Small: ~244 MB
+  - Medium: ~769 MB
+  - Large: ~1550 MB
+
+## Performance Notes
+
+- First run will download the selected Whisper model automatically
+- Processing time depends on audio length and model size
+- Approximate processing speeds on modern CPUs:
+  - Tiny: ~10-15x real-time
+  - Base: ~5-8x real-time
+  - Small: ~3-5x real-time
+  - Medium: ~2-3x real-time
+  - Large: ~1-2x real-time
+- GPU acceleration available with CUDA-enabled PyTorch (significantly faster)
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### 1. SSL Certificate Errors
+```bash
+# EchoLex includes SSL certificate handling
+# If you still get SSL errors, ensure certifi is installed:
+pip install certifi
+```
+
+#### 2. Virtual Environment Installation Issues
+```bash
+# If pip install fails in virtual environment:
+pip install --upgrade pip setuptools wheel
+pip install certifi ffmpeg-python
+pip install openai-whisper
+
+# Or create a fresh environment:
+deactivate
+python3 -m venv venv_new
+source venv_new/bin/activate
+pip install openai-whisper ffmpeg-python
+```
+
+#### 3. Module Import Errors
+```bash
+# EchoLex will auto-install Whisper if missing
+# For other missing modules:
+pip install [missing_module_name]
+```
+
+#### 4. Missing Audio Files
+EchoLex automatically checks for audio files in:
+- Current directory
+- `audio_files/` folder
+
+#### 5. Memory Issues
+- Use smaller models: `--model tiny` or `--model base`
+- Process shorter audio segments
+- Close other applications to free up RAM
+
+#### 6. FFmpeg Not Found
+```bash
+# Check dependencies
+./echolex.py check
+
+# Install FFmpeg
+# macOS:
+brew install ffmpeg
+
+# Ubuntu/Debian:
+sudo apt-get install ffmpeg
+```
+
+## Example Workflow
+
+### 1. First Time Setup
+```bash
+# Clone the project
+git clone <repository-url>
+cd echolex
+
+# Run setup (recommended)
+chmod +x setup.sh
+./setup.sh
+
+# OR create virtual environment manually
+python3 -m venv venv
+source venv/bin/activate
+pip install openai-whisper ffmpeg-python
+```
+
+### 2. Prepare Audio Files
+```bash
+# Create directories
+mkdir -p audio_files transcripts
+
+# Place your audio file
+cp audio.m4a audio_files/
+```
+
+### 3. Transcribe
+```bash
+# Make echolex executable (optional)
+chmod +x echolex.py
+
+# Transcribe a file
+python echolex.py transcribe meeting.m4a
+
+# With custom options
+python echolex.py transcribe meeting.m4a --model medium --output txt json srt
+
+# Get help
+python echolex.py transcribe --help
+```
+
+### 4. Review Output
+```bash
+# View the transcript
+cat transcripts/audio_transcript.txt
+
+# Open JSON for detailed segments
+open transcripts/audio_transcript.json
+
+# Check processing summary (for batch jobs)
+cat transcripts/batch_transcription_summary.json
+```
+
+### 5. Verify Setup
+```bash
+# Check dependencies
+python echolex.py check
+
+# Get help
+python echolex.py --help
+
+# Run unit tests
+python3 -m unittest test_echolex -v
+```
+
+## Testing
+
+EchoLex includes a comprehensive test suite with 25 unit tests covering all functionality.
+
+### Run All Tests
+
+**Using unittest (built-in, no extra dependencies):**
+```bash
+python3 -m unittest test_echolex -v
+```
+
+**Using pytest (enhanced output, requires pytest):**
+```bash
+# Install pytest (optional)
+pip install pytest
+
+# Run tests
+pytest test_echolex.py -v
+
+# Run with more detailed output
+pytest test_echolex.py -v -s
+
+# Run with coverage (requires pytest-cov)
+pip install pytest-cov
+pytest test_echolex.py --cov=echolex --cov-report=html
+```
+
+### Run Specific Test Classes
+
+**Using unittest:**
+```bash
+# Test AudioProcessor
+python3 -m unittest test_echolex.TestAudioProcessor -v
+
+# Test AudioTranscriber
+python3 -m unittest test_echolex.TestAudioTranscriber -v
+
+# Test CLI commands
+python3 -m unittest test_echolex.TestCommandTranscribe -v
+python3 -m unittest test_echolex.TestCommandBatch -v
+```
+
+**Using pytest:**
+```bash
+# Test by class name
+pytest test_echolex.py::TestAudioProcessor -v
+pytest test_echolex.py::TestAudioTranscriber -v
+
+# Test by keyword
+pytest test_echolex.py -k "AudioProcessor" -v
+pytest test_echolex.py -k "batch" -v
+```
+
+### Run Individual Tests
+
+**Using unittest:**
+```bash
+python3 -m unittest test_echolex.TestAudioTranscriber.test_save_results_srt -v
+```
+
+**Using pytest:**
+```bash
+pytest test_echolex.py::TestAudioTranscriber::test_save_results_srt -v
+```
+
+### Test Coverage
+
+The test suite includes:
+- **AudioProcessor tests** - Dependency checking and audio file analysis
+- **AudioTranscriber tests** - Model loading, transcription, and output generation
+- **Helper function tests** - File finding and path resolution
+- **Command tests** - All CLI commands (transcribe, batch, info, check)
+- **Main CLI tests** - Argument parsing and command routing
+
+All tests use mocking to avoid external dependencies and ensure fast, isolated testing.
+
+## License
+
+Apache License, Version 2.0
