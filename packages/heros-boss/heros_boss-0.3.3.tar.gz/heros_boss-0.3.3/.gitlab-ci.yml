@@ -1,0 +1,189 @@
+image: "python:slim"
+
+stages:
+  - test
+  - pages
+  - build-package
+  - publish-package
+  - publish-docker
+  - trigger
+
+variables:
+  PACKAGE_NAME: "heros-boss"
+  PYPI_URL: "https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/packages/pypi"
+
+
+####################################
+# build script for docker images
+.build-docker-image:
+  image: quay.io/buildah/stable
+  variables:
+    IMAGE_TAG: "latest"
+    BUILDAH_FORMAT: docker
+    STORAGE_DRIVER: vfs
+  tags:
+    - docker
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+  script:
+    - cd "${CI_PROJECT_DIR}"
+    - buildah build --platform=linux/arm64/v8,linux/amd64 --manifest "${CI_REGISTRY_IMAGE}:${TAG_NAME}" .
+    - buildah tag "${CI_REGISTRY_IMAGE}:${TAG_NAME}" "${CI_REGISTRY_IMAGE}:latest"
+    - buildah manifest push --all "${CI_REGISTRY_IMAGE}:${TAG_NAME}"
+    - buildah manifest push --all "${CI_REGISTRY_IMAGE}:latest"
+
+
+.publish-package-to-repo:
+  stage: publish-package
+  tags:
+    - docker
+  image: "quay.io/pypa/manylinux_2_28_x86_64"
+  needs: ["build-package"]  # Ensure package is built before publishing
+  before_script:
+    - pipx install twine
+  rules:
+    - if: '$CI_JOB_TRIGGER == "heros"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+
+
+####################################
+# build
+build-package:
+  stage: build-package
+  tags:
+    - docker
+  parallel:
+    matrix:
+      - IMAGE: ["quay.io/pypa/manylinux_2_28_x86_64"]
+  image: $IMAGE
+  script:
+    - pipx install hatch
+    - hatch build  # Builds source tarball and wheel
+  artifacts:
+    paths:
+      - dist/
+  rules:
+    - if: '$CI_JOB_TRIGGER == "heros"'
+      when: never
+    - when: always
+
+
+####################################
+# lint
+pytest:
+  stage: test
+  tags:
+    - gitlab-org-docker
+  script:
+    - pip install --upgrade uv
+    - uv venv
+    - uv pip install -e .[dev]
+    - uv run pytest --color=yes --junitxml=report.xml --cov-report html --cov-report term --cov-report xml:cobertura.xml --cov=src/
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+      paths:
+          - htmlcov
+          - report.xml
+          - cobertura.xml
+      reports:
+          junit: report.xml
+          coverage_report:
+              coverage_format: cobertura
+              path: cobertura.xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+ruff:
+  stage: test
+  tags:
+    - docker
+  script:
+    - pip install --upgrade uv
+    - uv venv
+    - uv pip install -e .[dev]
+    - uv run ruff check
+  rules:
+    - if: '$CI_JOB_TRIGGER == "heros"'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+
+####################################
+# publish package
+publish-package-gitlab:
+  stage: publish-package
+  extends: .publish-package-to-repo
+  script:
+    - twine upload --repository-url "$PYPI_URL" -u "gitlab-ci-token" -p "$CI_JOB_TOKEN" dist/*
+
+publish-package-pypi:
+  stage: publish-package
+  extends: .publish-package-to-repo
+  script:
+    - twine upload --skip-existing -p "$PYPI_API_TOKEN" dist/*
+
+
+####################################
+# docker image git commit sha with last commit from master (not on tag)
+publish-docker-main:
+  stage: publish-docker
+  extends: .build-docker-image
+  variables:
+    TAG_NAME: "$CI_COMMIT_SHORT_SHA"
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "pipeline"'
+
+
+####################################
+# publish pages
+pages:
+  stage: pages
+  tags:
+    - docker
+  script:
+    - apt-get update && apt-get install -y make
+    - pip install --upgrade uv
+    - uv venv
+    - uv pip install -e .[docs]
+    - cd docs
+    - uv run make clean && uv run make html
+    - mkdir ../public
+    - mv build/html/* ../public
+  artifacts:
+    paths:
+    - public
+  rules:
+  - if: '$CI_JOB_TRIGGER == "heros"'
+    when: never
+  - if: '$CI_COMMIT_BRANCH == "main"'
+    when: always
+
+
+####################################
+# trigger downstream pipeline
+trigger-downstream-herosdevices:
+  stage: trigger
+  trigger:
+    project: "atomiq-project/herostools"
+    branch: "main"
+  variables:
+    CI_JOB_TRIGGER: "boss"  # something like a "caller id" s.t. the downstram pipeline knwos who triggered the build
+  rules:
+   - if: '$CI_COMMIT_BRANCH == "main"'
+   - if: '$CI_PIPELINE_SOURCE == "pipeline"'
+
+trigger-downstream-herostools:
+  stage: trigger
+  trigger:
+    project: "atomiq-project/herosdevices"
+    branch: "main"
+  variables:
+    CI_JOB_TRIGGER: "boss"  # something like a "caller id" s.t. the downstram pipeline knwos who triggered the build
+  rules:
+   - if: '$CI_COMMIT_BRANCH == "main"'
+   - if: '$CI_PIPELINE_SOURCE == "pipeline"'
