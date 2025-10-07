@@ -1,0 +1,279 @@
+Metadata-Version: 2.4
+Name: rbacx
+Version: 1.7.1
+Summary: RBAC/ABAC policy engine for Python with policy sets, condition DSL, and hot reload
+Author-email: Cheater121 <cheater1211@gmail.com>
+License: 
+        MIT License
+        
+        Copyright (c) 2025 RBACX (Cheater121)
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/Cheater121/rbacx
+Project-URL: Repository, https://github.com/Cheater121/rbacx
+Project-URL: Issues, https://github.com/Cheater121/rbacx/issues
+Project-URL: Changelog, https://github.com/Cheater121/rbacx/blob/main/CHANGELOG.md
+Project-URL: Documentation, https://cheater121.github.io/rbacx/
+Keywords: rbac,abac,policy,authorization
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: yaml
+Requires-Dist: PyYAML>=6.0; extra == "yaml"
+Provides-Extra: adapters-fastapi
+Requires-Dist: fastapi>=0.110; extra == "adapters-fastapi"
+Requires-Dist: starlette>=0.37; extra == "adapters-fastapi"
+Provides-Extra: adapters-flask
+Requires-Dist: flask>=2.3; extra == "adapters-flask"
+Provides-Extra: adapters-drf
+Requires-Dist: django>=4.2; extra == "adapters-drf"
+Requires-Dist: djangorestframework>=3.14; extra == "adapters-drf"
+Provides-Extra: adapters-litestar
+Requires-Dist: litestar>=2.8; extra == "adapters-litestar"
+Provides-Extra: metrics
+Requires-Dist: prometheus-client>=0.14; extra == "metrics"
+Requires-Dist: opentelemetry-api>=1.25; extra == "metrics"
+Provides-Extra: dates
+Requires-Dist: python-dateutil>=2.8; extra == "dates"
+Provides-Extra: http
+Requires-Dist: requests>=2.28; extra == "http"
+Provides-Extra: s3
+Requires-Dist: boto3>=1.26; extra == "s3"
+Provides-Extra: otel
+Requires-Dist: opentelemetry-api>=1.25; extra == "otel"
+Requires-Dist: opentelemetry-sdk>=1.19; extra == "otel"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: pre-commit>=3.7; extra == "dev"
+Requires-Dist: build>=1.2; extra == "dev"
+Requires-Dist: ruff>=0.6; extra == "dev"
+Requires-Dist: twine; extra == "dev"
+Requires-Dist: mypy>=1.8; extra == "dev"
+Requires-Dist: pytest-asyncio>=1.1.0; extra == "dev"
+Provides-Extra: tests
+Requires-Dist: pytest>=8; extra == "tests"
+Requires-Dist: pytest-asyncio>=1.1.0; extra == "tests"
+Requires-Dist: coverage>=7; extra == "tests"
+Requires-Dist: hypothesis>=6.140.0; extra == "tests"
+Provides-Extra: docs
+Requires-Dist: mkdocs<1.7,>=1.6.1; extra == "docs"
+Requires-Dist: mkdocs-material<10,>=9.5.19; extra == "docs"
+Requires-Dist: mkdocs-autorefs<2,>=1.4.2; extra == "docs"
+Requires-Dist: mkdocstrings[python]<1,>=0.26.2; extra == "docs"
+Provides-Extra: examples
+Requires-Dist: uvicorn>=0.30; extra == "examples"
+Requires-Dist: fastapi>=0.110; extra == "examples"
+Requires-Dist: starlette>=0.37; extra == "examples"
+Requires-Dist: flask>=2.3; extra == "examples"
+Requires-Dist: django>=4.2; extra == "examples"
+Requires-Dist: djangorestframework>=3.14; extra == "examples"
+Requires-Dist: litestar>=2.8; extra == "examples"
+Provides-Extra: validate
+Requires-Dist: jsonschema>=4.18; extra == "validate"
+Dynamic: license-file
+
+# RBACX
+
+
+[![CI](https://github.com/Cheater121/rbacx/actions/workflows/ci.yml/badge.svg)](https://github.com/Cheater121/rbacx/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-website-blue)](https://cheater121.github.io/rbacx/)
+![Coverage](https://raw.githubusercontent.com/Cheater121/rbacx/badges/coverage.svg)
+
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+[![PyPI](https://img.shields.io/pypi/v/rbacx)](https://pypi.org/project/rbacx/)
+[![Python](https://img.shields.io/pypi/pyversions/rbacx)](https://pypi.org/project/rbacx/)
+
+
+Universal **RBAC/ABAC** policy engine for Python with a clean core, policy sets, a compact condition DSL (including time ops), and adapters for common web frameworks.
+
+## Features
+- Algorithms: `deny-overrides` (default), `permit-overrides`, `first-applicable`
+- Conditions: `==`, `!=`, `<`, `<=`, `>`, `>=`, `contains`, `in`, `hasAll`, `hasAny`, `startsWith`, `endsWith`, `before`, `after`, `between`
+- Explainability: `decision`, `reason`, `rule_id`/`last_rule_id`, `obligations`
+- Policy sets: combine multiple policies with the same algorithms
+- Hot reload: file/HTTP/S3 sources with ETag and a polling manager
+- Types & lint: mypy-friendly core, Ruff-ready
+
+## Installation
+```bash
+pip install rbacx
+```
+
+## Quickstart
+```python
+from rbacx import Action, Context, Guard, Subject, Resource
+
+policy = {
+    "algorithm": "deny-overrides",
+    "rules": [
+        {
+            "id": "doc_read",
+            "effect": "permit",
+            "actions": ["read"],
+            "resource": {"type": "doc", "attrs": {"visibility": ["public", "internal"]}},
+            "condition": {"hasAny": [ {"attr": "subject.roles"}, ["reader", "admin"] ]},
+            "obligations": [ {"type": "require_mfa"} ]
+        },
+        {"id": "doc_deny_archived", "effect": "deny", "actions": ["*"],
+         "resource": {"type": "doc", "attrs": {"archived": True}}}
+    ],
+}
+
+g = Guard(policy)
+
+d = g.evaluate_sync(
+    subject=Subject(id="u1", roles=["reader"]),
+    action=Action("read"),
+    resource=Resource(type="doc", id="42", attrs={"visibility": "public"}),
+    context=Context(attrs={"mfa": True}),
+)
+
+assert d.allowed is True
+assert d.effect == "permit"
+print(d.reason, d.rule_id)  # "matched", "doc_read"
+```
+
+### Decision schema
+- `decision`: `"permit"` or `"deny"`
+- `reason`: one of `"matched"`, `"explicit_deny"`, `"action_mismatch"`, `"condition_mismatch"`, `"condition_type_mismatch"`, `"resource_mismatch"`, `"no_match"`, `"obligation_failed"`
+- `rule_id` and `last_rule_id` (both included for compatibility; `last_rule_id` is the matched rule id)
+- `policy_id` (present for policy sets; `None` for single policies)
+- `obligations`: list passed to the obligation checker (if a permit was gated)
+- *(optional)* `challenge`: present when an authentication/step-up is required (e.g., for MFA); may be used to return `401` with the appropriate challenge header
+
+
+### Policy sets
+Default algorithm is:
+```python
+from rbacx.core.policyset import decide as decide_policyset
+
+policyset = {"algorithm":"deny-overrides", "policies":[ policy, {"rules":[...]} ]}
+result = decide_policyset(policyset, {"subject":..., "action":"read", "resource":...})
+```
+If you want to test, try this:
+```python
+from rbacx.core.policyset import decide as decide_policyset
+
+# example set of policies
+policyset = {
+    "algorithm": "deny-overrides",
+    "policies": [
+        {"rules": [
+            {"id": "allow_public_read", "effect": "permit", "actions": ["read"],
+             "resource": {"type": "doc", "attrs": {"visibility": ["public"]}}}
+        ]},
+        {"rules": [
+            {"id": "deny_archived", "effect": "deny", "actions": ["*"],
+             "resource": {"type": "doc", "attrs": {"archived": True}}}
+        ]},
+    ],
+}
+
+# example request
+req = {
+    "subject": {"id": "u1", "roles": ["reader"]},
+    "action": "read",
+    "resource": {"type": "doc", "id": "42", "attrs": {"visibility": "public", "archived": False}},  # can try: would be `deny` if archived `True`
+    "context": {},
+}
+
+res = decide_policyset(policyset, req)
+print(res.get("decision", res))  # -> "permit"
+```
+
+## Hot reloading
+Default algorithm is:
+```python
+from rbacx import Guard, HotReloader
+from rbacx.store import FilePolicySource
+
+guard = Guard(policy={})
+mgr = HotReloader(guard, FilePolicySource("policy.json"), initial_load=...)
+mgr.check_and_reload()        # initial load
+mgr.start(10)  # background polling thread
+```
+
+If you want to test, try this:
+> ⚠️ Important: this example creates a file on disk. You also can rewrite it with TempFile (tempfile.NamedTemporaryFile)
+```python
+import json
+import time
+from rbacx import Action, Context, Guard, HotReloader, Resource, Subject
+from rbacx.store import FilePolicySource
+
+# create a tiny policy file next to the script
+policy_path = "policy.json"
+json.dump({
+    "algorithm": "deny-overrides",
+    "rules": [{
+        "id": "allow_public_read", "effect": "permit", "actions": ["read"],
+        "resource": {"type": "doc", "attrs": {"visibility": ["public"]}}
+    }]
+}, open(policy_path, "w", encoding="utf-8"))
+
+guard = Guard({})
+mgr = HotReloader(guard, FilePolicySource(policy_path), initial_load=True)
+mgr.check_and_reload()  # initial load
+
+print(guard.evaluate_sync(
+    subject=Subject(id="u1", roles=["reader"]),
+    action=Action("read"),
+    resource=Resource(type="doc", id="1", attrs={"visibility": "public"}),
+    context=Context(),
+).effect)  # -> "permit"
+
+# update policy and wait 3 second for reload
+json.dump({
+    "algorithm": "deny-overrides",
+    "rules": [{"id": "deny_all", "effect": "deny", "actions": ["*"], "resource": {"type": "doc"}}]
+}, open(policy_path, "w", encoding="utf-8"))
+mgr.start(3)  # starting polling
+time.sleep(3)
+
+print(guard.evaluate_sync(
+    subject=Subject(id="u1", roles=["reader"]),
+    action=Action("read"),
+    resource=Resource(type="doc", id="1", attrs={"visibility": "public"}),
+    context=Context(),
+).effect)  # -> "deny"
+```
+
+## Quick links
+- 📌 [Deprecation Policy](DEPRECATION.md)
+- 🛡️ [API Stability Guarantees](API_STABILITY.md)
+- 🔐 [Security Policy](SECURITY.md)
+- 🤝 [Code of Conduct](CODE_OF_CONDUCT.md)
+
+## Packaging
+- We ship `py.typed` so type checkers pick up annotations.
+- Standard PyPA flow: `python -m build`, then `twine upload` to (Test)PyPI.
+
+## License
+MIT
