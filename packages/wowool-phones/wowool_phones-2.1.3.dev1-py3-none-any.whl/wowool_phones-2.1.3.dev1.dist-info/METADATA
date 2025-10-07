@@ -1,0 +1,193 @@
+Metadata-Version: 2.4
+Name: wowool-phones
+Version: 2.1.3.dev1
+Summary: Wowool Phones
+Home-page: https://www.wowool.com/
+Author: Wowool
+Author-email: info@wowool.com
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: wowool-sdk
+Requires-Dist: phonenumbers
+Requires-Dist: pycountry
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Normalizing phone numbers
+
+The phones app enriches phone number annotations by:
+
+- Normalizing local phone numbers by resolving land lines depending on city or countries it has encountered in the document
+- Collecting all phone numbers present in the document
+
+<note>The application performs a resolution lookup each time a `PhoneNr` entity is found.
+You can find this in the `contact-info` domain or you can make your own custom domain with this entity.</note>
+
+## Options
+
+#### PhonesOptions
+
+```typescript
+interface PhonesOptions {
+  countries?: string[];
+  distance?: string[];
+}
+```
+
+with:
+
+| Property    | Description                                                             |
+| ----------- | ----------------------------------------------------------------------- |
+| `countries` | Country names to try to resolve a local phone number                    |
+| `distance`  | Maximum distance between a location and the phone number to be resolved |
+
+## Results
+
+#### PhonesResults
+
+```typescript
+type PhonesResults = PhoneResult[];
+```
+
+#### PhoneResult
+
+```typescript
+interface PhoneResult {
+  phone_nr: string;
+  country_code: string;
+  country: string;
+  location?: string;
+}
+```
+
+with:
+
+| Property       | Description                                        |
+| -------------- | -------------------------------------------------- |
+| `phone_nr`     | Normalized phone number                            |
+| `country_code` | Country phone code of the phone number, e.g. `+32` |
+| `country`      | Country code of the phone number, e.g. `'Belgium'` |
+| `location`     | Precise location, if available                     |
+
+## Examples
+
+<sample data-uuid="phones"></sample>
+# Normalizing phone numbers
+
+The phones app enriches phone number annotations by:
+
+- Normalizing local phone numbers by resolving land lines depending on city or countries it has encountered in the document
+- Collecting all phone numbers present in the document
+
+<note>The application performs a resolution lookup each time a `PhoneNr` entity is found.
+You can find this in the `contact-info` domain or you can make your own custom domain with this entity.</note>
+
+## Options
+
+#### PhonesOptions
+
+```typescript
+interface PhonesOptions {
+  countries?: string[];
+  distance?: string[];
+}
+```
+
+with:
+
+| Property    | Description                                                             |
+| ----------- | ----------------------------------------------------------------------- |
+| `countries` | Country names to try to resolve a local phone number                    |
+| `distance`  | Maximum distance between a location and the phone number to be resolved |
+
+## Results
+
+#### PhonesResults
+
+```typescript
+type PhonesResults = PhoneResult[];
+```
+
+#### PhoneResult
+
+```typescript
+interface PhoneResult {
+  phone_nr: string;
+  country_code: string;
+  country: string;
+  location?: string;
+}
+```
+
+with:
+
+| Property       | Description                                        |
+| -------------- | -------------------------------------------------- |
+| `phone_nr`     | Normalized phone number                            |
+| `country_code` | Country phone code of the phone number, e.g. `+32` |
+| `country`      | Country code of the phone number, e.g. `'Belgium'` |
+| `location`     | Precise location, if available                     |
+
+# API
+
+## Examples
+
+You will need to install the english language module to run the sample. `pip install wowool-english` 
+
+### Extracting and normalizing phone numbers
+
+The script extracts and normalizes a Belgian phone number from the text, identifies its country and location, and prints this structured information.
+
+
+```python
+from wowool.sdk import Pipeline
+from wowool.phones.app_id import APP_ID
+
+text = "I live in Antwerp and my phone number is 03/230 30 46."
+pipeline = Pipeline(
+    [
+        "english",
+        "contact-info",
+        "phones.app",
+    ]
+)
+document = pipeline(text)
+print(document.results(APP_ID))
+
+```
+
+results:
+
+```json
+[
+    {
+        "phone_nr": "+3232303046",
+        "country_code": 32,
+        "country": "Belgium",
+        "location": "Antwerp"
+    }
+]
+```
+
+
+
+## License
+
+In both cases you will need to acquirer a license file at https://www.wowool.com
+
+### Non-Commercial
+
+    This library is licensed under the GNU AGPLv3 for non-commercial use.  
+    For commercial use, a separate license must be purchased.  
+
+### Commercial license Terms
+
+    1. Grants the right to use this library in proprietary software.  
+    2. Requires a valid license key  
+    3. Redistribution in SaaS requires a commercial license.  
