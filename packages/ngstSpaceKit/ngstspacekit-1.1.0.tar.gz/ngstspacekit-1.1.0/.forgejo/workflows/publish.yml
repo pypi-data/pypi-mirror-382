@@ -1,0 +1,24 @@
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      triggerPyPIPublish:
+        description: "Trigger Publish to PyPI"
+        required: false
+        type: boolean
+jobs:
+  publish:
+    runs-on: codeberg-tiny
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: https://github.com/astral-sh/setup-uv@v5
+
+      - name: Build distribution
+        run: uv build
+
+      - name: Publish on PyPI
+        run: uv publish --token ${{ secrets.UV_PUBLISH_TOKEN  }}

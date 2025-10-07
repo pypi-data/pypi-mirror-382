@@ -1,0 +1,66 @@
+on:
+  workflow_dispatch:
+    inputs:
+      triggerPagesBuild:
+        description: "Trigger Pages Build"
+        required: false
+        type: boolean
+  push:
+    branches:
+      - "main"
+    paths:
+      - "src/**"
+      - "examples/**"
+jobs:
+  pdoc:
+    runs-on: codeberg-small
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Install Git-LFS"
+        run: git lfs install
+
+      - name: Install uv
+        uses: https://github.com/astral-sh/setup-uv@v5
+
+      - name: Install the project
+        run: uv sync --locked --dev --group documentation --group examples
+
+      - name: Build documentation
+        run: uv run pdoc --math src/ngstSpaceKit/*.py -o /tmp/docs --logo "https://johann-cm.codeberg.page/ngstspacekit/assets/logo.png" --favicon "https://johann-cm.codeberg.page/ngstspacekit/assets/logo.png"
+
+      - name: Build Examples Jupyter-Book
+        run: |
+          cd examples
+          uv run jupytext --to notebook *.py
+          uv run jupyter-book build . --path-output /tmp/examples/
+
+      - name: Checkout pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: "pages"
+          lfs: true
+
+      - name: move new docs & examples
+        run: |
+          rm -rf docs
+          rm -rf examples
+          mv /tmp/docs docs
+          mv /tmp/examples/_build/html examples
+          git config --global user.email "noreply@example.com"
+          git config --global user.name "CI pipeline"
+
+      - name: commit new docs
+        run: |
+          git add docs
+          git commit docs -m "update documentation"
+        continue-on-error: true # git complains when there is nothing to commit
+
+      - name: commit new examples
+        run: |
+          git add examples
+          git commit examples -m "update examples"
+        continue-on-error: true # git complains when there is nothing to commit
+
+      - name: push new docs & examples
+        run: git push origin pages

@@ -1,0 +1,26 @@
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+
+jobs:
+  pytest:
+    if: "${{ !startsWith(forgejo.event.pull_request.title, 'WIP: ') }}"
+    runs-on: codeberg-small
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: https://github.com/astral-sh/setup-uv@v5
+
+      - name: Install the project
+        run: |
+          export UV_LINK_MODE=symlink
+          uv sync --locked --dev
+
+      - name: Run tests
+        run: uv run pytest tests --cov=ngstSpaceKit --cov-branch
