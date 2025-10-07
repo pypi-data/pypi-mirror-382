@@ -1,0 +1,45 @@
+#------------------------------------------------------------------------------
+# Copyright (c) 2013-2025, Nucleic Development Team.
+#
+# Distributed under the terms of the Modified BSD License.
+#
+# The full license is in the file LICENSE, distributed with this software.
+#------------------------------------------------------------------------------
+""" An example of the `ImageView` widget.
+
+This example shows how a PNG image (in an enaml Image object) can displayed.
+
+<< autodoc-me >>
+"""
+import os
+from pathlib import Path
+
+from enaml.image import Image
+from enaml.layout.api import vbox, hbox, spacer
+from enaml.widgets.api import Window, Container, ComboBox, ImageView
+
+
+def image_path(name):
+    dirname = os.path.dirname(__file__)
+    return os.path.join(dirname, 'images', name)
+
+
+IMAGES = {
+    'None': None,
+    'Image A': Image(data=Path(image_path('img1.png')).read_bytes()),
+    'Image B': Image(data=Path(image_path('img2.png')).read_bytes()),
+    'Image C': Image(data=Path(image_path('img3.png')).read_bytes()),
+}
+
+
+enamldef Main(Window):
+    Container:
+        constraints = [
+            vbox(hbox(cbox, spacer), img),
+        ]
+        ComboBox: cbox:
+            items = sorted(IMAGES.keys())
+            index = 0
+        ImageView: img:
+            hug_width = "strong"
+            image << IMAGES[cbox.selected_item]

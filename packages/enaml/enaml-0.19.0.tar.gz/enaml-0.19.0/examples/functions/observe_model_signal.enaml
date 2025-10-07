@@ -1,0 +1,127 @@
+#------------------------------------------------------------------------------
+# Copyright (c) 2015-2024, Nucleic Development Team.
+#
+# Distributed under the terms of the Modified BSD License.
+#
+# The full license is in the file LICENSE, distributed with this software.
+#------------------------------------------------------------------------------
+""" An example which demonstrates how to observe a model signal.
+
+This examples uses a model with a signal to notify listeners about in
+place changes to a list. This pattern is interesting for the times when
+a ContainerList would emit too many synchronous notifications. A common
+example is reordering the elements in a list.
+
+<< autodoc-me >>
+"""
+from atom.api import Atom, List, Signal, Str
+from enaml.core.api import Looper
+from enaml.widgets.api import Window, Form, PushButton, Field, Menu, Action
+
+
+class Item(Atom):
+    """Object to store in a list and display.
+
+    """
+    text = Str()
+
+
+class Model(Atom):
+    """ A model which manages a collection of values.
+
+    This model expose a list which should be considered read-only and
+    methods to manipulate it. The `values_changed` signal is emitted
+    when an in-place change occurs in the list.
+
+    """
+    values = List(default=[Item(text='val')])
+
+    values_changed = Signal()
+
+    def add_value(self, index, val):
+        """ Add a value at a specified index.
+
+        """
+        self.values.insert(index, val)
+        self.values_changed('add')
+
+    def move_value(self, old, new):
+        """ Move a value from one index to another.
+
+        """
+        val = self.values.pop(old)
+        self.values.insert(new, val)
+        self.values_changed('moved')
+
+    def delete_value(self, index):
+        """ Delete a value.
+
+        """
+        del self.values[index]
+        self.values_changed('deleted')
+
+
+enamldef EditMenu(Menu):
+    """ A menu used to edit the content of the list.
+
+    The visible menu items will vary to show appropriate actions based
+    on the current model state.
+
+    """
+    attr model: Model
+    attr index: int
+    Action:
+        text = 'Add before'
+        triggered :: model.add_value(index,
+                                     Item(text='item %d' % len(model.values)))
+    Action:
+        text = 'Add after'
+        triggered :: model.add_value(index + 1,
+                                     Item(text='item %d' % len(model.values)))
+    Action:
+        separator = True
+    Action:
+        visible = index != 0
+        text = 'Move up'
+        triggered :: model.move_value(index, index - 1)
+    Action:
+        visible = index != len(model.values) - 1
+        text = 'Move down'
+        triggered :: model.move_value(index, index + 1)
+    Action:
+        separator = True
+    Action:
+        visible = len(model.values) > 1
+        text = 'Delete'
+        triggered :: model.delete_value(index)
+
+
+enamldef Main(Window):
+    """ The main window which displays the list contents as a form.
+
+    """
+    attr model = Model()
+    attr _values = model.values[:]
+
+    # Subscribe to the model when the window initializes.
+    initialized :: model.observe('values_changed', on_changed)
+
+    func on_changed(kind):
+        self._values = model.values[:]
+
+    func open_menu(item):
+        EditMenu(model=model, index=_values.index(item)).popup()
+
+    Form:
+        # Note that a Looper expects to iterate over unique values. Passing
+        # duplicate values can lead to crashes.
+        Looper:
+            iterable << _values
+            PushButton:
+                text = '>'
+                constraints = [width == 15, height == 20]
+                font = 'bold 12pt Consolas'
+                clicked :: open_menu(loop.item)
+            Field:
+                read_only = True
+                text = loop.item.text
