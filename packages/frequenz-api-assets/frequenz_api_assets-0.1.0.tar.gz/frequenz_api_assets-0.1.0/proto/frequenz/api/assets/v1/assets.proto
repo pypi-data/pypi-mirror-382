@@ -1,0 +1,120 @@
+// protolint:disable MAX_LINE_LENGTH
+
+// Frequenz Assets API
+//
+// Frequenz gRPC API to retrieval platform assets information.
+//
+// Copyright:
+// Copyright 2025 Frequenz Energy-as-a-Service GmbH
+//
+// License:
+// MIT
+
+syntax = "proto3";
+
+package frequenz.api.assets.v1;
+
+import "frequenz/api/common/v1alpha8/microgrid/electrical_components/electrical_components.proto";
+import "frequenz/api/common/v1alpha8/microgrid/microgrid.proto";
+
+
+// Service providing access to manage and retrieve information
+// related to gridpools and microgrids, and other platform assets.
+service PlatformAssets {
+  // Returns details of a specific microgrid.
+  rpc GetMicrogrid(GetMicrogridRequest) returns (GetMicrogridResponse);
+
+  // Returns list of a electrical components for a specific microgrid.
+  rpc ListMicrogridElectricalComponents(ListMicrogridElectricalComponentsRequest)
+    returns (ListMicrogridElectricalComponentsResponse);
+
+  // Returns a list of the connections between electrical components for a
+  // specific microgrid.
+  rpc ListMicrogridElectricalComponentConnections(
+    ListMicrogridElectricalComponentConnectionsRequest
+  ) returns (ListMicrogridElectricalComponentConnectionsResponse);
+}
+
+// GetMicrogridRequest is the input parameter for fetching details
+// given a specific microgrid.
+message GetMicrogridRequest {
+  // The unique identifier of the microgrid for which to fetch details.
+  uint64 microgrid_id = 1;
+}
+
+// GetMicrogridResponse is the response for fetching details
+// given a specific microgrid.
+message GetMicrogridResponse {
+  // Details of the requested microgrid.
+  frequenz.api.common.v1alpha8.microgrid.Microgrid microgrid = 1;
+}
+
+// Request parameters for the RPC `ListMicrogridElectricalComponents`.
+message ListMicrogridElectricalComponentsRequest {
+  // Mandatory field. The ID of the microgrid for which components
+  // are to be listed.
+  uint64 microgrid_id = 1;
+  
+  // Return components that have the specified IDs only.
+  repeated uint64 component_ids = 2;
+
+  // Return components that have the specified categories only.
+  repeated frequenz.api.common.v1alpha8.microgrid.electrical_components.ElectricalComponentCategory categories = 3;
+}
+
+// A message containing a list of electrical components.
+message ListMicrogridElectricalComponentsResponse {
+  // Unique microgrid identifier used in the request.
+  uint64 microgrid_id = 1;
+  
+  // List of electrical components matching the filter criteria.
+  repeated frequenz.api.common.v1alpha8.microgrid.electrical_components.ElectricalComponent components = 2;
+}
+
+// ListMicrogridElectricalComponentConnectionsRequest is used for filtering and listing
+// the electrical connections between components in a specific microgrid. 
+// These connections can be used to construct a component graph of the
+// microgrid.
+// 
+//
+// !!! note "Component Graph"
+//     A component graph in the context of a microgrid refers to a directed graph
+//     where the nodes represent electrical components (like generators, batteries,
+//     or loads) and the edges represent electrical connections between them.
+//     The edges are directional, pointing away from the grid-connection point
+//     (or the root point for island microgrids).
+//     This means that for each edge, the source component is towards the grid
+//     connection point, and the destination component is pointing towards
+//     an underlying component.
+//     This graph provides a structured view of how electrical energy flows within
+//     the microgrid.
+//
+// !!! note "Filtering"
+//     Filtering can be done based on the source_component_id or
+//     destination_component_id. If these fields are left empty, connections with
+//     any source or destination will be returned.
+//
+message ListMicrogridElectricalComponentConnectionsRequest {
+  // Mandatory field. The ID of the microgrid
+  // for which connections are to be listed.
+  uint64 microgrid_id = 1;
+
+  // Only return connections that originate from these component IDs.
+  // If empty, no filtering is applied.
+  repeated uint64 source_component_ids = 2;
+
+  // Only return connections that terminate at these component IDs.
+  // If empty, no filtering is applied.
+  repeated uint64 destination_component_ids = 3;
+}
+
+// ListMicrogridElectricalComponentConnectionsResponse holds the list of electrical
+// connections that match the filter criteria specified in the
+// ListMicrogridElectricalComponentConnectionsRequest.
+message ListMicrogridElectricalComponentConnectionsResponse {
+  // The ID of the microgrid for which connections are returned.
+  uint64 microgrid_id = 1;
+  
+  // Contains the list of connections that match the filtering criteria.
+  repeated frequenz.api.common.v1alpha8.microgrid.electrical_components.ElectricalComponentConnection connections =2;
+}
