@@ -1,0 +1,183 @@
+# Math Tools Daniel
+
+Um pacote matemático completo em Python que fornece funções básicas e avançadas para cálculos matemáticos, análise estatística e geração de sequências.
+
+## 🎯 Funcionalidades
+
+### 📊 Funções Básicas
+- **`factorial(n)`** - Calcula o fatorial de um número
+- **`is_prime(n)`** - Verifica se um número é primo
+- **`average(numbers)`** - Calcula a média aritmética
+- **`fibonacci(n)`** - Calcula o n-ésimo número de Fibonacci
+
+### 🔧 Funções Auxiliares
+- **`gcd(a, b)`** - Máximo Divisor Comum
+- **`lcm(a, b)`** - Mínimo Múltiplo Comum
+- **`is_perfect_number(n)`** - Verifica números perfeitos
+- **`prime_factors(n)`** - Fatores primos de um número
+- **`power_mod(base, exp, mod)`** - Exponenciação modular
+
+### 📈 Análise Estatística
+- **`median(numbers)`** - Mediana
+- **`mode(numbers)`** - Moda
+- **`standard_deviation(numbers)`** - Desvio padrão
+- **`variance(numbers)`** - Variância
+- **`quartiles(numbers)`** - Quartis (Q1, Q2, Q3)
+
+### 🔢 Sequências Matemáticas
+- **`fibonacci_sequence(n)`** - Sequência de Fibonacci
+- **`prime_sequence(n)`** - Sequência de números primos
+- **`arithmetic_sequence(start, step, n)`** - Progressão aritmética
+- **`geometric_sequence(start, ratio, n)`** - Progressão geométrica
+- **`factorial_sequence(n)`** - Sequência de fatoriais
+- **`collatz_sequence(n)`** - Sequência de Collatz (3n+1)
+
+## 🚀 Instalação
+
+### Via pip (quando publicado)
+```bash
+pip install math-tools-daniel
+```
+
+### Instalação local para desenvolvimento
+```bash
+git clone <repository-url>
+cd math_tools_daniel_package
+
+# Instalação básica
+pip install -e .
+
+# Instalação com dependências de desenvolvimento
+pip install -e .[dev]
+```
+
+## 💻 Uso
+
+### Importação Básica
+```python
+import math_tools_daniel as mtd
+
+# Funções básicas
+print(mtd.factorial(5))        # 120
+print(mtd.is_prime(17))        # True
+print(mtd.average([1,2,3,4,5])) # 3.0
+print(mtd.fibonacci(10))       # 55
+```
+
+### Importação Específica
+```python
+from math_tools_daniel import factorial, is_prime, fibonacci_sequence
+
+# Usar funções diretamente
+print(factorial(6))                    # 720
+print(is_prime(29))                   # True
+print(fibonacci_sequence(8))          # [0, 1, 1, 2, 3, 5, 8, 13]
+```
+
+### Análise Estatística
+```python
+from math_tools_daniel import median, mode, standard_deviation, quartiles
+
+data = [1, 2, 2, 3, 4, 4, 4, 5, 6]
+
+print(f"Mediana: {median(data)}")                    # 4.0
+print(f"Moda: {mode(data)}")                        # [4]
+print(f"Desvio Padrão: {standard_deviation(data)}")  # ~1.58
+print(f"Quartis: {quartiles(data)}")                # (2.0, 4.0, 5.0)
+```
+
+### Sequências Matemáticas
+```python
+from math_tools_daniel import (
+    fibonacci_sequence,
+    prime_sequence,
+    arithmetic_sequence,
+    collatz_sequence
+)
+
+print(fibonacci_sequence(10))           # [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
+print(prime_sequence(5))               # [2, 3, 5, 7, 11]
+print(arithmetic_sequence(1, 3, 5))    # [1, 4, 7, 10, 13]
+print(collatz_sequence(7))             # [7, 22, 11, 34, 17, 52, 26, 13, 40, 20, 10, 5, 16, 8, 4, 2, 1]
+```
+
+## 🧪 Testes
+
+O pacote inclui testes unitários completos usando pytest:
+
+```bash
+# Instalar dependências de desenvolvimento
+pip install -r requirements-dev.txt
+
+# Ou instalar com extras de desenvolvimento
+pip install -e .[dev]
+
+# Executar todos os testes
+pytest tests/
+
+# Executar testes com cobertura
+pytest tests/ --cov=math_tools_daniel --cov-report=html
+```
+
+## 📚 Documentação
+
+Todas as funções incluem docstrings detalhadas com:
+- Descrição da funcionalidade
+- Parâmetros e tipos
+- Valores de retorno
+- Exemplos de uso
+- Exceções que podem ser levantadas
+
+```python
+help(math_tools_daniel.factorial)  # Mostra documentação completa
+```
+
+## 🛠️ Desenvolvimento
+
+### Estrutura do Projeto
+```
+math_tools_daniel_package/
+├── math_tools_daniel/           # Código principal
+│   ├── __init__.py             # Exportações principais
+│   ├── utils/                  # Funções básicas e auxiliares
+│   │   ├── __init__.py
+│   │   ├── math_functions.py   # factorial, is_prime, average, fibonacci
+│   │   └── math_helpers.py     # gcd, lcm, is_perfect_number, etc.
+│   └── processing/             # Processamento avançado
+│       ├── __init__.py
+│       ├── statistics.py       # Funções estatísticas
+│       └── sequences.py        # Sequências matemáticas
+├── tests/                      # Testes unitários
+├── setup.py                    # Configuração do pacote
+├── requirements.txt            # Dependências
+├── README.md                   # Este arquivo
+└── .gitignore                 # Arquivos ignorados pelo Git
+```
+
+### Requisitos
+- Python 3.8+
+- Sem dependências externas (apenas biblioteca padrão)
+
+## 🤝 Contribuição
+
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request
+
+## 📄 Licença
+
+Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
+
+## ✨ Autor
+
+**Daniel Santos**
+- Email: danfergatthi@gmail.com
+- GitHub: [@daniel](https://github.com/DanielSantos08)
+
+## 🙏 Agradecimentos
+
+- Bootcamp DIO - Suzano Python Developer
+- Comunidade Python
+- Contribuidores do projeto
