@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="{{ url_for('static', filename='jquery.min.js') }}"></script>
+<script src="{{ url_for('static', filename='waitme/waitMe.js') }}"></script>
+<link rel="stylesheet" type="text/css" href="{{url_for('.static', filename='waitme/waitMe.css')}}">
+<link rel="stylesheet" type="text/css" href="{{url_for('.static', filename='jquery-ui.css')}}">
+<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+<script src="{{ url_for('static', filename='waitme/waitMeFunc.js') }}"></script>
+<title>DPDC:: Meter Reading Testing</title>
+</head>
+<body id="body">
+  <div class="navbar">
+       <a href="#">Home</a>
+       <a href="/batch_proc">Batch Process</a>
+  </div>
+
+<div id="container">
+    <h3>Meter Reading using Deep Learning (1By1)</h3>
+
+    <form id="upload-file" action="/upload" method="post" enctype="multipart/form-data">
+      <label>Image:</label>
+      <input type="file" name="files" id="files" onchange="readURL(this)" accept=".jpg,.jpeg,.png,.gif">
+      <br><hr>
+      <label style="color:red;font-weight:bold">Classfied as: </label><label id="cls"></label><br>
+      <label style="color:red;font-weight:bold">Reading: </label><label id="reading"></label>
+      <hr>
+    </form>
+
+    <img id="img1" src="data:image/png;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" width="480" height="320"/>
+    <img id="img2" src="data:image/png;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" width="480" height="320"/><br>
+    <hr>
+    <input id="upload-file-btn" class="smart-button" type="button" value="Read Meter"/>
+    <input id="copybtn" type="button" class="smart-button" value="Save"/>
+    <input id="randbtn" type="button" class="smart-button" value="Random Test Photo"/>
+    <label id="lblstatus" style="color:red"></label>
+
+    <!-- hidden folder picker -->
+    <input type="file" id="folderPicker" webkitdirectory multiple style="display:none">
+</div>
+
+<script>
+// ---------------- Session-based credentials ----------------
+function getCredentials() {
+    let username = sessionStorage.getItem('username');
+    let token = sessionStorage.getItem('token');
+
+    if (!username || !token) {
+        username = prompt("Enter username:");
+        token = prompt("Enter token:");
+        if (!username || !token) {
+            alert("Username and token are required!");
+            return null;
+        }
+        sessionStorage.setItem('username', username);
+        sessionStorage.setItem('token', token);
+    }
+    return { username, token };
+}
+
+// ---------------- Save uploaded file ----------------
+document.getElementById('copybtn').addEventListener('click', async () => {
+    const fileInput = document.getElementById('files');
+    const files = fileInput.files;
+    var sts = document.getElementById('lblstatus');
+    sts.innerText = '';
+    if (files.length > 0) {
+        const originalFile = files[0];
+        const copiedFile = new File([originalFile], originalFile.name, {
+            type: originalFile.type,
+            lastModified: originalFile.lastModified
+        });
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: copiedFile.name,
+                types: [{description: copiedFile.type, accept: { [copiedFile.type]: ['.jpg','.jpeg','.png'] }}]
+            });
+            const writableStream = await handle.createWritable();
+            await writableStream.write(copiedFile);
+            await writableStream.close();
+            sts.innerText='File saved successfully!';
+        } catch (error) {
+            console.error('Error copying file:', error);
+            alert('Error copying file.');
+        }
+    } else {
+        alert('No file selected.');
+    }
+});
+
+// ---------------- Preview chosen file ----------------
+function readURL(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = e => { document.getElementById('img1').src = e.target.result; };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// ---------------- Random folder logic ----------------
+let folderFiles = [];
+const randBtn = document.getElementById('randbtn');
+const folderPicker = document.getElementById('folderPicker');
+
+randBtn.addEventListener('click', () => {
+    if (folderFiles.length === 0) folderPicker.click();
+    else pickRandomAndProcess();
+});
+
+folderPicker.addEventListener('change', () => {
+    folderFiles = Array.from(folderPicker.files)
+        .filter(f => /\.(jpg|jpeg|png|gif)$/i.test(f.name));
+    if (folderFiles.length === 0) { alert('No valid images in selected folder.'); return; }
+    pickRandomAndProcess();
+});
+
+function pickRandomAndProcess() {
+    const randomFile = folderFiles[Math.floor(Math.random() * folderFiles.length)];
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(randomFile);
+    document.getElementById('files').files = dataTransfer.files;
+    readURL({files: [randomFile]});
+    document.getElementById('upload-file-btn').click();
+}
+
+// ---------------- WaitMe + AJAX upload ----------------
+$(function(){
+    var current_effect = 'ios';
+    $('#upload-file-btn').click(function(){ run_waitMe(current_effect); });
+    function run_waitMe(effect){
+        $('#body').waitMe({
+            effect: effect,
+            text: 'Extracting Meter Reading using DPDC ShockWave...',
+            bg: 'rgba(255,255,255,0.7)',
+            color:'#990033'
+        });
+    }
+});
+
+// Upload with session credentials
+$('#upload-file-btn').click(function() {
+    const creds = getCredentials();
+    if (!creds) { $('#body').waitMe('hide'); return; }
+
+    const form_data = new FormData($('#upload-file')[0]);
+    form_data.append('imgflg','');
+    form_data.append('username', creds.username);
+    form_data.append('token', creds.token);
+
+    $.ajax({
+        type: 'POST',
+        url: '/upload',
+        data: form_data,
+        contentType: false,
+        cache: false,
+        processData: false,
+        success: function(data) {
+            document.getElementById('img2').src = 'data:image/png;base64,' + data.message[0].img;
+            document.getElementById('cls').innerText = data.message[0].cls;
+            document.getElementById('reading').innerText = data.message[0].reading;
+            $('#body').waitMe('hide');
+        },
+        error: function(data){
+            var x = JSON.parse(data.responseText);
+            alert(JSON.stringify(x));
+            $('#body').waitMe('hide');
+        }
+    });
+    $('#body').waitMe('hide');
+});
+</script>
+
+<style>
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; padding:0; font-size:13px; }
+.navbar { display:flex; justify-content: space-around; align-items:center; background-color:#2c3e50; padding:5px 10px; }
+.navbar a { color:white; text-decoration:none; padding:5px 10px; transition: background-color 0.3s, color 0.3s; }
+.navbar a:hover { background-color:#34495e; color:#ecf0f1; border-radius:5px; }
+.smart-button { background-color:#3498db; border:none; color:white; padding:5px 10px; text-align:center; font-size:12px; margin:4px 2px; cursor:pointer; border-radius:8px; transition:background-color 0.3s, transform 0.3s; }
+.smart-button:hover { background-color:#2980b9; transform:scale(1.05); }
+.smart-button:active { background-color:#1c598a; transform:scale(0.95); }
+</style>
+</body>
+</html>

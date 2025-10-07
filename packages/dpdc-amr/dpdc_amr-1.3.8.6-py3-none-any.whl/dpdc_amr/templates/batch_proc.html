@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="{{ url_for('static', filename='jquery.min.js') }}"></script>
+<script src="{{ url_for('static', filename='waitme/waitMe.js') }}"></script>
+<script src="{{ url_for('static', filename='xlsx.full.min.js') }}"></script>
+<link rel="stylesheet" type="text/css" href="{{url_for('.static', filename='waitme/waitMe.css')}}">
+<link rel="stylesheet" type="text/css" href="{{url_for('.static', filename='jquery-ui.css')}}">
+<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+<script src="{{ url_for('static', filename='waitme/waitMeFunc.js') }}"></script>
+<title>DPDC:: Meter Reading Testing</title>
+</head>
+<body id="body">
+  <div class="navbar">
+       <a href="/">Home</a>
+      <a href="#">Batch Process </a>
+  </div>
+
+<div id="container">
+    <!-- Four-class dashboard -->
+    <div id="dashboard" class="dash-grid">
+      <div class="dash-box" id="dash-meter">Meter: 0</div>
+      <div class="dash-box" id="dash-calc">Calculator: 0</div>
+      <div class="dash-box" id="dash-ileg">IllegibleMeter: 0</div>
+      <div class="dash-box" id="dash-other">Others: 0</div>
+    </div>
+
+    <h3>Meter Reading using Deep Learning (Batch Processing)</h3>
+    <form id="upload-file" action="/upload_batch" method="post" enctype="multipart/form-data">
+        <input type="file"  name="files" id="files" accept="image/*" multiple>
+    </form>
+
+    <hr>
+    <div class="scrollable-div">
+        <table id="imageTable">
+            <thead>
+                <tr>
+                    <th>Image</th>
+                    <th>File Name</th>
+                    <th>Classified As</th>
+                    <th>Meter Reading</th>
+                    <th>Reading Image</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+<script>
+document.getElementById('files').addEventListener('change', function(event) {
+    const files = event.target.files;
+    if (files.length>1000){
+        this.value='';
+        return alert('Please choose less than 1000 files!');
+    }
+    const tableBody = document.querySelector('#imageTable tbody');
+    tableBody.innerHTML = '';
+    for (const file of files) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const row = document.createElement('tr');
+            row.id=file.name;
+            const imgCell = document.createElement('td');
+            const nameCell = document.createElement('td');
+            const classCell = document.createElement('td');
+            const readingCell =document.createElement('td');
+            const resImgCell=document.createElement('td');
+
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            imgCell.appendChild(img);
+
+            nameCell.textContent = file.name;
+
+            const resimg = document.createElement('img');
+            resimg.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+            resImgCell.appendChild(resimg);
+
+            row.appendChild(imgCell);
+            row.appendChild(nameCell);
+            row.appendChild(classCell);
+            row.appendChild(readingCell);
+            row.appendChild(resImgCell);
+            tableBody.appendChild(row);
+        };
+        reader.readAsDataURL(file);
+    }
+});
+</script>
+</div>
+<hr>
+<input type="button" class="smart-button" id="upload-file-btn" value="Batch Process"/>
+<input type="button" class="smart-button" id="btn-export" onclick="exportTableToExcel()" value="Export Result"/>
+
+
+
+
+<script>
+$(function(){
+    var current_effect = 'ios';
+    $('#upload-file-btn').click(function(){
+        run_waitMe(current_effect);
+    });
+    function run_waitMe(effect){
+        $('#body').waitMe({
+            effect: effect,
+            text: 'Extracting Meter Reading using DPDC ShockWave...',
+            bg: 'rgba(255,255,255,0.7)',
+            color:'#990033'
+        });
+    }
+});
+
+function getCredentials() {
+    let username = sessionStorage.getItem('username');
+    let token = sessionStorage.getItem('token');
+
+    if (!username || !token) {
+        username = prompt("Enter username:");
+        token = prompt("Enter token:");
+        if (!username || !token) {
+            alert("Username and token are required!");
+            return null;
+        }
+        sessionStorage.setItem('username', username);
+        sessionStorage.setItem('token', token);
+    }
+    return { username, token };
+}
+
+$('#upload-file-btn').click(function() {
+    const creds = getCredentials();
+    if (!creds) return;  // stop if user cancels
+
+    var form_data = new FormData($('#upload-file')[0]);
+    form_data.append('imgflg','');
+
+    // Append session credentials
+    form_data.append('username', creds.username);
+    form_data.append('token', creds.token);
+
+    $.ajax({
+        type: 'POST',
+        url: '/upload_batch',
+        data: form_data,
+        contentType: false,
+        cache: false,
+        processData: false,
+        success: function(data) {
+            const tableBody = document.querySelector('#imageTable tbody');
+            const dtarr=data.message;
+            var v_meter=0, v_imeter=0, v_calc=0, v_err=0, v_other=0;
+
+            dtarr.forEach(dtx => {
+                const row = document.getElementById(dtx.filename);
+                const tds = row.querySelectorAll('td');
+
+                const col3Cell = tds[2];
+                var cls=dtx.cls;
+                if (cls=='Meter') v_meter+=1;
+                else if (cls=='Non-Meter') v_other+=1;
+                else if (cls=='IllegibleMeter') v_imeter+=1;
+                else if (cls=='Calculator') v_calc+=1;
+                else v_err+=1;
+
+                if (cls=='Meter')
+                    col3Cell.innerHTML = '<a href="#" onclick="showImages(this)">Meter</a>';
+                else
+                    col3Cell.textContent = cls;
+
+                const col4Cell = tds[3];
+                col4Cell.textContent = dtx.reading;
+
+                const col5Cell = tds[4];
+                const img = col5Cell.querySelector('img');
+                if (cls=='Meter')
+                    img.src = 'data:image/png;base64,'+dtx.img;
+                else
+                    img.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+            });
+
+            // update dashboard totals
+            $('#dash-meter').text('Meter: ' + v_meter);
+            $('#dash-calc').text('Calculator: ' + v_calc);
+            $('#dash-ileg').text('IllegibleMeter: ' + v_imeter);
+            $('#dash-other').text('Others: ' + v_other);
+
+            $('#body').waitMe('hide');
+        },
+        error:function(data){
+            $('#body').waitMe('hide');
+            if (data.status === 401) {
+                alert("Authentication failed. Please refresh and enter correct username/token.");
+                sessionStorage.removeItem('username');
+                sessionStorage.removeItem('token');
+            } else {
+                var x=JSON.parse(data.responseText)
+                alert(JSON.stringify(x));
+            }
+        }
+    });
+});
+</script>
+
+<script>
+function exportTableToExcel() {
+    var table = document.getElementById('imageTable');
+    var workbook = XLSX.utils.table_to_book(table, {sheet: "Sheet1"});
+    XLSX.writeFile(workbook, 'table.xlsx');
+}
+function showImages(link) {
+    const row = link.closest('tr');
+    const images = row.getElementsByTagName('img');
+    const popup = window.open("", "ImagePopup", `width=${screen.width},height=${screen.height}`);
+    let content ='<div><label style="color:red;font-weight:bold">File Name:</label>'+row.querySelectorAll('td')[1].innerText+'</div>';
+    content +='<div><label style="color:red;font-weight:bold">Reading: </label><b>'+row.querySelectorAll('td')[3].innerText+'</b></div><hr>';
+    content += '<div style="display:flex;justify-content:space-around;height:70vh;align-items:center;">';
+    for (let img of images) {
+        content += `<img src="${img.src}" style="max-width:60%; max-height:100%;">`;
+    }
+    content += '</div><div style="text-align:center;margin-top:10px;"><button onclick="window.close()">Exit</button></div>';
+    popup.document.write(content);
+}
+</script>
+
+<style>
+.scrollable-div {
+    width: 100%;
+    height: calc(100vh - 230px); /* responsive height */
+    overflow: auto;
+    border: 1px solid #ccc;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+table, th, td { border: 1px solid black; }
+th, td { padding: 5px; text-align: center; }
+td:nth-child(2), th:nth-child(2) { width: 50px; }
+img { max-width: 210px; height: auto; }
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0; padding: 0; font-size:13px;
+}
+.navbar {
+    display: flex; justify-content: space-around; align-items: center;
+    background-color: #2c3e50; padding: 5px 10px;
+}
+.navbar a {
+    color: white; text-decoration: none; padding: 5px 10px;
+    transition: background-color 0.3s, color 0.3s;
+}
+.navbar a:hover {
+    background-color: #34495e; color: #ecf0f1; border-radius: 5px;
+}
+.navbar a.active {
+    background-color: #e74c3c; color: white; border-radius: 5px;
+}
+.smart-button {
+    background-color: #3498db; border: none; color: white;
+    padding: 5px 10px; text-align: center;
+    font-size: 12px; margin: 4px 2px; cursor: pointer;
+    border-radius: 8px; transition: background-color 0.3s, transform 0.3s;
+}
+.smart-button:hover { background-color: #2980b9; transform: scale(1.05); }
+.smart-button:active { background-color: #1c598a; transform: scale(0.95); }
+
+/* dashboard styles */
+.dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin: 10px 0;
+}
+.dash-box {
+    background: #3498db;
+    color: #fff;
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+}
+</style>
+</body>
+</html>
