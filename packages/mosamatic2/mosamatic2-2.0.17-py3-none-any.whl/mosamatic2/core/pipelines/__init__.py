@@ -1,0 +1,4 @@
+from mosamatic2.core.pipelines.defaultpipeline.defaultpipeline import DefaultPipeline
+from mosamatic2.core.pipelines.defaultdockerpipeline.defaultdockerpipeline import DefaultDockerPipeline
+from mosamatic2.core.pipelines.boadockerpipeline.boadockerpipeline import BoaDockerPipeline
+from mosamatic2.core.pipelines.liveranalysispipeline.liveranalysispipeline import LiverAnalysisPipeline
