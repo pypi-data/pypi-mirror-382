@@ -1,0 +1,52 @@
+[build-system]
+requires = [
+  "scikit-build-core>=0.6",
+  "pybind11>=2.11",
+  "setuptools>=68",
+  "wheel"
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "gliner-cpp"
+version = "0.1"
+description = "Python bindings for the GLiNER C++ inference library"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+  { name = "GLiNER Contributors" }
+]
+
+[project.urls]
+Homepage = "https://github.com/LemurPwned/GLiNER.cpp"
+
+[tool.scikit-build]
+wheel.packages = []
+
+[tool.scikit-build.cmake.define]
+BUILD_PYTHON = "ON"
+
+[tool.cibuildwheel]
+# Skip 32-bit builds and PyPy
+skip = ["*-win32", "*-manylinux_i686", "pp*"]
+
+[tool.cibuildwheel.linux]
+# Configure auditwheel to exclude system libraries that are part of glibc
+# These are guaranteed to be present on all manylinux-compatible systems
+repair-wheel-command = "auditwheel repair --exclude libdl.so.2 --exclude libpthread.so.0 --exclude librt.so.1 --exclude libm.so.6 --exclude libc.so.6 --exclude libgcc_s.so.1 --exclude libstdc++.so.6 -w {dest_dir} {wheel}"
+
+[tool.scikit-build.sdist]
+include = [
+  "bindings/python.cpp",
+  "bindings/gliner_cpp.pyi",
+  "bindings/CMakeLists.txt",
+  "CMakeLists.txt",
+  "cmake/**/*.cmake",
+  "include/**/*.hpp",
+  "src/**/*.cpp",
+  "deps/CMakeLists.txt",
+  "README.md",
+  "LICENSE",
+  "scripts/patch_tokenizers_cmake.py"
+]
