@@ -1,0 +1,252 @@
+Metadata-Version: 2.4
+Name: pjsua2-wheel
+Version: 2.15.3
+Summary: Pre-built Windows wheels for PJSUA2 with bundled VC++ Runtime - Python bindings for PJSIP (SIP/VoIP Library)
+Home-page: https://www.pjsip.org
+Author: Ramanan
+Author-email: ramanan182004@gmail.com
+License: GPL-2.0-or-later
+Project-URL: Homepage, https://www.pjsip.org
+Project-URL: Repository, https://github.com/pjsip/pjproject
+Project-URL: Documentation, https://docs.pjsip.org
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Communications :: Telephony
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: C++
+Classifier: Operating System :: Microsoft :: Windows
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: project-url
+Dynamic: requires-python
+Dynamic: summary
+
+# PJSUA2-Wheel - Standalone Windows Wheels for PJSIP
+
+**Truly standalone Windows wheels for PJSUA2!** 🎉
+
+This package provides pre-compiled Windows wheels for PJSUA2 (Python bindings for PJSIP) with **bundled Visual C++ Runtime DLLs**. No additional installations required - just pip install and start coding!
+
+> **Note:** This is a community-maintained wheel distribution. For the official source package, see [pjsua2](https://pypi.org/project/pjsua2/) on PyPI.
+
+## What's New in 2.15.3
+
+✨ **Standalone Wheels** - All required Visual C++ Runtime DLLs are now bundled!  
+✨ **No VC++ Redistributable needed** - Works on clean Windows systems  
+✨ **Standard Import** - Use `import pjsua2` (not pjsua2_standalone)  
+✨ **Fixed Import Issues** - Resolved module loading problems from 2.15.2  
+✨ **Optimized Size** - Wheel size (~2.7 MB)  
+✨ **Python 3.9-3.12 support** - Wheels for all modern Python versions  
+
+## Quick Installation
+
+### Windows (Pre-built wheels!)
+
+```bash
+pip install pjsua2-wheel
+```
+
+**No compilation required!** The wheel includes everything you need:
+- ✅ Pre-compiled PJSIP libraries
+- ✅ Bundled Visual C++ Runtime DLLs
+- ✅ No Visual Studio required
+- ✅ No VC++ Redistributable installation needed
+
+**Package name:** `pjsua2-wheel` (for pip install)  
+**Import name:** `pjsua2` (for Python code)
+
+### Other Platforms
+
+Building from source requires C++ compiler, SWIG, and Python headers.  
+See [PJSIP documentation](https://docs.pjsip.org) for details.
+
+## Features
+
+✅ **SIP Protocol Stack** - Full RFC 3261 implementation  
+✅ **Audio/Video Calls** - HD voice and video support  
+✅ **Media Handling** - Codecs, RTP/RTCP, jitter buffer  
+✅ **NAT Traversal** - STUN, TURN, ICE support  
+✅ **Secure Communications** - TLS, SRTP encryption  
+✅ **Conferencing** - Audio mixing and conferencing  
+✅ **IM & Presence** - Instant messaging and presence  
+
+## Quick Start
+
+```python
+import pjsua2 as pj
+
+# Create and initialize endpoint
+ep = pj.Endpoint()
+ep.libCreate()
+
+ep_cfg = pj.EpConfig()
+ep.libInit(ep_cfg)
+
+# Create SIP transport
+sipTpConfig = pj.TransportConfig()
+sipTpConfig.port = 5060
+ep.transportCreate(pj.PJSIP_TRANSPORT_UDP, sipTpConfig)
+
+# Start the library
+ep.libStart()
+
+print(f"PJSIP {ep.libVersion().full} started!")
+
+# Your SIP application code here...
+
+# Cleanup
+ep.libDestroy()
+```
+
+## Example: SIP Registration
+
+```python
+import pjsua2 as pj
+
+class MyAccount(pj.Account):
+    def onRegState(self, prm):
+        ai = self.getInfo()
+        print(f"Registration: {ai.regStatusText}")
+
+# Configure account
+acc_cfg = pj.AccountConfig()
+acc_cfg.idUri = "sip:user@example.com"
+acc_cfg.regConfig.registrarUri = "sip:example.com"
+
+# Add credentials
+cred = pj.AuthCredInfo()
+cred.scheme = "digest"
+cred.realm = "*"
+cred.username = "user"
+cred.dataType = pj.PJSIP_CRED_DATA_PLAIN_PASSWD
+cred.data = "password"
+acc_cfg.sipConfig.authCreds.append(cred)
+
+# Create account
+acc = MyAccount()
+acc.create(acc_cfg)
+```
+
+## Example: Making a Call
+
+```python
+class MyCall(pj.Call):
+    def onCallState(self, prm):
+        ci = self.getInfo()
+        print(f"Call state: {ci.stateText}")
+
+# Make a call
+call = MyCall(account)
+prm = pj.CallOpParam()
+call.makeCall("sip:destination@example.com", prm)
+```
+
+## Documentation
+
+- **API Reference:** https://docs.pjsip.org/en/latest/api/pjsua2/
+- **User Guide:** https://docs.pjsip.org/en/latest/pjsua2/using/
+- **PJSIP Project:** https://www.pjsip.org
+- **GitHub:** https://github.com/pjsip/pjproject
+
+## Platform Support
+
+| Platform | Python Versions | Status |
+|----------|----------------|--------|
+| **Windows x64** | 3.9, 3.10, 3.11, 3.12 | ✅ Pre-built wheels |
+| **Linux** | 3.9+ | ⚠️ Build from source |
+| **macOS** | 3.9+ | ⚠️ Build from source |
+
+## What's New in 2.15
+
+- Improved WebRTC integration
+- Better audio quality
+- Enhanced security features
+- Bug fixes and performance improvements
+
+## Building from Source
+
+If pre-built wheels aren't available for your platform:
+
+### Requirements:
+- C++ compiler (GCC, Clang, or MSVC)
+- SWIG 4.x
+- Python development headers
+
+### Linux/macOS:
+```bash
+git clone https://github.com/pjsip/pjproject.git
+cd pjproject
+./configure CFLAGS="-fPIC"
+make dep && make
+cd pjsip-apps/src/swig
+make
+cd python
+make && make install
+```
+
+### Windows:
+See [Windows build guide](https://docs.pjsip.org/en/latest/get-started/windows/)
+
+## Troubleshooting
+
+### Import Error on Windows
+```python
+# Make sure you have Visual C++ Redistributable
+# Download from: https://aka.ms/vs/17/release/vc_redist.x64.exe
+```
+
+### Audio Issues
+```python
+# List available audio devices
+ep = pj.Endpoint()
+ep.libCreate()
+ep_cfg = pj.EpConfig()
+ep.libInit(ep_cfg)
+
+audDevManager = ep.audDevManager()
+devCount = audDevManager.getDevCount()
+for i in range(devCount):
+    info = audDevManager.getDevInfo(i)
+    print(f"Device {i}: {info.name}")
+```
+
+## Examples
+
+Check out the examples in the [PJSIP repository](https://github.com/pjsip/pjproject/tree/master/pjsip-apps/src/swig/python).
+
+## Support
+
+- **Issues:** https://github.com/pjsip/pjproject/issues
+- **Mailing List:** https://www.pjsip.org/mailing.htm
+- **Commercial Support:** support@teluu.com
+
+## License
+
+GNU GPL v2 or later
+
+## Credits
+
+- **PJSIP Team** at Teluu Inc.
+- **Contributors** from around the world
+- **Windows Wheels** maintained by community contributors
+
+## Contributing
+
+Contributions welcome! See the [PJSIP project](https://github.com/pjsip/pjproject) for details.
+
+---
+
+**Made with ❤️ by the PJSIP community**
