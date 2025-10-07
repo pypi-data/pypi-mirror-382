@@ -1,0 +1,102 @@
+name: Feedback Webhook Handler
+on:
+  repository_dispatch:
+    types: [claude_review_posted, feedback_approval_timeout]
+  workflow_call:
+    inputs:
+      event_type:
+        description: 'Type of feedback event to process'
+        required: true
+        type: string
+      payload:
+        description: 'Event payload data'
+        required: true
+        type: string
+
+jobs:
+  handle-feedback-event:
+    name: Handle Feedback Event
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Claude Code SDK
+        uses: anthropic/claude-code-action@v1
+        with:
+          api-key: ${{ secrets.CLAUDE_API_KEY }}
+          allowed-tools: 'Task(*), Read(*), Write(*), Edit(*), Bash(gh:*), mcp__github(*), TodoWrite(*)'
+          
+      - name: Parse Event Context
+        id: parse_event
+        run: |
+          EVENT_TYPE="${{ github.event.action || inputs.event_type }}"
+          echo "event_type=${EVENT_TYPE}" >> $GITHUB_OUTPUT
+          
+          # Extract payload based on event source
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "payload=${{ toJson(github.event.client_payload) }}" >> $GITHUB_OUTPUT
+          else
+            echo "payload=${{ inputs.payload }}" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Process Claude Review Posted
+        if: steps.parse_event.outputs.event_type == 'claude_review_posted'
+        run: |
+          claude --prompt "
+          A Claude Code review has been posted. Process the feedback:
+          
+          1. Parse the event payload: ${{ steps.parse_event.outputs.payload }}
+          2. Extract PR number and repository from payload
+          3. Execute /review-pickup command with extracted details
+          4. Start the complete feedback processing workflow
+          
+          Use SDK workflow orchestration from .claude/sdk-config/feedback-workflow.json
+          Track all steps with TodoWrite tool.
+          "
+          
+      - name: Process Approval Timeout
+        if: steps.parse_event.outputs.event_type == 'feedback_approval_timeout'
+        run: |
+          claude --prompt "
+          A feedback approval has timed out. Handle the escalation:
+          
+          1. Parse timeout payload: ${{ steps.parse_event.outputs.payload }}
+          2. Extract session ID and approval deadline
+          3. Send Slack MCP notification to #security-automation
+          4. Mark session as requiring escalation
+          5. Generate escalation report
+          
+          Context: 24-hour SLA has been exceeded for human approval decision.
+          "
+          
+      - name: Archive Event Processing Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webhook-event-logs-${{ github.run_number }}
+          path: |
+            .multiagent/feedback/logs/
+            .claude/
+          retention-days: 7
+          
+      - name: Report Processing Results
+        run: |
+          echo "📊 Feedback event processing complete"
+          echo "Event Type: ${{ steps.parse_event.outputs.event_type }}"
+          echo "Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          # Check for any generated session data
+          if [ -d ".multiagent/feedback/logs/" ]; then
+            LATEST_SESSION=$(ls -t .multiagent/feedback/logs/ | head -1)
+            if [ -n "$LATEST_SESSION" ]; then
+              echo "Latest Session: ${LATEST_SESSION}"
+              echo "Session Path: .multiagent/feedback/logs/${LATEST_SESSION}/"
+            fi
+          fi

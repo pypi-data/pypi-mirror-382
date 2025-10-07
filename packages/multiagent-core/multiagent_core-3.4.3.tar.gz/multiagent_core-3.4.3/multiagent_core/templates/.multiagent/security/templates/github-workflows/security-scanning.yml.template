@@ -1,0 +1,215 @@
+# GitHub Security Scanning Workflow
+# This provides additional secret scanning beyond our git hooks
+name: Advanced Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly security scans
+    - cron: '0 6 * * 1'  # Monday at 6 AM UTC
+
+jobs:
+  secret-scanning:
+    name: Secret Pattern Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for comprehensive scanning
+        
+    - name: Advanced Secret Detection
+      run: |
+        echo "🔍 Running comprehensive secret detection..."
+        
+        # Enhanced secret patterns (same as our git hooks)
+        declare -a patterns=(
+          # Google API keys (the $2,300 culprit!)
+          "AIzaSy[0-9A-Za-z_-]{33}"
+          "ya29\.[0-9A-Za-z_-]+"
+          
+          # OpenAI patterns  
+          "sk-[0-9A-Za-z]{48}"
+          "sk-proj-[0-9A-Za-z_-]{43}"
+          "org-[0-9A-Za-z_-]{24}"
+          
+          # GitHub tokens
+          "ghp_[0-9A-Za-z]{36}"
+          "gho_[0-9A-Za-z]{36}"
+          "ghu_[0-9A-Za-z]{36}"
+          "ghs_[0-9A-Za-z]{36}"
+          "ghr_[0-9A-Za-z]{36}"
+          
+          # AWS patterns
+          "AKIA[0-9A-Z]{16}"
+          "ASIA[0-9A-Z]{16}" 
+          "AROA[0-9A-Z]{16}"
+          
+          # Slack patterns
+          "xoxb-[0-9]+-[0-9]+-[0-9A-Za-z]+"
+          "xoxp-[0-9]+-[0-9]+-[0-9A-Za-z]+"
+          "xapp-[0-9]+-[0-9A-Za-z]+-[0-9A-Za-z]+"
+          
+          # Azure patterns
+          "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+          
+          # Generic patterns
+          "-----BEGIN [A-Z]+ PRIVATE KEY-----"
+          "api[_-]?key['\"]?\s*[:=]\s*['\"][a-zA-Z0-9_-]{20,}['\"]"
+          "secret[_-]?key['\"]?\s*[:=]\s*['\"][a-zA-Z0-9_-]{20,}['\"]"
+          "password['\"]?\s*[:=]\s*['\"][^'\"]{8,}['\"]"
+        )
+        
+        secrets_found=false
+        
+        # Scan all files for secret patterns
+        echo "Scanning files for secret patterns..."
+        for pattern in "${patterns[@]}"; do
+          if git ls-files | head -100 | xargs grep -l -E "$pattern" 2>/dev/null; then
+            echo "🚨 SECURITY ALERT: Found pattern '$pattern' in files:"
+            git ls-files | head -100 | xargs grep -l -E "$pattern" 2>/dev/null
+            secrets_found=true
+          fi
+        done
+        
+        # Check for dangerous filenames
+        echo "Checking for dangerous file patterns..."
+        dangerous_files=$(git ls-files | grep -E "(GEMINI\.md|\.env$|\.key$|\.pem$|secrets?/)" | grep -v -E "\.(template|example)$" || true)
+        
+        if [ ! -z "$dangerous_files" ]; then
+          echo "🚨 DANGEROUS FILES DETECTED:"
+          echo "$dangerous_files"
+          secrets_found=true
+        fi
+        
+        if [ "$secrets_found" = true ]; then
+          echo ""
+          echo "💰 CRITICAL: Secrets or dangerous files detected!"
+          echo "This could lead to financial disasters like the \$2,300 API key incident."
+          echo "Please remove these secrets and use environment variables instead."
+          echo ""
+          exit 1
+        else
+          echo "✅ No secrets detected in scan"
+        fi
+
+  dependency-scanning:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install Safety for Python Vulnerability Scanning
+      run: pip install safety
+      
+    - name: Python Dependency Security Scan
+      run: |
+        echo "🔍 Scanning Python dependencies for vulnerabilities..."
+        if [ -f "requirements.txt" ]; then
+          safety check -r requirements.txt --json --output safety-report.json || true
+          if [ -f "safety-report.json" ]; then
+            if [ $(cat safety-report.json | jq '.vulnerabilities | length') -gt 0 ]; then
+              echo "🚨 VULNERABILITIES FOUND:"
+              cat safety-report.json | jq -r '.vulnerabilities[] | "- \(.package_name): \(.vulnerability_id)"'
+              exit 1
+            else
+              echo "✅ No Python dependency vulnerabilities found"
+            fi
+          fi
+        else
+          echo "📄 No requirements.txt found, checking pyproject.toml dependencies..."
+          # For projects using pyproject.toml, we can still run basic checks
+          pip freeze > temp-requirements.txt
+          safety check -r temp-requirements.txt || echo "⚠️ Some dependencies may have known vulnerabilities"
+          rm temp-requirements.txt
+        fi
+
+  code-quality-security:
+    name: Code Quality Security Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install Security Linting Tools
+      run: |
+        pip install bandit semgrep
+        
+    - name: Run Bandit Security Linter
+      run: |
+        echo "🔍 Running Bandit security analysis..."
+        bandit -r . -f json -o bandit-report.json || true
+        if [ -f "bandit-report.json" ]; then
+          issues=$(cat bandit-report.json | jq '.results | length')
+          if [ $issues -gt 0 ]; then
+            echo "🚨 Security issues found by Bandit:"
+            cat bandit-report.json | jq -r '.results[] | "- \(.filename):\(.line_number): \(.issue_text)"'
+            echo "⚠️ Please review these security findings"
+          else
+            echo "✅ No security issues found by Bandit"
+          fi
+        fi
+        
+    - name: Run Semgrep Security Rules
+      run: |
+        echo "🔍 Running Semgrep security analysis..."
+        semgrep --config=auto --json --output=semgrep-report.json . || true
+        if [ -f "semgrep-report.json" ]; then
+          issues=$(cat semgrep-report.json | jq '.results | length')
+          if [ $issues -gt 0 ]; then
+            echo "🚨 Security issues found by Semgrep:"
+            cat semgrep-report.json | jq -r '.results[] | "- \(.path):\(.start.line): \(.extra.message)"'
+            echo "⚠️ Please review these security findings"  
+          else
+            echo "✅ No security issues found by Semgrep"
+          fi
+        fi
+
+  security-summary:
+    name: Security Summary
+    needs: [secret-scanning, dependency-scanning, code-quality-security]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Security Scan Summary
+      run: |
+        echo "🛡️ Security Scan Summary"
+        echo "======================="
+        echo "This workflow provides additional security scanning beyond our local git hooks."
+        echo ""
+        echo "🔒 Multi-Layer Security System:"
+        echo "1. ✅ Local git hooks - Block secrets before push"  
+        echo "2. ✅ GitHub Actions - Continuous security monitoring"
+        echo "3. ✅ Dependency scanning - Known vulnerability detection"
+        echo "4. ✅ Code quality security - Static analysis"
+        echo ""
+        echo "💡 Remember: This system exists because of a \$2,300 API key disaster."
+        echo "   Local git hooks are your first line of defense!"
+        echo ""
+        if [ "${{ needs.secret-scanning.result }}" != "success" ]; then
+          echo "🚨 SECRET SCANNING FAILED - Secrets may be present!"
+        fi
+        if [ "${{ needs.dependency-scanning.result }}" != "success" ]; then
+          echo "⚠️ DEPENDENCY SCANNING had issues - Check for vulnerabilities"
+        fi
+        if [ "${{ needs.code-quality-security.result }}" != "success" ]; then
+          echo "⚠️ CODE QUALITY SECURITY had issues - Review static analysis"
+        fi

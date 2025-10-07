@@ -1,0 +1,211 @@
+# Security Checklist - {{PROJECT_NAME}}
+
+**Generated**: {{GENERATED_DATE}}
+**Tech Stack**: {{TECH_STACK}}
+
+Use this checklist before deployment, after major changes, and during security audits.
+
+---
+
+## 🔒 Pre-Deployment Security Checklist
+
+### Environment & Secrets
+- [ ] `.env` file exists with all required variables
+- [ ] `.env` is NOT committed to git
+- [ ] `.env.example` is committed and up-to-date
+- [ ] All placeholder values in `.env.example` are clearly marked
+- [ ] No hardcoded secrets in source code
+- [ ] No API keys in configuration files
+- [ ] Database credentials use environment variables
+- [ ] Third-party service tokens use environment variables
+
+### Git Security
+- [ ] `.gitignore` includes comprehensive security patterns
+- [ ] `.git/hooks/pre-push` is installed and executable
+- [ ] `.git/hooks/post-commit` is installed and executable
+- [ ] No sensitive files tracked in git history
+- [ ] Recent commits scanned for secrets (run: `git log --all --full-history --source --find-copies-harder -S "AIzaSy"`)
+- [ ] Branch protection rules enabled on main branch (if GitHub repo)
+
+### GitHub Actions (if using GitHub)
+- [ ] `security-scan.yml` workflow is active
+- [ ] `security-scanning.yml` workflow is active
+- [ ] Workflows run successfully on latest push
+- [ ] No failing security checks
+- [ ] GitHub secret scanning enabled (repository settings)
+- [ ] Dependabot alerts enabled (repository settings)
+
+### Code Security
+- [ ] Input validation on all user inputs
+- [ ] Parameterized queries (no string concatenation for SQL)
+- [ ] Output encoding to prevent XSS
+- [ ] CSRF protection enabled
+- [ ] Secure headers configured (CSP, X-Frame-Options, etc.)
+- [ ] Rate limiting implemented on API endpoints
+- [ ] Authentication required for protected routes
+- [ ] Authorization checks on sensitive operations
+
+### Dependencies
+- [ ] All dependencies up-to-date
+- [ ] No known vulnerabilities (run: `npm audit` or `pip-audit`)
+- [ ] Lock files committed (`package-lock.json`, `poetry.lock`, etc.)
+- [ ] No unused dependencies
+- [ ] Dependencies from trusted sources only
+
+### Data Protection
+- [ ] Sensitive data encrypted at rest
+- [ ] HTTPS enforced for all connections
+- [ ] Secure session management
+- [ ] Password hashing with bcrypt/argon2
+- [ ] Personal data handling complies with regulations (GDPR, etc.)
+- [ ] Data retention policies implemented
+- [ ] Backup strategy in place
+
+### Monitoring & Logging
+- [ ] Error logging configured (no sensitive data in logs)
+- [ ] Access logging enabled
+- [ ] Failed authentication attempts logged
+- [ ] Security events monitored
+- [ ] Log retention policy defined
+- [ ] Alerting configured for security events
+
+---
+
+## 🧪 Testing Security Measures
+
+### Test .gitignore Protection
+```bash
+# Create test .env file
+echo "TEST_SECRET=secret123" > .env
+
+# Verify it's blocked
+git status | grep .env
+# Should show nothing (blocked by .gitignore)
+
+# Clean up
+rm .env
+```
+
+### Test Pre-Push Hook
+```bash
+# Create file with fake secret
+echo "AIzaSyTEST_KEY_12345678901234567890123" > test-secret.txt
+git add test-secret.txt
+git commit -m "test: security hook"
+
+# Try to push - should be BLOCKED
+git push
+
+# Clean up
+git reset HEAD~1
+rm test-secret.txt
+```
+
+### Test Secret Scanning
+```bash
+# Run manual secret scan
+.multiagent/security/scripts/scan-secrets.sh
+
+# Should report: No secrets found
+```
+
+### Test Compliance Validation
+```bash
+# Run compliance check
+.multiagent/security/scripts/validate-compliance.sh
+
+# Should pass all checks
+```
+
+---
+
+## 📅 Regular Security Maintenance
+
+### Daily
+- [ ] Monitor GitHub Actions security scan results
+- [ ] Check application logs for security events
+- [ ] Review failed authentication attempts
+
+### Weekly
+- [ ] Run manual secret scan
+- [ ] Review dependency vulnerability reports
+- [ ] Check for security updates
+
+### Monthly
+- [ ] Review and update `.env.example`
+- [ ] Audit active API keys and tokens
+- [ ] Test incident response procedures
+- [ ] Review access logs for anomalies
+
+### Quarterly
+- [ ] Full security audit
+- [ ] Penetration testing (if applicable)
+- [ ] Update security documentation
+- [ ] Rotate long-lived credentials
+- [ ] Review and update security policies
+
+---
+
+## 🚨 Incident Response Checklist
+
+If a secret is accidentally exposed:
+
+### Immediate Actions (within 5 minutes)
+- [ ] Revoke the exposed secret immediately
+- [ ] Generate new secret
+- [ ] Update `.env` with new secret
+- [ ] Test application works with new secret
+
+### Short-term Actions (within 1 hour)
+- [ ] Remove secret from git history
+- [ ] Force push to update remote (coordinate with team!)
+- [ ] Check service billing/usage for unauthorized activity
+- [ ] Review audit logs for suspicious access
+- [ ] Notify team members
+
+### Long-term Actions (within 24 hours)
+- [ ] Document incident (what, when, how, impact)
+- [ ] Implement additional safeguards
+- [ ] Review security procedures
+- [ ] Team training if process gaps identified
+- [ ] Update security documentation
+
+See `specs/003-security-setup/security/docs/INCIDENT_RESPONSE.md` for detailed procedures.
+
+---
+
+## 🎯 Tech Stack Specific Checks
+
+{{TECH_STACK_SPECIFIC_CHECKS}}
+
+---
+
+## ✅ Deployment Approval
+
+Before deploying to production, verify:
+
+- [ ] All items in Pre-Deployment checklist completed
+- [ ] All security tests passed
+- [ ] No secrets detected in codebase scan
+- [ ] Compliance validation passed
+- [ ] Team security review completed (if required)
+- [ ] Documentation updated
+
+**Deployment Approved By**: ___________________
+**Date**: ___________________
+
+---
+
+## 📚 Additional Resources
+
+- [Secret Management Guide](SECRET_MANAGEMENT.md)
+- [Incident Response Guide](INCIDENT_RESPONSE.md)
+- [Security Configuration](../configs/security-config.json)
+- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/)
+
+---
+
+**Remember**: Security is not a one-time setup. It requires continuous vigilance and regular maintenance. This checklist protects your project from the $2,300 API key disaster and other security incidents.
+
+**Security is everyone's responsibility.**

@@ -1,0 +1,77 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deployment/**'
+      - '{{SOURCE_PATHS|src/**}}'
+  workflow_dispatch:
+
+jobs:
+  deploy-{{DEPLOYMENT_TARGET|production}}:
+    runs-on: ubuntu-latest
+    environment: {{ENVIRONMENT|production}}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Validate deployment configs
+      run: |
+        if [ -f ".multiagent/deployment/scripts/validate-deployment.sh" ]; then
+          bash .multiagent/deployment/scripts/validate-deployment.sh
+        fi
+
+{{#IF_VERCEL}}
+    - name: Deploy to Vercel
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      run: |
+        npm install -g vercel
+        vercel --prod --token=$VERCEL_TOKEN --yes
+{{/IF_VERCEL}}
+
+{{#IF_AWS}}
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: {{AWS_REGION|us-east-1}}
+
+    - name: Deploy to AWS
+      run: |
+        {{AWS_DEPLOY_COMMAND|echo "Add AWS deployment"}}
+{{/IF_AWS}}
+
+{{#IF_DOCKER}}
+    - name: Build and push Docker image
+      run: |
+        docker build -f deployment/docker/Dockerfile -t {{PROJECT_NAME}}:${{ github.sha }} .
+
+        # Push to registry if configured
+        if [ -n "${{ secrets.DOCKER_REGISTRY }}" ]; then
+          docker tag {{PROJECT_NAME}}:${{ github.sha }} ${{ secrets.DOCKER_REGISTRY }}/{{PROJECT_NAME}}:latest
+          docker push ${{ secrets.DOCKER_REGISTRY }}/{{PROJECT_NAME}}:latest
+        fi
+{{/IF_DOCKER}}
+
+    - name: Verify deployment
+      run: |
+        {{HEALTH_CHECK_COMMAND|echo "Add health check"}}
+
+    - name: Update deployment status
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const status = '${{ job.status }}' === 'success' ? 'success' : 'failure';
+          github.rest.repos.createDeploymentStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            deployment_id: context.payload.deployment?.id || 0,
+            state: status,
+            environment: '{{ENVIRONMENT|production}}'
+          });

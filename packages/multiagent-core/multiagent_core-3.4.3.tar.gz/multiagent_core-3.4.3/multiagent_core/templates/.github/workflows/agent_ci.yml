@@ -1,0 +1,38 @@
+name: Agent CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run tests
+        run: |
+          # Run pytest and handle exit codes:
+          # 0 = all tests passed
+          # 5 = no tests found (OK for new projects)
+          # Other = test failures (fail the workflow)
+          pytest || EXIT_CODE=$?
+          if [ ${EXIT_CODE:-0} -eq 5 ]; then
+            echo "⚠️  No tests found - this is OK for initial setup"
+            exit 0
+          elif [ ${EXIT_CODE:-0} -ne 0 ]; then
+            echo "❌ Tests failed with exit code $EXIT_CODE"
+            exit $EXIT_CODE
+          fi

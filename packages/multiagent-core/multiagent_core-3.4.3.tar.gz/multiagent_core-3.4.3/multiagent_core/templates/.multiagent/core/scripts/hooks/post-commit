@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Post-commit hook - lightweight processing only
+# Auto-build moved to pre-push for better performance
+
+# Get the commit message
+COMMIT_MSG=$(git log -1 --pretty=%B)
+
+echo "[POST-COMMIT] Commit completed: $(echo "$COMMIT_MSG" | head -1)"
+echo "[POST-COMMIT] Auto-build will run on push to ensure templates are current"
+
+# Check if this is a final commit needing @claude for agent integration
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$current_branch" =~ ^agent- ]]; then
+    # Check if commit message has @claude tag
+    if echo "$COMMIT_MSG" | grep -q "@claude"; then
+        # Check if this is a COMPLETE/final commit
+        if echo "$COMMIT_MSG" | grep -qE "^\[COMPLETE\]"; then
+            echo "[AGENT-INTEGRATION] ✅ Final commit with @claude detected - ready for PR and review integration"
+        else
+            echo "[AGENT-GUIDANCE] ⚠️  WARNING: @claude tag should ONLY be used in [COMPLETE] commits"
+            echo "[AGENT-GUIDANCE]   - Regular work commits: NO @claude tag"
+            echo "[AGENT-GUIDANCE]   - Final PR commit: [COMPLETE] feat: description @claude"
+        fi
+    else
+        # No @claude tag - check if this is a COMPLETE commit that needs one
+        if echo "$COMMIT_MSG" | grep -qE "^\[COMPLETE\]"; then
+            echo "[AGENT-GUIDANCE] 📋 IMPORTANT: [COMPLETE] commits need @claude tag for PR review:"
+            echo "[AGENT-GUIDANCE]   git commit -m \"[COMPLETE] feat: feature description @claude\""
+            echo "[AGENT-GUIDANCE]   This triggers automated review routing"
+        else
+            # Working commit - no guidance needed (this is correct)
+            :
+        fi
+    fi
+fi
+
+# Only do minimal template updates for changes that affect .multiagent/templates
+if git diff-tree --name-only -r HEAD | grep -q "^\.multiagent/templates/"; then
+    echo "[POST-COMMIT] Template files changed - syncing to current project only..."
+    python3 -c "
+from multiagent_core.auto_updater import sync_project_templates
+import os
+try:
+    sync_project_templates(os.getcwd())
+    print('[POST-COMMIT] Current project templates updated')
+except Exception as e:
+    print(f'[POST-COMMIT] Warning: Template sync failed: {e}')
+" 2>/dev/null || echo "[POST-COMMIT] Template sync skipped (multiagent_core not available)"
+fi
+
+exit 0
