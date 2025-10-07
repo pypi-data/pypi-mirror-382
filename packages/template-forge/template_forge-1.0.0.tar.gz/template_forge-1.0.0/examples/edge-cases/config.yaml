@@ -1,0 +1,215 @@
+# Edge Cases Testing Configuration
+# This configuration intentionally tests edge cases and boundary conditions
+
+# Static tokens that may collide with namespaced tokens
+static_tokens:
+  author: "Static Author"
+  version: "1.0.0"  # COLLISION: Also defined in json.project.version
+  license: "MIT"
+  
+  company:
+    name: "EdgeCase Corp"
+    address: "123 Test St"
+  
+  # Conditional flags
+  enable_feature: false
+  enable_docker: false
+  environment: "development"
+  
+  # Edge values
+  empty_value: ""
+  null_value: null
+  zero_value: 0
+
+# Input files with namespaces
+inputs:
+  # JSON with deeply nested data and edge cases
+  - path: edge-data.json
+    namespace: json
+    tokens:
+      # Normal extraction
+      - name: project_name
+        key: project.name
+      
+      # Deep nesting (5 levels)
+      - name: city_name
+        key: project.metadata.author.profile.location.city.name
+      
+      - name: coordinates
+        key: project.metadata.author.profile.location.city.coordinates
+      
+      # Empty array extraction
+      - name: enabled_features
+        key: features.enabled
+      
+      - name: all_modules
+        key: modules[*]
+      
+      # Null value
+      - name: experimental_features
+        key: features.experimental
+      
+      # Transform on edge cases
+      - name: number_string_upper
+        key: edge_cases.number_as_string
+        transform: upper  # Transform on string that looks like number
+      
+      - name: special_chars_lower
+        key: edge_cases.special_chars
+        transform: lower
+      
+      # Regex that may not match
+      - name: email_domain
+        key: strings_for_regex.valid_email
+        regex: '@(.+)$'
+      
+      - name: version_number
+        key: strings_for_regex.version_string
+        regex: '(\d+\.\d+\.\d+)'
+      
+      - name: no_match_regex
+        key: strings_for_regex.no_numbers
+        regex: '\d+'  # Won't match - no numbers in string
+      
+      # Array access
+      - name: first_component
+        key: components[0].name
+      
+      - name: out_of_bounds
+        key: components[999].name  # Out of bounds
+      
+      # Empty nested object
+      - name: empty_nested
+        key: edge_cases.nested_empty.level1.level2.level3
+
+  # XML with attributes and text content
+  - path: edge-config.xml
+    namespace: xml
+    tokens:
+      # Attribute extraction
+      - name: server_host
+        key: server.@host
+      
+      - name: server_port
+        key: server.@port
+      
+      # Text content
+      - name: server_name
+        key: server.name
+      
+      # Empty element
+      - name: empty_element
+        key: empty_element
+      
+      # Deep nesting
+      - name: deep_value
+        key: nested.level1.level2.level3.level4.level5
+      
+      # Special characters
+      - name: special_content
+        key: edge_cases.special_chars
+      
+      # Whitespace handling
+      - name: whitespace_content
+        key: edge_cases.whitespace
+
+  # YAML with various data types
+  - path: edge-tokens.yaml
+    namespace: yaml
+    tokens:
+      # Boolean values
+      - name: bool_true
+        key: booleans.true_values[0]
+      
+      - name: bool_false
+        key: booleans.false_values[0]
+      
+      # Number variations
+      - name: scientific_num
+        key: numbers.scientific
+      
+      # Multiline strings
+      - name: literal_string
+        key: strings.multiline_literal
+      
+      - name: folded_string
+        key: strings.multiline_folded
+      
+      # Empty collections
+      - name: empty_list
+        key: empty.list
+      
+      - name: deeply_empty
+        key: empty.nested.deeply.nested.empty
+      
+      # Unicode
+      - name: chinese_text
+        key: internationalization.chinese
+      
+      - name: emoji_text
+        key: internationalization.emoji
+
+# Template directory
+template_dir: templates
+
+# Templates with various edge cases
+templates:
+  # Always generated - tests empty arrays, defaults, etc.
+  - template: always-generated.txt.j2
+    output: output/always-generated.txt
+  
+  # Conditionally generated - only if enable_feature is true
+  - template: conditionally-generated.txt.j2
+    output: output/conditionally-generated.txt
+    when: "enable_feature == true"
+  
+  # Another conditional - only for production
+  - template: production-only.txt.j2
+    output: output/production-only.txt
+    when: "environment == 'production'"
+  
+  # Tests code preservation
+  - template: with-preservation.py.j2
+    output: output/with-preservation.py
+  
+  # Tests whitespace control
+  - template: edge-whitespace.txt.j2
+    output: output/edge-whitespace.txt
+  
+  # Template with overrides - tests token collision at template level
+  - template: with-overrides.txt.j2
+    output: output/with-overrides.txt
+    tokens:
+      author: "Template-Specific Author"  # Overrides static token
+      template_only: "Only in this template"
+
+# Jinja2 options for whitespace control
+jinja_options:
+  trim_blocks: true
+  lstrip_blocks: true
+  keep_trailing_newline: true
+
+# Post-generation hooks with edge cases
+hooks:
+  post_generate:
+    # Always runs - simple check
+    - command: "echo 'Generation completed'"
+      description: "Log completion"
+      on_error: ignore
+    
+    # Conditional hook - only if enable_docker is true
+    - command: "echo 'Docker build would happen here'"
+      description: "Build Docker image"
+      when: "enable_docker == true"
+      on_error: warn
+    
+    # Another conditional - only for production
+    - command: "echo 'Production deployment would happen here'"
+      description: "Deploy to production"
+      when: "environment == 'production'"
+      on_error: fail
+    
+    # Command that might fail
+    - command: "test -f output/always-generated.txt && echo 'File exists' || echo 'File missing'"
+      description: "Verify output file"
+      on_error: warn

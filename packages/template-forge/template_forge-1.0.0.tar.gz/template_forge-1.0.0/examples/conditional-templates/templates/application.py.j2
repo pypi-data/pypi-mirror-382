@@ -1,0 +1,163 @@
+{# Application Template - Extends Base (REQ-TPL-110-112) #}
+{% extends "base.j2" %}
+
+{% block docstring %}
+{{ app.name }} - {{ project.description }}
+Version: {{ app.version }}
+Environment: {{ app.environment }}
+Deployment: {{ app.deployment_type }}
+{% endblock %}
+
+{% block imports %}
+{{ super() }}
+# @PRESERVE_START custom_imports
+# Add your custom imports here
+# These will be preserved across regenerations
+# @PRESERVE_END custom_imports
+
+import os
+import json
+from dataclasses import dataclass
+from datetime import datetime
+{% endblock %}
+
+{% block constants %}
+{{ super() }}
+
+# Database configuration
+DB_TYPE = "{{ app.database.type }}"
+DB_HOST = "{{ app.database.host }}"
+DB_PORT = {{ app.database.port }}
+DB_NAME = "{{ app.database.name }}"
+DB_POOL_SIZE = {{ app.database.pool_size }}
+DB_SSL_ENABLED = {{ app.database.ssl | string }}
+
+# API configuration
+API_VERSION = "{{ app.api.version }}"
+RATE_LIMIT_ENABLED = {{ app.api.rate_limiting.enabled | string }}
+RATE_LIMIT_RPM = {{ app.api.rate_limiting.requests_per_minute }}
+
+# Features enabled
+FEATURES = {{ app.features | list }}
+
+# Caching
+CACHE_ENABLED = {{ app.caching.enabled | string }}
+CACHE_BACKEND = "{{ app.caching.backend }}"
+CACHE_TTL = {{ app.caching.ttl_seconds }}
+{% endblock %}
+
+{% block main_class %}
+{{ super() }}
+
+@dataclass
+class DatabaseConfig:
+    """Database configuration."""
+    type: str = DB_TYPE
+    host: str = DB_HOST
+    port: int = DB_PORT
+    name: str = DB_NAME
+    pool_size: int = DB_POOL_SIZE
+    ssl_enabled: bool = DB_SSL_ENABLED
+
+@dataclass
+class CacheConfig:
+    """Cache configuration."""
+    enabled: bool = CACHE_ENABLED
+    backend: str = CACHE_BACKEND
+    ttl: int = CACHE_TTL
+    {% if app.caching.backend == "redis" %}
+    redis_host: str = "{{ app.caching.redis.host }}"
+    redis_port: int = {{ app.caching.redis.port }}
+    redis_db: int = {{ app.caching.redis.db }}
+    {% endif %}
+
+class {{ app.name | replace('-', '') | title }}Application(Application):
+    """Main {{ app.name }} application class."""
+    
+    def __init__(self):
+        super().__init__()
+        self.db_config = DatabaseConfig()
+        self.cache_config = CacheConfig()
+        self.features = FEATURES
+        
+        # Initialize components
+        self._init_database()
+        self._init_cache()
+        self._init_monitoring()
+    
+    def _init_database(self):
+        """Initialize database connection."""
+        logger.info(f"Connecting to {self.db_config.type} at {self.db_config.host}:{self.db_config.port}")
+        # @PRESERVE_START custom_database_init
+        # Add custom database initialization here
+        # @PRESERVE_END custom_database_init
+    
+    def _init_cache(self):
+        """Initialize caching layer."""
+        if self.cache_config.enabled:
+            logger.info(f"Initializing {self.cache_config.backend} cache")
+            # @PRESERVE_START custom_cache_init
+            # Add custom cache initialization here
+            # @PRESERVE_END custom_cache_init
+    
+    def _init_monitoring(self):
+        """Initialize monitoring."""
+        {% if app.monitoring.metrics_enabled %}
+        logger.info("Initializing monitoring")
+        self.metrics = {{ app.monitoring.metrics | list }}
+        # @PRESERVE_START custom_monitoring_init
+        # Add custom monitoring initialization here
+        # @PRESERVE_END custom_monitoring_init
+        {% else %}
+        logger.info("Monitoring disabled")
+        {% endif %}
+    
+    def run(self):
+        """Run the application."""
+        logger.info(f"Starting {self.name} in {ENVIRONMENT} mode")
+        
+        {% if app.debug_mode %}
+        logger.warning("DEBUG MODE ENABLED - Not for production use!")
+        {% endif %}
+        
+        # Start API server
+        self._start_api_server()
+        
+        # @PRESERVE_START custom_startup
+        # Add custom startup logic here
+        # @PRESERVE_END custom_startup
+    
+    def _start_api_server(self):
+        """Start API server."""
+        logger.info(f"Starting API {API_VERSION}")
+        {% if app.api.rate_limiting.enabled %}
+        logger.info(f"Rate limiting: {RATE_LIMIT_RPM} requests/minute")
+        {% endif %}
+        
+        # Register endpoints
+        {% for endpoint in app.api.endpoints %}
+        logger.info("Endpoint: {{ endpoint.path }} {{ endpoint.methods }}")
+        {% endfor %}
+        
+        # @PRESERVE_START custom_api_setup
+        # Add custom API setup here
+        # @PRESERVE_END custom_api_setup
+    
+    # @PRESERVE_START custom_methods
+    # Add your custom methods here
+    # These will be preserved across regenerations
+    # @PRESERVE_END custom_methods
+{% endblock %}
+
+{% block main_function %}
+def main():
+    """Main entry point."""
+    try:
+        app = {{ app.name | replace('-', '') | title }}Application()
+        app.run()
+    except KeyboardInterrupt:
+        logger.info("Application stopped by user")
+    except Exception as e:
+        logger.error(f"Application error: {e}", exc_info=True)
+        sys.exit(1)
+{% endblock %}

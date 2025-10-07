@@ -1,0 +1,40 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    - cron: "0 8 * * MON"  # Weekly on Monday at 8 AM UTC
+  workflow_dispatch:
+
+jobs:
+  update-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-tools
+        run: pip install pip-tools
+
+      - name: Update requirements
+        run: |
+          pip-compile --upgrade pyproject.toml
+          pip-compile --upgrade --extra dev pyproject.toml -o requirements-dev.txt
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update dependencies"
+          title: "chore: update dependencies"
+          body: |
+            Automated dependency update
+            
+            - Updated all dependencies to latest versions
+            - Please review and test before merging
+          branch: update-dependencies
+          delete-branch: true

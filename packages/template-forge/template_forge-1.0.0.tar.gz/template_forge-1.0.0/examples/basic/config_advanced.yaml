@@ -1,0 +1,99 @@
+# Template Forge Configuration
+# Extract tokens from structured data files (JSON, YAML, XML, ARXML)
+
+# Directory containing Jinja2 templates
+template_dir: ./templates
+
+# Jinja2 environment options
+jinja_options:
+  trim_blocks: true
+  lstrip_blocks: true
+  keep_trailing_newline: true
+
+# Input files - MUST be JSON, YAML, XML, or ARXML
+inputs:
+  # Example: Extract from JSON file
+  - path: ./examples/settings.json
+    namespace: "app"  # All tokens under 'app' namespace
+    tokens:
+      - name: app_name
+        key: application.name
+        # Optional: regex to filter the extracted value
+        regex: '^(\w+)'
+      
+      - name: database_host
+        key: database.connection.host
+        default: localhost
+      
+      - name: port
+        key: database.connection.port
+        transform: int  # Convert to integer
+      
+      - name: features
+        key: application.features  # Will extract array/list if present
+
+  # Example: Extract from YAML file
+  - path: ./examples/deploy.yaml
+    namespace: "deploy"  # Deployment tokens under 'deploy' namespace
+    tokens:
+      - name: environment
+        key: deployment.environment
+        transform: upper  # Convert to uppercase
+      
+      - name: replicas
+        key: deployment.spec.replicas
+        default: 1
+        transform: int
+      
+      - name: image_tag
+        key: deployment.container.image
+        # Extract just the tag from image:tag format
+        regex: ':(.+)$'
+
+  # Example: Extract from XML file
+  - path: ./examples/project.xml
+    tokens:
+      - name: project_name
+        key: project.metadata.name
+      
+      - name: version
+        key: project.metadata.version
+      
+      - name: author
+        key: project.metadata.author
+      
+      # Extract attribute using @ notation
+      - name: project_id
+        key: project.@id
+
+  # Example: Extract from ARXML file (AUTOSAR)
+  - path: ./examples/ecu.arxml
+    tokens:
+      - name: ecu_name
+        key: AUTOSAR.AR-PACKAGES.AR-PACKAGE.ELEMENTS.ECU-INSTANCE.SHORT-NAME
+      
+      - name: sw_version
+        key: AUTOSAR.AR-PACKAGES.AR-PACKAGE.ELEMENTS.ECU-INSTANCE.SW-VERSION
+        regex: '(\d+\.\d+\.\d+)'  # Extract version number only
+      
+      - name: can_channels
+        key: AUTOSAR.AR-PACKAGES.AR-PACKAGE.ELEMENTS.CAN-CLUSTER.CAN-PHYSICAL-CHANNELS
+
+# Static tokens (always available)
+static_tokens:
+  company: "ACME Corp"
+  copyright_year: 2024
+  license: "MIT"
+
+# Templates to generate
+templates:
+  - template: README.md.j2
+    output: ./output/README.md
+    tokens:
+      build_status: "passing"
+  
+  - template: docker-compose.yml.j2
+    output: ./output/docker-compose.yml
+  
+  - template: config.ini.j2
+    output: ./output/config.ini

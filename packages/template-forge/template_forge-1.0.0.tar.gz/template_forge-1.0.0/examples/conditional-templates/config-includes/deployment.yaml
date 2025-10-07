@@ -1,0 +1,43 @@
+# Deployment Configuration
+# Demonstrates hierarchical tokens and deployment settings
+
+deployment:
+  docker:
+    base_image: "python:3.11-slim"
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    volumes:
+      - "./data:/app/data"
+      - "./logs:/app/logs"
+    environment:
+      - "PYTHONUNBUFFERED=1"
+    
+  kubernetes:
+    replicas: 3
+    namespace: "production"
+    resources:
+      limits:
+        cpu: "1000m"
+        memory: "512Mi"
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+    health_check:
+      path: "/health"
+      interval: 30
+      timeout: 5
+
+infrastructure:
+  monitoring:
+    enabled: true
+    tools:
+      - "Prometheus"
+      - "Grafana"
+      - "Jaeger"
+  
+  logging:
+    enabled: true
+    level: "INFO"
+    format: "json"
+    retention_days: 30

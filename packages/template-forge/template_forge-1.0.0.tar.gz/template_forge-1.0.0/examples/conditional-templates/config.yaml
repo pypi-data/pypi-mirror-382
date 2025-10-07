@@ -1,0 +1,159 @@
+# Advanced Features Configuration
+# Demonstrates: Configuration includes, conditional templates, hooks, Jinja2 options
+
+# Template directory
+template_dir: "templates"
+
+# Include common configuration fragments (REQ-CFG-100-109)
+# Note: This is a demonstration - actual !include syntax may vary by YAML parser
+# For now, we'll use inline static_tokens with hierarchical structure
+
+# Static tokens from includes (simulating !include)
+static_tokens:
+  # From common-tokens.yaml
+  project:
+    name: "AdvancedApp"
+    description: "Demonstration of Template Forge advanced features"
+    license: "MIT"
+  
+  company:
+    name: "Tech Innovations Inc"
+    website: "https://techinnovations.example.com"
+    contact: "info@techinnovations.example.com"
+  
+  author:
+    name: "Development Team"
+    email: "dev-team@techinnovations.example.com"
+  
+  generator: "Template Forge"
+  generated_date: "2025-10-04"
+  
+  # From deployment.yaml
+  deployment:
+    docker:
+      base_image: "python:3.11-slim"
+      ports:
+        - "8000:8000"
+        - "8001:8001"
+    kubernetes:
+      replicas: 3
+      namespace: "production"
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "256Mi"
+        limits:
+          cpu: "1000m"
+          memory: "512Mi"
+      health_check:
+        path: "/health"
+        interval: 10
+        timeout: 5
+  
+  infrastructure:
+    monitoring:
+      enabled: true
+      tools:
+        - "Prometheus"
+        - "Grafana"
+    logging:
+      enabled: true
+      level: "INFO"
+
+# Input data extraction
+inputs:
+  - path: "project-data.json"
+    namespace: "app"
+    tokens:
+      - name: "name"
+        key: "application.name"
+      - name: "version"
+        key: "application.version"
+      - name: "environment"
+        key: "application.environment"
+      - name: "debug_mode"
+        key: "application.debug_mode"
+      - name: "deployment_type"
+        key: "application.deployment_type"
+      - name: "features"
+        key: "application.features"
+      - name: "database"
+        key: "database"
+      - name: "api"
+        key: "api"
+      - name: "caching"
+        key: "caching"
+      - name: "monitoring"
+        key: "monitoring"
+
+# Jinja2 environment options (REQ-CFG-050-051)
+jinja_options:
+  trim_blocks: true
+  lstrip_blocks: true
+  keep_trailing_newline: true
+
+# Template configurations with conditional generation (REQ-TPL-130-138)
+templates:
+  # Always generate - main application
+  - template: "application.py.j2"
+    output: "../../output/advanced/application.py"
+  
+  # Always generate - documentation
+  - template: "README.md.j2"
+    output: "../../output/advanced/README.md"
+    tokens:
+      # Template-specific token override (REQ-CFG-041)
+      custom_note: "This README includes deployment-specific instructions"
+  
+  # Conditional - generate only for Docker deployment (REQ-TPL-130)
+  - template: "docker-compose.yml.j2"
+    output: "../../output/advanced/docker-compose.yml"
+    when: "app.deployment_type == 'docker'"
+  
+  # Conditional - generate only for Kubernetes deployment (REQ-TPL-130)
+  - template: "kubernetes.yaml.j2"
+    output: "../../output/advanced/kubernetes.yaml"
+    when: "app.deployment_type == 'kubernetes'"
+  
+  # Conditional - generate only in production (REQ-TPL-133)
+  - template: "production-config.ini.j2"
+    output: "../../output/advanced/production.ini"
+    when: "app.environment == 'production'"
+  
+  # Conditional - generate only if monitoring is enabled (REQ-TPL-133)
+  - template: "monitoring.yaml.j2"
+    output: "../../output/advanced/monitoring.yaml"
+    when: "app.monitoring.metrics_enabled"
+
+# Post-generation hooks (REQ-AUT-001-093)
+hooks:
+  post_generate:
+    # Hook 1: Format Python code with Black
+    - command: "echo '[Hook] Would run: black ../../output/advanced/*.py'"
+      description: "Format Python files with Black"
+      on_error: "warn"
+    
+    # Hook 2: Install dependencies (conditional)
+    - command: "echo '[Hook] Would run: pip install -r requirements.txt'"
+      description: "Install Python dependencies"
+      when: "app.environment == 'production'"
+      on_error: "warn"
+    
+    # Hook 3: Docker-specific hook (conditional, REQ-AUT-030)
+    - command: "echo '[Hook] Would run: docker-compose validate'"
+      description: "Validate Docker Compose configuration"
+      when: "app.deployment_type == 'docker'"
+      working_dir: "../../output/advanced"
+      on_error: "warn"
+    
+    # Hook 4: Kubernetes-specific hook (conditional)
+    - command: "echo '[Hook] Would run: kubectl apply --dry-run=client -f kubernetes.yaml'"
+      description: "Validate Kubernetes configuration"
+      when: "app.deployment_type == 'kubernetes'"
+      working_dir: "../../output/advanced"
+      on_error: "ignore"
+    
+    # Hook 5: Generate requirements file
+    - command: "echo '[Hook] Would run: pip freeze > requirements.txt'"
+      description: "Generate requirements file"
+      on_error: "ignore"

@@ -1,0 +1,94 @@
+application:
+  name: "ConfigManager"
+  version: "2.3.1"
+  description: "Advanced configuration management system"
+  
+  features:
+    - "real-time-sync"
+    - "multi-tenant"
+    - "encryption"
+    - "audit-logging"
+  
+  database:
+    primary:
+      host: "db-primary.example.com"
+      port: 5432
+      name: "config_db"
+      ssl: true
+    replica:
+      host: "db-replica.example.com" 
+      port: 5432
+      name: "config_db_read"
+      ssl: true
+  
+  services:
+    api:
+      port: 8080
+      workers: 4
+      timeout: 30
+    worker:
+      queue: "redis://redis.example.com:6379"
+      concurrency: 8
+    monitoring:
+      metrics: true
+      logging_level: "INFO"
+  
+  security:
+    jwt:
+      secret: "super-secret-key"
+      expiry: 3600
+    rate_limiting:
+      requests_per_minute: 100
+      burst_size: 20
+
+environments:
+  development:
+    debug: true
+    log_level: "DEBUG"
+    external_apis:
+      - name: "dev-api"
+        url: "https://dev-api.example.com"
+        timeout: 10
+      - name: "test-service"
+        url: "https://test.example.com"
+        timeout: 5
+        
+  staging:
+    debug: false
+    log_level: "INFO"
+    external_apis:
+      - name: "staging-api"
+        url: "https://staging-api.example.com"
+        timeout: 15
+        
+  production:
+    debug: false
+    log_level: "WARN"
+    external_apis:
+      - name: "prod-api"
+        url: "https://api.example.com"
+        timeout: 20
+      - name: "backup-api"
+        url: "https://backup-api.example.com"
+        timeout: 30
+
+deployment:
+  infrastructure:
+    provider: "aws"
+    region: "us-west-2"
+    instance_type: "t3.medium"
+  
+  scaling:
+    min_instances: 2
+    max_instances: 10
+    target_cpu: 70
+    
+  monitoring:
+    healthcheck:
+      path: "/health"
+      interval: 30
+    metrics:
+      - "cpu_usage"
+      - "memory_usage"
+      - "request_count"
+      - "response_time"
