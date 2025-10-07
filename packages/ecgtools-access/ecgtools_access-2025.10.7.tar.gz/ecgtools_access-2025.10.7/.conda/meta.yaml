@@ -1,0 +1,39 @@
+{% set data = load_setup_py_data(setup_file='../setup.py', from_recipe_dir=True) %}
+{% set version = environ.get('ECGTOOLS_VERSION', data.get('version')) %}
+{% set pyproj = load_file_data('../pyproject.toml', from_recipe_dir=True) %}
+{% set deps = pyproj.get('project', {}).get('dependencies',[]) %}
+
+package:
+  name: ecgtools-access
+  version: "{{ version }}"
+
+source:
+  url: "https://files.pythonhosted.org/packages/source/e/ecgtools_access/ecgtools_access-{{ version }}.tar.gz"
+
+build:
+  noarch: python
+  number: 0
+  script: "{{ PYTHON }} -m pip install . -vv"
+
+requirements:
+  host:
+    - python
+    - pip
+    - versioneer
+    - setuptools >=61.0.0
+  run:
+    - python >=3.10
+    {% for dep in deps %}
+    - {{ dep }}
+    {% endfor %}
+
+about:
+  home: https://github.com/ACCESS-NRI/ecgtools
+  license: Apache Software
+  license_family: APACHE
+  summary: "ESM Catalog Generation Utilities."
+  doc_url:  https://ecgtools.readthedocs.io/
+
+extra:
+  recipe-maintainers:
+    - Charles_Turner

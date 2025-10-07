@@ -1,0 +1,153 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2","versioneer[toml]"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecgtools-access"
+description = "ESM Catalog Generation Utilities. This is the ACCESS-NRI bleeding edge fork."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+maintainers = [
+    { name = "ACCESS-NRI", email = "charles.turner@anu.edu.au" }
+]
+keywords = ["ecgtools"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+]
+dependencies = [
+    "cf_xarray",
+    "joblib",
+    "netCDF4",
+    "xarray",
+    "pyyaml",
+    "pydantic>=2.0",
+    "pandas",
+    "fsspec",
+    "intake-esm-access>2025.9.11",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/access-nri/ecgtools"
+Documentation = "https://ecgtools.readthedocs.io/"
+Source = "https://github.com/access-nri/ecgtools"
+Tracker = "https://github.com/access-nri/ecgtools/issues"
+
+[tool.setuptools.packages.find]
+include = ["ecgtools", "ecgtools.*"]
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "dirty-tag"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+skip-string-normalization = true
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "ecgtools/_version.py"
+versionfile_build = "ecgtools/_version.py"
+tag_prefix = "v"
+parentdir_prefix = "ecgtools-"
+
+
+[tool.coverage.run]
+    omit = [
+        "tests/*",
+        "docs/*",
+        "*/_version.py",
+        "versioneer.py",
+    ]
+
+[tool.prettier.config]
+ignore = [
+    "**/_version.py",
+    "**/versioneer.py",
+    ".conda/meta.yaml",
+]
+
+
+[tool.pixi.workspace]
+channels = ["accessnri", "conda-forge", "nodefaults"]
+name = "ecgtools-dev"
+platforms = ["osx-arm64", "linux-64", "win-64"]
+
+
+[tool.pixi.feature.dev.pypi-dependencies]
+ecgtools-access = {path = ".", editable = true}
+
+[tool.pixi.feature.dev.dependencies]
+gcsfs = "*"
+pre-commit = "*"
+pytest = "*"
+pytest-cov = "*"
+pytest-sugar = "*"
+pytest-xdist = "*"
+s3fs = "*"
+coverage = "*"
+
+[tool.pixi.feature.build.dependencies]
+setuptools = "*"
+setuptools-scm = "*"
+wheel = "*"
+twine = "*"
+check-manifest = "*"
+pip = ">=25.2,<26"
+
+[tool.pixi.feature.build.pypi-dependencies]
+build = "*"
+
+[tool.pixi.environments]
+default = { features = ["dev"], solve-group = "default" }
+build = { features = ["py310","build"] }
+test-py310 = { features = ["py310", "dev"] }
+test-py311 = { features = ["py311", "dev"] }
+test-py312 = { features = ["py312", "dev"] }
+test-py313 = { features = ["py313", "dev"] }
+
+
+[tool.pixi.feature.dev.tasks]
+test = {cmd = "pytest tests", description = "Run tests"}
+test-cov = {cmd = "coverage run -m --source=ecgtools pytest tests && coverage xml", description = "Run tests with coverage and generate xml report"}
+pre-commit-pre-push = {cmd = "pre-commit install --hook-type pre-push", description = "Install pre-commit pre-push hook"}
+
+[tool.pixi.feature.build.tasks]
+build = {cmd = "git clean -xdf && git restore -SW . && pixi run python -m build --sdist --wheel .", description = "Build tarball and wheels"}
+check-dist = { depends-on = ["build"], cmd = "python -m twine check dist/*", description = "Check built distribution files"}
+
+validate-version = { depends-on = ["check-dist"], cmd = [
+    "bash", "-c",
+    "if [ -f dist/ecgtools-0.0.0.tar.gz ]; then echo '❌ INVALID VERSION NUMBER' && exit 1; else echo '✅ Looks good'; fi"
+], description = "Validate version number is set properly"}
+
+
+get-version = { cmd = ["python", "-c", "import ecgtools; print(ecgtools.__version__)"], description = "Get the package version" }
+
+test-wheel = { cmd = [
+    "bash", "-c",
+    "python -m pip install dist/ecgtools*.whl && python -c 'import ecgtools; print(ecgtools.__version__)'"
+], description = "Test installation of built wheel in clean environment"}
+
+[tool.pixi.feature.py310.dependencies]
+python = "3.10.*"
+
+[tool.pixi.feature.py311.dependencies]
+python = "3.11.*"
+
+[tool.pixi.feature.py312.dependencies]
+python = "3.12.*"
+
+[tool.pixi.feature.py313.dependencies]
+python = "3.13.*"
