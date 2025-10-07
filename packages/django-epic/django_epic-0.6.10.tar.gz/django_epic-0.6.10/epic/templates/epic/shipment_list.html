@@ -1,0 +1,89 @@
+{% extends "epic/base_layout.html" %}
+{% load humanize %}
+
+{% block buttons %}
+  <a class="btn btn-default" href="{% url 'epic:epic_index' %}">
+    Up <i class="glyphicon glyphicon-chevron-up"></i>
+  </a>
+
+  <a class="btn btn-default" href="{% url 'epic:ship_add' %}">
+    Add New Shipment <i class="glyphicon glyphicon-plus"></i>
+  </a>
+{% endblock buttons %}
+
+{% block content %}
+{{ block.super }}
+
+<div class="panel panel-default">
+  <div class="panel-heading">
+    <h2 class="panel-title">Existing Shipments</h2>
+  </div>
+  <div class="panel-body">
+    <table  class="table-responsive table-condensed bootstrap-extended-table"
+            style="background-color: white"
+            data-toggle="table"
+            data-striped="true"
+            data-search="true"
+            data-sortable="true"
+            data-pagination="true"
+            data-side-pagination="client"
+            data-page-number="1"
+            data-page-size="50"
+            data-pagination-first-text="First"
+            data-pagination-pre-text="Previous"
+            data-pagination-next-text="Next"
+            data-pagination-last-text="Last"
+            data-show-pagination-switch="true"
+            data-pagination-v-align="top"
+            data-pagination-h-align="right">
+      <thead>
+	<tr>
+	  <th data-sortable="true">SO&nbsp;#</th>
+	  <th data-sortable="true">PO&nbsp;#</th>
+	  <th data-sortable="true">From</th>
+	  <th data-sortable="true">To</th>
+	  <th data-sortable="true">Tracking #s</th>
+	  <th data-sortable="true">Order&nbsp;Date</th>
+	  <th data-sortable="true">Ship&nbsp;Date</th>
+	  <th data-sortable="true">Notes</th>
+	</tr>
+      </thead>
+      {% for shipment in shipment_list %}
+      <tr>
+	<td>{{ shipment.html_link|safe }}</td>
+	<td>
+	  {% if shipment.from_warehouse %}
+	  n/a
+	  {% else %}
+	  {{  shipment.ordr.html_link|safe }}
+	  {% endif %}
+	</td>
+	<td>
+	  {% if shipment.from_warehouse %}
+	  {{  shipment.from_warehouse.html_link|safe }}
+	  {% else %}
+	  {{  shipment.ordr.vendor.html_link|safe }}
+	  {% endif %}
+	</td>
+	<td>
+	  {{ shipment.warehouse.html_link|safe }}
+	</td>
+	<td>{{ shipment.html_tracking_links|safe }}</td>
+	<td>
+	  {% if shipment.from_warehouse %}
+	  n/a
+	  {% else %}
+	  {{  shipment.ordr.ts|date:"Y‑m‑d" }}
+	  {% endif %}
+	</td>
+	<td>
+	  {{ shipment.ts|date:"Y‑m‑d" }}
+	</td>
+	<td>{{ shipment.notes|linebreaksbr }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+{% endblock content %}

@@ -1,0 +1,282 @@
+{% extends "epic/base_layout.html" %}
+{% load humanize %}
+
+{% block buttons %}
+  <a class="btn btn-default" href="{% url 'epic:order_detail' order.id %}">
+    Up <i class="glyphicon glyphicon-chevron-up"></i>
+  </a>
+{% endblock buttons %}
+
+{% block content %}
+{{ block.super }}
+
+<div class="row">
+  <div class="col-md-6">
+    <table class="table table-bordered table-hover table-striped"
+	   style="background-color: white">
+      <tr>
+	<td><strong>PO&nbsp;#</strong></td><td>{{ order.id }}</td>
+      </tr>
+    </table>
+  </div>
+  <div class="col-md-6">
+    <table class="table table-bordered table-hover table-striped"
+	   style="background-color: white">
+      <tr>
+	<td><strong>Vendor</strong></td>
+	<td>{{ order.vendor.html_link|safe }}</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="panel panel-default">
+  <div class="panel-heading">
+    <h2 class="panel-title">Order Status</h2>
+  </div>
+  <div class="panel-body">
+    {% if shortage_count > 0 %}
+    <div>
+      <i style="font-size:200%;vertical-align:text-bottom"
+	 class="epic_alert glyphicon glyphicon-thumbs-down"></i>
+      {{ shortage_count }} shortage{{ shortage_count|pluralize }} found!
+    </div>
+    {% else %}
+    <div>
+      <i style="font-size:200%;vertical-align:text-bottom"
+	 class="epic_ok glyphicon glyphicon-thumbs-up"></i>
+      No shortages found.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel-group" id="accordion" role="tablist">
+
+  {% if makeup_order_list %}
+
+  <div class="panel panel-default">
+    <div class="panel-heading" role="tab">
+      <h3 class="panel-title">
+	<a data-toggle="collapse" data-parent="#accordion" href="#collapse1">
+	  Suggested Makeup Orders needed by {{ needed_by|date:"Y‑m‑d" }}
+	</a>
+      </h3>
+    </div>
+
+    {% if max_lead_time > available_time %}
+    <div class="alert alert-danger" style="margin:12px">
+	<h4>Warning</h4>
+
+	Lead-time required is {{ max_lead_time }} weeks
+	(component {{ max_comp.html_link|safe }} for assembly
+	{{ max_assy.html_link|safe }}) but
+	{% if available_time > 0 %}
+	there are only {{ available_time }} weeks
+	between now and when the order is
+	expected to arrive.
+	{% else %}
+	the order is due already.
+	{% endif %}
+	<br>
+
+	Please adjust <strong>Expected Arrival Date</strong> of Order
+	{{ order.html_link|safe }} to
+	{{ min_assy_arrival_date|date:"Y‑m‑d" }} or later or work a miracle.
+    </div>
+    {% endif %}
+
+    <div id="collapse1" class="panel-collapse collapse in" role="tabpanel">
+
+      {% for order in makeup_order_list %}
+
+      <div class="panel panel-default" style="margin:12px">
+	<div class="panel-heading clearfix">
+	  <h4 class="panel-title pull-left">{{ order.src.name }}
+	    {% if order.src.is_vendor %}PO shipping{% else %}inter-warehouse
+	    shipment{% endif %} to {{ order.dst }}</h4>
+	  <div class="pull-right">
+	    <a class="btn btn-default"
+	       onclick="$('#form-{% if order.src.is_vendor %}vendor{% else %}warehouse{% endif %}-{{order.src.id}}').submit ()">
+	      Create {% if order.src.is_vendor %}PO{% else %}Shipment{% endif %}
+	      <i class="glyphicon glyphicon-plus"></i></a>
+	  </div>
+	</div>
+	<div class="panel-body">
+	  <table class="table table-bordered table-hover table-striped"
+		 style="background-color: white">
+	    <thead>
+	      <tr>
+		<th>Idx</th><th>Qty</th><th>Part #</th>
+		{% if order.src.is_vendor %}<th>Vendor Part #</th>{% endif %}
+		<th>Manufacturer Part #</th>
+		{% if order.src.is_vendor %}
+		<th>Price</th><th>Amount</th>
+		{% endif %}
+	      </tr>
+	    </thead>
+	    <tbody>
+	      {% for item in order.items %}
+	      <tr>
+		<td class="text-right">{{ forloop.counter }}</td>
+		<td class="text-right">{{ item.qty|intcomma }}</td>
+		<td>{{ item.part.html_link|safe }}</td>
+		{% if order.src.is_vendor %}
+		<td>{{ item.vendor_part.html_link|safe }}</td>
+		{% endif %}
+		<td>{{ item.part.mfg }} {{ item.part.mfg_pn }}</td>
+		{% if order.src.is_vendor %}
+		<td class="text-right">
+		  $&nbsp;{{ item.vendor_part.price|floatformat:6|intcomma }}
+		</td>
+		<td class="text-right">
+		  $&nbsp;{{ item.amount|floatformat:2|intcomma }}
+		</td>
+		{% endif %}
+	      </tr>
+	      {% endfor %}
+	    </tbody>
+	  </table>
+	</div>
+      </div>
+
+      {% endfor %}
+
+    </div>
+  </div>
+
+  {% endif %}
+
+  <div class="panel panel-default">
+    <div class="panel-heading" role="tab">
+      <h3 class="panel-title">
+	<a data-toggle="collapse" data-parent="#accordion" href="#collapse2">
+	  Summary of orders up to and including {{ order.id }}
+	</a>
+      </h3>
+    </div>
+    <div id="collapse2"
+	 class="panel-collapse collapse
+		{% if shortage_count == 0 %}in{% endif %}"
+	 role="tabpanel">
+
+      <table class="table table-bordered table-hover table-striped"
+	     style="background-color: white">
+	<thead>
+	  <tr>
+	    <th>Date</th><th>Transaction</th>
+	    <th colspan="2">Assemblies on order</th>
+	  </tr>
+	</thead>
+	{% for entry in open_orders reversed %}
+	<tr>
+	  <td>{{ entry.order.expected_arrival_date|date:"Y‑m‑d" }}</td>
+	  {% if entry.order.assembly_line_items %}
+	  <td>Assembly Order {{ entry.order.html_link|safe }}</td>
+	  <td class="text-right" style="border-right: none">
+	    {% for item in entry.items %}
+	    {%  if item.part.assembly_items %}
+	    <div class="form-element">
+	      {{   item.qty_remaining_to_ship }}&times;
+	      {{   item.part.html_link|safe }}
+	    </div>
+	    {%  endif %}
+	    {% endfor %}
+	  </td>
+	  <td style="border-left: none">
+	    {% for item in entry.items %}
+	    {%  if item.part.assembly_items %}
+	    <div class="form-element">
+	      {{    item.part.mfg }} {{ item.part.mfg_pn }}
+	    </div>
+	    {%  endif %}
+	    {% endfor %}
+	  </td>
+	{% else %}
+	  <td>Parts Order {{ entry.order.html_link|safe }}
+	    from {{ entry.order.vendor.name }}
+	    for ${{ entry.order.total_cost|floatformat:2|intcomma }}
+	  </td>
+	  {% endif %}
+	</tr>
+	{% endfor %}
+      </table>
+    </div>
+  </div>
+</div>
+
+<br>
+
+<div class="panel panel-default">
+  <div class="panel-heading">
+    <h3 class="panel-title">Detailed Part Statuses</h3>
+  </div>
+  <div class="panel-body">
+    <table class="table table-bordered table-hover table-striped"
+	   style="background-color: white">
+      <thead>
+	<th>Part #</th>
+	{% for name in warehouse_names %}
+	<th style="border-right: none">{{ name }}</th>
+	<th style="border-left: none"></th>
+	{% endfor %}
+      </thead>
+      {% for sts in comp_status %}
+      <tr>
+	<td>{{ sts.part.html_link|safe }}
+	  ({{ sts.part.overage|floatformat:1 }}% overage)</td>
+	{% for w_sts in sts.warehouses %}
+	<td class="text-right {% if forloop.first and w_sts.qty_remaining < 0 %}
+		   epic_alert{% endif %}"
+	    style="border-right: none">
+	  {{ w_sts.qty_remaining|intcomma }}
+	</td>
+	<td style="border-left: none">
+	  {% for p in w_sts.qty_breakdown %}
+	  {%   if forloop.first %}=&nbsp;{% else %}&plus; {% endif %}
+	  {{   p.qty|intcomma }}&times;{{   p.part.html_link|safe }}
+	  {% endfor %}
+	</td>
+	{% endfor %}
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<!-- order-creation forms: -->
+
+{% for order in makeup_order_list %}
+
+<form action="{% if order.src.is_vendor %}{% url 'epic:order_add' %}{% else %}{% url 'epic:ship_add' %}{% endif %}"
+      id="form-{% if order.src.is_vendor %}vendor{% else %}warehouse{% endif %}-{{ order.src.id }}" method="POST">
+  {% csrf_token %}
+
+  <input type="hidden" name="preset">
+  <input type="hidden" name="ts" value="{% now 'Y-m-d' %}">
+  {% if order.src.is_vendor %}
+  <input type="hidden" name="notes" value="">
+  <input type="hidden" name="vendor" value="{{ order.src.id }}">
+  <input type="hidden" name="expected_arrival_date"
+	 value="{{ needed_by|date:'Y-m-d'}}">
+  {% else %}
+  <input type="hidden" name="notes" value="New shipment.  Please inform warehouse {{ order.src.name }}.">
+  <input type="hidden" name="from_warehouse" value="{{ order.src.id }}">
+  {% endif %}
+  <input type="hidden" name="warehouse" value="{{ order.dst.id }}">
+
+  {% for item in order.items %}
+  <input type="hidden" name="item_set-{{ forloop.counter0 }}-qty"
+	 value="{{ item.qty }}">
+  <input type="hidden" name="item_set-{{ forloop.counter0 }}-part"
+	 value="{{ item.part.id }}">
+  {% if order.src.is_vendor %}
+  <input type="hidden" name="item_set-{{ forloop.counter0 }}-line_cost"
+	 value="{{ item.amount|floatformat:2 }}">
+  {% endif %}
+  {% endfor %}
+</form>
+
+{% endfor %}
+
+{% endblock content %}

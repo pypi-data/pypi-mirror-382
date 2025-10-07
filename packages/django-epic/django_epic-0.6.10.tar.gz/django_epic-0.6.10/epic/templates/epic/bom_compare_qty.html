@@ -1,0 +1,83 @@
+{% extends "epic/base_layout.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+{% endblock extrahead %}
+
+{% block content %}
+{{ block.super }}
+
+{% if num_changes == 0 %}
+
+<p>
+  The bill of material for parts {{bom_part.html_link|safe}} and
+  {{other_bom_part.html_link|safe}} are the same.
+</p>
+
+{% else %}
+
+<div class="panel panel-default">
+  <div class="panel-heading">
+    Quantity differences between {{bom_part.mfg}} {{bom_part.mfg_pn}}
+    ({{bom_part.html_link|safe}}, newer) versus {{other_bom_part.mfg}}
+    {{other_bom_part.mfg_pn}} ({{other_bom_part.html_link|safe}},
+    older):
+  </div>
+
+  <div class="panel-body">
+    <table class="table table-bordered table-hover table-striped">
+      <thead>
+	<th class="col-md-2">Type of change</th>
+	<th class="col-md-1">Part</th>
+	<th class="col-md-1">Refdes</th>
+	<th class="col-md-4">Mfg PN</th>
+	<th class="col-md-2">Value</th>
+	<th class="col-md-1">Old Qty</th>
+	<th class="col-md-1">New Qty</th>
+	<th class="col-md-1">Change</th>
+      </thead>
+      {% for p in removed %}
+      <tr>
+	<td class="text-danger">Removed</td>
+	<td>{{p.0.html_link|safe}}</td>
+	<td>{{p.4|safe}}</td>
+	<td>{{p.0.mfg}} {{p.0.mfg_pn}}</td>
+	<td>{{p.0.val}}</td>
+	<td>{{p.1}}</td>
+	<td><!-- {{p.2}} always 0... --></td>
+	<td>{{p.3|stringformat:"+d"}}</td>
+      </tr>
+      {% endfor %}
+
+      {% for p in added %}
+      <tr>
+	<td class="text-success">Added</td>
+	<td>{{p.0.html_link|safe}}</td>
+	<td>{{p.4|safe}}</td>
+	<td>{{p.0.mfg}} {{p.0.mfg_pn}}</td>
+	<td>{{p.0.val}}</td>
+	<td><!-- {{p.1}} always 0... --></td>
+	<td>{{p.2}}</td>
+	<td>{{p.3|stringformat:"+d"}}</td>
+      </tr>
+      {% endfor %}
+
+      {% for p in changed_qty %}
+      <tr>
+	<td class="text-warning">Qty changed</td>
+	<td>{{p.0.html_link|safe}}</td>
+	<td>{{p.4|safe}}</td>
+	<td>{{p.0.mfg}} {{p.0.mfg_pn}}</td>
+	<td>{{p.0.val}}</td>
+	<td>{{p.1}}</td>
+	<td>{{p.2}}</td>
+	<td>{{p.3|stringformat:"+d"}}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock content %}

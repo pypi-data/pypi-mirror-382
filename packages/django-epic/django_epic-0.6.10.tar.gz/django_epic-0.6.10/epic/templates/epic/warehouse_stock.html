@@ -1,0 +1,121 @@
+{% extends "epic/base_layout.html" %}
+{% load crispy_forms_tags %}
+{% load humanize %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link
+ href="{% static "bootstrap3_datetime/css/bootstrap-datetimepicker.min.css" %}"
+ type="text/css" media="all" rel="stylesheet">
+<script src="{% static "bootstrap3_datetime/js/moment-with-locales.min.js" %}">
+</script>
+<script
+  src="{% static "bootstrap3_datetime/js/bootstrap-datetimepicker.min.js" %}">
+</script>
+
+<script>
+$(document).ready(function() {
+    var picker = $("#as_of_date_picker");
+    picker.datetimepicker({"format": "YYYY-MM-DD"});
+});
+</script>
+
+{% endblock extrahead %}
+
+{% block buttons %}
+  <a class="btn btn-default"
+     {% if pk %}
+     href="{% url 'epic:warehouse_detail' pk %}"
+     {% else %}
+     href="{% url 'epic:warehouse_list' %}"
+     {% endif %}>
+    Up <i class="glyphicon glyphicon-chevron-up"></i>
+  </a>
+{% endblock buttons %}
+
+{% block content %}
+{{ block.super }}
+
+<form method="POST" class="form-inline">
+  {% csrf_token %}
+  <div class="form-group">
+    <label for="as_of_date_picker">Date to display stock for</label>
+    <div class="input-group date" id="as_of_date_picker">
+      <input class="form-control" name="as_of_date"
+	     type="text" value="{{ as_of_date|date:'Y-m-d' }}">
+      <span class="input-group-addon">
+	<span class="glyphicon glyphicon-calendar"></span>
+      </span>
+    </div>
+    &nbsp;
+    <button type="submit" class="btn btn-primary">Update</button>
+  </div>
+</form>
+
+<br>
+
+<div class="panel panel-default">
+  <div class="panel-heading clearfix">
+    <h3 class="panel-title pull-left">{{ title }}</h3>
+    <div class="pull-right">
+      <a class="btn btn-default"
+	 {% if pk %}
+	 href="{% url 'epic:warehouse_stock_export' pk %}?as_of_date={{ as_of_date|date:'Y-m-d' }}"
+	 {% else %}
+	 href="{% url 'epic:warehouse_stock_all_export' %}?as_of_date={{ as_of_date|date:'Y-m-d' }}"
+	 {% endif %}>
+	Export <i class="glyphicon glyphicon-export"></i></a>
+    </div>
+  </div>
+
+  <div class="panel-body">
+    <table class="table table-bordered table-hover table-striped"
+           style="background-color: white">
+      <thead>
+	<tr>
+	  <th>Idx</th><th>Qty</th><th>Part #</th><th>Manufacturer Part #</th>
+	  <th>Cost</th><th>Amount</th>
+	</tr>
+      </thead>
+      <tbody>
+	{%  for item in stock %}
+	<tr>
+	  <td class="text-right">{{ forloop.counter }}</td>
+	  <td class="text-right">{{ item.total_qty|intcomma }}</td>
+	  <td>
+	    {% for part, qty in item.part_list %}
+	    {%   if forloop.first %}{% else %}<br>{% endif %}
+	    {{   part.html_link|safe }}{% if item.part_list|length > 1 %}&times;{{ qty|intcomma }}{% endif %}
+	    {% endfor %}
+	  </td>
+	  <td>
+	    {% for part, qty in item.part_list %}
+	    {%   if forloop.first %}{% else %}<br>{% endif %}
+	    {{   part.mfg }} {{ part.mfg_pn }}
+	    {% endfor %}
+	  </td>
+	  <td class="text-right">
+	    $&nbsp;{{ item.price|floatformat:6|intcomma }}
+	  </td>
+	  <td class="text-right">
+	    $&nbsp;{{ item.amount|floatformat:2|intcomma }}
+	  </td>
+	</tr>
+	{%  empty %}
+	<tr>
+	  <td class="text-center" colspan="6"><em>&mdash;None&mdash;</em></td>
+	</tr>
+	{%  endfor %}
+	<tr>
+	  <th class="text-right" colspan="5">Total</th>
+	  <th class="text-right">
+	    $&nbsp;{{ stock_total|floatformat:2|intcomma }}
+	  </th>
+	</tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock content %}

@@ -1,0 +1,46 @@
+<!-- PRODUCT_INDEX.HMTL -->
+{% extends "epic/base_layout.html" %}
+
+{% block content %}
+{{ block.super }}
+
+<div class="panel panel-default">
+  <div class="panel-heading">
+    <h3 class="panel-title">Recent and Overdue Activity</h3>
+  </div>
+  <div class="panel-body">
+    <table class="table table-bordered table-hover table-striped"
+	   style="background-color: white">
+      <thead>
+	<tr>
+	  <th>Date</th><th>Transaction</th><th>Notes</th>
+	</tr>
+      </thead>
+      {% for txtn in orders_with_shortages %}
+      <tr class="warning">
+	<td>{{ txtn.ts|date:"Y‑m‑d" }}</td>
+	<td>{{ txtn.order.vendor.html_link|safe }} PO
+	  {{ txtn.order.html_link|safe }} has shortages
+	  (view <a href="{% url 'epic:order_check_stock' txtn.id %}">stock report</a>).</td>
+	<td>{{ txtn.notes|linebreaksbr }}</td>
+      </tr>
+      {% endfor %}
+      {% for txtn in activity %}
+      {% with txtn.order.days_until_past_due as ttl %}
+      <tr class="{% if ttl and ttl <= 0 %}danger{% endif %}">
+	<td>{{ txtn.ts|date:"Y‑m‑d" }}</td>
+	<td>{{ txtn.description|safe }}</td>
+	<td>{{ txtn.notes|linebreaksbr }}</td>
+      </tr>
+      {% endwith %}
+      {% empty %}
+      <tr>
+	<td colspan="3" class="text-center"><em>&mdash; None &mdash;</em></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+
+{% endblock %}

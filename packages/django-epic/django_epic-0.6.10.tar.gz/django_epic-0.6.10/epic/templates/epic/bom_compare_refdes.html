@@ -1,0 +1,90 @@
+{% extends "epic/base_layout.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+{% endblock extrahead %}
+
+{% block content %}
+{{ block.super }}
+
+{% if num_changes == 0 %}
+
+<p>
+  The bill of material for parts {{bom_part.html_link|safe}} and
+  {{other_bom_part.html_link|safe}} are the same.
+</p>
+
+{% else %}
+
+<div class="panel panel-default">
+  <div class="panel-heading">
+    Refdes changes between {{bom_part.mfg}} {{bom_part.mfg_pn}}
+    ({{bom_part.html_link|safe}}, newer) versus {{other_bom_part.mfg}}
+    {{other_bom_part.mfg_pn}} ({{other_bom_part.html_link|safe}},
+    older):
+  </div>
+
+  <div class="panel-body">
+    <table class="table table-bordered table-hover table-striped">
+      <thead>
+	<tr>
+	  <th colspan="2"></th>
+	  <th class="center" colspan="3">Old</th>
+	  <th class="center" colspan="3">New</th>
+	</tr>
+	<tr>
+	  <th class="col-md-1">Type of change</th>
+	  <th class="col-md-1">Refdes</th>
+	  <th class="col-md-1">Part</th>
+	  <th class="col-md-3">Mfg PN</th>
+	  <th class="col-md-1">Value</th>
+	  <th class="col-md-1">Part</th>
+	  <th class="col-md-3">Mfg PN</th>
+	  <th class="col-md-1">Value</th>
+	</tr>
+      </thead>
+      {% for p in removed %}
+      <tr>
+	<td class="text-danger">Removed</td>
+	<td>{{p.0}}</td>
+	<td>{{p.1.html_link|safe}}</td>
+	<td>{{p.1.mfg}} {{p.1.mfg_pn}}</td>
+	<td>{{p.1.val}}</td>
+	<td></td>
+	<td></td>
+	<td></td>
+      </tr>
+      {% endfor %}
+
+      {% for p in added %}
+      <tr>
+      	<td class="text-success">Added</td>
+	<td>{{p.0}}</td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td>{{p.2.html_link|safe}}</td>
+	<td>{{p.2.mfg}} {{p.2.mfg_pn}}</td>
+	<td>{{p.2.val}}</td>
+      </tr>
+      {% endfor %}
+
+      {% for p in changed %}
+      <tr>
+      	<td class="text-warning">Part changed</td>
+	<td>{{p.0}}</td>
+	<td>{{p.1.html_link|safe}}</td>
+	<td>{{p.1.mfg}} {{p.1.mfg_pn}}</td>
+	<td>{{p.1.val}}</td>
+	<td>{{p.2.html_link|safe}}</td>
+	<td>{{p.2.mfg}} {{p.2.mfg_pn}}</td>
+	<td>{{p.2.val}}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock content %}

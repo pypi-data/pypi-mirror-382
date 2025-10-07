@@ -1,0 +1,61 @@
+{% extends "epic/base_layout.html" %}
+{% load crispy_forms_tags %}
+{% load humanize %}
+
+{% block buttons %}
+  <a class="btn btn-default" href="{% url 'epic:epic_index' %}">
+    Up <i class="glyphicon glyphicon-chevron-up"></i>
+  </a>
+{% endblock buttons %}
+
+{% block content %}
+{{ block.super }}
+
+<div class="panel panel-default">
+  <div class="panel-heading">
+    <h3 class="panel-title">Parts matching search
+      for &ldquo;{{ q }}&rdquo;</h3>
+  </div>
+  <div class="panel-body">
+    {{ parts_pager|safe }}
+    <ul>
+      {% for part in parts %}
+      <li>{{ part.html_link|safe }}:
+	{% if part.val %}
+	{{ part.val }}
+	{% else %}
+	{{ part.descr }}
+	{% endif %}
+	({{ part.mfg }} {{ part.mfg_pn }},
+	<span
+	   class="epic_{% if part.is_orderable %}ok{% else %}alert{% endif %}">
+	  {{ part.strstatus }})
+	</span>
+      </li>
+      {% empty %}
+      <em>&mdash; None &mdash;</em>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<div class="panel panel-default">
+  <div class="panel-heading">
+    <h3 class="panel-title">Transactions matching search
+      for &ldquo;{{ q }}&rdquo;</h3>
+  </div>
+  <div class="panel-body">
+    {{ txtns_pager|safe }}
+    <ul>
+	{% for txtn in txtns %}
+	<li>{{ txtn.html_link|safe }}: {{ txtn.description|safe }}</li>
+	{% empty %}
+	<em>&mdash; None &mdash;</em>
+	{% endfor %}
+    </ul>
+  </div>
+</div>
+
+<br>
+
+{% endblock content %}
