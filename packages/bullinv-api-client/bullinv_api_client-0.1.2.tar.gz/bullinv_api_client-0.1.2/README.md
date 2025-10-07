@@ -1,0 +1,69 @@
+BullInv API Client (WebSocket + REST SDK)
+
+Python SDK for streaming aggregate market data and indicators from BullInv WebSocket service, plus a simple REST client for QuestDB queries producing pandas DataFrames.
+
+Defaults
+- Default WebSocket URL: `wss://quote-ws.bullinv.tech`
+- Subscriptions format: `"<timespan>.<ticker>"` (e.g., `"15m.*"`, `"1m.AAPL"`)
+
+Install
+
+```bash
+pip install bullinv-api-client
+# or with uv for local dev
+uv venv && uv pip install -e .
+```
+
+WebSocket Authentication
+- Provide your API key to the client; the SDK sends the first auth frame automatically.
+- If the server responds with `{"type":"error","message":"unauthorized"}`, the SDK logs an error and closes the connection.
+
+Sync client (polygon-style wrapper)
+
+```python
+from bullinv_api_client import WebSocketClient, DataType
+
+client = WebSocketClient(api_key="live_pk_9f3a2e1c4b7d")
+client.subscribe("1m.AAPL", datatype=DataType.Aggregates)
+client.run(lambda batch: print(batch))
+```
+
+Logging (to see auth failures)
+
+```python
+import logging
+logging.basicConfig(level=logging.INFO)
+```
+
+REST (QuestDB) Client
+
+- Base URL: `https://questdb-api.bullinv.tech`
+- Endpoint: `/questdb/exe`
+- Headers required (Cloudflare Access):
+  - `CF-Access-Client-Id`
+  - `CF-Access-Client-Secret`
+
+Set credentials in a `.env` file in your working directory:
+
+```bash
+CF_ACCESS_CLIENT_ID=xxxxx
+CF_ACCESS_CLIENT_SECRET=yyyyy
+```
+
+Usage to fetch daily candles as a pandas DataFrame:
+
+```python
+from dotenv import load_dotenv
+from bullinv_api_client import QuestDBClient
+
+load_dotenv()
+client = QuestDBClient()
+df = client.get_daily_candles("AAPL", start_date="2024-01-01", end_date="2024-06-01")
+print(df.head())
+```
+
+Example script:
+
+```bash
+python examples/pandas_daily_candles.py
+```
