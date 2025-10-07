@@ -1,0 +1,128 @@
+Metadata-Version: 2.1
+Name: ensemble-forecast
+Version: 0.1.1
+Summary: A lightweight ensemble forecasting library combining classical and ML models.
+Author: Ashay Thamankar
+Author-email: ashaytesting@gmail.com
+License: MIT
+Keywords: forecasting,ensemble,time series,machine learning,prophet,ARIMA,SARIMA,Croston,LSTM,neural network,ETS,TBATS
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: numpy==1.24.3
+Requires-Dist: pandas==2.0.3
+Requires-Dist: python-dateutil==2.8.2
+Requires-Dist: scipy==1.10.1
+Requires-Dist: Cython==0.29.36
+Requires-Dist: statsmodels==0.14.1
+Requires-Dist: scikit-learn==1.3.2
+Requires-Dist: pmdarima==2.0.4
+Requires-Dist: tbats==1.1.3
+Requires-Dist: statsforecast==1.6.0
+Requires-Dist: prophet==1.1.4
+Requires-Dist: tensorflow==2.13.0
+
+# Ensemble Forecast
+
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![PyPI Version](https://img.shields.io/pypi/v/ensemble-forecast.svg)](https://pypi.org/project/ensemble_forecast/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
+
+---
+
+Ensemble Forecasting package for combining multiple **time series models** such as ARIMA, SARIMA, Croston, Holt, Holt-Winters, ETS, Prophet, LSTM, and more.  
+It provides **automatic model selection** to choose the best-performing models, supports **ensembling** with customizable weights, and allows **forecast optimization** using recent historical data.  
+The package also includes **logging of model steps**, **forecast capping** to prevent unrealistic overestimation, and robust handling of **missing or irregular data**, making it suitable for a wide range of time series forecasting tasks.
+
+---
+
+## Features
+
+- Multiple classical and ML time series models in one package
+- Automatic best-model selection or ensemble of top models
+- Forecast optimization using recent historical data
+- Handles missing or irregular data
+- Optional parallel processing for faster execution
+- Forecast capping to prevent negative or unrealistic values
+- Flexible aggregation: daily, monthly, yearly
+
+---
+
+## Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `datetime_col` | str | `'Month_Year'` | Name of the datetime column |
+| `datetime_type` | str | `'M'` | Aggregation type: `'D'`=Daily, `'M'`=Monthly, `'Y'`=Yearly |
+| `forecast_span` | int | 18 | Number of future periods to forecast |
+| `value_col` | str | `'Movement'` | Column containing numeric values to forecast |
+| `test_size` | float | 0.2 | Fraction of data reserved for testing |
+| `error_metric` | str | `'mape'` | Error metric (`'rmse','mape','smape','mae','mse'`) |
+| `top_models` | int | None | Number of top-performing models for ensemble |
+| `ensemble_weights` | list | None | Weights for ensemble models (defaults to equal) |
+| `optimization` | str | None | Optimization method: `'mean','median','mode',None` |
+| `optimization_length` | int | 12 | Number of recent periods used for optimization |
+| `optimization_ratio` | str | `'70:30'` | Ratio for blending ensemble forecast with optimization |
+| `null_fill_method` | str/int/float | None | Method for missing data (`'ffill','bfill','mean','median','zero','interpolate'` or numeric) |
+| `parallel_processing` | bool | False | Train models in parallel |
+| `model_list` | list | `['ARIMA','SARIMA','Croston','Holt','HoltWinters',...]` | List of models; supports `'TBATS','BATS','Theta','Prophet','LSTM','NeuralNetwork'` |
+| `enable_logging` | bool | False | Enable detailed logging |
+| `forecast_capping` | bool | False | Cap forecasts at zero and max historical value |
+| `fallback_strategy` | str | `'zero'` | Strategy if a model fails (`'3_mean','6_mean','12_mean','3_median','6_median','12_median','last_value','zero'`) |
+
+---
+
+## Installation
+
+```bash
+pip install ensemble_forecast
+````
+
+---
+
+## Quick Example (Runnable)
+
+Below is a complete example you can run locally to test the package:
+
+```python
+import pandas as pd
+import numpy as np
+from ensemble_forecast import EnsembleForecast
+
+# Create a sample daily dataset
+df = pd.DataFrame({
+    "Date": pd.date_range('2023-01-01', periods=36, freq='D'),
+    "Movement": np.random.randint(1000, 5000, 36)
+})
+
+# Define configuration for EnsembleForecast
+config = dict(
+    datetime_col='Date',
+    datetime_type='D',
+    forecast_span=18,
+    value_col='Movement',
+    test_size=0.2,
+    error_metric='RMSE',
+    top_models=3,
+    ensemble_weights=[0.5, 0.3, 0.1],
+    optimization='median',
+    optimization_length=6,
+    optimization_ratio="75:25",
+    parallel_processing=True,
+    model_list=['ARIMA', 'SARIMA', 'Croston', 'LSTM', 'ETS','Theta']
+)
+
+# Initialize, fit, and predict
+model = EnsembleForecast(**config)
+model.fit(df)
+forecast = model.predict()
+
+# Show the forecast
+print(forecast)
+```
