@@ -1,0 +1,95 @@
+models:
+  - name: orders
+    description: "Order overview data mart, offering key details for each order inlcluding if it's a customer's first order and a food vs. drink item breakdown. One row per order.Order overview data mart, offering key details for each order inlcluding if it's a customer's first order and a food vs. drink item breakdown. One row per order.Order fact table. This table is at the order grain with one row per order.\n"
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "order_items_subtotal = subtotal"
+      - dbt_utils.expression_is_true:
+          expression: "order_total = subtotal + tax_paid"
+    columns:
+      - name: order_id
+        description: The unique key of the orders mart.
+        data_tests:
+          - not_null
+          - unique
+        entity:
+          type: primary
+      - name: customer_id
+        description: The foreign key relating to the customer who placed the order.
+        data_tests:
+          - relationships:
+              to: ref('stg_customers')
+              field: customer_id
+        entity:
+          type: foreign
+          name: customer
+      - name: order_total
+        description: The total amount of the order in USD including tax.
+      - name: ordered_at
+        description: The timestamp the order was placed at.
+        dimension:
+          type: time
+        granularity: day
+      - name: order_cost
+        description: The sum of supply expenses to fulfill the order.
+      - name: is_food_order
+        description: A boolean indicating if this order included any food items.
+        dimension:
+          type: categorical
+      - name: is_drink_order
+        description: A boolean indicating if this order included any drink items.
+
+        dimension:
+          type: categorical
+      - name: location_id
+        entity:
+          type: foreign
+      - name: order_total_dim
+        dimension:
+          type: categorical
+      - name: customer_order_number
+        dimension:
+          type: categorical
+    semantic_model:
+      enabled: true
+    agg_time_dimension: ordered_at
+    metrics:
+      - name: order_total
+        type: simple
+        label: Order Total
+        description: The total amount for each order including taxes.
+        agg: sum
+      - name: order_count
+        type: simple
+        label: Drink Orders
+        expr: 1
+        agg: sum
+        filter: |
+          {{ Dimension('order_id__is_drink_order') }} = true
+      - name: tax_paid
+        type: simple
+        label: tax_paid
+        hidden: true
+        description: The total tax paid on each order.
+        agg: sum
+      - name: order_cost
+        type: simple
+        label: Order Cost
+        description: The cost for each order item. Cost is calculated as a sum of the supply cost for each order item.
+        agg: sum
+
+saved_queries:
+  - name: order_metrics
+    query_params:
+      metrics:
+        - orders
+        - new_customer_orders
+        - order_total
+        - food_orders
+        - drink_orders
+      group_by:
+        - TimeDimension('metric_time', 'day')
+    exports:
+      - name: order_metrics
+        config:
+          export_as: table

@@ -1,0 +1,148 @@
+models:
+  - name: order_items
+    columns:
+      - name: order_item_id
+        data_tests:
+          - not_null
+          - unique
+        entity:
+          type: primary
+          name: order_item
+      - name: order_id
+        data_tests:
+          - relationships:
+              to: ref('orders')
+              field: order_id
+
+        entity:
+          type: foreign
+      - name: product_id
+        entity:
+          type: foreign
+      - name: ordered_at
+        dimension:
+          type: time
+        granularity: day
+      - name: is_food_item
+        dimension:
+          type: categorical
+      - name: is_drink_item
+        dimension:
+          type: categorical
+    semantic_model:
+      enabled: true
+      name: order_items
+    description: |
+      Items contatined in each order. The grain of the table is one row per order item.
+    agg_time_dimension: ordered_at
+    metrics:
+      - name: revenue
+        type: simple
+        label: Revenue
+        description: The revenue generated for each order item. Revenue is calculated as a sum of revenue associated with each product in an order.
+        agg: sum
+        expr: product_price
+      - name: food_revenue
+        type: simple
+        label: Food Revenue
+        description: The revenue generated for each order item. Revenue is calculated as a sum of revenue associated with each product in an order.
+        agg: sum
+        expr: case when is_food_item is true then product_price else 0 end
+      - name: drink_revenue
+        type: simple
+        label: Drink Revenue
+        description: The revenue generated for each order item. Revenue is calculated as a sum of revenue associated with each product in an order.
+        agg: sum
+        expr: case when is_drink_item is true then product_price else 0 end
+      - name: median_revenue
+        type: simple
+        label: Median Revenue
+        description: The median revenue generated for each order item.
+        agg: median
+        expr: product_price
+      - name: food_revenue_pct
+        description: The % of order revenue from food.
+        label: Food Revenue %
+        type: ratio
+        numerator: food_revenue
+        denominator: revenue
+      - name: drink_revenue_pct
+        description: The % of order revenue from drinks.
+        label: Drink Revenue %
+        type: ratio
+        numerator: drink_revenue
+        denominator: revenue
+      - name: revenue_growth_mom
+        description: "Percentage growth of revenue compared to 1 month ago. Excluded tax"
+        type: derived
+        label: Revenue Growth % M/M
+        expr: (current_revenue - revenue_prev_month)*100/revenue_prev_month
+        input_metrics:
+          - name: revenue
+            alias: current_revenue
+          - name: revenue
+            offset_window: 1 month
+            alias: revenue_prev_month
+      - name: cumulative_revenue
+        description: The cumulative revenue for all orders.
+        label: Cumulative Revenue (All Time)
+        type: cumulative
+        input_metric: revenue
+      - name: revenue_fill_nulls_with_test_join_to_timespine
+        type: simple
+        label: Revenue
+        description: The revenue generated for each order item. Revenue is calculated as a sum of revenue associated with each product in an order.
+        agg: sum
+        expr: product_price
+        hidden: true
+        fill_nulls_with: test
+        join_to_timespine: true
+      - name: food_revenue_fill_nulls_with_test
+        type: simple
+        label: Food Revenue
+        description: The revenue generated for each order item. Revenue is calculated as a sum of revenue associated with each product in an order.
+        agg: sum
+        expr: case when is_food_item is true then product_price else 0 end
+        hidden: true
+        fill_nulls_with: test
+      - name: conversion_metric
+        description: The conversion metric description
+        type: conversion
+        label: Conversion Metric
+        entity: entity
+        calculation: calculation_type
+        window: window
+        constant_properties:
+          - base_property: dimension
+            conversion_property: entity
+        base_metric:
+          name: revenue_fill_nulls_with_test_join_to_timespine
+          filter: filter
+        conversion_metric:
+          name: food_revenue_fill_nulls_with_test
+
+metrics:
+  # Simple metrics
+  - name: order_gross_profit
+    description: Gross profit from each order.
+    type: derived
+    label: Order Gross Profit
+    expr: revenue - cost
+    input_metrics:
+      - name: revenue
+      - name: order_cost
+        alias: cost
+
+saved_queries:
+  - name: revenue_metrics
+    query_params:
+      metrics:
+        - revenue
+        - food_revenue
+        - drink_revenue
+      group_by:
+        - TimeDimension('metric_time', 'day')
+    exports:
+      - name: revenue_metrics
+        config:
+          export_as: table
