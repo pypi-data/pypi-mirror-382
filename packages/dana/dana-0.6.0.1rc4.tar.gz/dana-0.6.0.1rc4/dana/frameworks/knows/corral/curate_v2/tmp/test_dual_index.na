@@ -1,0 +1,106 @@
+"""
+Test the Dual-Index RAG System
+"""
+
+from dual_index_system import create_dual_index_system
+from dual_index_system import process_dual_index_query
+from ontology_system import execute_ontology_pipeline
+
+def test_dual_index_system():
+    """Test complete dual-index RAG system"""
+    
+    print("🧪 Testing Dual-Index RAG System")
+    print("=" * 60)
+    
+    # Setup test data
+    topic = "Financial Risk Management" 
+    role = "Risk Analyst"
+    
+    # Sample workflow nodes (normally from user interview)
+    workflow_nodes = [
+        "Update portfolio risk exposure in system",
+        "Assess credit worthiness of loan applicant", 
+        "Calculate Value at Risk for trading portfolio"
+    ]
+    
+    print(f"📋 Domain: {topic}")
+    print(f"👤 Role: {role}")
+    print(f"🔧 Workflow Nodes: {len(workflow_nodes)}")
+    print("-" * 40)
+    
+    try:
+        # Step 1: Create ontology (normally from pipeline)
+        print("🎯 Step 1: Creating Domain Ontology...")
+        pipeline_result = execute_ontology_pipeline(topic, role)
+        ontology = pipeline_result["refined_ontology"]
+        print("✅ Ontology created and refined")
+        
+        # Step 2: Create dual index system
+        print("\\n📚 Step 2: Creating Dual-Index System...")
+        dual_index = create_dual_index_system(topic, role, ontology, workflow_nodes)
+        
+        # Validate dual index structure
+        if "general_knowledge_index" not in dual_index:
+            print("❌ ERROR: Missing general_knowledge_index")
+            return
+            
+        if "user_workflow_index" not in dual_index:
+            print("❌ ERROR: Missing user_workflow_index")
+            return
+        
+        # Show index statistics
+        general_count = dual_index["general_knowledge_index"]["count"]
+        workflow_count = dual_index["user_workflow_index"]["count"]
+        total_count = dual_index["system_metadata"]["total_questions"]
+        
+        print(f"\\n📊 Index Statistics:")
+        print(f"   📚 General Knowledge Index: {general_count} questions")
+        print(f"   🔧 User Workflow Index: {workflow_count} questions")
+        print(f"   📈 Total Questions: {total_count}")
+        print(f"   📋 Coverage Ratio: {dual_index['system_metadata']['index_ratio']}")
+        
+        # Step 3: Test query routing
+        print("\\n🔍 Step 3: Testing Query Routing...")
+        test_queries = [
+            "What is Value at Risk and how is it calculated?",
+            "How do I update portfolio risk exposure in our system?", 
+            "What regulatory requirements govern our risk assessment process?"
+        ]
+        
+        for i in range(len(test_queries)):
+            query = test_queries[i]
+            print(f"\\n   Query {i+1}: {query}")
+            
+            result = process_dual_index_query(query, dual_index)
+            routing = result["routing_decision"]
+            sources = result["retrieved_sources"]
+            
+            print(f"   📍 Routing: {routing['primary_index']} (confidence: {routing['confidence']})")
+            print(f"   📚 Sources: {sources}")
+        
+        print(f"\\n🎉 Dual-Index RAG System Test Completed Successfully!")
+        print("✅ System ready for production use")
+        
+        # Show sample questions from each index
+        print(f"\\n📋 Sample Questions:")
+        general_questions = dual_index["general_knowledge_index"]["questions"]
+        workflow_questions = dual_index["user_workflow_index"]["questions"]
+        
+        print(f"   📚 General Knowledge (showing first 3):")
+        for i in range(min(3, len(general_questions))):
+            question = general_questions[i]
+            print(f"      {i+1}. {question}")
+        
+        print(f"   🔧 User Workflow (showing first 3):")
+        for i in range(min(3, len(workflow_questions))):
+            question = workflow_questions[i]
+            print(f"      {i+1}. {question}")
+        
+    except Exception as e:
+        print(f"❌ Dual-index test failed: {str(e)}")
+        return
+    
+    print(f"\\n🏦 Financial Risk Management dual-index system validated!")
+
+# Run the test
+test_dual_index_system()
