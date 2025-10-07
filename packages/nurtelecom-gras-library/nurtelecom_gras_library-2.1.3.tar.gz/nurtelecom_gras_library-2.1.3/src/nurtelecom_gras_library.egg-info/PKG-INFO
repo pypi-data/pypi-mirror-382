@@ -1,0 +1,129 @@
+Metadata-Version: 2.4
+Name: nurtelecom_gras_library
+Version: 2.1.3
+Summary: Official Nurtelecom DSML library
+Home-page: https://github.com/beksultantuleev/nurtelecom_gras_library.git
+Author: Beksultan Tuleev
+Author-email: Beksultan Tuleev <beksultan.tuleev.ds@gmail.com>
+License: MIT License
+        
+        Copyright (c) 2022 Beck Kazama
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/beksultantuleev/nurtelecom_gras_library.git
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Description-Content-Type: text/markdown
+Requires-Dist: oracledb
+Requires-Dist: pandas
+Requires-Dist: python-dotenv
+Requires-Dist: geopandas
+Requires-Dist: sqlalchemy
+Requires-Dist: openpyxl
+Requires-Dist: requests
+Requires-Dist: transliterate
+Requires-Dist: hvac
+Dynamic: author
+Dynamic: home-page
+
+# nurtelecom_gras_library
+
+Official Python library for interacting with NurTelecom GRAS databases.
+
+## Features
+
+- Secure credential management via Vault
+- Easy database connection and querying
+- Generate SQL table creation queries from pandas DataFrames
+
+## Installation
+
+```bash
+pip install nurtelecom_gras_library
+```
+
+## Usage
+
+### Modern Connection (Recommended)
+
+```python
+from nurtelecom_gras_library import get_db_connection, get_all_cred_dict, make_table_query_from_pandas
+
+# Retrieve credentials from Vault
+all_cred_dict = get_all_cred_dict(
+    vault_url=url,
+    vault_token=token,
+    path_to_secret='path_to_secret',
+    mount_point='mount_point'
+)
+
+# Create a database connection
+database_connection = get_db_connection('login', 'database', all_cred_dict)
+
+# Run a query and get results as a pandas DataFrame
+test_query = "select 1 from dual"
+test_data = database_connection.get_data(query=test_query)
+
+# Generate a CREATE TABLE SQL statement from the DataFrame
+new_table_name = "test_table_name"
+create_table_query = make_table_query_from_pandas(df=test_data, table_name=new_table_name)
+
+# Execute the CREATE TABLE statement
+database_connection.execute(create_table_query)
+```
+
+### Legacy Connection
+
+```python
+from nurtelecom_gras_library import PLSQL_data_importer, make_table_query_from_pandas
+
+# Create a legacy database connection
+database_connection = PLSQL_data_importer(
+    user='user',
+    password='pass',
+    host='192.168.1.1',
+    port='1521'
+)
+
+# Run a query and get results as a pandas DataFrame
+test_query = "select 1 from dual"
+test_data = database_connection.get_data(query=test_query)
+
+# Generate a CREATE TABLE SQL statement from the DataFrame
+new_table_name = "test_table_name"
+create_table_query = make_table_query_from_pandas(df=test_data, table_name=new_table_name)
+
+# Execute the CREATE TABLE statement
+database_connection.execute(create_table_query)
+```
+
+## License
+
+MIT License
+
+## Contact
+
+For questions or support, please contact the NurTelecom GRAS team.
