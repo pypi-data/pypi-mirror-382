@@ -1,0 +1,111 @@
+====================
+Internationalization
+====================
+
+Forms are fully internationalized.  The field names, descriptions,
+labels, and hints are all automatically translated if they are made
+i18n messages in the schema.
+
+Let's take this simple add form...
+
+  >>> print(http(b"""
+  ... GET /addfieldcontent.html HTTP/1.1
+  ... """, handle_errors=False))
+  HTTP/1.1 200 Ok
+  ...
+
+with an error...
+
+  >>> content_type, content = encodeMultipartFormdata([
+  ...     ('field.title', ''),
+  ...     ('field.description', ''),
+  ...     ('field.somenumber', '0'),
+  ...     ('UPDATE_SUBMIT', 'Hinzufxgen'),
+  ...     ('add_input_name', ''),
+  ...     ])
+  >>> print(http(b"""
+  ... POST /addfieldcontent.html HTTP/1.1
+  ... Content-Type: %b
+  ...
+  ... %b
+  ... """ % (content_type, content), handle_errors=False))
+  HTTP/1.1 200 Ok
+  ...
+            There are <strong>1</strong> input errors.
+  ...
+
+
+Translated
+==========
+
+And now the add form in German:
+
+  >>> print(http(b"""
+  ... GET /addfieldcontent.html HTTP/1.1
+  ... Accept-Language: de
+  ... """, handle_errors=False))
+  HTTP/1.1 200 Ok
+  ...Felderinhalt hinzuf...
+  ...Eine kurz...Titel...
+  ...Eine ausf...Beschreibung...
+  ...Irgendeine Zahl...
+  ...Irgendeine Liste...
+
+The same with an input error:
+
+  >>> content_type, content = encodeMultipartFormdata([
+  ...     ('field.title', ''),
+  ...     ('field.description', ''),
+  ...     ('field.somenumber', '0'),
+  ...     ('UPDATE_SUBMIT', 'Hinzufxgen'),
+  ...     ('add_input_name', ''),
+  ...     ])
+  >>> print(http(b"""
+  ... POST /addfieldcontent.html HTTP/1.1
+  ... Accept-Language: de
+  ... Content-Type: %b
+  ...
+  ... %b
+  ... """ % (content_type, content), handle_errors=False))
+  HTTP/1.1 200 Ok
+  ...Felderinhalt hinzuf...
+  ...<strong>1</strong>...
+  ...Eine kurz...Titel...
+  ...Eine ausf...Beschreibung...
+  ...Irgendeine Zahl...
+
+
+Source widgets
+==============
+
+Titles of terms are translated by the source widgets. Let's create a source
+for which the terms create message ids:
+
+  >>> import zc.sourcefactory.basic
+  >>> from zope.i18nmessageid import MessageFactory
+  >>> _ = MessageFactory('coffee')
+  >>> class Coffees(zc.sourcefactory.basic.BasicSourceFactory):
+  ...     def getValues(self):
+  ...         return ['arabica', 'robusta', 'liberica', 'excelsa']
+  ...     def getTitle(self, value):
+  ...         return _(value, default='Translated %s' % value)
+
+
+  >>> import zope.schema
+  >>> from zope.publisher.browser import TestRequest
+  >>> coffee = zope.schema.Choice(
+  ...    __name__ = 'coffee',
+  ...    title=u"Kinds of coffee beans",
+  ...    source=Coffees())
+  >>> request = TestRequest()
+  >>> import zope.formlib.source
+  >>> widget = zope.formlib.source.SourceDisplayWidget(
+  ...     coffee, coffee.source, request)
+  >>> print(widget())
+  Nothing
+  >>> from zope.formlib.interfaces import IBrowserWidget
+  >>> IBrowserWidget.providedBy(widget)
+  True
+  >>> widget.setRenderedValue('arabica')
+  >>> print(widget())
+  Translated arabica
