@@ -1,0 +1,33 @@
+import pandas as pd
+df = pd.read_csv("/content/samsum-train.csv")
+DOCUMENT = ' '.join(df['summary'])
+print(DOCUMENT)
+import re
+DOCUMENT = re.sub(r'\n|\r', ' ', DOCUMENT)
+DOCUMENT = re.sub(r' +', ' ', DOCUMENT)
+DOCUMENT = DOCUMENT.strip()
+!pip install gensim --upgrade
+import nltk
+nltk.download('punkt')
+sentences = nltk.sent_tokenize(DOCUMENT)
+len(sentences)
+import numpy as np
+import re
+nltk.download('stopwords')
+stop_words = nltk.corpus.stopwords.words('english')
+def normalize_document(doc):
+# lower case and remove special characters\whitespaces
+doc = re.sub(r'[^a-zA-Z\s]', '', doc, re.I|re.A)
+doc = doc.lower()
+doc = doc.strip()
+# tokenize document
+tokens = nltk.word_tokenize(doc)
+# filter stopwords out of document
+filtered_tokens = [token for token in tokens if token not in stop_words]
+# re-create document from filtered tokens
+doc = ' '.join(filtered_tokens)
+return doc
+normalize_corpus = np.vectorize(normalize_document)
+norm_sentences = normalize_corpus(sentences)
+norm_sentences[:3]
+
