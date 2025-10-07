@@ -1,0 +1,151 @@
+Metadata-Version: 2.4
+Name: cb-events
+Version: 2.4.2
+Summary: An asynchronous client for the Chaturbate Events API.
+Project-URL: Homepage, https://github.com/MountainGod2/cb-events
+Project-URL: Documentation, https://github.com/MountainGod2/cb-events#readme
+Project-URL: Repository, https://github.com/MountainGod2/cb-events.git
+Project-URL: Changelog, https://github.com/MountainGod2/cb-events/blob/main/CHANGELOG.md
+Project-URL: Issue Tracker, https://github.com/MountainGod2/cb-events/issues
+Author-email: MountainGod2 <admin@reid.ca>
+Maintainer-email: MountainGod2 <admin@reid.ca>
+License: MIT
+License-File: LICENSE
+Keywords: api,async,chaturbate,client,events,real-time,streaming,webcam
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: AsyncIO
+Classifier: Framework :: Pydantic
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Internet
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.11
+Requires-Dist: aiohttp-retry==2.9.1
+Requires-Dist: aiohttp==3.12.15
+Requires-Dist: aiolimiter==1.2.1
+Requires-Dist: pydantic==2.11.9
+Description-Content-Type: text/markdown
+
+# CB Events
+
+Async Python client for the Chaturbate Events API with real-time event streaming.
+
+[![PyPI](https://img.shields.io/pypi/v/cb-events)](https://pypi.org/project/cb-events/)
+[![Python](https://img.shields.io/pypi/pyversions/cb-events)](https://pypi.org/project/cb-events/)
+[![License](https://img.shields.io/github/license/MountainGod2/cb-events)](https://github.com/MountainGod2/cb-events/tree/main/LICENSE)
+
+## Installation
+
+```bash
+$ uv pip install cb-events
+```
+
+## Usage
+```python
+import asyncio
+import os
+from cb_events import EventClient, EventRouter, EventType
+
+router = EventRouter()
+
+@router.on(EventType.TIP)
+async def handle_tip(event):
+    print(f"{event.user.username} tipped {event.tip.tokens} tokens")
+
+@router.on(EventType.CHAT_MESSAGE)
+async def handle_chat(event):
+    print(f"{event.user.username}: {event.message.message}")
+
+async def main():
+    username = os.getenv("CB_USERNAME")
+    token = os.getenv("CB_TOKEN")
+
+    async with EventClient(username, token) as client:
+        async for event in client:
+            await router.dispatch(event)
+
+asyncio.run(main())
+```
+
+## Event Types
+
+- `TIP`, `FANCLUB_JOIN`, `MEDIA_PURCHASE`
+- `CHAT_MESSAGE`, `PRIVATE_MESSAGE`
+- `USER_ENTER`, `USER_LEAVE`, `FOLLOW`, `UNFOLLOW`
+- `BROADCAST_START`, `BROADCAST_STOP`, `ROOM_SUBJECT_CHANGE`
+
+## Configuration
+
+Environment variables:
+
+```bash
+export CB_USERNAME="username"
+export CB_TOKEN="api_token"
+```
+
+Direct instantiation:
+
+```python
+client = EventClient("username", "token")
+```
+
+Configuration options (defaults shown below):
+
+```python
+client = EventClient(
+    username="your_username",
+    token="your_api_token",
+    config=EventClientConfig(
+        timeout=10                   # Maximum time to wait for events
+        use_testbed=False,           # Use Chaturbate testbed URL
+        retry_attempts=8,            # Maximum retry attempts
+        retry_backoff=1.0,           # Initial backoff delay in seconds
+        retry_exponential_base=2.0   # Exponential backoff factor
+        retry_max_delay=30.0,        # Maximum delay between retries
+        )
+    )
+```
+
+## Error Handling
+
+```python
+from cb_events.exceptions import AuthError, EventsError
+
+try:
+    async with EventClient(username, token) as client:
+        async for event in client:
+            await router.dispatch(event)
+except AuthError:
+    # Authentication failed
+    pass
+except EventsError as e:
+    # API error
+    pass
+```
+
+Automatic retry on 429, 5xx status codes. No retry on authentication errors.
+
+## Requirements
+
+- Python ≥3.11
+- aiohttp, pydantic, aiolimiter
+
+```bash
+$ uv pip compile pyproject.toml -o requirements.txt
+```
+
+## License
+
+MIT licensed. See [LICENSE](https://github.com/MountainGod2/cb-events/tree/main/LICENSE).
+
+## Disclaimer
+
+Not affiliated with Chaturbate.
