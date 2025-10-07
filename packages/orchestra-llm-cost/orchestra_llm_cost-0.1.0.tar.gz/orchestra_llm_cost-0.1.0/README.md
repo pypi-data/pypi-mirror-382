@@ -1,0 +1,141 @@
+# llm-cost
+
+**Plug-and-play LLM token/cost tracking SDK** with multiple sinks (SQLite, Postgres, Supabase, HTTP collector) and comprehensive audit metadata.
+
+## Features
+
+- 🎯 **Decorator-first DX**: `@track_cost` for non-streaming, `finalize_llm_call` for streaming
+- 🔒 **Multi-tenant safe**: Idempotent upserts scoped to `workspace_id` or `project_id`
+- 📊 **Audit-ready**: Every row includes `usage_raw` and `rates_used` for provable cost recomputation
+- 🚀 **Non-blocking**: Background batcher with bounded queue and outbox fallback
+- 💰 **Dynamic pricing**: Fetch live rates from OpenRouter with local cache
+- 🔌 **Pluggable sinks**: SQLite (default), Postgres/Supabase, HTTP collector
+- 🛡️ **Privacy by default**: No prompt/response content captured
+
+## Quick Start
+
+```python
+import llm_cost as cost
+
+# Initialize with Supabase (or SQLite, Postgres, HTTP)
+cost.init_supabase(
+    supabase_url="https://your-project.supabase.co",
+    supabase_key="your-service-role-key",
+)
+
+# Set sticky context (workspace, session, user)
+cost.set_context({
+    "workspace_id": "ws-123",
+    "session_id": "sess-456",
+    "user_id": "user-789",
+})
+
+# Track non-streaming calls
+from openai import OpenAI
+client = OpenAI()
+
+@cost.track_cost(model_arg='model', provider='openai')
+def run_completion(model: str, prompt: str):
+    return client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+response = run_completion(model="gpt-4o", prompt="Hello!")
+
+# Track streaming calls
+@cost.track_cost(mode='defer')
+def run_streaming(model: str, prompt: str):
+    return client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        stream=True,
+    )
+
+stream = run_streaming(model="gpt-4o", prompt="Hello!")
+tokens_in, tokens_out = 0, 0
+for chunk in stream:
+    # ... process chunk
+    pass
+
+# Finalize with actual token counts
+cost.finalize_llm_call(
+    provider="openai",
+    model="gpt-4o",
+    tokens_in=tokens_in,
+    tokens_out=tokens_out,
+    request_id=cost.new_request_id(),
+)
+```
+
+## Configuration
+
+All config can be set via environment variables or passed to `init()`:
+
+```bash
+# Supabase mode
+export SUPABASE_URL=https://your-project.supabase.co
+export SUPABASE_SERVICE_ROLE_KEY=your-key
+
+# SQLite mode (default)
+export COST_SINK_DSN=sqlite:///./llm_cost.db
+
+# HTTP collector mode
+export COST_COLLECTOR_ENDPOINT=https://your-collector.com/v1/batch
+export COST_WRITE_KEY=your-write-key
+
+# Flush behavior
+export COST_FLUSH_AT=20
+export COST_FLUSH_INTERVAL_MS=3000
+```
+
+## Audit Metadata
+
+Every ledger row includes:
+
+```json
+{
+  "context": {
+    "metadata": {
+      "billing": {
+        "usage_raw": {
+          "prompt_tokens": 123,
+          "completion_tokens": 456,
+          "reasoning_tokens": 100,
+          "cached_input_tokens": 50
+        },
+        "rates_used": {
+          "input_rate": 1.25,
+          "cached_input_rate": 0.125,
+          "output_rate": 10.0,
+          "reasoning_rate": 10.0,
+          "model_resolved": "gpt-4o",
+          "pricing_source": "default",
+          "pricing_version": "abc123"
+        }
+      }
+    }
+  }
+}
+```
+
+This enables:
+- Row-by-row cost recomputation
+- Audit trails for billing disputes
+- Reconciliation jobs to detect drift
+
+## Installation
+
+```bash
+pip install llm-cost
+```
+
+## License
+
+MIT
+
+## Links
+
+- [GitHub](https://github.com/orchestra-ai/llm-cost)
+- [Documentation](https://github.com/orchestra-ai/llm-cost)
+- [PyPI](https://pypi.org/project/llm-cost/)
