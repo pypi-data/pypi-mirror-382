@@ -1,0 +1,1 @@
+This module allows to synzhronize the cost of sale order lines depending on the outgoing pickings. The cost is updated when the outgoing picking is validated, according to the selected serial number or lot in case the product uses this tracking system, if the stock_valuation_fifo_lot module is installed.
