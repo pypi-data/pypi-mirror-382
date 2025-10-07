@@ -1,0 +1,51 @@
+# Health Check Wrap
+**@readwithai** - [X](https://x.com/readwithai) - [blog](https://readwithai.substack.com/) - [machine-aided reading](https://www.reddit.com/r/machineAidedReading/) - [📖](https://readwithai.substack.com/p/what-is-reading-broadly-defined
+)[⚡️](https://readwithai.substack.com/s/technical-miscellany)[🖋️](https://readwithai.substack.com/p/note-taking-with-obsidian-much-of)
+
+Wrap a daemon in a periodic [health check](https://komodor.com/blog/kubernetes-health-checks-everything-you-need-to-know/). Terminate the process and exit if the health check fails allowing your [service manager](https://unix.stackexchange.com/questions/489742/what-is-the-difference-between-init-and-service-manager) like systemd to restart your process.
+
+## Motivation
+I am using a service manager (specifically [circusd](https://circus.readthedocs.io/en/latest/man/circusd/)) to manage some processes.
+One of these processes is intermittently breaking but the error is rare and in code that I did not write myself. I therefore want to periodically run a health check to see if my service is working and then restart the process if it is not.
+
+However, I dislike the code of my application communicating with my service manager. It feels like it breaks a layer of abstraction, does not allow me to switch out the service manager, and in theory allows one part of the system to restart all processes. Instead, I want to combine the health check with command to run the service and restart the service when the health check dies.
+
+## Usage
+To monitor 'service' and terminate it and exit when 'check1' completes with a non-zero exit code you can use the following command:
+
+`health-check-wrap --service service --health-check check1`
+
+This runs a health check every minute. Normally, you would run this command from a service manager such as [systemd](https://wiki.archlinux.org/title/Systemd), [supervisor](https://supervisord.org/) or [circusd](https://circus.readthedocs.io/en/latest/man/circusd/) which would then restart health-check-wrap and so the service.
+
+
+You can use quotes to specify a full command with arguments to run:
+
+```health-check-wrap --service "/usr/bin/my-app --config production.yml" --health-check "curl --fail http://localhost:8080/ready"
+```
+
+You can run multiple health check commands using repeated `--health-check` arguments.
+
+You can use the `--interval` argument to change how often a command runs.
+
+## Caveats
+This is very much written with the single-server set up in mind. This is useful for home servers, single board (raspberry pi) projects, and any project that does not yet have users paying you money. Other tools provide tools for distributing services across machines together with health check functionality [such as kubernetes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/) but these are too heavy weight for many projects.
+
+## Alternatives and prior work
+It may be better to merely fix the bug. This sort of layering can add complexity and it can be far simpler to have something work consistently rather than try to fix the results of it not working.
+
+The general approach of "die if something breaks" is influenced by Erlang's concept of a [supervision tree](https://erlang.org/documentation/doc-4.9.1/doc/design_principles/sup_princ.html).
+
+## Related tools
+I produce [a stream of command-line tools](https://readwithai.substack.com/p/my-productivity-tools) like this which you may be interested in.
+
+Most similar to this is [killable sudo](https://github.com/talwrii/killable-sudo) which allows you to run processes as another user, such as root, with `sudo` but kill the process with SIGTERM. Many service managers kill processes with SIGTERM.
+
+[env subset](https://github.com/talwrii/env-subset) is a tool to help you control the environment uses to run a process. This is useful for debugging.
+
+## About me
+I am **@readwithai**. I create tools for reading, research and agency sometimes using the markdown editor [Obsidian](https://readwithai.substack.com/p/what-exactly-is-obsidian).
+
+I also create a [stream of tools](https://readwithai.substack.com/p/my-productivity-tools) that are related to carrying out my work.
+
+I write about lots of things - including tools like this - on [X](https://x.com/readwithai).
+My [blog](https://readwithai.substack.com/) is more about reading and research and agency.
