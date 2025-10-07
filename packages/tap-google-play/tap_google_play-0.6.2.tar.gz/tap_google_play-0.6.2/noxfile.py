@@ -1,0 +1,51 @@
+"""Nox configuration."""
+
+from __future__ import annotations
+
+import nox
+
+python_versions = [
+    "3.14",
+    "3.13",
+    "3.12",
+    "3.11",
+    "3.10",
+]
+nox.needs_version = ">=2024.4.15"
+nox.options.default_venv_backend = "uv"
+nox.options.sessions = ("tests", "lint", "mypy")
+
+
+@nox.session
+def lint(session: nox.Session) -> None:
+    """Lint."""
+    session.run(
+        "uv",
+        "run",
+        "--active",
+        "prek",
+        "run",
+        "--all-files",
+        "--show-diff-on-failure",
+    )
+
+
+@nox.session(python=python_versions)
+def tests(session: nox.Session) -> None:
+    """Execute pytest tests."""
+    session.run(
+        "uv",
+        "run",
+        "--verbose",
+        "--python",
+        f"python{session.python}",
+        "pytest",
+        *session.posargs,
+    )
+
+
+@nox.session
+def mypy(session: nox.Session) -> None:
+    """Check types."""
+    args = session.posargs or ("tap_google_play",)
+    session.run("uv", "run", "--active", "mypy", *args)
