@@ -1,0 +1,410 @@
+[build-system]
+requires = [
+    # "maturin>=1.9.3",
+    "setuptools>=80.9.0",
+    "setuptools-rust>=1.12",
+    "setuptools_scm>=8.3.1",
+]
+# build-backend = "maturin"
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "artistools"
+authors = [
+    { name = "Luke J. Shingles", email = "luke.shingles@gmail.com" },
+    { name = "Christine E. Collins", email = "c.collins@gsi.de" },
+    { name = "Alexander Holas", email = "alexander.holas@h-its.org" },
+    { name = "Fionntan Callan", email = "fcallan02@qub.ac.uk" },
+    { name = "Stuart Sim", email = "s.sim@qub.ac.uk" },
+    { name = "Joshua Pollin", email = "jpollin02@qub.ac.uk" },
+    { name = "Gerrit Leck", email = "g.leck@gsi.de" }
+]
+description = "Plotting and analysis tools for the ARTIS 3D radiative transfer code for supernovae and kilonovae."
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Free Threading",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dynamic = ["version"]
+requires-python = ">=3.11"
+license =  "MIT"
+license-files = ["LICEN[CS]E*"]
+readme = { file = "README.md", content-type = 'text/markdown' }
+dependencies = [
+    "argcomplete>=3.6.2",
+    "extinction>=0.4.7",
+    "matplotlib>=3.10.6",
+    "numpy>=2.3.3",
+    "pandas>=2.3.2",
+    "polars>=1.33.1",
+    "pyarrow>=21.0.0",
+    "pypdf>=6.0.0",
+    "pyyaml>=6.0.2",
+    "rich>=14.1.0",
+    "scipy>=1.16.0",
+    "tqdm>=4.67.1",
+    "typing_extensions>=4.14",
+    "zstandard>=0.23.0;python_version<'3.14'",
+]
+
+[project.optional-dependencies]
+extras = [
+    "astropy>=7.0.1",
+    "george>=0.4.4",
+    "imageio>=2.37.0",
+    "plotly>=6.0.1",
+    "pynonthermal>=2025.4.8",
+    "pyvista>=0.45",
+    "tabulate>=0.9",
+]
+
+[dependency-groups]
+dev = [
+    "imageio>=2.37.0",
+    "mypy[faster-cache]>=1.18.2",
+    "pandas-stubs>=2.2.3.250527",
+    "prek>=0.1.6",
+    "pyright>=1.1.405",
+    "pynonthermal>=2025.3.31.2",
+    "pytest>=8.3.3",
+    "pytest-codspeed>=4.0.0",
+    "pytest-cov>=6.0.0",
+    "pytest-xdist[psutil]>=3.6.1",
+    "ruff>=0.13.1",
+    "ty>=0.0.1a21",
+    "typeguard>=4.4.4",
+    "types-python-dateutil>=2.9.0.20241206",
+    "types-pyyaml>=6.0.12.20240917",
+    "types-tabulate>=0.9.0.20240106",
+]
+
+[project.urls]
+Repository = "https://www.github.com/artis-mcrt/artistools"
+Source = "https://www.github.com/artis-mcrt/artistools"
+
+[project.scripts]
+at = 'artistools.__main__:main'
+artistools = 'artistools.__main__:main'
+makeartismodel1dslicefromcone = 'artistools.inputmodel.slice1dfromconein3dmodel:main'
+makeartismodel = 'artistools.inputmodel.makeartismodel:main'
+plotartisdensity = 'artistools.inputmodel.plotdensity:main'
+plotartisdeposition = 'artistools.deposition:main'
+plotartisestimators = 'artistools.estimators.plotestimators:main'
+plotartislightcurve = 'artistools.lightcurve.plotlightcurve:main'
+plotartislinefluxes = 'artistools.linefluxes:main'
+plotartismacroatom = 'artistools.macroatom:main'
+plotartisnltepops = 'artistools.nltepops.plotnltepops:main'
+plotartisnonthermal = 'artistools.nonthermal:main'
+plotartisradfield = 'artistools.radfield:main'
+plotartisspectrum = 'artistools.spectra.plotspectra:main'
+plotartistransitions = 'artistools.transitions:main'
+plotartisinitialcomposition = 'artistools.inputmodel.plotinitialcomposition:main'
+plotartisviewingangles = 'artistools.viewing_angles_visualization:main'
+
+[tool.cibuildwheel]
+build-frontend = "build[uv]"
+archs = ["auto64"]
+enable = ["cpython-freethreading"]
+# installing dependencies on Linux arm64 takes ~20 minutes
+#test-command = "python -m artistools"
+
+[tool.cibuildwheel.linux]
+before-all = [
+    "mkdir -p /host/home/runner/work/artistools/artistools/rust/target",
+    "mkdir -p /project/rust/target",
+    "rm -rf /project/rust/target",
+    "ln -s -f /host/home/runner/work/artistools/artistools/rust/target /project/rust/",
+    "curl -sSf https://sh.rustup.rs | sh -s -- -y",
+]
+environment = { PATH = "$HOME/.cargo/bin:$PATH" }
+# repair-wheel-command = [
+#     "auditwheel repair -w {dest_dir} {wheel}",
+#     "pipx run abi3audit --strict --report {wheel}",
+# ]
+
+[tool.cibuildwheel.macos]
+before-all = [
+    "rustup update stable",
+]
+# repair-wheel-command = [
+#     "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}",
+#     "uv pip install abi3audit",
+#     "python3 -m abi3audit --strict --report {wheel}",
+# ]
+
+[tool.maturin]
+bindings = "pyo3"
+profile = "release"
+manifest-path = "rust/Cargo.toml"
+features = ["pyo3/extension-module"]
+module-name = "artistools.rustext"
+
+[tool.mypy]
+check_untyped_defs = true
+allow_redefinition_new = true
+disallow_any_explicit = false
+disallow_any_generics = true
+disallow_any_unimported = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+error_summary = true
+enable_error_code = [
+    "comparison-overlap",
+    "ignore-without-code",
+    "no-any-return",
+    "no-any-unimported",
+    "no-untyped-call",
+    "redundant-expr",
+    "redundant-self",
+    "truthy-bool",
+    "unused-awaitable",
+]
+exclude = "(build)|(dist)|(tests)|(data)|(.venv)|(venv)|(_version.py)"
+extra_checks = true
+ignore_missing_imports = true
+implicit_optional = false
+implicit_reexport = false
+local_partial_types = true
+packages = "artistools"
+pretty = true
+scripts_are_modules = true
+strict = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unreachable = false
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_return_any = true
+fixed_format_cache = true
+
+# these files need detailed type annotations added
+[[tool.mypy.overrides]]
+module = [
+    "conftest",
+    "artistools.estimators.plot3destimators_classic",
+    "artistools.hesma_scripts",
+    "artistools.inputmodel.make1dslicefrom3d",
+    "artistools.linefluxes",
+    "artistools.plottools",
+]
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+
+[tool.pylint.'MESSAGES CONTROL']
+max-line-length = 120
+disable = """
+    broad-exception-caught,
+    fixme,
+    missing-function-docstring,
+    missing-module-docstring,
+    import-outside-toplevel,
+    invalid-name,
+    line-too-long,
+    no-member,
+    not-an-iterable,
+    not-context-manager,
+    possibly-used-before-assignment,
+    protected-access,
+    redefined-outer-name,
+    too-many-arguments,
+    too-many-branches,
+    too-many-function-args,
+    too-many-lines,
+    too-many-locals,
+    too-many-nested-blocks,
+    too-many-statements,
+    unbalanced-tuple-unpacking,
+    unspecified-encoding,
+    unsupported-assignment-operation,
+    unused-argument,
+    C,
+    R,
+"""
+
+[tool.pylint.typecheck]
+ignored-modules = ["astropy", "extinction", "pyvista"]
+unsafe-load-any-extension = true
+
+[tool.pyright]
+deprecateTypingAliases = true
+enableTypeIgnoreComments = false # leave these for mypy to interpret
+exclude = [
+    '**/node_modules',
+    '**/__pycache__',
+    '**/.*',
+    'build',
+    'dist',
+    'target',
+    '**/version.py',
+    '.venv',
+]
+reportAttributeAccessIssue = true
+reportCallIssue = true
+reportDeprecated = "information"
+reportMissingImports = false
+reportPossiblyUnboundVariable = false
+reportUnnecessaryTypeIgnoreComment = true
+reportUnknownVariableType = false
+reportUnreachable = false
+typeCheckingMode = "standard"
+useLibraryCodeForTypes = true
+targetVersion = "3.11"
+
+[tool.pytest.ini_options]
+addopts = " --durations=0 --durations-min=1.0 --typeguard-packages=artistools -n auto"
+
+[tool.refurb]
+ignore = ["FURB120"]
+quiet = false
+enable_all = true
+python_version = "3.11"
+sort_by = "error"
+
+[[tool.refurb.amend]]
+path = "./artistools/inputmodel/fromcmfgen/rd_cmfgen.py"
+ignore = ["FURB108"]
+
+[tool.ruff]
+line-length = 120
+fix = true
+show-fixes = true
+extend-exclude = ["_version.py", "artistools/inputmodel/fromcmfgen/rd_cmfgen.py", ".venv/**"]
+preview = true
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true
+preview = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "ANN401",  # any-type
+    "C901",    # complex-structure
+    "COM812",  # missing-trailing-comma
+    "CPY001",  # missing-copyright-notice
+    "D100",    # undocumented-public-module
+    "D101",    # undocumented-public-class
+    "D102",    # undocumented-public-method
+    "D103",    # undocumented-public-function
+    "D104",    # undocumented-public-package
+    "D107",    # undocumented-public-init
+    "D203",    # one-blank-line-before-class
+    "D213",    # multi-line-summary-second-line
+    "D417",    # undocumented-param
+    "DOC201",  # docstring-missing-returns
+    "DOC402",  # docstring-missing-yields
+    "DOC501",  # docstring-missing-exception
+    "E501",    # Line too long
+    "ERA001",  # commented-out-code
+    "FBT",
+    "FIX002",  # line contains TODO
+    "N802",    # Function name should be lowercase
+    "N803",    # Argument name should be lowercase
+    "N806",    # non-lowercase-variable-in-function
+    "N815",    # mixed-case-variable-in-class-scope
+    "PLC0415", # import-outside-toplevel
+    "PLR0914", # too-many-locals
+    "PLR0917", # too-many-positional
+    "PLR1702", # too-many-nested-blocks
+    "PLR0911", # too-many-return-statements
+    "PLR0912", # too-many-branches
+    "PLR0913", # too-many-arguments
+    "PLR0915", # too-many-statements
+    "PLR2004", # magic-value-comparison
+    "PLW2901", # redefined-loop-name
+    "S101",    # Use of assert detected
+    "S311",    # suspicious-non-cryptographic-random-usage
+    "S404",    # suspicious-subprocess-import
+    "S607",    # start-process-with-partial-path
+    "T201",    # print found
+    "TD002",   # missing-todo-author
+    "TD003",   # missing-todo-link
+]
+fixable = ["ALL"]
+unfixable = [
+    "ERA001", # commented-out-code (will just delete it!)
+    "F401",   # unused-import (can be annoying to have import disappear while editing)
+    "F841",   # unused-variable
+    "SIM222", # expr-or-true
+    "SIM223", # expr-and-false
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test_*.py" = ["ARG001"]  # unused-argument for pytest fixtures
+"rd_cmfgen.py" = ["PGH004"]
+
+[tool.ruff.lint.flake8-import-conventions.extend-aliases]
+"artistools" = "at"
+"matplotlib" = "mpl"
+"matplotlib.axes" = "mplax"
+"matplotlib.figure" = "mplfig"
+"matplotlib.pyplot" = "plt"
+"matplotlib.typing" = "mplt"
+"numpy.typing" = "npt"
+"typing" = "t"
+"polars" = "pl"
+"polars.selectors" = "cs"
+"polars.testing" = "pltest"
+"pynonthermal" = "pynt"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.isort]
+force-single-line = true
+order-by-type = false
+
+[tool.setuptools]
+include-package-data = true
+
+[[tool.setuptools-rust.ext-modules]]
+target = "artistools.rustext" # The last part of the name has to match lib.name in Cargo.toml,
+path = "rust/Cargo.toml"
+binding = "PyO3"
+debug = false
+optional = false
+
+[tool.setuptools.packages.find]
+namespaces = true
+where = ["."]
+include = ["*", "**/matplotlibrc", "**/data"]
+exclude = [
+    "tests",
+    "**/dist",
+    "**/lib",
+    "**/build",
+    "*.egg-info",
+    "**/.*",
+    "**/target",
+    "**/.venv",
+    "**/venv",
+]
+
+#[tool.distutils.bdist_wheel]
+#py_limited_api="cp312"
+
+[tool.setuptools_scm]
+version_file = "artistools/version.py"
+local_scheme = "no-local-version"
+
+[tool.ty.rules]
+unresolved-import = "ignore"
+deprecated = "ignore"
+
+[tool.ty.src]
+exclude = ["artistools/inputmodel/fromcmfgen/rd_cmfgen.py", ".venv/**"]
+
+[tool.vulture]
+exclude = [".*", "build/", ".eggs/"]
+paths = ["artistools"]
+sort_by_size = true
