@@ -1,0 +1,185 @@
+Metadata-Version: 2.4
+Name: spyglass-ai
+Version: 0.1.6
+Summary: A client library for shipping telemetry to the Spyglass AI platform
+Project-URL: Homepage, https://spyglass-ai.com
+Project-URL: Repository, https://github.com/spyglass-ai/spyglass-sdk
+Project-URL: Bug Reports, https://github.com/spyglass-ai/spyglass-sdk/issues
+Project-URL: Source Code, https://github.com/spyglass-ai/spyglass-sdk
+Project-URL: Changelog, https://github.com/spyglass-ai/spyglass-sdk/blob/main/CHANGELOG.md
+Author-email: Spyglass AI Team <team@spyglass-ai.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: ai,llm,monitoring,observability,openai,opentelemetry,tracing
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Logging
+Classifier: Topic :: System :: Monitoring
+Requires-Python: >=3.12
+Requires-Dist: opentelemetry-api>=1.33.1
+Requires-Dist: opentelemetry-exporter-otlp-proto-http>=1.33.1
+Requires-Dist: opentelemetry-sdk>=1.33.1
+Provides-Extra: dev
+Requires-Dist: black>=23.0.0; extra == 'dev'
+Requires-Dist: flake8>=6.0.0; extra == 'dev'
+Requires-Dist: isort>=5.12.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest-env>=1.1.0; extra == 'dev'
+Requires-Dist: pytest-mock>=3.10.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Provides-Extra: langchain-aws
+Requires-Dist: langchain-aws>=0.1.0; extra == 'langchain-aws'
+Requires-Dist: langchain-core>=0.1.0; extra == 'langchain-aws'
+Requires-Dist: python-dotenv>=1.1.1; extra == 'langchain-aws'
+Provides-Extra: mcp
+Requires-Dist: langchain-mcp-adapters>=0.1.0; extra == 'mcp'
+Requires-Dist: mcp>=1.0.0; extra == 'mcp'
+Provides-Extra: test
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'test'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'test'
+Requires-Dist: pytest-env>=1.1.0; extra == 'test'
+Requires-Dist: pytest-mock>=3.10.0; extra == 'test'
+Requires-Dist: pytest>=7.0.0; extra == 'test'
+Description-Content-Type: text/markdown
+
+# Spyglass SDK
+The Spyglass SDK provides client code for shipping telemetry data to the Spyglass AI platform
+
+## Installation
+```bash
+pip install spyglass-ai
+```
+
+## Configuration
+
+Set the following environment variables to configure the SDK:
+
+### Required
+- `SPYGLASS_API_KEY`: Your Spyglass API key
+- `SPYGLASS_DEPLOYMENT_ID`: Unique identifier for your deployment
+  - **Note**: Used for both `service.name` and `deployment.id` attributes
+
+### Optional
+- `SPYGLASS_OTEL_EXPORTER_OTLP_ENDPOINT`: Custom endpoint for development
+
+### Example Configuration
+```bash
+export SPYGLASS_API_KEY="your-api-key"
+export SPYGLASS_DEPLOYMENT_ID="user-service-v1.2.0"  # Required - used for both service.name and deployment.id
+```
+
+**Note**: `SPYGLASS_DEPLOYMENT_ID` is required and will be used for both the OpenTelemetry `service.name` and `deployment.id` resource attributes. This ensures consistency and simplifies dashboard queries.
+
+## Usage
+
+### Basic Function Tracing
+
+Use the `@spyglass_trace` decorator to automatically trace function calls:
+
+```python
+from spyglass_ai import spyglass_trace
+
+@spyglass_trace()
+def calculate_total(price, tax_rate):
+    return price * (1 + tax_rate)
+
+# Usage
+result = calculate_total(100, 0.08)  # This call will be traced
+```
+
+You can also provide a custom span name:
+
+```python
+@spyglass_trace(name="payment_processing")
+def process_payment(amount, card_info):
+    # Payment processing logic
+    return {"status": "success", "transaction_id": "tx_123"}
+```
+
+### OpenAI Integration
+
+Wrap your OpenAI client to automatically trace API calls:
+
+```python
+from openai import OpenAI
+from spyglass_ai import spyglass_openai
+
+# Create your OpenAI client
+client = OpenAI(api_key="your-api-key")
+
+# Wrap it with Spyglass tracing
+client = spyglass_openai(client)
+
+# Now all chat completions will be traced
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": "Hello!"}],
+    max_tokens=100
+)
+```
+
+### Complete Example
+
+```python
+from openai import OpenAI
+from spyglass_ai import spyglass_trace, spyglass_openai
+
+# Set up OpenAI client with tracing
+client = OpenAI(api_key="your-api-key")
+client = spyglass_openai(client)
+
+@spyglass_trace(name="ai_conversation")
+def have_conversation(user_message):
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": user_message}],
+        max_tokens=150
+    )
+    return response.choices[0].message.content
+
+# This will create traces for both the function and the OpenAI API call
+answer = have_conversation("What is the capital of France?")
+print(answer)
+```
+
+## What Gets Traced
+
+### Function Tracing (`@spyglass_trace`)
+- Function name, module, and qualified name
+- Input arguments (excluding `self` and `cls`)
+- Return values
+- Execution time
+- Any exceptions that occur
+
+### OpenAI Integration (`spyglass_openai`)
+- Model used
+- Number of messages
+- Request parameters (max_tokens, temperature, etc.)
+- Token usage (prompt, completion, total)
+- Response model
+- Any API errors
+
+## Development
+### Install Dependencies
+```bash
+uv sync --extra test
+```
+
+### Run All Tests
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage
+uv run pytest --cov=src --cov-report=term-missing
+
+# Run specific test file
+uv run pytest tests/test_trace.py -v
+```
