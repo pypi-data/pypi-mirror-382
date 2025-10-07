@@ -1,0 +1,49 @@
+cflags = $common_cflags $variant_cflags
+
+rule cc
+  depfile = $out.d
+  deps = gcc
+  command = $cc -MD -MF $out.d $cflags -std=$c_standard -c $in -o $out
+
+rule cxx
+  depfile = $out.d
+  deps = gcc
+  command = $cxx -MD -MF $out.d $cflags -std=$cxx_standard -c $in -o $out
+{% if common_ldflags %}
+
+common_ldflags ={% for flag in common_ldflags %} {{flag}}{% endfor %}
+
+{% endif %}
+ldflags = $common_ldflags $variant_ldflags
+
+rule link
+  command = $ld $cflags -Wl,-Map=$out.map $in $ldflags -o $out
+
+rule link_no_map
+  command = $ld $cflags $in $ldflags -o $out
+
+rule bin
+  command = ${toolchain_prefix}objcopy -O binary $in $out
+
+rule hex
+  command = ${toolchain_prefix}objcopy -O ihex $in $out
+
+rule dump
+  command = ${toolchain_prefix}objdump -D $in > $out
+{% if uf2_family %}
+
+rule uf2
+  command = mbs uf2conv -f {{uf2_family}} -o $out $in
+{% endif %}
+
+rule ar
+  command = ${toolchain_prefix}ar rcs $out $in
+
+build_dir = {{build_root}}/$variant
+
+rule script
+  command = /bin/bash $in $out
+
+build $build_dir/third_party.txt: script $include_dir/third_party.sh | native_config || regen
+
+build ${variant}_third_party: phony $build_dir/third_party.txt
