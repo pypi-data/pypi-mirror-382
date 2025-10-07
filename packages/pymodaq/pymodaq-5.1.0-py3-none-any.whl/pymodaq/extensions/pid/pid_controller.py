@@ -1,0 +1,1016 @@
+import time
+from functools import partial  # needed for the button to sync setpoint with currpoint
+from typing import Dict, List, TYPE_CHECKING
+from collections import deque
+import numpy as np
+
+from qtpy import QtGui, QtWidgets
+from qtpy.QtCore import QObject, Slot, QThread, Signal
+
+from simple_pid import PID
+
+from pymodaq_utils.logger import set_logger, get_module_name
+from pymodaq_utils.utils import ThreadCommand, find_dict_in_list_from_key_val
+from pymodaq.utils.exceptions import DetectorError, ActuatorError, PIDError
+
+from pymodaq_gui.parameter import utils as putils
+from pymodaq_gui.parameter import Parameter, ParameterTree
+from pymodaq_gui.plotting.data_viewers.viewer0D import Viewer0D
+from pymodaq_gui.utils.widgets import QLED, LabelWithFont, SpinBox
+from pymodaq_gui.utils.dock import DockArea, Dock
+
+
+from pymodaq_data.data import DataToExport, DataCalculated, DataRaw
+from pymodaq_utils.config import Config
+
+from pymodaq.utils.managers.modules_manager import ModulesManager
+from pymodaq.extensions.pid.utils import get_models
+from pymodaq.utils.data import DataActuator, DataToActuators
+from pymodaq.extensions.pid.actuator_controller import PIDController
+from pymodaq.extensions.pid.utils import PIDModelGeneric
+
+from pymodaq.extensions.utils import CustomExt
+
+if TYPE_CHECKING:
+    from pymodaq.control_modules.daq_move import DAQ_Move
+
+
+config = Config()
+logger = set_logger(get_module_name(__file__))
+
+
+class DAQ_PID(CustomExt):
+    """ """
+
+    command_pid = Signal(ThreadCommand)
+    curr_points_signal = Signal(dict)
+    setpoints_signal = Signal(dict)
+    emit_curr_points_sig = Signal()
+
+    models = get_models()
+
+    params = [
+        {
+            "title": "Models",
+            "name": "models",
+            "type": "group",
+            "expanded": True,
+            "visible": True,
+            "children": [
+                {
+                    "title": "Models class:",
+                    "name": "model_class",
+                    "type": "list",
+                    "limits": [d["name"] for d in models],
+                },
+                {
+                    "title": "Model params:",
+                    "name": "model_params",
+                    "type": "group",
+                    "children": [],
+                },
+            ],
+        },
+        {
+            "title": "Move settings:",
+            "name": "move_settings",
+            "expanded": True,
+            "type": "group",
+            "visible": False,
+            "children": [
+                {"title": "Units:", "name": "units", "type": "str", "value": ""}
+            ],
+        },
+        # here only to be compatible with DAQ_Scan, the model could update it
+        {
+            "title": "Main Settings:",
+            "name": "main_settings",
+            "expanded": True,
+            "type": "group",
+            "children": [
+                {
+                    "title": "Acquisition Timeout (ms):",
+                    "name": "timeout",
+                    "type": "int",
+                    "value": 10000,
+                },
+                {
+                    "title": "epsilon",
+                    "name": "epsilon",
+                    "type": "float",
+                    "value": 0.01,
+                    "tooltip": "Precision at which move is considered as done",
+                },
+                {
+                    "title": "Queue length",
+                    "name": "queue_length",
+                    "type": "int",
+                    "value": 25,
+                    "tooltip": "Length of queue to calculate stability",
+                },
+                {
+                    "title": "Weighting type",
+                    "name": "queue_weighting",
+                    "type": "int",
+                    "value": 0,
+                    "tooltip": """Type of weighting when calculating the stability. The weight goes as q**N where q is the qth element in the queue and N is the wanted order.
+                    """,
+                },                                
+                {
+                    "title": "Refresh queue",
+                    "name": "refresh_queue",
+                    "type": "bool_push",
+                    "value": False,
+                    "tooltip": "Refresh queues to zero length",
+                },
+                {
+                    "title": "Refresh plot",
+                    "name": "refresh_plot",
+                    "type": "bool_push",
+                    "value": False,
+                    "tooltip": "Refresh both plots to zero length",
+                },
+                {
+                    "title": "PID settings:",
+                    "name": "pid_settings",
+                    "type": "group",
+                    "children": [
+                        {
+                            "title": "Time per loop (ms):",
+                            "name": "effective_sample_time",
+                            "type": "int",
+                            "value": 0,
+                            "readonly": True,
+                            "tooltip": "Time elapsed in the PID thread for each loop, ",
+                        },
+                        {
+                            "title": "Sample time (ms):",
+                            "name": "sample_time",
+                            "type": "int",
+                            "value": 10,
+                            "tooltip": "The minimum desired time between two PID calculations, ",
+                        },
+                        {
+                            "title": "Refresh plot time (ms):",
+                            "name": "refresh_plot_time",
+                            "type": "int",
+                            "value": 200,
+                            "tooltip": "Update display every x ms, ",
+                        },
+                        {
+                            "title": "Output limits:",
+                            "name": "output_limits",
+                            "expanded": True,
+                            "type": "group",
+                            "tooltip": "Limits on the output of the PID controller, ",
+                            "children": [
+                                {
+                                    "title": "Output limit (min):",
+                                    "name": "output_limit_min_enabled",
+                                    "type": "bool",
+                                    "value": False,
+                                },
+                                {
+                                    "title": "Output limit (min):",
+                                    "name": "output_limit_min",
+                                    "type": "float",
+                                    "value": 0,
+                                },
+                                {
+                                    "title": "Output limit (max):",
+                                    "name": "output_limit_max_enabled",
+                                    "type": "bool",
+                                    "value": False,
+                                },
+                                {
+                                    "title": "Output limit (max:",
+                                    "name": "output_limit_max",
+                                    "type": "float",
+                                    "value": 100,
+                                },
+                            ],
+                        },
+                        {
+                            "title": "Prop. on measurement:",
+                            "name": "proportional_on_measurement",
+                            "type": "bool",
+                            "value": False,
+                            "tooltip": "If True, the PID will stabilize the value instead of reducing the error (see pid.py).",
+                        },
+                        {
+                            "title": "PID constants:",
+                            "name": "pid_constants",
+                            "type": "group",
+                            "children": [
+                                {
+                                    "title": "Kp:",
+                                    "name": "kp",
+                                    "type": "float",
+                                    "value": 0.1,
+                                    "min": 0,
+                                },
+                                {
+                                    "title": "Ki:",
+                                    "name": "ki",
+                                    "type": "float",
+                                    "value": 0.01,
+                                    "min": 0,
+                                },
+                                {
+                                    "title": "Kd:",
+                                    "name": "kd",
+                                    "type": "float",
+                                    "value": 0.001,
+                                    "min": 0,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ]
+
+    def __init__(self, dockarea, dashboard):
+        super().__init__(dockarea, dashboard)
+
+        self.settings = Parameter.create(
+            title="PID settings",
+            name="pid_settings",
+            type="group",
+            children=self.params,
+        )
+        self.title = "PyMoDAQ PID"
+
+        self.initialized_state = False
+        self.model_class: PIDModelGeneric = None
+        self._curr_points = dict([])
+        self._setpoints = dict([])
+        self.queue_points = dict([])
+        self.build_weight_array()
+
+        self.dock_area = dockarea
+        self.check_moving = False
+        self.setup_ui()
+
+        self.enable_controls_pid(False)
+
+        self.enable_controls_pid_run(False)
+
+        self.emit_curr_points_sig.connect(self.emit_curr_points)
+    
+    def ini_PID(self):
+        if self.is_action_checked("ini_pid"):
+            output_limits = self.get_output_limits()
+            self.update_queues(refresh=True)
+            self.runner_thread = QThread()
+            pid_runner = PIDRunner(
+                self.model_class,
+                self.modules_manager,
+                setpoints=self.setpoints,
+                params=dict(
+                    Kp=self.settings[
+                        "main_settings", "pid_settings", "pid_constants", "kp"
+                    ],
+                    Ki=self.settings[
+                        "main_settings", "pid_settings", "pid_constants", "ki"
+                    ],
+                    Kd=self.settings[
+                        "main_settings", "pid_settings", "pid_constants", "kd"
+                    ],
+                    sample_time=self.settings[
+                        "main_settings", "pid_settings", "sample_time"
+                    ]
+                    / 1000,
+                    output_limits=output_limits,
+                    auto_mode=False,
+                ),
+            )
+
+            self.runner_thread.pid_runner = pid_runner
+            pid_runner.pid_output_signal.connect(self.process_output)
+            pid_runner.time_elapsed_signal.connect(self.display_time_elapsed)
+            pid_runner.status_sig.connect(self.thread_status)
+            self.command_pid.connect(pid_runner.queue_command)
+
+            pid_runner.moveToThread(self.runner_thread)
+
+            self.runner_thread.start()
+            self.get_action("pid_led").set_as_true()
+            self.enable_controls_pid_run(True)
+
+        else:
+            if hasattr(self, "runner_thread"):
+                self.exit_runner_thread()
+            self.get_action("pid_led").set_as_false()
+            self.enable_controls_pid_run(False)
+
+        self.initialized_state = True
+
+    def process_output(self, data: DataToExport):
+        outputs: DataRaw = data.get_data_from_name("outputs")
+        inputs: DataRaw = data.get_data_from_name("inputs")
+        self.curr_points = [float(_input[-1]) for _input in inputs.isig[-1]]
+        inputs_plot = DataRaw("inputs",data=[np.array([_curr_point,]) for _curr_point in self.curr_points],labels=self.model_class.setpoints_names) 
+        for _input, _setpoint_name in zip(inputs, self.model_class.setpoints_names):
+            self.queue_points[_setpoint_name].extend(_input)
+
+        # Would that be useful to add too?
+        # self.mean_points = [
+        #     np.mean(np.array(queue) - setpoint)
+        #     for queue, setpoint in zip(self.queue_points.values(), self.setpoints)
+        # ]
+        # queues_length = len(list(self.queue_points.values())[0])
+        self.stab_points = [
+            np.sqrt(np.cov(_queue, aweights=self.queue_weight[:len(_queue)], ddof=0))
+            for _queue in self.queue_points.values()
+        ]            
+        self.output_viewer.show_data(outputs)
+        self.input_viewer.show_data(inputs_plot)
+    def build_weight_array(self):
+        # Build a weighting array of the form np.arange(1+queue_length)**(queue_weighting)
+        self.queue_weight = np.arange(1+
+                         self.settings.child("main_settings","queue_length").value()
+                         )**self.settings.child("main_settings","queue_weighting").value()
+        
+    def get_output_limits(self):
+        output_limits = [None, None]
+        output_parameters = self.settings.child("main_settings", "pid_settings", "output_limits")
+        if output_parameters["output_limit_min_enabled"]:
+            output_limits[0] = output_parameters[ "output_limit_min"]
+        if output_parameters["output_limit_max_enabled"]:
+            output_limits[1] = output_parameters[ "output_limit_max"]            
+        return output_limits
+
+    def display_time_elapsed(self, time_elapsed: float):
+        """Display the time elapsed in the PID thread"""
+        self.settings.child("main_settings", "pid_settings", "effective_sample_time").setValue(time_elapsed*1000)
+
+    def enable_controls_pid(self, enable=False):
+        self.set_action_enabled("ini_pid", enable)
+        # self.setpoint_sb.setOpts(enabled=enable)
+
+    def enable_controls_pid_run(self, enable=False):
+        self.set_action_enabled("run", enable)
+        self.set_action_enabled("pause", enable)
+
+    def setup_menu(self, menubar: QtWidgets.QMenuBar = None):
+        """
+        to be subclassed
+        create menu for actions contained into the self.actions_manager, for instance:
+
+        For instance:
+
+        file_menu = self.menubar.addMenu('File')
+        self.actions_manager.affect_to('load', file_menu)
+        self.actions_manager.affect_to('save', file_menu)
+
+        file_menu.addSeparator()
+        self.actions_manager.affect_to('quit', file_menu)
+        """
+        pass
+
+    def value_changed(self, param):
+        """to be subclassed for actions to perform when one of the param's value in self.settings is changed
+
+        For instance:
+        if param.name() == 'do_something':
+            if param.value():
+                print('Do something')
+                self.settings.child('main_settings', 'something_done').setValue(False)
+
+        Parameters
+        ----------
+        param: (Parameter) the parameter whose value just changed
+        """
+        if param.name() == "model_class":
+            self.get_set_model_params(param.value())
+
+        elif param.name() == "refresh_plot_time" or param.name() == "timeout":
+            self.command_pid.emit(
+                ThreadCommand("update_timer", [param.name(), param.value()])
+            )
+
+        elif param.name() == "sample_time":
+            self.command_pid.emit(
+                ThreadCommand("update_options", dict(sample_time=param.value()))
+            )
+
+        elif param.name() in putils.iter_children(
+            self.settings.child("main_settings", "pid_settings", "output_limits"), []
+        ):
+            output_limits = self.get_output_limits()           
+            self.command_pid.emit(
+                ThreadCommand("update_options", dict(output_limits=output_limits))
+            )
+
+        elif param.name() in putils.iter_children(
+            self.settings.child("main_settings", "pid_settings", "pid_constants"), []
+        ):
+            Kp = self.settings["main_settings", "pid_settings", "pid_constants", "kp"]
+            Ki = self.settings["main_settings", "pid_settings", "pid_constants", "ki"]
+            Kd = self.settings["main_settings", "pid_settings", "pid_constants", "kd"]
+            self.command_pid.emit(
+                ThreadCommand("update_options", dict(tunings=(Kp, Ki, Kd)))
+            )
+
+        elif param.name() in putils.iter_children(
+            self.settings.child("models", "model_params"), []
+        ):
+            if self.model_class is not None:
+                self.model_class.update_settings(param)
+
+        elif param.name() == "detector_modules":
+            self.model_class.update_detector_names()
+        elif param.name() == "queue_length":
+            self.update_queues()
+        elif param.name() == "queue_weighting":
+            self.build_weight_array()
+        elif param.name() == "refresh_queue":
+            if param.value():
+                self.update_queues(refresh=True)
+                self.settings.child("main_settings", param.name()).setValue(False)
+        elif param.name() == "refresh_plot":
+            if param.value():
+                self.input_viewer.view.data_displayer.clear_data()
+                self.output_viewer.view.data_displayer.clear_data()
+                self.settings.child('main_settings', param.name()).setValue(False)
+                
+    def connect_things(self):
+        logger.debug("connecting actions and other")
+        self.connect_action(
+            "quit",
+            self.quit_fun,
+        )
+        self.connect_action("ini_model", self.ini_model)
+        self.connect_action("create_setp_actuators", self.create_setp_actuators)
+        self.connect_action("ini_pid", self.ini_PID)
+        self.connect_action("run", self.run_PID)
+        self.connect_action("pause", self.pause_PID)
+        logger.debug("connecting done")
+
+    def setup_actions(self):
+        logger.debug("setting actions")
+        self.add_action("quit", "Quit", "close2", "Quit program")
+        self.add_widget("model_label", QtWidgets.QLabel, "Init Model:")
+        self.add_action(
+            "ini_model",
+            "Init Model",
+            "ini",
+            tip="Initialize the selected model: algo/data conversion",
+        )
+        self.add_widget("model_led", QLED, toolbar=self.toolbar)
+
+        self.add_action(
+            "create_setp_actuators",
+            "Create SetPoint Actuators",
+            "Add_Step",
+            tip="Create a DAQ_Move Control Module for each SetPoint allowing to"
+            "control them from the DashBoard, therefore within other extensions",
+        )
+
+        self.add_widget("model_label", QtWidgets.QLabel, "Init PID Runner:")
+        self.add_action(
+            "ini_pid",
+            "Init the PID loop",
+            "ini",
+            tip="Init the PID thread",
+            checkable=True,
+        )
+        self.add_widget("pid_led", QLED, toolbar=self.toolbar)
+        self.add_action(
+            "run",
+            "Run The PID loop",
+            "run2",
+            tip="run or stop the pid loop",
+            checkable=True,
+        )
+        self.add_action(
+            "pause",
+            "Pause the PID loop",
+            "pause",
+            tip="Pause the PID loop",
+            checkable=True,
+        )
+        self.set_action_checked("pause", True)
+        self.set_action_enabled("create_setp_actuators", False)
+        logger.debug("actions set")
+
+    def setup_docks(self):
+        logger.debug("settings the extension docks")
+        self.dock_pid = Dock("PID controller", self.dock_area)
+        self.dock_area.addDock(self.dock_pid)
+
+        widget = QtWidgets.QWidget()
+        widget_toolbar = QtWidgets.QWidget()
+        verlayout = QtWidgets.QVBoxLayout()
+        widget.setLayout(verlayout)
+        self.toolbar_layout = QtWidgets.QGridLayout()
+        widget_toolbar.setLayout(self.toolbar_layout)
+
+        logger.debug("settings the extension docks done")
+
+        labmaj = QtWidgets.QLabel("Setpoints:")
+        self.toolbar_layout.addWidget(labmaj, 3, 0, 1, 2)
+        labmaj = QtWidgets.QLabel("Value:")
+        self.toolbar_layout.addWidget(labmaj, 4, 0, 1, 2)
+        labmaj = QtWidgets.QLabel("Stability:")
+        self.toolbar_layout.addWidget(labmaj, 5, 0, 1, 2)
+        labmaj = QtWidgets.QLabel("Sync Value:")
+        self.toolbar_layout.addWidget(labmaj, 6, 0, 1, 2)
+
+        verlayout.addWidget(widget_toolbar)
+        verlayout.addWidget(self.settings_tree)
+
+        self.dock_output = Dock("PID output")
+        widget_output = QtWidgets.QWidget()
+        self.output_viewer = Viewer0D(widget_output)
+        self.dock_output.addWidget(widget_output)
+        self.dock_area.addDock(self.dock_output, "right", self.dock_pid)
+
+        self.dock_input = Dock("PID input")
+        widget_input = QtWidgets.QWidget()
+        self.input_viewer = Viewer0D(widget_input)
+        self.dock_input.addWidget(widget_input)
+        self.dock_area.addDock(self.dock_input, "bottom", self.dock_output)
+
+        if len(self.models) != 0:
+            self.get_set_model_params(self.models[0]["name"])
+
+        self.dock_pid.addWidget(widget)
+
+    def create_setp_actuators(self):
+        # Now that we have the module manager, load PID if it is checked in managers
+        try:
+            for setp in self.model_class.setpoints_names:
+                self.dashboard.add_move_from_extension(setp, "PID", PIDController(self, setp))
+            self.set_action_enabled("create_setp_actuators", False)
+
+        except Exception as e:
+            raise PIDError(
+                "Could not load the PID extension and create setpoints actuators"
+                f"{str(e)}"
+            )
+
+    def get_set_model_params(self, model_name):
+        self.settings.child("models", "model_params").clearChildren()
+        models = get_models()
+        if len(models) > 0:
+            model_class = find_dict_in_list_from_key_val(models, "name", model_name)[
+                "class"
+            ]
+            params = getattr(model_class, "params")
+            self.settings.child("models", "model_params").addChildren(params)
+
+    def run_PID(self):
+        if self.is_action_checked("run"):
+            self.get_action("run").set_icon("stop")
+            self.command_pid.emit(ThreadCommand("start_PID", []))
+            QtWidgets.QApplication.processEvents()
+
+            QtWidgets.QApplication.processEvents()
+
+            self.command_pid.emit(
+                ThreadCommand("run_PID", [np.zeros_like(self.model_class.curr_output)])
+                )
+        else:
+            self.get_action("run").set_icon("run2")
+            self.command_pid.emit(ThreadCommand("stop_PID"))
+
+            QtWidgets.QApplication.processEvents()
+
+    def pause_PID(self):
+        for setp in self.setpoints_sb:
+            setp.setEnabled(not self.is_action_checked("pause"))
+        self.command_pid.emit(
+            ThreadCommand("pause_PID", [self.is_action_checked("pause")])
+        )
+
+    def stop_moves(self, overshoot):
+        """
+        Foreach module of the move module object list, stop motion.
+
+        See Also
+        --------
+        stop_scan,  DAQ_Move_main.daq_move.stop_Motion
+        """
+        self.overshoot = overshoot
+        for mod in self.modules_manager.actuators:
+            mod.stop_Motion()
+
+    def set_model(self):
+        model_name = self.settings["models", "model_class"]
+        self.model_class: PIDModelGeneric = find_dict_in_list_from_key_val(
+            self.models, "name", model_name
+        )["class"](self)
+        self.set_setpoints_buttons()
+        self.update_queues(refresh=True)
+        self.model_class.ini_model()
+        self.settings.child("main_settings", "epsilon").setValue(
+            self.model_class.epsilon
+        )
+
+    def init_queues(self):
+        self.queue_points = {
+            setpoint_name: deque(maxlen=self.settings.child("main_settings", "queue_length").value())
+            for setpoint_name in self.model_class.setpoints_names
+        }
+
+    def update_queues(self, refresh=False):
+        if refresh:
+            self.init_queues()
+        else:
+            self.queue_points = {
+                setpoint_name: deque(queue, maxlen=self.settings.child("main_settings", "queue_length").value())
+                for queue, setpoint_name in zip(self.queue_points.values(), self.model_class.setpoints_names)
+            }
+        self.build_weight_array()
+
+    def ini_model(self):
+        try:
+            if self.model_class is None:
+                self.set_model()
+
+            self.modules_manager.selected_actuators_name = (
+                self.model_class.actuators_name
+            )
+            self.modules_manager.selected_detectors_name = (
+                self.model_class.detectors_name
+            )
+
+            self.enable_controls_pid(True)
+            self.get_action("model_led").set_as_true()
+            self.set_action_enabled("ini_model", False)
+            self.set_action_enabled("create_setp_actuators", True)
+
+        except Exception as e:
+            logger.exception(str(e))
+
+    @property
+    def setpoints(self):
+        return [sp.value() for sp in self.setpoints_sb]
+
+    @setpoints.setter
+    def setpoints(self, values):
+        for ind, sp in enumerate(self.setpoints_sb):
+            sp.setValue(values[ind])
+        self.update_queues(refresh=True)  # Refresh queues when setpoints are updated
+
+    def setpoints_external(self, values_dict: Dict[str, DataActuator]):
+        for key in values_dict:
+            index = self.model_class.setpoints_names.index(key)
+            self.setpoints_sb[index].setValue(values_dict[key].value())
+            self.queue_points[key].clear()  # Refresh queue when setpoint is updated
+
+    @property
+    def curr_points(self):
+        return [sp.value() for sp in self.currpoints_sb]
+
+    @curr_points.setter
+    def curr_points(self, values):
+        for ind, sp in enumerate(self.currpoints_sb):
+            sp.setValue(values[ind])
+
+    def emit_curr_points(self):
+        if self.model_class is not None:
+            self.curr_points_signal.emit(
+                dict(zip(self.model_class.setpoints_names, self.curr_points))
+            )
+
+    @property
+    def stab_points(self):
+        return [sp.value() for sp in self.stabpoints_sb]
+
+    @stab_points.setter
+    def stab_points(self, values):
+        for ind, sp in enumerate(self.stabpoints_sb):
+            sp.setValue(values[ind])
+
+    def set_setpoints_buttons(self):
+        self.setpoints_sb = []
+        self.currpoints_sb = []
+        self.stabpoints_sb = []
+        # self.meanpoints_sb = []
+        self.syncvalue_pb = []
+        for ind_set in range(self.model_class.Nsetpoints):
+            label = LabelWithFont(
+                self.model_class.setpoints_names[ind_set],
+                font_name="Tahoma",
+                font_size=14,
+                isbold=True,
+                isitalic=True,
+            )
+            col_ind = 2 + ind_set
+
+            self.toolbar_layout.addWidget(label, 2, col_ind, 1, 1)
+
+            self.setpoints_sb.append(self.make_spinbox(no_button=False))
+            self.toolbar_layout.addWidget(
+                self.setpoints_sb[-1], 3, col_ind, 1, 1
+            )
+
+            self.setpoints_sb[-1].valueChanged.connect(self.update_runner_setpoints)
+
+            self.currpoints_sb.append(self.make_spinbox())
+            self.toolbar_layout.addWidget(
+                self.currpoints_sb[-1], 4, col_ind, 1, 1
+            )
+
+            self.stabpoints_sb.append(self.make_spinbox())
+            self.toolbar_layout.addWidget(self.stabpoints_sb[-1], 5, col_ind, 1, 1)
+            self.syncvalue_pb.append(
+                QtWidgets.QPushButton("Synchro {}".format(ind_set))
+            )
+            self.syncvalue_pb[ind_set].clicked.connect(
+                partial(self.currpoint_as_setpoint, ind_set)
+            )
+            self.toolbar_layout.addWidget(self.syncvalue_pb[-1], 6, col_ind, 1, 1)
+        self.setpoints_signal.connect(self.setpoints_external)
+
+    def make_spinbox(self, no_button=True):
+        """ """
+        spinbox = SpinBox()
+        spinbox.setMinimumHeight(40)
+        font = spinbox.font()
+        font.setPointSizeF(20)
+        spinbox.setFont(font)
+        spinbox.setDecimals(6)
+        if no_button:
+            spinbox.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
+        return spinbox
+
+    def currpoint_as_setpoint(self, i=0):
+        """
+        Function used by the sync buttons. The button i will attribute the value of the i-th currpoint to the i-th setpoint.
+        """
+        self.setpoints_sb[i].setValue(self.curr_points[i])
+        self.update_runner_setpoints()
+
+    def quit_fun(self):
+        """ """
+        try:
+            try:
+                self.exit_runner_thread()
+            except Exception as e:
+                print(e)
+
+            areas = self.dock_area.tempAreas[:]
+            for area in areas:
+                area.win.close()
+                QtWidgets.QApplication.processEvents()
+                QThread.msleep(1000)
+                QtWidgets.QApplication.processEvents()
+
+            self.dock_area.parent().close()            
+            self.dashboard.remove_modules([setp for setp in self.model_class.setpoints_names])
+
+        except Exception as e:
+            print(e)
+
+    def update_runner_setpoints(self):
+        self.command_pid.emit(ThreadCommand("update_setpoints", self.setpoints))
+
+    @Slot(list)
+    def thread_status(
+        self, status
+    ):  # general function to get datas/infos from all threads back to the main
+        """ """
+        pass
+
+
+class PIDRunner(QObject):
+    status_sig = Signal(list)
+    pid_output_signal = Signal(DataToExport)
+    time_elapsed_signal = Signal(float)
+
+    def __init__(
+        self,
+        model_class: PIDModelGeneric,
+        modules_manager: ModulesManager,
+        setpoints=[],
+        params=dict([]),
+    ):
+        """
+        Init the PID instance with params as initial conditions
+
+        Parameters
+        ----------
+        params: (dict) Kp=1.0, Ki=0.0, Kd=0.0,setpoints=[0], sample_time=0.01, output_limits=(None, None),
+                 auto_mode=True,
+                 proportional_on_measurement=False)
+        """
+        super().__init__()
+        self.model_class = model_class
+        self.modules_manager = modules_manager
+        Nsetpoints = model_class.Nsetpoints
+        self.current_time = 0
+        self.time_elapsed = 0  # Time elapsed in the running loop
+        self.inputs_from_dets = DataToExport(
+            "inputs",
+            data=[
+                DataCalculated(
+                    self.model_class.setpoints_names[ind],
+                    data=[np.array([setpoints[ind]])],
+                )
+                for ind in range(Nsetpoints)
+            ],
+        )
+        self.outputs = [0.0 for _ in range(Nsetpoints)]
+        self.outputs_to_actuators = DataToActuators(
+            "pid",
+            mode="rel",
+            data=[
+                DataActuator(
+                    self.model_class.actuators_name[ind], data=self.outputs[ind]
+                )
+                for ind in range(Nsetpoints)
+            ],
+        )
+
+        if "sample_time" in params:
+            self.sample_time = params["sample_time"]
+        else:
+            self.sample_time = 0.010  # in secs
+
+        self.pids = [
+            PID(setpoint=setpoints[0], **params) for ind in range(Nsetpoints)
+        ]  # #PID(object):
+        for pid in self.pids:
+            pid.set_auto_mode(False)
+        self.refreshing_ouput_time = 200
+        self.running = True
+        self.timer = self.startTimer(self.refreshing_ouput_time)
+
+        self.paused = True
+
+        self.refresh_queues()  # Initialize queues with the desired length
+
+        [queue_input.append(output) for queue_input, output in zip(self.queue_inputs, self.outputs)]  # Prefill queues with initial output
+        self.clear_queues = True  # Clear queues on first iteration
+
+    #     self.timeout_timer = QtCore.QTimer()
+    #     self.timeout_timer.setInterval(10000)
+    #     self.timeout_scan_flag = False
+    #     self.timeout_timer.timeout.connect(self.timeout)
+    #
+    def timerEvent(self, event):
+        outputs_dwa = self.outputs_to_actuators.merge_as_dwa("Data0D", name="outputs")
+        outputs_dwa.labels = self.modules_manager.selected_actuators_name
+        dte = DataToExport("toplot", data=[outputs_dwa])
+        inputs_dwa =  DataRaw("inputs", data=[np.array(queue_input) for queue_input in self.queue_inputs], labels=self.modules_manager.selected_actuators_name)
+        dte.append(inputs_dwa)
+        self.pid_output_signal.emit(dte)        
+        self.time_elapsed_signal.emit(self.time_elapsed)
+        self.clear_queues = True
+
+    @Slot(ThreadCommand)
+    def queue_command(self, command: ThreadCommand):
+        """ """
+        if command.command == "start_PID":
+            self.start_PID(*command.attribute)
+
+        elif command.command == "run_PID":
+            self.run_PID(*command.attribute)
+
+        elif command.command == "pause_PID":
+            self.pause_PID(*command.attribute)
+
+        elif command.command == "stop_PID":
+            self.stop_PID()
+
+        elif command.command == "update_options":
+            self.set_option(**command.attribute)
+
+        elif command.command == "update_setpoints":
+            self.update_setpoints(command.attribute)
+
+        elif command.command == "input":
+            self.update_input(*command.attribute)
+
+        elif command.command == "update_timer":
+            if command.attribute[0] == "refresh_plot_time":
+                self.killTimer(self.timer)
+                self.refreshing_ouput_time = command.attribute[1]
+                self.refresh_queues()
+                self.timer = self.startTimer(self.refreshing_ouput_time)
+
+            elif command.attribute[0] == "timeout":
+                self.timeout_timer.setInterval(command.attribute[1])
+
+    def update_input(self, measurements: DataToExport):
+        self.inputs_from_dets = self.model_class.convert_input(measurements)
+
+    def start_PID(self, sync_detectors=True, sync_acts=False):
+        """Start the pid controller loop
+
+        Parameters
+        ----------
+        sync_detectors: (bool) if True will make sure all selected detectors (if any) all got their data before calling
+            the model
+        sync_acts: (bool) if True will make sure all selected actuators (if any) all reached their target position
+         before calling the model
+        """
+        self.running = True
+        try:
+            if sync_detectors:
+                self.modules_manager.connect_detectors()
+            if sync_acts:
+                self.modules_manager.connect_actuators()
+
+            self.current_time = time.perf_counter()
+            logger.info("PID loop starting")
+            while self.running:
+                # # GRAB DATA FIRST AND WAIT ALL DETECTORS RETURNED
+                self.det_done_datas: DataToExport = self.modules_manager.grab_datas()
+
+                self.inputs_from_dets: DataToExport = self.model_class.convert_input(
+                    self.det_done_datas
+                )
+                # # CHECK TIME ELAPSED FROM LAST LOOP
+                self.time_elapsed = (
+                    time.perf_counter() - self.current_time
+                )  # Time elapsed since last loop
+                sleep_time = self.sample_time - self.time_elapsed
+                if sleep_time > 0:
+                    QThread.msleep(int(sleep_time * 1000))
+                # # EXECUTE THE PID
+                self.outputs = []
+                for ind, pid in enumerate(self.pids):
+                    self.outputs.append(pid(float(self.inputs_from_dets[ind][0][0])))
+
+                self.current_time = time.perf_counter() # Update current time
+
+                # # APPLY THE PID OUTPUT TO THE ACTUATORS
+                self.outputs_to_actuators: DataToActuators = (
+                    self.model_class.convert_output(self.outputs, dt=None)
+                )
+                if self.clear_queues:
+                    [queue_input.clear() for queue_input in self.queue_inputs]
+                    self.clear_queues = False
+                for data_input, queue_input in zip(self.inputs_from_dets.data, self.queue_inputs):
+                    queue_input.append(data_input[0][0])
+
+                if not self.paused:
+                    self.modules_manager.move_actuators(
+                        self.outputs_to_actuators,
+                        self.outputs_to_actuators.mode,
+                        polling=False,
+                    )
+                QtWidgets.QApplication.processEvents()
+
+            logger.info("PID loop exiting")
+            self.modules_manager.connect_actuators(False)
+            self.modules_manager.connect_detectors(False)
+
+        except Exception as e:
+            logger.exception(str(e))
+
+    def update_setpoints(self, setpoints):
+        for ind, pid in enumerate(self.pids):
+            pid.setpoint = setpoints[ind]
+
+    def refresh_queues(self):
+        self.queue_length = 5 * int(self.refreshing_ouput_time * 1e-3 / self.sample_time)  # Queue length is approximately output_time/sampling_time (*5 for safety)
+        self.queue_inputs = [deque(maxlen=self.queue_length) for ind in range(len(self.outputs))]
+
+    def set_option(self, **option):
+        for pid in self.pids:
+            for key in option:
+                if hasattr(pid, key):
+                    if key == "sample_time":
+                        self.sample_time = option[key] / 1000
+                        setattr(pid, key, self.sample_time)
+                        self.refresh_queues()
+                    else:
+                        setattr(pid, key, option[key])
+
+    def run_PID(self, last_values):
+        logger.info("Stabilization started")
+        for ind, pid in enumerate(self.pids):
+            pid.set_auto_mode(True, last_values[ind])
+
+    def pause_PID(self, pause_state):
+        for ind, pid in enumerate(self.pids):
+            if pause_state:
+                pid.set_auto_mode(False)
+                logger.info("Stabilization paused")
+            else:
+                pid.set_auto_mode(True, self.outputs[ind])
+                logger.info("Stabilization restarted from pause")
+        self.paused = pause_state
+
+    def stop_PID(self):
+        self.running = False
+        logger.info("PID loop exiting")
+
+
+if __name__ == "__main__":
+    from pymodaq_gui.utils.utils import mkQApp
+    from pymodaq.utils.gui_utils.loader_utils import load_dashboard_with_preset
+
+    app = mkQApp("DAQ_PID")
+    preset_file_name = config("presets", f"default_preset_for_pid")
+
+    dashboard, extension, win = load_dashboard_with_preset(preset_file_name, "DAQ_PID")
+
+    app.exec()
