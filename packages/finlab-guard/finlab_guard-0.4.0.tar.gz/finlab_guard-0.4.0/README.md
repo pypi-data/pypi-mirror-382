@@ -1,0 +1,137 @@
+# finlab-guard
+
+**This is an unofficial, third-party implementation**
+
+A lightweight package for managing a local finlab data cache with versioning and time-context features.
+
+![Python versions](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue)
+![Windows](https://img.shields.io/badge/OS-Windows-0078D6?logo=windows&logoColor=white)
+![Linux](https://img.shields.io/badge/OS-Linux-FCC624?logo=linux&logoColor=black)
+![macOS](https://img.shields.io/badge/OS-macOS-000000?logo=apple&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![build](https://github.com/iapcal/finlab-guard/actions/workflows/build.yml/badge.svg)](https://github.com/iapcal/finlab-guard/actions/workflows/build.yml)
+[![lint](https://github.com/iapcal/finlab-guard/actions/workflows/lint.yml/badge.svg)](https://github.com/iapcal/finlab-guard/actions/workflows/lint.yml)
+[![coverage](https://img.shields.io/codecov/c/github/iapcal/finlab-guard)](https://codecov.io/gh/iapcal/finlab-guard)
+
+## Installation
+
+```bash
+pip install finlab-guard
+```
+
+## Usage examples
+
+Three short examples showing the most common flows.
+
+### 1) Monkey-patch finlab.data.get (installing FinlabGuard)
+
+This project can monkey-patch `finlab.data.get` so reads go through the guarded cache. Example:
+
+```python
+from finlab import data
+from finlab_guard import FinlabGuard
+
+# Create a FinlabGuard instance and install the monkey-patch
+guard = FinlabGuard()
+guard.install_patch()
+
+# Use data.get as normal; FinlabGuard will intercept and use cache
+result = data.get('price:收盤價')
+
+# When done, remove the monkey-patch
+guard.remove_patch()
+```
+
+### 2) Set a time context and get historical data
+
+FinlabGuard supports a time context so you can query data "as-of" a past time.
+
+```python
+from finlab import data
+from finlab_guard import FinlabGuard
+from datetime import datetime, timedelta
+
+guard = FinlabGuard()
+guard.install_patch()
+
+# Set time context to 7 days ago
+query_time = datetime.now() - timedelta(days=7)
+guard.set_time_context(query_time)
+
+# Now call data.get normally; the guard will return historical data
+result = data.get('price:收盤價')
+
+# Clear the time context and remove the monkey-patch when done
+guard.clear_time_context()
+guard.remove_patch()
+```
+
+### 3) Parameter precedence for allow_historical_changes
+
+FinlabGuard uses an `effective_allow_changes` logic with parameter precedence:
+
+```python
+from finlab import data
+from finlab_guard import FinlabGuard
+
+# Set global setting via install_patch
+guard = FinlabGuard()
+guard.install_patch(allow_historical_changes=False)  # Global setting
+
+# Method parameter overrides global setting
+result1 = data.get('price:收盤價', allow_historical_changes=True)  # Uses True (method override)
+result2 = data.get('volume:成交量')  # Uses False (global setting)
+
+# Precedence order: method parameter > global setting > default (True)
+```
+
+**Parameter Precedence**:
+1. **Method parameter** (highest priority): `get(dataset, allow_historical_changes=True/False)`
+2. **Global setting**: Set via `install_patch(allow_historical_changes=True/False)`
+3. **Default value** (lowest priority): `True` - allows historical changes by default
+
+This allows fine-grained control where you can set a global policy but override it for specific datasets when needed.
+
+## What's New in v0.4.0
+
+### 🔧 Breaking Changes
+- **Default `allow_historical_changes` changed to `True`**: Historical data modifications are now allowed by default. Set to `False` if you need strict change detection.
+
+### 🐛 Critical Bug Fixes
+- **Row/column lifecycle filtering**: Fixed stale `cell_changes` incorrectly affecting re-added rows/columns after deletion.
+
+## Performance
+
+finlab-guard delivers significant performance improvements through its DuckDB + Polars architecture:
+
+🚀 **Cache Performance**: Up to **96% faster** with hash optimization
+
+| Version | Reconstruction Time | Hash Match Time | Improvement |
+|---------|-------------------|-----------------|-------------|
+| v0.1.0 (pandas.stack) | 17.9s | N/A | baseline |
+| v0.2.0 (DuckDB+Polars) | 12.4s | N/A | **-30.6%** ⚡ |
+| v0.3.0 (Hash + orjson) | 11.2s | **0.74s** | **-37.5% / -96%** 🚀 |
+
+*Benchmark: `etl:adj_close` cache retrieval (4,533 × 2,645 DataFrame) - average of 10 runs*
+
+### Key Optimizations
+
+- **DataFrame hash optimization** (v0.3.0): Fast data comparison using SHA256 hashes to avoid expensive reconstruction when data is unchanged
+- **orjson acceleration** (v0.3.0): Faster JSON parsing with vectorized operations and reduced memory overhead for reconstruction scenarios
+- **Eliminated pandas.stack() bottleneck**: Replaced with vectorized Polars operations
+- **Cell-level change tracking**: Only stores actual differences, not full datasets
+- **DuckDB storage engine**: High-performance indexed storage with time-based reconstruction
+- **Intelligent thresholding**: Large row changes stored efficiently as JSON objects
+
+These improvements make finlab-guard ideal for:
+- Large datasets with frequent updates
+- Historical data analysis and backtesting
+- Production environments requiring consistent performance
+
+## Disclaimer
+
+This project is not affiliated with, endorsed by, or officially supported by finlab. It is an independent implementation designed to work alongside the finlab package for enhanced data caching and version control.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
