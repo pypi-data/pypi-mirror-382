@@ -1,0 +1,42 @@
+#!/usr/bin/env -S casa --nologfile --log2term --nologger -c  # noqa: EXE003
+from __future__ import annotations
+
+from argparse import ArgumentParser
+from pathlib import Path
+
+from casatools import table
+
+tb = table()
+
+
+def get_target_name(vis_path: Path) -> str:
+    tb.open(str(vis_path / "FIELD"))
+    name = str(tb.getcol("NAME")[0])
+    tb.close()
+
+    name = name.replace(" ", "_")
+    if name.startswith("field_"):
+        name = name.replace("field_", "")
+    return name
+
+
+def get_parser() -> ArgumentParser:
+    parser = ArgumentParser(description="Get the field name from a MS")
+
+    parser.add_argument("ms", type=Path, help="Path to MeasurementSet.")
+
+    return parser
+
+
+def main() -> None:
+    parser = get_parser()
+    args = parser.parse_args()
+
+    name = get_target_name(
+        vis_path=args.ms,
+    )
+    print(f"Field name is: {name}")  # noqa: T201
+
+
+if __name__ == "__main__":
+    main()

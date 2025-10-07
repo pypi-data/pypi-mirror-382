@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Default values
+inputms=""
+outdir=""
+chanbin=4
+timebin="5s"
+purge=false
+sky_type="single"
+radius=1
+
+# Function to display usage
+usage() {
+    cat << EOF
+Usage: $0 -m INPUT_MS -o OUTPUT_DIR [OPTIONS]
+
+Required arguments:
+  -m INPUT_MS     Input measurement set path (full path to .ms file)
+  -o OUTPUT_DIR   Output directory for processing
+
+Optional arguments:
+  -c CHANBIN      Channel binning factor (default: 4)
+  -t TIMEBIN      Time binning (default: 5s)
+  -s SKY_TYPE     Sky type (single or wide, default: single)
+  -r RADIUS       Search radius for sources in degrees (default: 1)
+  -p              Purge existing .ms files in output directory
+  -h              Show this help message
+
+EOF
+}
+
+# Parse command line arguments
+while getopts "m:o:c:t:s:r:ph" opt; do
+    case $opt in
+        m)
+            inputms="$OPTARG"
+        ;;
+        o)
+            outdir="$OPTARG"
+        ;;
+        c)
+            chanbin="$OPTARG"
+        ;;
+        t)
+            timebin="$OPTARG"
+        ;;
+        s)
+            sky_type="$OPTARG"
+        ;;
+        r)
+            radius="$OPTARG"
+        ;;
+        p)
+            purge=true
+        ;;
+        h)
+            usage
+            exit 0
+        ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            usage
+            exit 1
+        ;;
+        :)
+            echo "Option -$OPTARG requires an argument." >&2
+            usage
+            exit 1
+        ;;
+    esac
+done
+
+# Check required arguments
+if [[ -z "$inputms" || -z "$outdir" ]]; then
+    echo "Error: Missing required arguments." >&2
+    usage
+    exit 1
+fi
+
+# Validate input measurement set exists
+if [[ ! -d "$inputms" ]]; then
+    echo "Error: Input measurement set '$inputms' does not exist." >&2
+    exit 1
+fi
+
+# Create output directory if it doesn't exist
+mkdir -p "$outdir"
+
+# Extract just the filename from the full path for processing
+inputms_filename="$(basename "$inputms")"
+
+# Print configuration
+echo "Configuration:"
+echo "  Input MS: $inputms"
+echo "  Output directory: $outdir"
+echo "  Channel binning: $chanbin"
+echo "  Time binning: $timebin"
+echo "  Sky type: $sky_type"
+echo "  Radius: $radius"
+echo "  Purge existing MS files: $purge"
+echo
+
+
+
+# Purge existing MS files if requested
+if [[ "$purge" == true ]]; then
+    echo "WARNING: This will delete all .ms files in the output directory: $outdir"
+    read -p "Are you sure? (y/N): " -n 1 -r
+    echo    # Move to a new line
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Purging existing .ms files..."
+        rm -rfv "${outdir}"/*.ms
+    else
+        echo "Purge cancelled. Exiting."
+        exit 1
+    fi
+fi
+
+cp -r "$inputms" "$outdir"/
+
+cd "$outdir"
+
+field_name="$(low_get_field_name "${inputms_filename}")"
+avg_ms=${field_name}.av.ms
+delay_tb=${field_name}.delay.tb
+
+low_casa_preprocess "${inputms_filename}" --chanbin "${chanbin}" --timebin "${timebin}" --output-vis "${avg_ms}" --output-delay-table "${delay_tb}"
+low_delay_table_to_txt "${delay_tb}" --ms "${inputms_filename}"
+
+rot_ms=${field_name}.av.rot.ms
+cp -r "${avg_ms}" "${rot_ms}"
+low_vis_rotate "${rot_ms}" -m eep --eepcorr
+
+out_mod=${field_name}.gleam_model.txt
+low_gleam_model "${rot_ms}" -o "${out_mod}" -s "${sky_type}" -r "${radius}"
+
+out_bin=${field_name}.av.rot.bin
+calibrate \
+-i 100 \
+-minuv 500 \
+-datacolumn CORRECTED_DATA \
+-m "${out_mod}" \
+"${rot_ms}" \
+"${out_bin}"
+
+low_aocalibrate_plot \
+--ref-ant 2 \
+--ms "${rot_ms}" \
+"${out_bin}"
+
+cal_ms=${field_name}.av.rot.cal.ms
+cp -r "${rot_ms}" "${cal_ms}"
+applysolutions \
+-datacolumn CORRECTED_DATA \
+-nocopy "${cal_ms}" \
+"${out_bin}"
