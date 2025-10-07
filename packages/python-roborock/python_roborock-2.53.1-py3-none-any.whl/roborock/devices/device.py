@@ -1,0 +1,85 @@
+"""Module for Roborock devices.
+
+This interface is experimental and subject to breaking changes without notice
+until the API is stable.
+"""
+
+import logging
+from abc import ABC
+from collections.abc import Callable
+
+from roborock.containers import HomeDataDevice
+from roborock.roborock_message import RoborockMessage
+
+from .channel import Channel
+from .traits import Trait
+from .traits.traits_mixin import TraitsMixin
+
+_LOGGER = logging.getLogger(__name__)
+
+__all__ = [
+    "RoborockDevice",
+]
+
+
+class RoborockDevice(ABC, TraitsMixin):
+    """A generic channel for establishing a connection with a Roborock device.
+
+    Individual channel implementations have their own methods for speaking to
+    the device that hide some of the protocol specific complexity, but they
+    are still specialized for the device type and protocol.
+
+    Attributes of the device are exposed through traits, which are mixed in
+    through the TraitsMixin class. Traits are optional and may not be present
+    on all devices.
+    """
+
+    def __init__(
+        self,
+        device_info: HomeDataDevice,
+        channel: Channel,
+        trait: Trait,
+    ) -> None:
+        """Initialize the RoborockDevice.
+
+        The device takes ownership of the channel for communication with the device.
+        Use `connect()` to establish the connection, which will set up the appropriate
+        protocol channel. Use `close()` to clean up all connections.
+        """
+        TraitsMixin.__init__(self, trait)
+        self._duid = device_info.duid
+        self._name = device_info.name
+        self._channel = channel
+        self._unsub: Callable[[], None] | None = None
+
+    @property
+    def duid(self) -> str:
+        """Return the device unique identifier (DUID)."""
+        return self._duid
+
+    @property
+    def name(self) -> str:
+        """Return the device name."""
+        return self._name
+
+    @property
+    def is_connected(self) -> bool:
+        """Return whether the device is connected."""
+        return self._channel.is_connected
+
+    async def connect(self) -> None:
+        """Connect to the device using the appropriate protocol channel."""
+        if self._unsub:
+            raise ValueError("Already connected to the device")
+        self._unsub = await self._channel.subscribe(self._on_message)
+        _LOGGER.info("Connected to V1 device %s", self.name)
+
+    async def close(self) -> None:
+        """Close all connections to the device."""
+        if self._unsub:
+            self._unsub()
+            self._unsub = None
+
+    def _on_message(self, message: RoborockMessage) -> None:
+        """Handle incoming messages from the device."""
+        _LOGGER.debug("Received message from device: %s", message)
