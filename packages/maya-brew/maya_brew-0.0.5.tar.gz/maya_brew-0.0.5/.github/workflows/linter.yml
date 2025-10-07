@@ -1,0 +1,110 @@
+---
+# This GitHub Actions workflow is triggered by pull requests, pushes to the
+# develop branch, and manual dispatch events. It sets up a Python environment,
+# installs project dependencies, and then runs Super-Linter on the codebase.
+# The workflow can auto-fix issues on push (committing directly) and produce
+# a PR commit with fixes (via git-auto-commit-action) when running in PRs.
+
+name: Lint Code Base
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+  statuses: write
+
+jobs:
+  build:
+    name: Lint Code Base
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Checkout Code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+            uv.lock
+          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+      - name: Install uv
+        run: pip install uv
+      - name: Sync dependencies
+        run: uv sync --extra dev
+      - name: Prepare credentials for auto-fix (push only)
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+      - name: Lint Code Base
+        uses: super-linter/super-linter/slim@7bba2eeb89d01dc9bfd93c497477a57e72c83240
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: develop
+          APPLY_FIXES: true
+          APPLY_FIXES_EVENT: push
+          APPLY_FIXES_MODE: commit
+          VALIDATE_ALL_CODEBASE: true
+          LINTER_RULES_PATH: /
+          PYTHON_PYLINT_CONFIG_FILE: ./pyproject.toml
+          PYTHONPATH: "${{ github.workspace }}/.venv/lib/python3.11/site-packages:${{ github.workspace }}/src"
+          SAVE_SUPER_LINTER_SUMMARY: true
+          ENABLE_GITHUB_ACTIONS_STEP_SUMMARY: true
+          VALIDATE_CHECKOV: true
+          VALIDATE_GITLEAKS: true
+          VALIDATE_GITHUB_ACTIONS_ZIZMOR: true
+          VALIDATE_JSON: true
+          VALIDATE_JSON_PRETTIER: true
+          VALIDATE_MARKDOWN: true
+          VALIDATE_MARKDOWN_PRETTIER: true
+          VALIDATE_NATURAL_LANGUAGE: true
+          VALIDATE_PYTHON_BLACK: true
+          VALIDATE_PYTHON_ISORT: true
+          VALIDATE_PYTHON_RUFF: true
+          VALIDATE_YAML_PRETTIER: true
+          FIX_GITHUB_ACTIONS_ZIZMOR: true
+          FIX_JSON_PRETTIER: true
+          FIX_JSON: true
+          FIX_MARKDOWN_PRETTIER: true
+          FIX_MARKDOWN: true
+          FIX_NATURAL_LANGUAGE: true
+          FIX_PYTHON_BLACK: true
+          FIX_PYTHON_ISORT: true
+          FIX_PYTHON_RUFF: true
+          FIX_YAML_PRETTIER: true
+      - name: Prepare credentials for PR auto-fix commit
+        if: >
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+      - name: Commit and push linting fixes
+        if: >
+          github.event_name == 'pull_request' &&
+          github.ref_name != github.event.repository.default_branch &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: stefanzweifel/git-auto-commit-action@778341af668090896ca464160c2def5d1d1a3eb0
+        with:
+          branch: ${{ github.event.pull_request.head.ref }}
+          commit_message: "chore: fix linting issues"
+          commit_user_name: super-linter
+          commit_user_email: super-linter@super-linter.dev
