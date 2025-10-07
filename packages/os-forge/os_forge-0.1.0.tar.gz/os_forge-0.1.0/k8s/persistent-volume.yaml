@@ -1,0 +1,152 @@
+# PersistentVolume for database storage
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: policy-guard-db-pv
+  labels:
+    app.kubernetes.io/name: policy-guard
+    app.kubernetes.io/component: database
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: policy-guard-storage
+  hostPath:
+    path: /var/lib/policy-guard/database
+    type: DirectoryOrCreate
+---
+# StorageClass for dynamic provisioning
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: policy-guard-storage
+  labels:
+    app.kubernetes.io/name: policy-guard
+    app.kubernetes.io/component: storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+parameters:
+  type: local
+---
+# PersistentVolumeClaim for database
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: policy-guard-db-pvc
+  namespace: policy-guard
+  labels:
+    app.kubernetes.io/name: policy-guard
+    app.kubernetes.io/component: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: policy-guard-storage
+---
+# PersistentVolume for reports storage
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: policy-guard-reports-pv
+  labels:
+    app.kubernetes.io/name: policy-guard
+    app.kubernetes.io/component: reports
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: policy-guard-reports-storage
+  hostPath:
+    path: /var/lib/policy-guard/reports
+    type: DirectoryOrCreate
+---
+# StorageClass for reports (ReadWriteMany)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: policy-guard-reports-storage
+  labels:
+    app.kubernetes.io/name: policy-guard
+    app.kubernetes.io/component: storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+parameters:
+  type: local
+---
+# PersistentVolumeClaim for reports
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: policy-guard-reports-pvc
+  namespace: policy-guard
+  labels:
+    app.kubernetes.io/name: policy-guard
+    app.kubernetes.io/component: reports
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: policy-guard-reports-storage
+---
+# PersistentVolume for backups
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: policy-guard-backups-pv
+  labels:
+    app.kubernetes.io/name: policy-guard
+    app.kubernetes.io/component: backups
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: policy-guard-backups-storage
+  hostPath:
+    path: /var/lib/policy-guard/backups
+    type: DirectoryOrCreate
+---
+# StorageClass for backups
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: policy-guard-backups-storage
+  labels:
+    app.kubernetes.io/name: policy-guard
+    app.kubernetes.io/component: storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+parameters:
+  type: local
+---
+# PersistentVolumeClaim for backups
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: policy-guard-backups-pvc
+  namespace: policy-guard
+  labels:
+    app.kubernetes.io/name: policy-guard
+    app.kubernetes.io/component: backups
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: policy-guard-backups-storage
