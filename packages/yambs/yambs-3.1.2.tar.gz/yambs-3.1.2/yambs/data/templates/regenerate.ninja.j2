@@ -1,0 +1,49 @@
+###############################################################################
+
+# regeneration logic
+
+rule compile_config
+  command = {{entry}} compile_config $out $in
+  depfile = $out.d
+  restat = true
+
+build $include_dir/native.json: compile_config {{config_file}}
+build native_config: phony $include_dir/native.json
+{% if ifgen_config is defined %}
+
+build $include_dir/ifgen.json: compile_config {{ifgen_config}}
+build ifgen_config: phony $include_dir/ifgen.json
+
+rule run_ifgen
+  command = {{python}} -m ifgen gen -c {{ifgen_config}}
+  restat = true
+
+ifgen_outputs = $generated_dir/ifgen/common.h
+
+build $ifgen_outputs: run_ifgen | ifgen_config
+build ifgen: phony $ifgen_outputs
+{% endif %}
+
+rule native
+  command = {{entry}} native -n -c {{config_file}}
+  generator = true
+  restat = true
+
+build build_configs: phony native_config{% if ifgen_config is defined %} ifgen_config{% endif +%}
+
+rule native_manifest
+  command = {{entry}} native_manifest -c {{config_file}}
+  restat = true
+
+rule noop
+  command = true
+
+build ALWAYS_RUN: noop
+
+build $include_dir/sources.json: native_manifest | ALWAYS_RUN{% if ifgen_config is defined %} || ifgen{% endif +%}
+build source_manifest: phony $include_dir/sources.json
+
+build build.ninja: native | source_manifest build_configs
+build regen: phony build.ninja | source_manifest build_configs
+
+###############################################################################

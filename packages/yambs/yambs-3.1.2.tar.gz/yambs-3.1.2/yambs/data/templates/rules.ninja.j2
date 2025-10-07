@@ -1,0 +1,43 @@
+include $include_dir/chips/$chip/chip.ninja
+include $include_dir/toolchains/$toolchain/toolchain.ninja
+
+cflags = $common_cflags $
+         $board_extra_cflags $
+         $chip_extra_cflags $
+         $architecture_extra_cflags $
+         $toolchain_cflags
+
+rule cc
+  depfile = $out.d
+  deps = gcc
+  command = ${toolchain_prefix}{{cc}} -MD -MF $out.d $cflags $
+            -std=$c_standard -c $in -o $out
+
+rule cxx
+  depfile = $out.d
+  deps = gcc
+  command = ${toolchain_prefix}{{cxx}} -MD -MF $out.d $cflags $
+            -std=$cxx_standard -c $in -o $out
+
+rule pio
+  command = pioasm -o c-sdk $in $out
+
+ldflags = $board_ldflags{% for flag in common_ldflags %} {{flag}}{% endfor %}
+
+
+rule link
+  command = ${toolchain_prefix}{{ld}} $cflags $ldflags -Wl,-Map=$out.map $in -o $out
+
+rule bin
+  command = ${toolchain_prefix}objcopy -O binary $in $out
+
+rule hex
+  command = ${toolchain_prefix}objcopy -O ihex $in $out
+
+rule dump
+  command = ${toolchain_prefix}objdump -D $in > $out
+
+rule uf2
+  command = mbs uf2conv $uf2conv_args -o $out $in
+
+build_dir = {{build_root}}/$toolchain/$architecture/$cpu
