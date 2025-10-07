@@ -1,0 +1,164 @@
+Metadata-Version: 2.4
+Name: agi.green
+Version: 0.4.8
+Summary: AGI.green Framework
+Author-email: Ken Seehart <ken@agi.green>
+License: MIT License
+        
+        Copyright (c) 2023, 2024, 2025 kenseehart
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: aiohttp
+Requires-Dist: python-dotenv
+Requires-Dist: openai<2.0.0,>=1.54.0
+Requires-Dist: pyyaml>=6.0.2
+Requires-Dist: redis
+Requires-Dist: aiofiles~=24.1.0
+Requires-Dist: aio_pika~=9.2.0
+Requires-Dist: bcrypt
+Requires-Dist: beanie>=2.0.0
+Requires-Dist: aiosmtplib
+Requires-Dist: markdown
+Requires-Dist: ptvsd~=4.3.2
+Requires-Dist: watchdog
+Requires-Dist: tomli
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: isort; extra == "dev"
+Dynamic: license-file
+
+# AGI.green Framework
+
+A modern Python framework for building AI-powered asynchonous chat applications with a browser interface, featuring markdown content rendering and a unified messaging system.
+
+Application can be built entirely in Python or can integrate with arbitrary external services.
+This differs from conventional full stack solutions with a javascript frontend application making API calls to a Python backend.
+Instead, the frontend is a slave and the backend is the application.
+
+## Features
+
+- **Unified Message Protocol**: Consistent message handling across different communication channels
+- **Rich Content Support**:
+  - Markdown rendering
+  - Mermaid diagrams
+  - MathJax equations
+  - Code syntax highlighting
+  - YAML forms implementing [Vueform](https://vueform.com/)
+- **Flexible Architecture**:
+  - WebSocket-based real-time communication
+  - Message Queue (AMQP) integration for distributed systems - rabbitmq|ABS|inprocess
+  - Extensible protocol system - asynchronous interaction with anything
+- **AI Integration**:
+  - OpenAI API support
+  - Anthropic Claude support
+  - Custom model integration capability
+- **Asynchronous Execution**:
+  - Non limited to call and response
+  - Can add chat messages in response to arbitrary events, e.g. incoming email or SMS or task completion
+  - Can execute arbitrary code in response to a message or other events
+  - No javascript required on the frontend!
+- **Vue Forms in Markdown (chat and docs)**:
+  - Support for YAML and JSON forms in markdown
+  - Support for forms in chat messages
+  - Support for forms in documents
+  - Asynchronous form data events with no javascript required on the frontend (python only)
+  - That means no need to write any javascript to use forms!
+
+## Quick Start
+
+1. Install dependencies:
+```bash
+# Install RabbitMQ
+sudo apt-get install rabbitmq-server  # Ubuntu/Debian
+brew install rabbitmq                 # macOS
+
+# Install package
+pip install agi.green
+```
+
+2. Create a basic chat application:
+```python
+from agi_green.dispatcher import Dispatcher
+
+class ChatNode(Dispatcher):
+    async def on_mq_chat(self, author: str, content: str):
+        'Receive chat message from RabbitMQ'
+        await self.send_ws('append_chat', content=content)
+
+    async def on_ws_chat_input(self, content: str = ''):
+        'Handle chat input from browser'
+        await self.send_mq('chat',
+            author=self.name,
+            content=content
+        )
+```
+
+## Protocol System
+
+The framework uses a protocol-based architecture where each protocol handles specific types of communication:
+
+- `ws`: WebSocket communication with browser
+- `mq`: RabbitMQ for peer-to-peer messaging
+- `gpt`: OpenAI API integration
+- `http`: HTTP/HTTPS server
+- Custom protocols can be added by extending the base Protocol class
+
+## Message Formatting
+
+Support for rich content in messages:
+```python
+# Markdown with syntax highlighting
+await self.send_ws('append_chat',
+    content='```python\nprint("Hello")\n```'
+)
+
+# Mermaid diagrams
+await self.send_ws('append_chat',
+    content='```mermaid\ngraph TD;\nA-->B;\n```'
+)
+
+# Math equations
+await self.send_ws('append_chat',
+    content=r'\\( \int x dx = \frac{x^2}{2} + C \\)'
+)
+```
+
+## Development Status
+
+Currently in active development (March 2024). The framework is being used in production but the API may have breaking changes. See [CHANGELOG](https://github.com/kenseehart/agi.green/blob/main/CHANGELOG.md) for version history.
+
+## Requirements
+
+- Python 3.11+
+- RabbitMQ server
+- Modern web browser
+
+## Contributing
+
+Contributions are welcome! Please check our [Contributing Guidelines](https://github.com/kenseehart/agi.green/blob/main/CONTRIBUTING.md) for details.
+
+## License
+
+Copyright (c) 2024 Ken Seehart, AGI Green. See [LICENSE](https://github.com/kenseehart/agi.green/blob/main/LICENSE) for details.
