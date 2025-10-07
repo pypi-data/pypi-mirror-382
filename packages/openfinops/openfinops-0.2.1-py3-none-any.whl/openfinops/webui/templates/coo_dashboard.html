@@ -1,0 +1,494 @@
+{% extends "base.html" %}
+
+{% block title %}COO Operational Dashboard - OpenFinOps{% endblock %}
+
+{% block extra_head %}
+<style>
+    .metric-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .status-healthy {
+        background: rgba(50, 205, 50, 0.2);
+        color: #32cd32;
+    }
+
+    .status-warning {
+        background: rgba(255, 165, 0, 0.2);
+        color: #ffa500;
+    }
+
+    .status-critical {
+        background: rgba(255, 107, 107, 0.2);
+        color: #ff6b6b;
+    }
+
+    .sla-meter {
+        position: relative;
+        height: 120px;
+    }
+
+    .efficiency-gauge {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- COO Header -->
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-4xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
+                COO Operational Dashboard
+            </h2>
+            <p class="text-gray-400 mt-2">Operational Excellence & Performance Metrics</p>
+        </div>
+        <div class="glass rounded-xl px-6 py-3">
+            <div class="text-sm text-gray-400">System Status</div>
+            <div class="flex items-center mt-1">
+                <span class="status-live mr-2"></span>
+                <span class="text-xl font-bold text-green-400">All Systems Operational</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Operational KPIs -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="glass rounded-xl p-6 card-hover">
+        <div class="flex items-center justify-between mb-3">
+            <div class="p-3 rounded-lg gradient-success">
+                <i class="fas fa-check-circle text-2xl"></i>
+            </div>
+            <span class="metric-badge status-healthy">
+                <i class="fas fa-check mr-1"></i>Healthy
+            </span>
+        </div>
+        <h3 class="text-gray-400 text-sm">SLA Compliance</h3>
+        <p class="text-3xl font-bold mt-2" id="coo-sla">99.8%</p>
+        <p class="text-xs text-gray-500 mt-2">Target: 99.5%</p>
+    </div>
+
+    <div class="glass rounded-xl p-6 card-hover">
+        <div class="flex items-center justify-between mb-3">
+            <div class="p-3 rounded-lg gradient-info">
+                <i class="fas fa-tachometer-alt text-2xl"></i>
+            </div>
+            <span class="metric-badge status-healthy">
+                <i class="fas fa-arrow-up mr-1"></i>+5%
+            </span>
+        </div>
+        <h3 class="text-gray-400 text-sm">Operational Efficiency</h3>
+        <p class="text-3xl font-bold mt-2" id="coo-efficiency">87.5%</p>
+        <p class="text-xs text-gray-500 mt-2">Industry avg: 75%</p>
+    </div>
+
+    <div class="glass rounded-xl p-6 card-hover">
+        <div class="flex items-center justify-between mb-3">
+            <div class="p-3 rounded-lg gradient-warning">
+                <i class="fas fa-clock text-2xl"></i>
+            </div>
+            <span class="metric-badge status-healthy">
+                <i class="fas fa-arrow-down mr-1"></i>-12%
+            </span>
+        </div>
+        <h3 class="text-gray-400 text-sm">Avg Response Time</h3>
+        <p class="text-3xl font-bold mt-2" id="coo-response">245ms</p>
+        <p class="text-xs text-gray-500 mt-2">Last 24 hours</p>
+    </div>
+
+    <div class="glass rounded-xl p-6 card-hover">
+        <div class="flex items-center justify-between mb-3">
+            <div class="p-3 rounded-lg gradient-primary">
+                <i class="fas fa-tasks text-2xl"></i>
+            </div>
+            <span class="metric-badge status-healthy">
+                <i class="fas fa-check mr-1"></i>98%
+            </span>
+        </div>
+        <h3 class="text-gray-400 text-sm">Job Success Rate</h3>
+        <p class="text-3xl font-bold mt-2" id="coo-success">98.2%</p>
+        <p class="text-xs text-gray-500 mt-2">12,450 jobs completed</p>
+    </div>
+</div>
+
+<!-- Performance Metrics -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="glass rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">
+            <i class="fas fa-chart-bar mr-2 text-cyan-400"></i>System Performance Trends
+        </h3>
+        <div class="chart-container" style="height: 300px;">
+            <canvas id="performanceTrendChart"></canvas>
+        </div>
+    </div>
+
+    <div class="glass rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">
+            <i class="fas fa-network-wired mr-2 text-blue-400"></i>Resource Utilization
+        </h3>
+        <div class="space-y-4">
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center">
+                        <i class="fas fa-microchip mr-2 text-cyan-400"></i>
+                        <span class="text-sm">CPU Utilization</span>
+                    </div>
+                    <span class="text-sm font-semibold" id="cpu-util">72%</span>
+                </div>
+                <div class="budget-progress">
+                    <div class="budget-bar gradient-primary" style="width: 72%"></div>
+                </div>
+            </div>
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center">
+                        <i class="fas fa-memory mr-2 text-blue-400"></i>
+                        <span class="text-sm">Memory Usage</span>
+                    </div>
+                    <span class="text-sm font-semibold" id="mem-util">65%</span>
+                </div>
+                <div class="budget-progress">
+                    <div class="budget-bar gradient-info" style="width: 65%"></div>
+                </div>
+            </div>
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center">
+                        <i class="fas fa-hdd mr-2 text-green-400"></i>
+                        <span class="text-sm">Storage I/O</span>
+                    </div>
+                    <span class="text-sm font-semibold" id="storage-util">48%</span>
+                </div>
+                <div class="budget-progress">
+                    <div class="budget-bar gradient-success" style="width: 48%"></div>
+                </div>
+            </div>
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center">
+                        <i class="fas fa-wifi mr-2 text-purple-400"></i>
+                        <span class="text-sm">Network Throughput</span>
+                    </div>
+                    <span class="text-sm font-semibold" id="network-util">58%</span>
+                </div>
+                <div class="budget-progress">
+                    <div class="budget-bar bg-purple-500" style="width: 58%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Service Health & Incidents -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="glass rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">
+            <i class="fas fa-heartbeat mr-2 text-red-400"></i>Service Health
+        </h3>
+        <div class="space-y-3">
+            <div class="flex items-center justify-between p-3 rounded-lg glass-strong">
+                <div class="flex items-center">
+                    <span class="status-live mr-3"></span>
+                    <span class="text-sm">API Gateway</span>
+                </div>
+                <span class="metric-badge status-healthy">Healthy</span>
+            </div>
+            <div class="flex items-center justify-between p-3 rounded-lg glass-strong">
+                <div class="flex items-center">
+                    <span class="status-live mr-3"></span>
+                    <span class="text-sm">ML Inference</span>
+                </div>
+                <span class="metric-badge status-healthy">Healthy</span>
+            </div>
+            <div class="flex items-center justify-between p-3 rounded-lg glass-strong">
+                <div class="flex items-center">
+                    <span class="status-live mr-3"></span>
+                    <span class="text-sm">Data Pipeline</span>
+                </div>
+                <span class="metric-badge status-healthy">Healthy</span>
+            </div>
+            <div class="flex items-center justify-between p-3 rounded-lg glass-strong">
+                <div class="flex items-center">
+                    <div class="w-3 h-3 rounded-full bg-yellow-400 mr-3"></div>
+                    <span class="text-sm">Training Cluster</span>
+                </div>
+                <span class="metric-badge status-warning">Degraded</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">
+            <i class="fas fa-exclamation-triangle mr-2 text-yellow-400"></i>Active Incidents
+        </h3>
+        <div class="space-y-3">
+            <div class="p-3 rounded-lg glass-strong border-l-4 border-yellow-400">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-semibold">High Memory Usage</span>
+                    <span class="text-xs text-yellow-400">Warning</span>
+                </div>
+                <p class="text-xs text-gray-400">Training cluster node-05</p>
+                <p class="text-xs text-gray-500 mt-1">15 minutes ago</p>
+            </div>
+            <div class="p-3 rounded-lg glass-strong border-l-4 border-blue-400">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-semibold">Slow API Response</span>
+                    <span class="text-xs text-blue-400">Info</span>
+                </div>
+                <p class="text-xs text-gray-400">us-west-2 region</p>
+                <p class="text-xs text-gray-500 mt-1">45 minutes ago</p>
+            </div>
+            <div class="p-3 rounded-lg glass-strong border-l-4 border-green-400">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-semibold">Auto-scaling Triggered</span>
+                    <span class="text-xs text-green-400">Resolved</span>
+                </div>
+                <p class="text-xs text-gray-400">EC2 production fleet</p>
+                <p class="text-xs text-gray-500 mt-1">2 hours ago</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">
+            <i class="fas fa-rocket mr-2 text-purple-400"></i>Deployments
+        </h3>
+        <div class="chart-container" style="height: 180px;">
+            <canvas id="deploymentsChart"></canvas>
+        </div>
+        <div class="mt-4 pt-4 border-t border-white/10">
+            <div class="grid grid-cols-2 gap-4 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-green-400">28</div>
+                    <div class="text-xs text-gray-400">Successful</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-red-400">2</div>
+                    <div class="text-xs text-gray-400">Failed</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cost vs Performance -->
+<div class="glass rounded-xl p-6 mb-8">
+    <h3 class="text-xl font-semibold mb-4">
+        <i class="fas fa-chart-line mr-2 text-cyan-400"></i>Cost vs Performance Optimization
+    </h3>
+    <div class="chart-container" style="height: 300px;">
+        <canvas id="costPerformanceChart"></canvas>
+    </div>
+</div>
+
+<!-- Operational Actions -->
+<div class="glass rounded-xl p-6">
+    <h3 class="text-xl font-semibold mb-4">
+        <i class="fas fa-tools mr-2 text-orange-400"></i>Recommended Actions
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="p-4 rounded-lg glass-strong border-l-4 border-cyan-400">
+            <div class="flex items-start justify-between mb-2">
+                <h4 class="font-semibold">Scale Down Idle Resources</h4>
+                <span class="px-2 py-1 rounded bg-cyan-500/20 text-cyan-400 text-xs">Action Required</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">
+                8 EC2 instances idle for >4 hours. Auto-shutdown recommended.
+            </p>
+            <button class="w-full px-4 py-2 rounded-lg gradient-primary text-sm font-medium">
+                Execute Action
+            </button>
+        </div>
+
+        <div class="p-4 rounded-lg glass-strong border-l-4 border-yellow-400">
+            <div class="flex items-start justify-between mb-2">
+                <h4 class="font-semibold">Optimize Training Jobs</h4>
+                <span class="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 text-xs">Optimization</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">
+                3 training jobs can use spot instances for 70% cost reduction.
+            </p>
+            <button class="w-full px-4 py-2 rounded-lg gradient-warning text-sm font-medium">
+                Apply Changes
+            </button>
+        </div>
+
+        <div class="p-4 rounded-lg glass-strong border-l-4 border-green-400">
+            <div class="flex items-start justify-between mb-2">
+                <h4 class="font-semibold">Update Security Patches</h4>
+                <span class="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs">Maintenance</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">
+                12 instances pending security updates. Schedule during off-peak.
+            </p>
+            <button class="w-full px-4 py-2 rounded-lg gradient-success text-sm font-medium">
+                Schedule Update
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Performance Trend Chart
+    const perfTrendCtx = document.getElementById('performanceTrendChart').getContext('2d');
+    const perfTrendChart = new Chart(perfTrendCtx, {
+        type: 'line',
+        data: {
+            labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
+            datasets: [
+                {
+                    label: 'Response Time (ms)',
+                    data: [180, 165, 245, 290, 310, 275, 220],
+                    borderColor: '#00d4aa',
+                    backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                    yAxisID: 'y',
+                    tension: 0.4
+                },
+                {
+                    label: 'Throughput (req/s)',
+                    data: [850, 920, 1200, 1450, 1380, 1100, 950],
+                    borderColor: '#00a8ff',
+                    backgroundColor: 'rgba(0, 168, 255, 0.1)',
+                    yAxisID: 'y1',
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    labels: { color: '#9ca3af', font: { family: 'Inter' } }
+                }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: '#9ca3af' } },
+                y: {
+                    type: 'linear', position: 'left',
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: '#9ca3af' }
+                },
+                y1: {
+                    type: 'linear', position: 'right',
+                    grid: { drawOnChartArea: false },
+                    ticks: { color: '#9ca3af' }
+                }
+            }
+        }
+    });
+
+    // Deployments Chart
+    const deployCtx = document.getElementById('deploymentsChart').getContext('2d');
+    const deployChart = new Chart(deployCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+            datasets: [{
+                label: 'Deployments',
+                data: [5, 8, 6, 7, 4],
+                backgroundColor: 'rgba(168, 85, 247, 0.6)',
+                borderColor: '#a855f7',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: '#9ca3af' } },
+                y: { grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: '#9ca3af' } }
+            }
+        }
+    });
+
+    // Cost vs Performance Chart
+    const costPerfCtx = document.getElementById('costPerformanceChart').getContext('2d');
+    const costPerfChart = new Chart(costPerfCtx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'Optimized',
+                    data: [{x: 85, y: 42}, {x: 90, y: 48}, {x: 88, y: 45}],
+                    backgroundColor: 'rgba(50, 205, 50, 0.6)',
+                    borderColor: '#32cd32'
+                },
+                {
+                    label: 'Normal',
+                    data: [{x: 75, y: 68}, {x: 78, y: 72}, {x: 72, y: 65}],
+                    backgroundColor: 'rgba(0, 168, 255, 0.6)',
+                    borderColor: '#00a8ff'
+                },
+                {
+                    label: 'Needs Optimization',
+                    data: [{x: 65, y: 95}, {x: 68, y: 88}, {x: 62, y: 92}],
+                    backgroundColor: 'rgba(255, 107, 107, 0.6)',
+                    borderColor: '#ff6b6b'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#9ca3af', font: { family: 'Inter' } }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Performance Score', color: '#9ca3af' },
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: '#9ca3af' }
+                },
+                y: {
+                    title: { display: true, text: 'Cost ($K/month)', color: '#9ca3af' },
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: '#9ca3af' }
+                }
+            }
+        }
+    });
+
+    // WebSocket updates
+    socket.on('dashboard_update', function(data) {
+        if (data.operational_efficiency) {
+            document.getElementById('coo-efficiency').textContent = data.operational_efficiency + '%';
+        }
+        if (data.sla_compliance) {
+            document.getElementById('coo-sla').textContent = data.sla_compliance + '%';
+        }
+
+        // Update system health metrics
+        if (data.system_health) {
+            const health = data.system_health;
+            document.getElementById('cpu-util').textContent = health.cpu_usage + '%';
+            document.getElementById('mem-util').textContent = health.memory_usage + '%';
+            document.getElementById('storage-util').textContent = health.disk_usage + '%';
+            document.getElementById('network-util').textContent = health.network_throughput + ' Mbps';
+        }
+    });
+
+    // Initial data fetch
+    fetch('/api/dashboard/coo')
+        .then(response => response.json())
+        .then(data => {
+            console.log('COO Dashboard data loaded:', data);
+        });
+</script>
+{% endblock %}
