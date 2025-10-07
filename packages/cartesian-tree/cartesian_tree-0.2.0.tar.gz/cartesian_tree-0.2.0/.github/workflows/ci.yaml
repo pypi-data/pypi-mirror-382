@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "main"
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }} / py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+
+      - name: Run Rust fmt
+        run: cargo fmt --check
+
+      - name: Run clippy
+        run: cargo clippy --all-features
+
+      - name: Run Rust tests
+        run: cargo test --verbose
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+        
+      - name: Create Python Virtual Environment
+        run: python -m venv .venv
+
+      - name: Activate Virtual Environment and Install Python dependencies
+        run: |
+          source .venv/bin/activate
+          pip install .[dev]
+
+      - name: Run ruff linting
+        run: |
+          source .venv/bin/activate
+          ruff format --check python
+          ruff check python
+
+      - name: Run mypy
+        run: |
+          source .venv/bin/activate
+          mypy python
+          
+      - name: Build and install Python bindings
+        run: |
+          source .venv/bin/activate
+          maturin develop --release
+
+      - name: Run Python tests
+        run: |
+          source .venv/bin/activate
+          pytest python/tests
+          
