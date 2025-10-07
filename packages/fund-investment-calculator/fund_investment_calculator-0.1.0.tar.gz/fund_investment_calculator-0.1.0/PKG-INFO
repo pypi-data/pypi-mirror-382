@@ -1,0 +1,261 @@
+Metadata-Version: 2.4
+Name: fund-investment-calculator
+Version: 0.1.0
+Summary: 基金定投收益计算工具，支持自动获取净值数据和交易日判断
+Author-email: liwenyi <lwy.lwy@163.com>
+License: MIT
+Project-URL: Homepage, https://github.com/wenyili/fund-investment-calculator
+Project-URL: Repository, https://github.com/wenyili/fund-investment-calculator
+Project-URL: Bug Tracker, https://github.com/wenyili/fund-investment-calculator/issues
+Keywords: fund,investment,financial,calculator,定投
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Financial and Insurance Industry
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Office/Business :: Financial :: Investment
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: akshare>=1.14.0
+Requires-Dist: exchange-calendars>=4.5.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: scipy>=1.11.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Dynamic: license-file
+
+# 基金定投收益计算工具
+
+使用 `akshare` 获取基金净值数据，`exchange_calendars` 判断交易日，自动计算定投收益。
+
+## 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+## 功能特性
+
+- ✅ 自动计算定投日期（月/周定投）
+- ✅ 支持手动投资日期配置
+- ✅ 支持定投失败日期配置
+- ✅ 自动获取基金净值数据
+- ✅ 交易日智能判断（非交易日顺延）
+- ✅ 计算总体收益、年化收益率、IRR
+- ✅ 计算每笔投资的收益明细
+- ✅ 支持历史任意时点收益计算
+
+## 快速开始
+
+### 示例1：每月定投
+
+```python
+from datetime import date
+from fund import Fund
+
+# 创建基金对象
+fund = Fund(
+    fund_code="005827",              # 基金代码
+    buy_fee_rate=0.0015,             # 申购费率 0.15%
+    regular_rule={
+        "start_date": date(2024, 1, 15),
+        "interval": "monthly",        # 每月定投
+        "day": 15,                    # 每月15日
+        "amount": 1000                # 每次1000元
+    },
+    skip_dates=[date(2024, 3, 15)],  # 跳过的日期
+    manual_investments=[              # 手动投资
+        {"date": date(2024, 2, 10), "amount": 5000}
+    ]
+)
+
+# 获取所有投资日期
+dates = fund.get_all_investment_dates()
+
+# 获取投资记录明细
+records = fund.get_investment_records()
+
+# 计算总体收益
+result = fund.calculate_return()
+print(f"收益率: {result['return_rate']:.2f}%")
+print(f"IRR: {result['irr']:.2f}%")
+
+# 计算每笔投资收益
+each_result = fund.calculate_each_investment_return()
+```
+
+### 示例2：每周定投
+
+```python
+fund = Fund(
+    fund_code="110022",
+    regular_rule={
+        "start_date": date(2024, 9, 1),
+        "interval": "weekly",
+        "weekday": 4,                 # 每周五（0=周一）
+        "amount": 500
+    }
+)
+```
+
+### 示例3：计算历史收益
+
+```python
+# 计算9月30日的收益
+result = fund.calculate_return(as_of_date=date(2024, 9, 30))
+
+# 不传日期则使用最新净值
+result = fund.calculate_return()
+```
+
+## API 说明
+
+### Fund 类
+
+#### 构造函数
+
+```python
+Fund(
+    fund_code: str,                      # 基金代码（6位）
+    fund_name: str = None,               # 基金名称（可选，自动获取）
+    buy_fee_rate: float = 0.0015,        # 申购费率
+    regular_rule: dict = None,           # 定投规则
+    skip_dates: list[date] = None,       # 跳过的日期
+    manual_investments: list[dict] = None # 手动投资
+)
+```
+
+**定投规则格式：**
+
+每月定投：
+```python
+{
+    "start_date": date(2024, 1, 15),
+    "interval": "monthly",
+    "day": 15,                # 每月的日期
+    "amount": 1000
+}
+```
+
+每周定投：
+```python
+{
+    "start_date": date(2024, 1, 1),
+    "interval": "weekly",
+    "weekday": 4,             # 0=周一, 4=周五
+    "amount": 500
+}
+```
+
+双周定投：
+```python
+{
+    "start_date": date(2024, 1, 1),
+    "interval": "biweekly",
+    "weekday": 4,
+    "amount": 500
+}
+```
+
+#### 方法
+
+##### `get_all_investment_dates() -> list[date]`
+
+返回所有投资日期（定投+手动），按时间排序。
+
+##### `get_investment_records() -> list[dict]`
+
+返回每笔投资的详细记录：
+
+```python
+[{
+    "date": date,           # 投资日期
+    "amount": float,        # 投入本金
+    "fee": float,           # 手续费
+    "net_amount": float,    # 扣费后金额
+    "nav": float,           # 买入净值
+    "shares": float         # 买入份额
+}, ...]
+```
+
+##### `calculate_return(as_of_date: date = None) -> dict`
+
+计算总体收益：
+
+```python
+{
+    "as_of_date": date,           # 计算日期
+    "total_cost": float,          # 总投入（含手续费）
+    "total_net_cost": float,      # 总投入（扣除手续费）
+    "total_shares": float,        # 总份额
+    "current_nav": float,         # 当前净值
+    "current_value": float,       # 当前价值
+    "profit": float,              # 收益金额
+    "return_rate": float,         # 收益率（%）
+    "annualized_return": float,   # 年化收益率（%）
+    "irr": float                  # 内部收益率（%）
+}
+```
+
+##### `calculate_each_investment_return(as_of_date: date = None) -> list[dict]`
+
+计算每笔投资的收益：
+
+```python
+[{
+    "date": date,
+    "amount": float,          # 投入金额
+    "buy_nav": float,         # 买入净值
+    "shares": float,          # 买入份额
+    "current_nav": float,     # 当前净值
+    "current_value": float,   # 当前价值
+    "profit": float,          # 该笔收益
+    "return_rate": float      # 该笔收益率（%）
+}, ...]
+```
+
+## 运行示例
+
+```bash
+python example.py
+```
+
+## 注意事项
+
+1. **净值更新时间**：基金净值在交易日收盘后（晚上18:00-22:00）公布
+2. **交易日处理**：非交易日会自动顺延到下一个交易日
+3. **费率**：仅考虑申购费，不考虑赎回费
+4. **数据来源**：使用 akshare 从东方财富获取数据，免费无需token
+
+## 收益率说明
+
+### 简单收益率
+```
+收益率 = (当前价值 - 总投入) / 总投入 × 100%
+```
+
+### 年化收益率
+```
+年化收益率 = 收益率 / 持有天数 × 365
+```
+
+### IRR（内部收益率）
+考虑资金的时间价值，求解使净现值为0的收益率，更准确反映投资回报。
+
+## 常见问题
+
+**Q: 为什么定投日期不是我设定的日期？**
+A: 如果设定日期是非交易日（周末/节假日），会自动顺延到下一个交易日。
+
+**Q: 如何查看历史某一天的收益？**
+A: 使用 `calculate_return(as_of_date=date(2024, 9, 30))`
+
+**Q: 手动投资和定投日期重叠怎么办？**
+A: 系统会分别记录，两笔投资都会生效。
