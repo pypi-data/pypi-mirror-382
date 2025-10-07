@@ -1,0 +1,47 @@
+# @package _global_
+
+# to execute this experiment run:
+# uv run train.py experiment=example
+
+defaults:
+  - override /data: fq
+  - override /model: mambasp
+  - override /callbacks: default
+  - override /trainer: gpu
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+callbacks:
+  early_stopping:
+    patience: 10
+
+tags: ["mambasp"]
+
+seed: 12345
+
+trainer:
+  min_epochs: 10
+  max_epochs: 100
+  # precision: "bf16-mixed"
+  # gradient_clip_val: 1.0
+
+data:
+  tokenizer:
+    _target_: chimera.data.tokenizer.CharacterTokenizer
+    # model_max_length: 32768
+    padding_side: "right"
+
+  train_data_path: ${paths.root_dir}/data/train_data/p2_586360/train.parquet
+  val_data_path: ${paths.root_dir}/data/train_data/p2_586360/validation.parquet
+  test_data_path: ${paths.root_dir}/data/train_data/p2_586360/test.parquet
+  batch_size: 16
+  num_workers: 30
+  pin_memory: False
+
+logger:
+  wandb:
+    tags: ${tags}
+    group: "mambasp"
+  aim:
+    experiment: "mambasp"
