@@ -1,0 +1,19 @@
+from spm._runtime import Runtime
+
+
+def _find_mesh_edge(*args, **kwargs):
+    """
+      FIND_MESH_EDGE returns the edge of a triangulated mesh  
+         
+        [pnt, line] = find_mesh_edge(pnt, tri), where  
+         
+        pnt   contains the vertex locations and   
+        line  contains the indices of the linepieces connecting the vertices  
+      
+
+    [Matlab code]( https://github.com/spm/spm/blob/main/external/fieldtrip/plotting/private/find_mesh_edge.m )
+
+    Copyright (C) 1995-2025 Functional Imaging Laboratory, Department of Imaging Neuroscience, UCL
+    """
+
+    return Runtime.call("find_mesh_edge", *args, **kwargs)

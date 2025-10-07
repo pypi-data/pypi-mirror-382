@@ -1,0 +1,21 @@
+from spm._runtime import Runtime
+
+
+def cfg_vout_dir_move(*args, **kwargs):
+    """
+      Define virtual output for cfg_run_dir_move. Output can be passed on to  
+        either a cfg_files or an evaluated cfg_entry.  
+         
+        This code is part of a batch job configuration system for MATLAB. See   
+             help matlabbatch  
+        for a general overview.  
+       _______________________________________________________________________  
+        Copyright (C) 2007 Freiburg Brain Imaging  
+      
+
+    [Matlab code]( https://github.com/spm/spm/blob/main/matlabbatch/cfg_basicio/cfg_vout_dir_move.m )
+
+    Copyright (C) 1995-2025 Functional Imaging Laboratory, Department of Imaging Neuroscience, UCL
+    """
+
+    return Runtime.call("cfg_vout_dir_move", *args, **kwargs)
