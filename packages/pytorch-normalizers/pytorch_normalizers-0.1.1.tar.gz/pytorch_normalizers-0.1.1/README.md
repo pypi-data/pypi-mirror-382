@@ -1,0 +1,125 @@
+# PyTorch Normalizers: Useful PyTorch Layers for Feature Normalization
+
+This package provides several useful PyTorch layers for normalizing and processing numerical features in deep learning models, with a focus on differentiability, robustness, and handling real-world data issues like outliers and missing values. Currently, it includes SmoothBuckets and QuantileNorm, with more layers (such as DefaultEmbeddings and DetachFrom) planned for future additions.
+
+## Overview of Layers
+
+### SmoothBuckets
+SmoothBuckets is a PyTorch module designed to normalize numerical features using a smooth, differentiable bucketing approach. It generalizes traditional deterministic bucketing and percentile-based normalization, making it suitable for deep learning models where gradients need to flow through the normalization step. Key features include:
+
+- **Soft Bucketing with Gaussians**: Instead of hard assignments to buckets, it uses Gaussian distributions to compute soft probabilities (bucket shares) for each feature value, ensuring differentiability.
+- **Handling Missing Values**: Gracefully manages NaNs by learning replacements during training, moving imputation logic into the model.
+- **Robustness**: Demonstrates improved performance over standard LayerNorm in scenarios with data corruption or outliers, as shown in the included tests.
+- **Additional Percentile Feature**: Appends an approximated percentile for each feature, enhancing the representation.
+- **Trainable Parameters**: Allows fine-tuning of multipliers for means and standard deviations while keeping initial estimates fixed to avoid issues with large value ranges.
+
+This layer is particularly useful in tabular data modeling, such as regression or classification tasks, where numerical features vary widely in scale and distribution.
+
+### QuantileNorm
+QuantileNorm is a PyTorch module that performs quantile normalization with incremental updates to adapt to data distribution shifts during training. It initializes quantiles from a sample and updates them gradually, handling outliers and providing smooth extrapolation for extreme values. This makes it ideal for streaming data or environments with evolving distributions.
+
+## Installation
+
+Install via pip:
+
+```bash
+pip install pytorch-normalizers
+```
+
+## Usage
+
+To integrate the layers into your PyTorch model, import them from the package. Both layers support initialization with a sample of numerical features (as a `torch.Tensor`, `np.ndarray`, or `pd.DataFrame`).
+
+### SmoothBuckets Example
+
+```python
+import torch.nn as nn
+from pytorch_normalizers import SmoothBuckets
+
+class MyModel(nn.Module):
+    def __init__(self, numerical_features_sample, *args, **kwargs):
+        super().__init__()
+        self.input_normalizer = SmoothBuckets(numerical_features_sample) # num_buckets=5, eps=1e-5, dropout=0.1 are optional here
+        # Add other layers as needed...
+
+    def forward(self, x):
+        x = self.input_normalizer(x)
+        # Rest of the forward pass...
+        return x
+```
+
+- `num_buckets`: Number of buckets per feature (e.g., 5).
+- `numerical_features_sample`: A sample containing only the numerical features, used to initialize means and stds based on quantiles.
+- `eps`: Small value to prevent division by zero.
+- `dropout`: Dropout rate for regularization.
+
+The layer outputs a tensor of shape `(batch_size, num_features)`, after concatenating bucket shares and percentiles, applying layer norm, dropout, and a linear projection back to the original feature dimensionality.
+
+### QuantileNorm Example
+
+```python
+import torch.nn as nn
+from pytorch_normalizers import QuantileNorm
+
+class MyModel(nn.Module):
+    def __init__(self, numerical_features_sample, num_buckets=9):
+        super().__init__()
+        self.input_normalizer = QuantileNorm(numerical_features_sample, num_buckets)
+    
+    def forward(self, x):
+        x = self.input_normalizer(x)
+        # Rest of the model...
+        return x
+```
+
+- `num_buckets`: Number of quantiles/buckets (e.g., 9 for deciles).
+- `numerical_features_sample`: A sample for initial quantile estimation.
+
+The layer outputs normalized values in [0, 1] range, with incremental updates during training.
+
+## Testing
+
+The package includes self-contained tests for each layer:
+
+- For SmoothBuckets: Run `python layers/smooth_buckets.py` (or import and run `test_me()`). It uses the [House Prices dataset from Kaggle](https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques/overview) to compare against LayerNorm and CatBoost in a binary classification task.
+
+Example output (results may vary slightly due to randomness):
+
+```
+Corrupt batch:  False
+LayerNorm Classifier Accuracy: 0.8101 
+SmoothBuckets Classifier Accuracy: 0.9337 # a single (features, 1) layer over the normalized features
+CatBoost Classifier Accuracy: 0.9281
+
+Corrupt batch:  True
+LayerNorm Classifier Accuracy: 0.6998  # Degrades due to corruption
+SmoothBuckets Classifier Accuracy: 0.9219 # More robust
+CatBoost Classifier Accuracy: 0.9281 # Deterministic result, unaffected by a tensor corruption
+```
+
+- For QuantileNorm: Run `python tests/quantile_norm_test.py` to verify quantile adaptation on synthetic data.
+
+## Dependencies
+
+- Runtime: PyTorch, NumPy
+- Tests: Pandas, CatBoost
+
+Install core dependencies:
+
+```bash
+pip install torch numpy
+```
+
+For tests:
+
+```bash
+pip install pandas catboost
+```
+
+## License
+
+MIT License. Feel free to use, modify, and distribute. See [LICENSE](LICENSE) for details.
+
+## Future Plans
+
+Additional layers like DefaultEmbeddings (for efficient categorical embeddings) and DetachFrom (for selective gradient detachment) will be added in upcoming releases. Contributions are welcome!
