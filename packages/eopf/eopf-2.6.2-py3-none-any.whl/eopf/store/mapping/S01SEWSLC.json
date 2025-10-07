@@ -1,0 +1,2091 @@
+{
+    "recognition": {
+        "filename_pattern": "S1._EW_SLC__1.*SAFE",
+        "product_type": "S01SEWSLC",
+        "processing_version": "004.00",
+        "replace_for_legacy": [
+            {
+                "pattern": "annotation/calibration/noise*.xml",
+                "noiseRange": "noise"
+            }
+        ]
+    },
+    "chunk_sizes": {
+        "azimuth_time": -1,
+        "degree": -1,
+        "slant_range_time": 4096
+    },
+    "finalize_function": {
+        "module": "eopf.store.mapping.S01",
+        "class": "S01SXWSLCSafeFinalize"
+    },
+    "data_mapping": [
+        {
+            "source_path": "manifest.safe",
+            "target_path": "attrs:/:stac_discovery",
+            "accessor_id": "xmlmetadata",
+            "accessor_config": {
+                "mapping": "@#copy{'map':'<SELF[stac_discovery]>'}#@",
+                "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@"
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}",
+                "target_path": "attrs:{{product_name}}:stac_discovery",
+                "accessor_id": "xmlmetadata",
+                "accessor_config": {
+                    "mapping": "@#copy{'map':'<SELF[stac_discovery_annotation]>'}#@",
+                    "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@"
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "manifest.safe",
+                "target_path": "attrs:{{product_name}}:stac_discovery",
+                "accessor_id": "xmlmetadata",
+                "accessor_config": {
+                    "mapping": "@#copy{'map':'<SELF[stac_discovery_annotation_manifest]>'}#@",
+                    "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@"
+                }
+            }
+        },
+        {
+            "source_path": "manifest.safe",
+            "target_path": "attrs:/:other_metadata",
+            "accessor_id": "xmlmetadata",
+            "accessor_config": {
+                "mapping": "@#copy{'map':'<SELF[other_metadata_manifest]>'}#@",
+                "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@",
+                "path_template": "@#copy{'map':'<SELF[manifest_template_path]>'}#@"
+            }
+        },
+        {
+            "source_path": "manifest.safe",
+            "target_path": "attrs:/:processing_history",
+            "accessor_id": "xmlmetadata",
+            "accessor_config": {
+                "mapping": "@#copy{'map':'<SELF[processing_history]>'}#@",
+                "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@",
+                "path_template": "@#copy{'map':'<SELF[manifest_template_path]>'}#@"
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}",
+                "target_path": "attrs:{{product_name}}:additional_info",
+                "accessor_id": "xmlmetadata",
+                "accessor_config": {
+                    "mapping": {
+                        "image_slant_range_time": "to_float(imageAnnotation/imageInformation/slantRangeTime)",
+                        "number_of_samples": "to_int(imageAnnotation/imageInformation/numberOfSamples)",
+                        "range_sampling_rate": "to_float(generalAnnotation/productInformation/rangeSamplingRate)",
+                        "range_pixel_spacing": "to_float(imageAnnotation/imageInformation/rangePixelSpacing)",
+                        "azimuth_pixel_spacing": "to_float(imageAnnotation/imageInformation/azimuthPixelSpacing)",
+                        "number_of_lines": "to_int(imageAnnotation/imageInformation/numberOfLines)",
+                        "product_first_line_utc_time": "imageAnnotation/imageInformation/productFirstLineUtcTime",
+                        "product_last_line_utc_time": "imageAnnotation/imageInformation/productLastLineUtcTime"
+                    },
+                    "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@"
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}",
+                "target_path": "attrs:{{product_name}}:other_metadata",
+                "accessor_id": "xmlmetadata",
+                "accessor_config": {
+                    "mapping": "@#copy{'map':'<SELF[other_metadata_annotations]>'}#@",
+                    "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@"
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/rfi/rfi-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}",
+                "target_path": "attrs:{{product_name}}:other_metadata_rfi",
+                "is_optional": true,
+                "accessor_id": "xmlmetadata",
+                "accessor_config": {
+                    "mapping": "@#copy{'map':'<SELF[other_metadata_annotations_rfi]>'}#@",
+                    "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@"
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url':'<URL>', 'pattern':'measurement/.*\\.tiff', 'json_data_in': '<VALUE>'}#@": {
+                "source_path": "{{product_path}}",
+                "target_path": "{{product_name}}/measurements/slc",
+                "accessor_id": "multi_source_raster",
+                "is_optional": true,
+                "accessor_config": {
+                    "source_order": "@#copy{'map':'<SELF[xml_mapping/source_order]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "measurement data set for SLC sub-swath",
+                        "dtype": "<c8",
+                        "dimensions": "azimuth_time slant_range_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "slant_range_time"
+                    ],
+                    "rechunk": "@#copy{'map':'<SELF[chunk_sizes]>'}#@"
+                }
+            }
+        },
+        {
+            "source_path": "annotation/s1*001.xml:dopplerCentroid/dcEstimateList/dcEstimate#azimuthTime",
+            "target_path": "coords:doppler_centroid:azimuth_time",
+            "accessor_id": "xmlsinglefile",
+            "accessor_config": {
+                "target_type": "@#copy{'map':'<SELF[xml_mapping/types/datetime]>'}#@"
+            },
+            "transform": {
+                "attributes": {
+                    "long_name": "zero doppler azimuth time of terrain height measurement",
+                    "dtype": "<M8[ns]",
+                    "dimensions": "azimuth_time"
+                },
+                "dimensions": [
+                    "azimuth_time"
+                ]
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:dopplerCentroid/dcEstimateList/dcEstimate#dataDcPolynomial",
+                "target_path": "{{product_name}}/conditions/doppler_centroid/data_dc_polynomial",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "doppler_centroid",
+                "transform": {
+                    "attributes": {
+                        "long_name": "doppler centroid estimated from data, expressed as polynomial with 5 coefficients: doppler centroid = d0 + d1(tsr-t0) + d2(tsr-t0)^2 + d3(tsr-t0)^3 + d4(tsr-t0)^4, where tsr = 2-way slant range time",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time degree"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "degree"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:dopplerCentroid/dcEstimateList/dcEstimate#dataDcRmsError",
+                "target_path": "{{product_name}}/conditions/doppler_centroid/data_dc_rms_error",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "doppler_centroid",
+                "transform": {
+                    "attributes": {
+                        "long_name": "RMS error of the doppler centroid estimate (calculated as the average of the individual RMS residual errors between input fine doppler centroid estimates and the fitted polynomial; if the doppler centroid was not estimated from data, this is set to 0)",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:dopplerCentroid/dcEstimateList/dcEstimate#dataDcRmsErrorAboveThreshold",
+                "target_path": "{{product_name}}/conditions/doppler_centroid/data_dc_rms_error_above_threshold",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/bool]>'}#@"
+                },
+                "coords_namespace": "doppler_centroid",
+                "transform": {
+                    "attributes": {
+                        "long_name": "false if the RMS error is less than the acceptable threshold for the doppler centroid estimated from the data; true if the RMS error is more than or equal to the acceptable threshold",
+                        "dtype": "<b1",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:dopplerCentroid/dcEstimateList/dcEstimate#fineDceAzimuthStartTime",
+                "target_path": "{{product_name}}/conditions/doppler_centroid/fine_dce_azimuth_start_time",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/bool]>'}#@"
+                },
+                "coords_namespace": "doppler_centroid",
+                "transform": {
+                    "attributes": {
+                        "long_name": "First zero Doppler azimuth time of the block of signal data used for the fine DC estimates [UTC]",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:dopplerCentroid/dcEstimateList/dcEstimate#fineDceAzimuthStopTime",
+                "target_path": "{{product_name}}/conditions/doppler_centroid/fine_dce_azimuth_stop_time",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/bool]>'}#@"
+                },
+                "coords_namespace": "doppler_centroid",
+                "transform": {
+                    "attributes": {
+                        "long_name": "Last zero Doppler azimuth time of the block of signal data used for the fine DC estimates [UTC]",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:dopplerCentroid/dcEstimateList/dcEstimate#geometryDcPolynomial",
+                "target_path": "{{product_name}}/conditions/doppler_centroid/geometry_dc_polynomial",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "doppler_centroid",
+                "transform": {
+                    "attributes": {
+                        "long_name": "doppler centroid estimated from orbit, expressed as polynomial with 5 coefficients: doppler centroid = d0 + d1(tsr-t0) + d2(tsr-t0)^2 + d3(tsr-t0)^3 + d4(tsr-t0)^4, where tsr = 2-way slant range time",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time degree"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "degree"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:dopplerCentroid/dcEstimateList/dcEstimate#t0",
+                "target_path": "{{product_name}}/conditions/doppler_centroid/t0",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "doppler_centroid",
+                "transform": {
+                    "attributes": {
+                        "long_name": "two-way slant range time origin for doppler centroid estimate",
+                        "units": "s",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:geolocationGrid/geolocationGridPointList/geolocationGridPoint#line",
+                "target_path": "coords:gcp_{{product_name}}:line",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "reference image measurement data set line to which this geolocation grid point applies",
+                        "dtype": "<u4",
+                        "dimensions": "grid_point"
+                    },
+                    "dimensions": [
+                        "grid_point"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:geolocationGrid/geolocationGridPointList/geolocationGridPoint#pixel",
+                "target_path": "coords:gcp_{{product_name}}:pixel",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "reference image measurement data set sample to which this geolocation grid point applies",
+                        "dtype": "<u4",
+                        "dimensions": "grid_point"
+                    },
+                    "dimensions": [
+                        "grid_point"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:geolocationGrid/geolocationGridPointList/geolocationGridPoint#azimuthTime",
+                "target_path": "{{product_name}}/conditions/gcp/azimuth_time_gcp",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/datetime]>'}#@"
+                },
+                "coords_namespace": "gcp_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "zero doppler azimuth time to which grid point applies",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "grid_point"
+                    },
+                    "dimensions": [
+                        "grid_point"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:geolocationGrid/geolocationGridPointList/geolocationGridPoint#slantRangeTime",
+                "target_path": "{{product_name}}/conditions/gcp/slant_range_time_gcp",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "gcp_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "two-way slant range time to grid point",
+                        "units": "s",
+                        "dtype": "<f8",
+                        "dimensions": "grid_point"
+                    },
+                    "dimensions": [
+                        "grid_point"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:geolocationGrid/geolocationGridPointList/geolocationGridPoint#elevationAngle",
+                "target_path": "{{product_name}}/conditions/gcp/elevation_angle",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "gcp_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "elevation angle to grid point",
+                        "units": "degrees",
+                        "dtype": "<f8",
+                        "dimensions": "grid_point"
+                    },
+                    "dimensions": [
+                        "grid_point"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:geolocationGrid/geolocationGridPointList/geolocationGridPoint#height",
+                "target_path": "{{product_name}}/conditions/gcp/height",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "gcp_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "height of the grid point above ellipsoid",
+                        "units": "m",
+                        "dtype": "<f8",
+                        "dimensions": "grid_point"
+                    },
+                    "dimensions": [
+                        "grid_point"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:geolocationGrid/geolocationGridPointList/geolocationGridPoint#incidenceAngle",
+                "target_path": "{{product_name}}/conditions/gcp/incidence_angle",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "gcp_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "incidence angle to grid point",
+                        "units": "degrees",
+                        "dtype": "<f8",
+                        "dimensions": "grid_point"
+                    },
+                    "dimensions": [
+                        "grid_point"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:geolocationGrid/geolocationGridPointList/geolocationGridPoint#latitude",
+                "target_path": "{{product_name}}/conditions/gcp/latitude",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "gcp_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "geodetic latitude of grid point",
+                        "units": "degrees",
+                        "dtype": "<f8",
+                        "dimensions": "grid_point"
+                    },
+                    "dimensions": [
+                        "grid_point"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:geolocationGrid/geolocationGridPointList/geolocationGridPoint#longitude",
+                "target_path": "{{product_name}}/conditions/gcp/longitude",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "gcp_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "geodetic longitude of grid point",
+                        "units": "degrees",
+                        "dtype": "<f8",
+                        "dimensions": "grid_point"
+                    },
+                    "dimensions": [
+                        "grid_point"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#time",
+                "target_path": "coords:attitude_{{acquisition_mode}}:azimuth_time",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/datetime]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "time stamp at which orbit state vectors apply",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#pitch",
+                "target_path": "{{product_name}}/conditions/attitude/pitch",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "attitude_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "platform pitch angle calculated from ancillary attitude data",
+                        "units": "degrees",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#q0",
+                "target_path": "{{product_name}}/conditions/attitude/q0",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "attitude_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "q0 attitude quaternion as extracted from ancillary attitude data",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#q1",
+                "target_path": "{{product_name}}/conditions/attitude/q1",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "attitude_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "q1 attitude quaternion as extracted from ancillary attitude data",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#q2",
+                "target_path": "{{product_name}}/conditions/attitude/q2",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "attitude_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "q2 attitude quaternion as extracted from ancillary attitude data",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#q3",
+                "target_path": "{{product_name}}/conditions/attitude/q3",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "attitude_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "q3 attitude quaternion as extracted from ancillary attitude data",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#roll",
+                "target_path": "{{product_name}}/conditions/attitude/roll",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "attitude_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "platform roll angle calculated from ancillary attitude data",
+                        "units": "degrees",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#wx",
+                "target_path": "{{product_name}}/conditions/attitude/wx",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "attitude_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "x component of angular velocity vector as extracted from ancillary attitude data",
+                        "units": "degrees/s",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#wy",
+                "target_path": "{{product_name}}/conditions/attitude/wy",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "attitude_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "y component of angular velocity vector as extracted from ancillary attitude data",
+                        "units": "degrees/s",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#wz",
+                "target_path": "{{product_name}}/conditions/attitude/wz",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "attitude_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "z component of angular velocity vector as extracted from ancillary attitude data",
+                        "units": "degrees/s",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/attitudeList/attitude#yaw",
+                "target_path": "{{product_name}}/conditions/attitude/yaw",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "attitude_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "platform yaw angle calculated from ancillary attitude data",
+                        "units": "degrees",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/orbitList/orbit#time",
+                "target_path": "coords:orbit_{{product_name}}:azimuth_time",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/datetime]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "time stamp at which orbit state vectors apply",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/orbitList/orbit#position/*",
+                "target_path": "{{product_name}}/conditions/orbit/position",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/double]>'}#@"
+                },
+                "coords_namespace": "orbit_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "position vector",
+                        "units": "m",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time axis"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "axis"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/orbitList/orbit#velocity/*",
+                "target_path": "{{product_name}}/conditions/orbit/velocity",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/double]>'}#@"
+                },
+                "coords_namespace": "orbit_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "velocity vector",
+                        "units": "m/s",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time axis"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "axis"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:antennaPattern/antennaPatternList/antennaPattern#azimuthTime",
+                "target_path": "coords:antenna_pattern_{{product_name}}:azimuth_time",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/datetime]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "zero doppler azimuth time of antenna pattern measurement",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:antennaPattern/antennaPatternList/antennaPattern#swath",
+                "target_path": "{{product_name}}/conditions/antenna_pattern/swath",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/string]>'}#@"
+                },
+                "coords_namespace": "antenna_pattern_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "Swath",
+                        "dtype": "U3",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:antennaPattern/antennaPatternList/antennaPattern#slantRangeTime",
+                "target_path": "{{product_name}}/conditions/antenna_pattern/slant_range_time_ap",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "antenna_pattern_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "two-way slant range time to sample",
+                        "dtype": "<f8",
+                        "units": "s",
+                        "dimensions": "azimuth_time count"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "count"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:antennaPattern/antennaPatternList/antennaPattern#elevationAngle",
+                "target_path": "{{product_name}}/conditions/antenna_pattern/elevation_angle",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "antenna_pattern_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "elevation angle to grid point",
+                        "units": "degrees",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time count"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "count"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:antennaPattern/antennaPatternList/antennaPattern#incidenceAngle",
+                "target_path": "{{product_name}}/conditions/antenna_pattern/incidence_angle",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "antenna_pattern_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "incidence angle to grid point",
+                        "units": "degrees",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time count"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "count"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:antennaPattern/antennaPatternList/antennaPattern#roll",
+                "target_path": "{{product_name}}/conditions/antenna_pattern/roll",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "antenna_pattern_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "estimated roll angle for this antenna pattern",
+                        "units": "degrees",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:antennaPattern/antennaPatternList/antennaPattern#terrainHeight",
+                "target_path": "{{product_name}}/conditions/antenna_pattern/terrain_height",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "antenna_pattern_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "mean terrain height in range for this antenna pattern (in metres above the ellipsoid) for the given zero-doppler azimuth time",
+                        "units": "m",
+                        "dtype": "<f8",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/terrainHeightList/terrainHeight#azimuthTime",
+                "target_path": "coords:terrain_height_{{acquisition_mode}}:azimuth_time",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/datetime]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "zero doppler azimuth time of terrain height measurement",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:generalAnnotation/noiseList/noise#azimuthTime",
+                "target_path": "coords:noise_{{product_name}}_{{acquisition_mode}}:azimuth_time",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/datetime]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "zero doppler azimuth time at which noise vector applies",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseVectorList/noiseVector#azimuthTime",
+                "target_path": "coords:noise_range_{{product_name}}:azimuth_time",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/datetime]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "zero doppler azimuth time at which noise vector applies",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseRangeVectorList/noiseRangeVector#azimuthTime",
+                "target_path": "coords:noise_range_{{product_name}}:azimuth_time",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/datetime]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "zero doppler azimuth time at which noise vector applies",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseVectorList/noiseVector#pixel",
+                "target_path": "coords:noise_range_{{product_name}}:pixel",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "image pixel at which the noise vector applies (this array contains the count attribute number of integer values (i.e. one value per point in the noise vector); the maximum length of this array is one value for every pixel in an image line, however in general the vector is subsampled",
+                        "dtype": "<u4",
+                        "dimensions": "azimuth_time slant_range_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "slant_range_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseRangeVectorList/noiseRangeVector#pixel",
+                "target_path": "coords:noise_range_{{product_name}}:pixel",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "image pixel at which the noise vector applies (this array contains the count attribute number of integer values (i.e. one value per point in the noise vector); the maximum length of this array is one value for every pixel in an image line, however in general the vector is subsampled",
+                        "dtype": "<u4",
+                        "dimensions": "azimuth_time slant_range_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "slant_range_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseVectorList/noiseVector#noiseRangeLut",
+                "target_path": "{{product_name}}/quality/noise_range/noise_range_lut",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "noise_range_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "range thermal noise correction vector power values (this array contains the count attribute number of floating point values)",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time slant_range_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "slant_range_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseRangeVectorList/noiseRangeVector#noiseRangeLut",
+                "target_path": "{{product_name}}/quality/noise_range/noise_range_lut",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "noise_range_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "range thermal noise correction vector power values (this array contains the count attribute number of floating point values)",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time slant_range_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "slant_range_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseAzimuthVectorList/noiseAzimuthVector#line",
+                "target_path": "coords:noise_azimuth_{{product_name}}:line",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "line",
+                        "dtype": "<i4",
+                        "dimensions": "swath azimuth_time"
+                    },
+                    "dimensions": [
+                        "swath",
+                        "line"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseAzimuthVectorList/noiseAzimuthVector#swath",
+                "target_path": "coords:noise_azimuth_{{product_name}}:swath",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/string]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "Swath",
+                        "dtype": "U3",
+                        "dimensions": "swath"
+                    },
+                    "dimensions": [
+                        "swath"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseAzimuthVectorList/noiseAzimuthVector#noiseAzimuthLut",
+                "target_path": "{{product_name}}/quality/noise_azimuth/noise_azimuth_lut",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "noise_azimuth_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "azimuth thermal noise correction vector power values (this array contains the count attribute number of floating point values)",
+                        "dtype": "<f4",
+                        "dimensions": "swath line"
+                    },
+                    "dimensions": [
+                        "swath",
+                        "line"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseAzimuthVectorList/noiseAzimuthVector#firstAzimuthLine",
+                "target_path": "{{product_name}}/quality/noise_azimuth/first_azimuth_line",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "coords_namespace": "noise_azimuth_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "first azimuth line azimuth thermal noise correction",
+                        "dtype": "<i4",
+                        "dimensions": "swath"
+                    },
+                    "dimensions": [
+                        "swath"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseAzimuthVectorList/noiseAzimuthVector#lastAzimuthLine",
+                "target_path": "{{product_name}}/quality/noise_azimuth/last_azimuth_line",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "coords_namespace": "noise_azimuth_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "last azimuth line azimuth thermal noise correction",
+                        "dtype": "<i4",
+                        "dimensions": "swath"
+                    },
+                    "dimensions": [
+                        "swath"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseAzimuthVectorList/noiseAzimuthVector#firstRangeSample",
+                "target_path": "{{product_name}}/quality/noise_azimuth/first_range_sample",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "coords_namespace": "noise_azimuth_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "first range sample azimuth thermal noise correction",
+                        "dtype": "<i4",
+                        "dimensions": "swath"
+                    },
+                    "dimensions": [
+                        "swath"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/noise-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:noiseAzimuthVectorList/noiseAzimuthVector#lastRangeSample",
+                "target_path": "{{product_name}}/quality/noise_azimuth/last_range_sample",
+                "accessor_id": "xmlsinglefile",
+                "is_optional": true,
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "coords_namespace": "noise_azimuth_{{product_name}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "last range sample azimuth thermal noise correction",
+                        "dtype": "<i4",
+                        "dimensions": "swath"
+                    },
+                    "dimensions": [
+                        "swath"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/calibration-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:calibrationVectorList/calibrationVector#azimuthTime",
+                "target_path": "coords:calibration_{{acquisition_mode}}:azimuth_time",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/datetime]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "zero doppler azimuth time at which calibration vector applies",
+                        "dtype": "<M8[ns]",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/calibration-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:calibrationVectorList/calibrationVector#line",
+                "target_path": "coords:calibration_{{acquisition_mode}}:line",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "transform": {
+                    "attributes": {
+                        "long_name": "image line at which the calibration vector applies",
+                        "dtype": "<u4",
+                        "dimensions": "azimuth_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/calibration-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:calibrationVectorList/calibrationVector[1]#pixel",
+                "target_path": "coords:calibration_{{acquisition_mode}}:pixel",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/int]>'}#@"
+                },
+                "transform": {
+                    "squeeze": {
+                        "axis": [
+                            0
+                        ],
+                        "dimensions": [
+                            "slant_range_time"
+                        ]
+                    },
+                    "attributes": {
+                        "long_name": "image pixel at which the calibration vector applies (this array contains the count attribute number of integer values (i.e. one value per point in the noise vector); the maximum length of this array is one value for every pixel in an image line, however in general the vector is subsampled)",
+                        "dtype": "<u4",
+                        "dimensions": "slant_range_time"
+                    },
+                    "dimensions": [
+                        "slant_range_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/calibration-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:calibrationVectorList/calibrationVector[1]#pixel",
+                "target_path": "coords:calibration_{{acquisition_mode}}:slant_range_time",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "transform": {
+                    "squeeze": {
+                        "axis": [
+                            0
+                        ],
+                        "dimensions": [
+                            "slant_range_time"
+                        ]
+                    },
+                    "scale": {
+                        "basepath": "@#copy{'map':'<URL>'}#@",
+                        "relpath": "@#find{'product_url': '<URL>','pattern':'annotation/s1.*001\\.xml'}#@",
+                        "spacing": "imageInformation/rangePixelSpacing",
+                        "n_lines": "imageInformation/numberOfLines"
+                    },
+                    "attributes": {
+                        "dtype": "<f8",
+                        "dimensions": "slant_range_time"
+                    },
+                    "dimensions": [
+                        "slant_range_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/calibration-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:calibrationVectorList/calibrationVector#dn",
+                "target_path": "{{product_name}}/quality/calibration/dn",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "calibration_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "digital number calibration vector (this array contains the count attribute number of floating point values; the values in this vector are aligned with the pixel vector)",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time slant_range_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "slant_range_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/calibration-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:calibrationVectorList/calibrationVector#gamma",
+                "target_path": "{{product_name}}/quality/calibration/gamma",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "calibration_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "gamma calibration vector (this array contains the count attribute number of floating point values; the values in this vector are aligned with the pixel vector)",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time slant_range_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "slant_range_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/calibration-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:calibrationVectorList/calibrationVector#sigmaNought",
+                "target_path": "{{product_name}}/quality/calibration/sigma_nought",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "calibration_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "sigma nought calibration vector (this array contains the count attribute number of floating point values; the values in this vector are aligned with the pixel vector)",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time slant_range_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "slant_range_time"
+                    ]
+                }
+            }
+        },
+        {
+            "@#find_unroll{'product_url': '<URL>', 'pattern': 'annotation/calibration/calibration-s1.*\\.xml', 'json_data_in':'<VALUE>'}#@": {
+                "source_path": "{{product_path}}:calibrationVectorList/calibrationVector#betaNought",
+                "target_path": "{{product_name}}/quality/calibration/beta_nought",
+                "accessor_id": "xmlsinglefile",
+                "accessor_config": {
+                    "target_type": "@#copy{'map':'<SELF[xml_mapping/types/float]>'}#@"
+                },
+                "coords_namespace": "calibration_{{acquisition_mode}}",
+                "transform": {
+                    "attributes": {
+                        "long_name": "beta nought calibration vector (this array contains the count attribute number of floating point values; the values in this vector are aligned with the pixel vector)",
+                        "dtype": "<f4",
+                        "dimensions": "azimuth_time slant_range_time"
+                    },
+                    "dimensions": [
+                        "azimuth_time",
+                        "slant_range_time"
+                    ]
+                }
+            }
+        }
+    ],
+    "xml_mapping": {
+        "source_order": [
+            "hh",
+            "hv",
+            "vv",
+            "vh"
+        ],
+        "burst_config": {
+            "burst_dimension_index": 1,
+            "lines_per_burst": {
+                "iw1": "../annotation/s1?-iw1-*.xml:swathTiming/linesPerBurst",
+                "iw2": "../annotation/s1?-iw2-*.xml:swathTiming/linesPerBurst",
+                "iw3": "../annotation/s1?-iw3-*.xml:swathTiming/linesPerBurst",
+                "ew1": "../annotation/s1?-ew1-*.xml:swathTiming/linesPerBurst",
+                "ew2": "../annotation/s1?-ew2-*.xml:swathTiming/linesPerBurst",
+                "ew3": "../annotation/s1?-ew3-*.xml:swathTiming/linesPerBurst",
+                "ew4": "../annotation/s1?-ew4-*.xml:swathTiming/linesPerBurst",
+                "ew5": "../annotation/s1?-ew5-*.xml:swathTiming/linesPerBurst"
+            }
+        },
+        "types": {
+            "datetime": {
+                "name": "datetime64[ns]",
+                "default_value": 0
+            },
+            "float": {
+                "name": "float32",
+                "default_value": "NaN"
+            },
+            "double": {
+                "name": "float64",
+                "default_value": "NaN"
+            },
+            "int": {
+                "name": "int32",
+                "default_value": -1
+            },
+            "bool": {
+                "name": "bool",
+                "default_value": false
+            },
+            "complex": {
+                "name": "complex64",
+                "default_value": "NaN"
+            },
+            "string": {
+                "name": "|S128",
+                "default_value": ""
+            },
+            "polarisation_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "HH": 0,
+                    "HV": 1,
+                    "VV": 2,
+                    "VH": 3
+                },
+                "default_value": -1
+            },
+            "swath_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "IW": 0,
+                    "IW1": 1,
+                    "IW2": 2,
+                    "IW3": 3,
+                    "EW": 4,
+                    "EW1": 5,
+                    "EW2": 6,
+                    "EW3": 7,
+                    "EW4": 8,
+                    "EW5": 9,
+                    "WV1": 10,
+                    "WV2": 11,
+                    "S1": 12,
+                    "S2": 13,
+                    "S3": 14,
+                    "S4": 15,
+                    "S5": 16,
+                    "S6": 17
+                },
+                "default_value": -1
+            },
+            "chirp_source_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Nominal": 0,
+                    "Extracted": 1
+                },
+                "default_value": -1
+            },
+            "pg_source_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Extracted": 0,
+                    "Model": 1
+                },
+                "default_value": -1
+            },
+            "rrf_spectrum_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Unextended": 0,
+                    "Extended Flat": 1,
+                    "Extended Tapered": 2
+                },
+                "default_value": -1
+            },
+            "dc_method_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Data Analysis": 0,
+                    "Orbit And Attitude": 1,
+                    "Pre-defined": 2
+                },
+                "default_value": -1
+            },
+            "data_format_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Full 8 Bit": 0,
+                    "Sm": 1,
+                    "FBAQ 2 Bit": 2,
+                    "FBAQ 3 Bit": 3,
+                    "FBAQ 4 Bit": 4,
+                    "FBAQ 5 Bit": 5,
+                    "None": 6,
+                    "FDBAQ": 7,
+                    "BAQ 3 Bit": 8,
+                    "BAQ 4 Bit": 9,
+                    "BAQ 5 Bit": 10,
+                    "Decimation": 11,
+                    "Bypass": 12
+                },
+                "default_value": -1
+            },
+            "aocs_op_mode_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "No Mode": 0,
+                    "Normal Pointing Mode": 1,
+                    "Orbit Control Mode": 2
+                },
+                "default_value": -1
+            },
+            "product_composition_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Individual": 0,
+                    "Slice": 1,
+                    "Assembled": 2
+                },
+                "default_value": -1
+            },
+            "pixel_value_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Complex": 0,
+                    "Detected": 1
+                },
+                "default_value": -1
+            },
+            "output_pixels_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "32 bit Float": 0,
+                    "16 bit Signed Integer": 1,
+                    "16 bit Unsigned Integer": 2,
+                    "8 bit Unsigned Integer": 3
+                },
+                "default_value": -1
+            },
+            "dc_input_data_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Raw": 0,
+                    "Range Compressed": 1
+                },
+                "default_value": -1
+            },
+            "rfi_mitigation_performed_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Never": 0,
+                    "Always": 1,
+                    "BasedOnNoiseMeas": 2
+                },
+                "default_value": -1
+            },
+            "rfi_mitigation_domain_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Time": 0,
+                    "Frequency": 1,
+                    "TimeAndFrequency": 2
+                },
+                "default_value": -1
+            },
+            "tops_filter_convention_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "All Lines": 0,
+                    "Only Echo Lines": 1
+                },
+                "default_value": -1
+            },
+            "orbit_attitude_source_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Downlink": 0,
+                    "Auxiliary": 1
+                },
+                "default_value": -1
+            },
+            "window_type_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Kaiser": 0,
+                    "Hamming": 1,
+                    "None": 2
+                },
+                "default_value": -1
+            },
+            "rfi_mitigation_applied_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "None": 0,
+                    "Time": 1,
+                    "Frequency": 2,
+                    "TimeAndFrequency": 3
+                },
+                "default_value": -1
+            },
+            "reference_frame_enum": {
+                "name": "int32",
+                "enumeration": {
+                    "Undefined": 0,
+                    "Galactic": 1,
+                    "BM1950": 2,
+                    "BM2000": 2,
+                    "HM2000": 3,
+                    "GM2000": 4,
+                    "Mean Of Date": 5,
+                    "True Of Date": 6,
+                    "Pseudo True Of Date": 7,
+                    "Earth Fixed": 8,
+                    "Topocentric": 9,
+                    "Satellite Orbital": 10,
+                    "Satellite Nominal": 11,
+                    "Satellite Attitude": 12,
+                    "Instrument Attitude": 13
+                },
+                "default_value": -1
+            }
+        }
+    },
+    "stac_discovery": {
+        "type": "Text(Feature)",
+        "stac_version": "Text(1.1.0)",
+        "stac_extensions": [
+            "Text(https://stac-extensions.github.io/eopf/v1.2.0/schema.json)",
+            "Text(https://stac-extensions.github.io/product/v0.1.0/schema.json)",
+            "Text(https://stac-extensions.github.io/eo/v1.1.0/schema.json)",
+            "Text(https://stac-extensions.github.io/sat/v1.1.0/schema.json)",
+            "Text(https://stac-extensions.github.io/view/v1.0.0/schema.json)",
+            "Text(https://stac-extensions.github.io/scientific/v1.0.0/schema.json)",
+            "Text(https://stac-extensions.github.io/processing/v1.2.0/schema.json)",
+            "Text(https://stac-extensions.github.io/sar/v1.2.0/schema.json)"
+        ],
+        "id": "metadataSection/metadataObject[@ID='generalProductInformation']/metadataWrap/xmlData/s1sarl1:standAloneProductInformation/s1sarl1:productClassDescription",
+        "geometry": "to_geoJson(metadataSection/metadataObject[@ID='measurementFrameSet']/metadataWrap/xmlData/safe:frameSet/safe:frame/safe:footPrint/gml:coordinates)",
+        "bbox": "to_bbox(metadataSection/metadataObject[@ID='measurementFrameSet']/metadataWrap/xmlData/safe:frameSet/safe:frame/safe:footPrint/gml:coordinates)",
+        "properties": {
+            "datetime": "to_datetime(metadataSection/metadataObject[@ID='acquisitionPeriod']/metadataWrap/xmlData/*[local-name() = 'acquisitionPeriod']/*[contains(local-name(), 'Time')])",
+            "start_datetime": "corrected_Date_ISO8601(metadataSection/metadataObject[@ID='acquisitionPeriod']/metadataWrap/xmlData/safe:acquisitionPeriod/safe:startTime)",
+            "end_datetime": "corrected_Date_ISO8601(metadataSection/metadataObject[@ID='acquisitionPeriod']/metadataWrap/xmlData/safe:acquisitionPeriod/safe:stopTime)",
+            "created": "corrected_Date_ISO8601(metadataSection/metadataObject[@ID='processing']/metadataWrap/xmlData/safe:processing/@stop)",
+            "platform": "to_str_lower(concat(metadataSection/metadataObject[@ID='platform']/metadataWrap/xmlData/safe:platform/safe:familyName, metadataSection/metadataObject[@ID='platform']/metadataWrap/xmlData/safe:platform/safe:number))",
+            "instruments": [
+                "sar"
+            ],
+            "provider": [
+                {
+                    "name": "to_providers(metadataSection/metadataObject[@ID='processing']/metadataWrap/xmlData/safe:processing/safe:facility/@name)",
+                    "roles": [
+                        "Text(processor)"
+                    ]
+                },
+                {
+                    "name": "to_providers(metadataSection/metadataObject[@ID='processing']/metadataWrap/xmlData/safe:processing/safe:facility/@organisation)",
+                    "roles": [
+                        "Text(producer)"
+                    ]
+                }
+            ],
+            "constellation": "Text(sentinel-1)",
+            "product:type": "Text(S01SWVSLC)",
+            "product:timeliness_category": "metadataSection/metadataObject[@ID='generalProductInformation']/metadataWrap/xmlData/s1sarl1:standAloneProductInformation/s1sarl1:productTimelinessCategory",
+            "product:timeliness": "to_product_timeliness(metadataSection/metadataObject[@ID='generalProductInformation']/metadataWrap/xmlData/s1sarl1:standAloneProductInformation/s1sarl1:productTimelinessCategory)",
+            "processing:software": "to_processing_software(metadataSection/metadataObject[@ID='processing']/metadataWrap/xmlData/safe:processing/safe:facility/safe:software)",
+            "processing:lineage": "Text(systematic)",
+            "sat:platform_international_designator": "metadataSection/metadataObject[@ID='platform']/metadataWrap/xmlData/safe:platform/safe:nssdcIdentifier",
+            "eopf:datatake_id": "metadataSection/metadataObject[@ID='generalProductInformation']/metadataWrap/xmlData/s1sarl1:standAloneProductInformation/s1sarl1:missionDataTakeID",
+            "eopf:instrument_mode": "metadataSection/metadataObject[@ID='platform']/metadataWrap/xmlData/safe:platform/safe:instrument/safe:extension/s1sarl1:instrumentMode/s1sarl1:mode",
+            "sat:absolute_orbit": "to_int(metadataSection/metadataObject[@ID='measurementOrbitReference']/metadataWrap/xmlData/safe:orbitReference/safe:orbitNumber[@type='start'])",
+            "sat:relative_orbit": "to_int(metadataSection/metadataObject[@ID='measurementOrbitReference']/metadataWrap/xmlData/safe:orbitReference/safe:relativeOrbitNumber[@type='start'])",
+            "sat:orbit_state": "to_sat_orbit_state(metadataSection/metadataObject[@ID='measurementOrbitReference']/metadataWrap/xmlData/safe:orbitReference/safe:extension/s1:orbitProperties/s1:pass)",
+            "view:incidence_angle": "to_float(imageAnnotation/imageInformation/incidenceAngleMidSwath)",
+            "sat:anx_datetime": "metadataSection/metadataObject[@ID='measurementOrbitReference']/metadataWrap/xmlData/safe:orbitReference/safe:extension/s1:orbitProperties/s1:ascendingNodeTime",
+            "sar:instrument_mode": "metadataSection/metadataObject[@ID='platform']/metadataWrap/xmlData/safe:platform/safe:instrument/safe:extension/s1sarl1:instrumentMode/s1sarl1:mode",
+            "sar:frequency_band": "Text(C)",
+            "sar:polarizations": "to_sar_polarizations(metadataSection/metadataObject[@ID='generalProductInformation']/metadataWrap/xmlData/s1sarl1:standAloneProductInformation/s1sarl1:transmitterReceiverPolarisation)",
+            "sar:product_type": "metadataSection/metadataObject[14]/metadataWrap/xmlData/s1sarl1:standAloneProductInformation/s1sarl1:productType",
+            "sar:center_frequency": "to_float(generalAnnotation/productInformation/radarFrequency)",
+            "sar:observation_direction": "",
+            "sar:bean_ids": ""
+        },
+        "links": [
+            {
+                "rel": "Text(self)",
+                "href": "Text(./.zattrs.json)",
+                "type": "Text(application/json)"
+            }
+        ],
+        "assets": {}
+    },
+    "stac_discovery_annotation": {
+        "detectionPerformed": "imageAnnotation/processingInformation/detectionPerformed",
+        "thermalNoiseCorrectionPerformed": "imageAnnotation/processingInformation/thermalNoiseCorrectionPerformed",
+        "properties": {
+            "sar:pixel_spacing_range": "to_float(imageAnnotation/imageInformation/rangePixelSpacing)",
+            "sar:pixel_spacing_azimuth": "to_float(imageAnnotation/imageInformation/azimuthPixelSpacing)",
+            "view:incidence_angle": "to_float(imageAnnotation/imageInformation/incidenceAngleMidSwath)",
+            "sar:center_frequency": "to_float(generalAnnotation/productInformation/radarFrequency)"
+        }
+    },
+    "stac_discovery_annotation_manifest": {
+        "properties": {
+            "datetime": "Text(None)",
+            "start_datetime": "corrected_Date_ISO8601(metadataSection/metadataObject[@ID='acquisitionPeriod']/metadataWrap/xmlData/safe:acquisitionPeriod/safe:startTime)",
+            "end_datetime": "corrected_Date_ISO8601(metadataSection/metadataObject[@ID='acquisitionPeriod']/metadataWrap/xmlData/safe:acquisitionPeriod/safe:stopTime)",
+            "created": "corrected_Date_ISO8601(metadataSection/metadataObject[@ID='processing']/metadataWrap/xmlData/safe:processing/@stop)",
+            "platform": "to_str_lower(concat(metadataSection/metadataObject[@ID='platform']/metadataWrap/xmlData/safe:platform/safe:familyName, metadataSection/metadataObject[@ID='platform']/metadataWrap/xmlData/safe:platform/safe:number))",
+            "instruments": [
+                "sar"
+            ],
+            "constellation": "Text(sentinel-1)",
+            "product:type": "Text(S01SWVSLC)",
+            "product:timeliness_category": "metadataSection/metadataObject[@ID='generalProductInformation']/metadataWrap/xmlData/s1sarl1:standAloneProductInformation/s1sarl1:productTimelinessCategory",
+            "processing:software": "to_processing_software(metadataSection/metadataObject[@ID='processing']/metadataWrap/xmlData/safe:processing/safe:facility/safe:software)",
+            "product:timeliness": "to_product_timeliness(metadataSection/metadataObject[@ID='generalProductInformation']/metadataWrap/xmlData/s1sarl1:standAloneProductInformation/s1sarl1:productTimelinessCategory)",
+            "sat:platform_international_designator": "metadataSection/metadataObject[@ID='platform']/metadataWrap/xmlData/safe:platform/safe:nssdcIdentifier",
+            "sat:absolute_orbit": "to_int(metadataSection/metadataObject[@ID='measurementOrbitReference']/metadataWrap/xmlData/safe:orbitReference/safe:orbitNumber[@type='start'])",
+            "sat:relative_orbit": "to_int(metadataSection/metadataObject[@ID='measurementOrbitReference']/metadataWrap/xmlData/safe:orbitReference/safe:relativeOrbitNumber[@type='start'])",
+            "sat:orbit_state": "to_sat_orbit_state(metadataSection/metadataObject[@ID='measurementOrbitReference']/metadataWrap/xmlData/safe:orbitReference/safe:extension/s1:orbitProperties/s1:pass)",
+            "sat:anx_datetime": "metadataSection/metadataObject[@ID='measurementOrbitReference']/metadataWrap/xmlData/safe:orbitReference/safe:extension/s1:orbitProperties/s1:ascendingNodeTime",
+            "sar:instrument_mode": "metadataSection/metadataObject[@ID='platform']/metadataWrap/xmlData/safe:platform/safe:instrument/safe:extension/s1sarl1:instrumentMode/s1sarl1:mode",
+            "sar:frequency_band": "Text(C)"
+        }
+    },
+    "other_metadata_manifest": {
+        "eopf_category": "Text(eocontainer)",
+        "title": "Text(S01SEWSLC)"
+    },
+    "processing_history": "to_processing_history_s01(metadataSection/metadataObject[@ID='processing']/metadataWrap/xmlData/safe:processing)",
+    "other_metadata_annotations": {
+        "burst_info": {
+            "lines_per_burst": "to_int(swathTiming/linesPerBurst)",
+            "azimuth_time_interval": "to_float(imageAnnotation/imageInformation/azimuthTimeInterval)",
+            "burst_id": "swathTiming/burstList/burst/burstId",
+            "burst_azimuth_time": "swathTiming/burstList/burst/azimuthTime",
+            "first_valid_sample": "swathTiming/burstList/burst/firstValidSample",
+            "last_valid_sample": "swathTiming/burstList/burst/lastValidSample"
+        },
+        "image_number": "to_str(adsHeader/imageNumber)",
+        "polarisation": "to_str(adsHeader/polarisation)",
+        "eopf_category": "Text(eoproduct)",
+        "timeliness_category": "generalAnnotation/productInformation/timelinessCategory",
+        "platform_heading": "generalAnnotation/productInformation/platformHeading",
+        "projection": "generalAnnotation/productInformation/projection",
+        "pulse_repetition_frequency": "to_float(generalAnnotation/downlinkInformationList/downlinkInformation/prf)",
+        "range_sampling_rate": "to_float(generalAnnotation/productInformation/rangeSamplingRate)",
+        "azimuth_steering_rate": "to_float(generalAnnotation/productInformation/azimuthSteeringRate)",
+        "product_quality": {
+            "azimuth_time": "qualityInformation/qualityDataList/qualityData[1]/azimuthTime",
+            "downlink_quality": {
+                "i_input_data_mean": "to_float(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/iInputDataMean)",
+                "q_input_data_mean": "to_float(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/qInputDataMean)",
+                "input_data_mean_outside_nominal_range_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/inputDataMeanOutsideNominalRangeFlag)",
+                "i_input_data_std_dev": "to_float(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/iInputDataStdDev)",
+                "q_input_data_std_dev": "to_float(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/qInputDataStdDev)",
+                "input_data_st_dev_outside_nominal_range_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/inputDataStDevOutsideNominalRangeFlag)",
+                "num_downlink_input_data_gaps": "to_int(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/numDownlinkInputDataGaps)",
+                "downlink_gaps_in_input_data_significant_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/downlinkGapsInInputDataSignificantFlag)",
+                "num_downlink_input_missing_lines": "to_int(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/numDownlinkInputMissingLines)",
+                "downlink_missing_lines_significant_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/downlinkMissingLinesSignificantFlag)",
+                "num_instrument_input_data_gaps": "to_int(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/numInstrumentInputDataGaps)",
+                "instrument_gaps_in_input_data_significant_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/instrumentGapsInInputDataSignificantFlag)",
+                "num_instrument_input_missing_lines": "to_int(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/numInstrumentInputMissingLines)",
+                "instrument_missing_lines_significant_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/instrumentMissingLinesSignificantFlag)",
+                "num_ssb_error_input_data_gaps": "to_int(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/numSsbErrorInputDataGaps)",
+                "ssb_error_gaps_in_input_data_significant_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/ssbErrorGapsInInputDataSignificantFlag)",
+                "num_ssb_error_input_missing_lines": "to_int(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/numSsbErrorInputMissingLines)",
+                "ssb_error_missing_lines_significant_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/ssbErrorMissingLinesSignificantFlag)",
+                "chirp_source_used": "qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/chirpSourceUsed",
+                "pg_source_used": "qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/pgSourceUsed",
+                "rrf_spectrum_used": "qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/rrfSpectrumUsed",
+                "replica_reconstruction_failed_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/replicaReconstructionFailedFlag)",
+                "mean_pg_product_amplitude": "to_float(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/meanPgProductAmplitude)",
+                "std_dev_pg_product_amplitude": "to_float(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/stdDevPgProductAmplitude)",
+                "mean_pg_product_phase": "to_float(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/meanPgProductPhase)",
+                "std_dev_pg_product_phase": "to_float(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/stdDevPgProductPhase)",
+                "pg_product_derivation_failed_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/pgProductDerivationFailedFlag)",
+                "invalid_downlink_params_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/downlinkQuality/invalidDownlinkParamsFlag)"
+            },
+            "raw_data_analysis_quality": {
+                "i_bias": "to_float(qualityInformation/qualityDataList/qualityData[1]/rawDataAnalysisQuality/iBias)",
+                "i_bias_significance_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/rawDataAnalysisQuality/iBiasSignificanceFlag)",
+                "q_bias": "to_float(qualityInformation/qualityDataList/qualityData[1]/rawDataAnalysisQuality/qBias)",
+                "q_bias_significance_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/rawDataAnalysisQuality/qBiasSignificanceFlag)",
+                "iq_gain_imbalance": "to_float(qualityInformation/qualityDataList/qualityData[1]/rawDataAnalysisQuality/iqGainImbalance)",
+                "iq_gain_significance_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/rawDataAnalysisQuality/iqGainSignificanceFlag)",
+                "iq_quadrature_departure": "to_float(qualityInformation/qualityDataList/qualityData[1]/rawDataAnalysisQuality/iqQuadratureDeparture)",
+                "iq_quadrature_departure_significance_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/rawDataAnalysisQuality/iqQuadratureDepartureSignificanceFlag)"
+            },
+            "doppler_centroid_quality": {
+                "dc_method": "qualityInformation/qualityDataList/qualityData[1]/dopplerCentroidQuality/dcMethod",
+                "doppler_centroid_uncertain_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/dopplerCentroidQuality/dopplerCentroidUncertainFlag)"
+            },
+            "image_quality": {
+                "output_data_mean_outside_nominal_range_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/imageQuality/outputDataMeanOutsideNominalRangeFlag)",
+                "output_data_st_dev_outside_nominal_range_flag": "to_bool(qualityInformation/qualityDataList/qualityData[1]/imageQuality/outputDataStDevOutsideNominalRangeFlag)",
+                "output_data_mean": "to_complex(qualityInformation/qualityDataList/qualityData[1]/imageQuality/imageStatistics/outputDataMean)",
+                "output_data_std_dev": "to_complex(qualityInformation/qualityDataList/qualityData[1]/imageQuality/imageStatistics/outputDataStdDev)"
+            }
+        },
+        "downlink_information": {
+            "swath": "to_str(generalAnnotation/downlinkInformationList/downlinkInformation/swath)",
+            "azimuth_time": "to_str(generalAnnotation/downlinkInformationList/downlinkInformation/azimuthTime)",
+            "first_line_sensing_time": "to_str(generalAnnotation/downlinkInformationList/downlinkInformation/firstLineSensingTime)",
+            "last_line_sensing_time": "to_str(generalAnnotation/downlinkInformationList/downlinkInformation/lastLineSensingTime)",
+            "prf": "to_float(generalAnnotation/downlinkInformationList/downlinkInformation/prf)",
+            "num_err_sync_marker": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrSyncMarker)",
+            "num_err_data_take_id": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrDataTakeId)",
+            "num_err_ecc_number": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrEccNumber)",
+            "num_err_test_mode": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrTestMode)",
+            "num_err_rx_channel_id": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrRxChannelId)",
+            "num_err_instrument_config_id": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrInstrumentConfigId)",
+            "num_err_packet_count": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrPacketCount)",
+            "num_err_pri_count": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrPriCount)",
+            "num_err_ssb_error_flag": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrSsbErrorFlag)",
+            "num_err_baq_mode": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrBaqMode)",
+            "num_err_baq_block_length": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrBaqBlockLength)",
+            "num_err_range_decimation": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrRangeDecimation)",
+            "num_err_rx_gain": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrRxGain)",
+            "num_err_tx_ramp_rate": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrTxRampRate)",
+            "num_err_tx_pulse_start_frequency": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrTxPulseStartFrequency)",
+            "num_err_rank": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrRank)",
+            "num_err_pri": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrPri)",
+            "num_err_swst": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrSwst)",
+            "num_err_swl": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrSwl)",
+            "num_err_polarisation": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrPolarisation)",
+            "num_err_temp_comp": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrTempComp)",
+            "num_err_elevation_beam_address": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrElevationBeamAddress)",
+            "num_err_azimuth_beam_address": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrAzimuthBeamAddress)",
+            "num_err_sas_test_mode": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrSasTestMode)",
+            "num_err_cal_type": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrCalType)",
+            "num_err_calibration_beam_address": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrCalibrationBeamAddress)",
+            "num_err_cal_mode": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrCalMode)",
+            "num_err_tx_pulse_number": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrTxPulseNumber)",
+            "num_err_signal_type": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrSignalType)",
+            "num_err_swap_flag": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrSwapFlag)",
+            "num_err_swath_number": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrSwathNumber)",
+            "num_err_number_of_quads": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numErrNumberOfQuads)",
+            "num_isp_header_errors": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/bitErrorCount/numIspHeaderErrors)",
+            "pri": "to_float(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/pri)",
+            "rank": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/rank)",
+            "ecc_number": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/eccNumber)",
+            "rx_channel_id": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/rxChannelId)",
+            "instrument_config_id": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/instrumentConfigId)",
+            "rx_gain": "to_float(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/rxGain)",
+            "tx_pulse_length": "to_float(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/txPulseLength)",
+            "tx_pulse_start_frequency": "to_float(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/txPulseStartFrequency)",
+            "tx_pulse_ramp_rate": "to_float(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/txPulseRampRate)",
+            "swath_number": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/swathNumber)",
+            "swst_azimuth_time": "generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/swstList/swst/azimuthTime",
+            "swst_value": "generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/swstList/swst/value",
+            "swl_azimuth_time": "generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/swlList/swl/azimuthTime",
+            "swl_value": "generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/swlList/swl/value",
+            "baq_block_length": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/dataFormat/baqBlockLength)",
+            "echo_format": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/dataFormat/echoFormat)",
+            "noise_format": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/dataFormat/noiseFormat)",
+            "calibration_format": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/dataFormat/calibrationFormat)",
+            "mean_bit_rate": "to_float(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/dataFormat/meanBitRate)",
+            "decimation_filter_bandwidth": "to_float(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/rangeDecimation/decimationFilterBandwidth)",
+            "sampling_frequency_after_decimation": "to_float(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/rangeDecimation/samplingFrequencyAfterDecimation)",
+            "filter_length": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/rangeDecimation/filterLength)",
+            "pointing_status": {
+                "azimuth_time": "to_str(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/pointingStatusList/pointingStatus/azimuthTime)",
+                "aocs_op_mode": "to_int(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/pointingStatusList/pointingStatus/aocsOpMode)",
+                "roll_error_flag": "to_b1(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/pointingStatusList/pointingStatus/rollErrorFlag)",
+                "pitch_error_flag": "to_b1(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/pointingStatusList/pointingStatus/pitchErrorFlag)",
+                "yaw_error_flag": "to_b1(generalAnnotation/downlinkInformationList/downlinkInformation/downlinkValues/pointingStatusList/pointingStatus/yawErrorFla)g"
+            }
+        },
+        "raw_data_analysis": {
+            "azimuth_time": "to_str(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/azimuthTime)",
+            "i_bias": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/iBias)",
+            "q_bias": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/qBias)",
+            "iq_quadrature_departure": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/iqQuadratureDeparture)",
+            "iq_gain_imbalance": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/iqGainImbalance)",
+            "i_bias_upper_bound": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/iBiasUpperBound)",
+            "i_bias_lower_bound": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/iBiasLowerBound)",
+            "q_bias_upper_bound": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/qBiasUpperBound)",
+            "q_bias_lower_bound": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/qBiasLowerBound)",
+            "iq_gain_upper_bound": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/iqGainUpperBound)",
+            "iq_gain_lower_bound": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/iqGainLowerBound)",
+            "iq_quadrature_departure_upper_bound": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/iqQuadratureDepartureUpperBound)",
+            "iq_quadrature_departure_lower_bound": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/iqQuadratureDepartureLowerBound)",
+            "i_bias_used_for_correction": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/iBiasUsedForCorrection)",
+            "q_bias_used_for_correction": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/qBiasUsedForCorrection)",
+            "iq_gain_imbalance_used_for_correction": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/iqGainImbalanceUsedForCorrection)",
+            "iq_quadrature_departure_used_for_correction": "to_float(generalAnnotation/rawDataAnalysisList/rawDataAnalysis/support/iqQuadratureDepartureUsedForCorrection)"
+        },
+        "processing_information": {
+            "swath": "to_int(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/swath)",
+            "processor_scaling_factor": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/processorScalingFactor)",
+            "range_processing": {
+                "window_type": "imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/rangeProcessing/windowType",
+                "window_coefficient": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/rangeProcessing/windowCoefficient)",
+                "total_bandwidth": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/rangeProcessing/totalBandwidth)",
+                "processing_bandwidth": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/rangeProcessing/processingBandwidth)",
+                "look_bandwidth": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/rangeProcessing/lookBandwidth)",
+                "number_of_looks": "to_int(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/rangeProcessing/numberOfLooks)",
+                "look_overlap": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/rangeProcessing/lookOverlap)"
+            },
+            "azimuth_processing": {
+                "window_type": "imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/azimuthProcessing/windowType",
+                "window_coefficient": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/azimuthProcessing/windowCoefficient)",
+                "total_bandwidth": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/azimuthProcessing/totalBandwidth)",
+                "processing_bandwidth": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/azimuthProcessing/processingBandwidth)",
+                "look_bandwidth": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/azimuthProcessing/lookBandwidth)",
+                "number_of_looks": "to_int(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/azimuthProcessing/numberOfLooks)",
+                "look_overlap": "to_float(imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/azimuthProcessing/lookOverlap)"
+            },
+            "input_dimensions": {
+                "azimuth_time": "to_str(imageAnnotation/processingInformation/inputDimensionsList/inputDimensions/azimuthTime)",
+                "input_swath": "to_int(imageAnnotation/processingInformation/inputDimensionsList/inputDimensions/swath)",
+                "number_of_input_samples": "to_int(imageAnnotation/processingInformation/inputDimensionsList/inputDimensions/numberOfInputSamples)",
+                "number_of_input_lines": "to_int(imageAnnotation/processingInformation/inputDimensionsList/inputDimensions/numberOfInputLines)"
+            }
+        },
+        "image_information": {
+            "slice_number": "to_int(imageAnnotation/imageInformation/sliceNumber)",
+            "slices": "imageAnnotation/imageInformation/sliceList/slice/sliceNumber",
+            "slice_sensing_start_time": "imageAnnotation/imageInformation/sliceList/slice/sensingStartTime",
+            "slice_sensing_stop_time": "imageAnnotation/imageInformation/sliceList/slice/sensingStopTime"
+        },
+        "swath_merging": {
+            "swath_id": "to_int(swathMerging/swathMergeList/swathMerge/swath)",
+            "swath_bounds_azimuth_time": "to_str(swathMerging/swathMergeList/swathMerge/swathBoundsList/swathBounds/azimuthTime)",
+            "swath_bounds_first_azimuth_line": "to_int(swathMerging/swathMergeList/swathMerge/swathBoundsList/swathBounds/firstAzimuthLine)",
+            "swath_bounds_first_range_sample": "to_int(swathMerging/swathMergeList/swathMerge/swathBoundsList/swathBounds/firstRangeSample)",
+            "swath_bounds_last_azimuth_line": "to_int(swathMerging/swathMergeList/swathMerge/swathBoundsList/swathBounds/lastAzimuthLine)",
+            "swath_bounds_last_range_sample": "to_int(swathMerging/swathMergeList/swathMerge/swathBoundsList/swathBounds/lastRangeSampl)e"
+        },
+        "reference_replica": {
+            "azimuth_time": "to_str(generalAnnotation/replicaInformationList/replicaInformation/referenceReplica/azimuthTime)",
+            "chirp_source": "to_str(generalAnnotation/replicaInformationList/replicaInformation/referenceReplica/chirpSource)",
+            "gain": "to_complex(generalAnnotation/replicaInformationList/replicaInformation/referenceReplica/gain)",
+            "pg_source": "to_str(generalAnnotation/replicaInformationList/replicaInformation/referenceReplica/pgSource)",
+            "time_delay": "to_float(generalAnnotation/replicaInformationList/replicaInformation/referenceReplica/timeDelay)"
+        }
+    },
+    "other_metadata_annotations_rfi": {
+        "radio_frequency_interference": {
+            "rfi_detection_from_noise_report": {
+                "noise_sensing_time": "to_list_str(rfiDetectionFromNoiseReportList/rfiDetectionFromNoiseReport/noiseSensingTime)",
+                "rfi_detected": "to_list_str(rfiDetectionFromNoiseReportList/rfiDetectionFromNoiseReport/rfiDetected)",
+                "max_kl_divergence": "to_list_float(rfiDetectionFromNoiseReportList/rfiDetectionFromNoiseReport/maxKLDivergence)",
+                "max_fisher_z": "to_list_float(rfiDetectionFromNoiseReportList/rfiDetectionFromNoiseReport/maxFisherZ)",
+                "max_rfi_psd": "to_list_float(rfiDetectionFromNoiseReportList/rfiDetectionFromNoiseReport/maxRfiPsd)"
+            },
+            "rfi_burst_report": {
+                "azimuth_time": "to_list_str(rfiBurstReportList/rfiBurstReport/azimuthTime)",
+                "in_band_out_band_power_ratio": "to_list_float(rfiBurstReportList/rfiBurstReport/inBandOutBandPowerRatio)",
+                "time_domain": {
+                    "percentage_affected_lines": "to_list_float(rfiBurstReportList/rfiBurstReport/timeDomainRfiReport/percentageAffectedLines)",
+                    "avg_percentage_affected_samples": "to_list_float(rfiBurstReportList/rfiBurstReport/timeDomainRfiReport/avgPercentageAffectedSamples)",
+                    "max_percentage_affected_samples": "to_list_float(rfiBurstReportList/rfiBurstReport/timeDomainRfiReport/maxPercentageAffectedSamples)"
+                },
+                "frequency_domain": {
+                    "num_sub_blocks": "to_list_int(rfiBurstReportList/rfiBurstReport/frequencyDomainRfiBurstReport/numSubBlocks)",
+                    "sub_block_size": "to_list_int(rfiBurstReportList/rfiBurstReport/frequencyDomainRfiBurstReport/subBlockSize)",
+                    "percentage_blocks_persistent_rfi": "to_list_float(rfiBurstReportList/rfiBurstReport/frequencyDomainRfiBurstReport/percentageBlocksPersistentRfi)",
+                    "max_percentage_bw_affected_persistent_rfi": "to_list_float(rfiBurstReportList/rfiBurstReport/frequencyDomainRfiBurstReport/maxPercentageBWAffectedPersistentRfi)",
+                    "percentage_affected_lines": "to_list_float(rfiBurstReportList/rfiBurstReport/frequencyDomainRfiBurstReport/isolatedRfiReport/percentageAffectedLines)",
+                    "max_percentage_affected_bw": "to_list_float(rfiBurstReportList/rfiBurstReport/frequencyDomainRfiBurstReport/isolatedRfiReport/maxPercentageAffectedBW)"
+                }
+            }
+        }
+    },
+    "namespaces": {
+        "xfdu": "urn:ccsds:schema:xfdu:1",
+        "gml": "http://www.opengis.net/gml",
+        "safe": "http://www.esa.int/safe/sentinel-1.0",
+        "s1": "http://www.esa.int/safe/sentinel-1.0/sentinel-1",
+        "s1sar": "http://www.esa.int/safe/sentinel-1.0/sentinel-1/sar",
+        "s1sarl1": "http://www.esa.int/safe/sentinel-1.0/sentinel-1/sar/level-1",
+        "s1sarl2": "http://www.esa.int/safe/sentinel-1.0/sentinel-1/sar/level-2",
+        "gx": "http://www.google.com/kml/ext/2.2",
+        "xsi": "http://www.w3.org/2001/XMLSchema-instance"
+    },
+    "manifest_template_path": {
+        "template_folder": "$EOPF_ROOT/store/templates",
+        "template_name": "S01_SLC_manifest.safe"
+    }
+}

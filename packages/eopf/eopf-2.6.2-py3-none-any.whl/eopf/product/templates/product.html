@@ -1,0 +1,50 @@
+{% extends "obj_repr.html" %}
+
+{% set obj = product %}
+{% set obj_type = "eoproduct" %}
+{% set flag_for_svg = prettier %}
+
+{% block icon %}
+    {% if flag_for_svg %}
+        {% if class_name == "measurements" %}
+            {% include "static/images/icons-svg-measurement.svg" %}
+        {% elif class_name == "info" %}
+            {% include "static/images/icons-svg-info.svg" %}
+        {% elif class_name == "quality" %}
+            {% include "static/images/icons-svg-quality.svg" %}
+        {% elif class_name == "attrs" %}
+            {% include "static/images/icons-svg-attributes.svg" %}
+        {% else %}
+            {% include "static/images/icons-svg-root.svg" %}
+        {% endif %}
+    {% else %}
+        <span>[P]</span>
+    {% endif %}
+{% endblock %}
+
+{% block sections %}
+    {% if product.attrs %}
+        <li class="eopf-section-item">
+            <input type="checkbox" class="eopf-section-summary-in" id="{{ obj|string }}_{{ unique_id }}_attrs" hidden>
+            <label for="{{ obj|string }}_{{ unique_id }}_attrs" class="eopf-section-summary eopf-header" >
+                {% if flag_for_svg %}
+                    {% include "static/images/icons-svg-attributes.svg" %}
+                {% endif %}
+                Attributes
+            </label>
+            <div class='eopf-section-details'>
+                <dl class='eopf-attrs'>
+                    <dd>{{obj.attrs|human_readable_attrs}}</dd>
+                </dl>
+            </div>
+        </li>
+    {% endif %}
+
+    {% for group_name, group in product.groups %}
+            <li class="eopf-section-item">
+                {% with group=group, class_name=group_name, flag_for_svg=flag_for_svg %}
+                    {% include "group.html" %}
+                {% endwith %}
+            </li>
+    {% endfor %}
+{% endblock %}
