@@ -1,0 +1,382 @@
+# fabric_ceph_client.py
+"""
+Ceph Manager Client (Python)
+----------------------------
+
+Minimal, friendly wrapper for the FABRIC Ceph Manager service.
+
+Changes (per-cluster API):
+- All CephFS and Cluster User calls now require a `cluster` argument and hit
+  paths like `/{cluster}/cephfs/...` and `/{cluster}/cluster/user...`.
+- The legacy X-Cluster header is no longer used.
+
+Auth:
+- Token via `token` or `token_file` (JSON: reads `id_token` by default).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Union, Tuple
+from pathlib import Path
+import json
+import os
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+
+# --------------------- Exceptions ---------------------
+
+class ApiError(RuntimeError):
+    def __init__(self, status: int, url: str, message: str = "", payload: Any = None):
+        super().__init__(f"[{status}] {url} :: {message or payload}")
+        self.status = status
+        self.url = url
+        self.message = message
+        self.payload = payload
+
+
+# --------------------- Client ---------------------
+
+@dataclass
+class CephManagerClient:
+    base_url: str
+
+    # Auth options (choose one):
+    token: Optional[str] = None
+    token_file: Optional[Union[str, Path]] = None
+    token_key: str = "id_token"  # JSON field to extract when reading token_file
+
+    timeout: int = 60
+    verify: bool = True
+    accept: str = "application/json, text/plain"
+
+    # Deprecated (kept only to avoid breaking ctor signatures)
+    default_x_cluster: Optional[str] = None  # DEPRECATED: path now carries cluster
+
+    # internal
+    _session: requests.Session = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        self.base_url = self.base_url.rstrip("/")
+
+        # env fallbacks
+        if not self.token and not self.token_file:
+            env_token = os.getenv("FABRIC_CEPH_TOKEN")
+            env_token_file = os.getenv("FABRIC_CEPH_TOKEN_FILE")
+            if env_token:
+                self.token = env_token
+            elif env_token_file:
+                self.token_file = env_token_file
+
+        if self.token_file and not self.token:
+            self.refresh_token_from_file()
+
+        self._session = requests.Session()
+        retry = Retry(
+            total=3,
+            backoff_factor=0.3,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset({"GET", "PUT", "DELETE", "POST"}),
+            raise_on_status=False,
+        )
+        self._session.mount("http://", HTTPAdapter(max_retries=retry))
+        self._session.mount("https://", HTTPAdapter(max_retries=retry))
+
+    # ----- auth helpers -----
+
+    def refresh_token_from_file(self) -> None:
+        if not self.token_file:
+            raise ValueError("token_file is not set")
+
+        path = Path(self.token_file).expanduser()
+        if not path.exists():
+            raise FileNotFoundError(f"Token file not found: {path}")
+
+        raw = path.read_text(encoding="utf-8").strip()
+        try:
+            obj = json.loads(raw)
+            token = (
+                obj.get(self.token_key)
+                or obj.get("access_token")
+                or obj.get("token")
+            )
+            if not token:
+                raise KeyError(
+                    f"Token file JSON does not contain '{self.token_key}', 'access_token', or 'token'."
+                )
+            self.token = str(token).strip()
+        except json.JSONDecodeError:
+            self.token = raw
+
+        if not self.token:
+            raise ValueError("Token could not be loaded from token_file")
+
+    # ----- internals -----
+
+    def _headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        h = {"Accept": self.accept}
+        if self.token:
+            h["Authorization"] = f"Bearer {self.token}"
+        if extra:
+            h.update(extra)
+        return h
+
+    @staticmethod
+    def _is_json(resp: requests.Response) -> bool:
+        ct = (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        return ct.endswith("/json") or ct.endswith("+json")
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        json: Optional[Any] = None,
+        data: Optional[Union[str, bytes]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Any:
+        url = f"{self.base_url}{path if path.startswith('/') else '/' + path}"
+
+        def _do():
+            return self._session.request(
+                method=method.upper(),
+                url=url,
+                params=params,
+                json=json,
+                data=data,
+                headers=self._headers(headers),
+                timeout=self.timeout,
+                verify=self.verify,
+            )
+
+        resp = _do()
+
+        # Optional: refresh token on 401 once if token_file is present
+        if resp.status_code == 401 and self.token_file:
+            try:
+                self.refresh_token_from_file()
+                resp = _do()
+            except Exception:
+                pass
+
+        if resp.status_code >= 400:
+            payload: Any
+            message = ""
+            if self._is_json(resp):
+                try:
+                    payload = resp.json()
+                    message = (
+                        payload.get("message")
+                        or (payload.get("errors", [{}])[0].get("message")
+                            if isinstance(payload.get("errors"), list) and payload["errors"] else "")
+                        or payload.get("detail")
+                        or ""
+                    )
+                except Exception:
+                    payload = resp.text
+            else:
+                payload = resp.text
+            raise ApiError(resp.status_code, url, message=message, payload=payload)
+
+        return resp.json() if self._is_json(resp) else resp.text
+
+    @staticmethod
+    def _cluster_path(cluster: str, tail: str) -> str:
+        if not cluster or not cluster.strip():
+            raise ValueError("cluster must be a non-empty string")
+        tail = tail if tail.startswith("/") else "/" + tail
+        return f"/{cluster}{tail}"
+
+    # --------------------- Cluster info (global) ---------------------
+
+    def list_cluster_info(self) -> Dict[str, Any]:
+        """GET /cluster/info (no per-cluster parameter needed)."""
+        return self._request("GET", "/cluster/info")
+
+    def cluster_minimal_confs(self) -> Dict[str, str]:
+        info = self.list_cluster_info()
+        out: Dict[str, str] = {}
+        items = (info or {}).get("data", []) if isinstance(info, dict) else []
+        for item in items:
+            if isinstance(item, dict) and not item.get("error"):
+                cluster = item.get("cluster")
+                conf = item.get("ceph_conf_minimal")
+                if cluster and isinstance(conf, str) and conf.strip():
+                    out[cluster] = conf
+        return out
+
+    # --------------------- Cluster User (per cluster) ---------------------
+
+    def apply_user_templated(
+        self,
+        cluster: str,
+        *,
+        user_entity: str,
+        template_capabilities: List[Dict[str, str]],
+        renders: Optional[List[Dict[str, str]]] = None,
+        fs_name: Optional[str] = None,
+        subvol_name: Optional[str] = None,
+        group_name: Optional[str] = None,
+        extra_subs: Optional[Dict[str, str]] = None,
+        merge_strategy: Optional[str] = None,  # "comma" | "multi" | "auto" (server-defined)
+        dry_run: bool = False,
+        sync_across_clusters: bool = True,
+        preferred_source: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        POST /{cluster}/cluster/user
+
+        Always sends `renders` (array). If only a single context is provided
+        via (fs_name, subvol_name, group_name), it is normalized to a one-item list.
+        """
+        # Normalize contexts -> renders[]
+        if renders and len(renders) > 0:
+            renders_norm: List[Dict[str, str]] = []
+            for rc in renders:
+                item = {"fs_name": rc["fs_name"], "subvol_name": rc["subvol_name"]}
+                if rc.get("group_name"):
+                    item["group_name"] = rc["group_name"]
+                renders_norm.append(item)
+        else:
+            if not fs_name or not subvol_name:
+                raise ValueError("Provide either 'renders' (list) or fs_name+subvol_name")
+            item = {"fs_name": fs_name, "subvol_name": subvol_name}
+            if group_name:
+                item["group_name"] = group_name
+            renders_norm = [item]
+
+        payload: Dict[str, Any] = {
+            "user_entity": user_entity,
+            "template_capabilities": template_capabilities,
+            "renders": renders_norm,
+            "sync_across_clusters": bool(sync_across_clusters),
+            "dry_run": bool(dry_run),
+        }
+        if preferred_source:
+            payload["preferred_source"] = preferred_source
+        if extra_subs:
+            payload["extra_subs"] = extra_subs
+        if merge_strategy:
+            payload["merge_strategy"] = merge_strategy
+
+        return self._request("POST", self._cluster_path(cluster, "/cluster/user"), json=payload)
+
+    def apply_user_for_multiple_subvols(
+        self,
+        cluster: str,
+        *,
+        user_entity: str,
+        template_capabilities: List[Dict[str, str]],
+        contexts: List[Tuple[str, str, Optional[str]]],  # (fs_name, subvol_name, group_name)
+        sync_across_clusters: bool = True,
+        preferred_source: Optional[str] = None,
+        merge_strategy: Optional[str] = "comma",
+        dry_run: bool = False,
+        extra_subs: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        renders = []
+        for fsn, svn, grp in contexts:
+            item = {"fs_name": fsn, "subvol_name": svn}
+            if grp:
+                item["group_name"] = grp
+            renders.append(item)
+
+        return self.apply_user_templated(
+            cluster,
+            user_entity=user_entity,
+            template_capabilities=template_capabilities,
+            renders=renders,
+            extra_subs=extra_subs,
+            merge_strategy=merge_strategy,
+            dry_run=dry_run,
+            sync_across_clusters=sync_across_clusters,
+            preferred_source=preferred_source,
+        )
+
+    def list_users(self, cluster: str) -> Dict[str, Any]:
+        """GET /{cluster}/cluster/user"""
+        return self._request("GET", self._cluster_path(cluster, "/cluster/user"))
+
+    def delete_user(self, cluster: str, entity: str) -> Dict[str, Any]:
+        """DELETE /{cluster}/cluster/user/{entity}"""
+        return self._request("DELETE", self._cluster_path(cluster, f"/cluster/user/{entity}"))
+
+    def export_users(self, cluster: str, entities: List[str]) -> Dict[str, Any]:
+        """
+        POST /{cluster}/cluster/user/export
+        Returns the full ExportUsersResponse (e.g., {"clusters": {...}, "type": "keyrings", ...}).
+        """
+        if not entities:
+            raise ValueError("entities must be a non-empty list")
+        return self._request("POST", self._cluster_path(cluster, "/cluster/user/export"),
+                             json={"entities": entities})
+
+    # --------------------- CephFS (per cluster) ---------------------
+
+    def create_or_resize_subvolume(
+        self,
+        cluster: str,
+        vol_name: str,
+        subvol_name: str,
+        *,
+        group_name: Optional[str] = None,
+        size: Optional[int] = None,
+        mode: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """PUT /{cluster}/cephfs/subvolume/{vol_name}"""
+        payload: Dict[str, Any] = {"subvol_name": subvol_name}
+        if group_name:
+            payload["group_name"] = group_name
+        if size is not None:
+            payload["size"] = int(size)
+        if mode:
+            payload["mode"] = str(mode)
+        return self._request("PUT", self._cluster_path(cluster, f"/cephfs/subvolume/{vol_name}"), json=payload)
+
+    def get_subvolume_info(
+        self,
+        cluster: str,
+        vol_name: str,
+        subvol_name: str,
+        *,
+        group_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """GET /{cluster}/cephfs/subvolume/{vol_name}/info"""
+        params = {"subvol_name": subvol_name}
+        if group_name:
+            params["group_name"] = group_name
+        return self._request("GET", self._cluster_path(cluster, f"/cephfs/subvolume/{vol_name}/info"), params=params)
+
+    def subvolume_exists(
+        self,
+        cluster: str,
+        vol_name: str,
+        subvol_name: str,
+        *,
+        group_name: Optional[str] = None,
+    ) -> bool:
+        """GET /{cluster}/cephfs/subvolume/{vol_name}/exists -> {'exists': bool}"""
+        params = {"subvol_name": subvol_name}
+        if group_name:
+            params["group_name"] = group_name
+        res = self._request("GET", self._cluster_path(cluster, f"/cephfs/subvolume/{vol_name}/exists"), params=params)
+        return bool(res.get("exists")) if isinstance(res, dict) else bool(res)
+
+    def delete_subvolume(
+        self,
+        cluster: str,
+        vol_name: str,
+        subvol_name: str,
+        *,
+        group_name: Optional[str] = None,
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """DELETE /{cluster}/cephfs/subvolume/{vol_name}"""
+        params: Dict[str, Any] = {"subvol_name": subvol_name, "force": str(bool(force)).lower()}
+        if group_name:
+            params["group_name"] = group_name
+        return self._request("DELETE", self._cluster_path(cluster, f"/cephfs/subvolume/{vol_name}"), params=params)
