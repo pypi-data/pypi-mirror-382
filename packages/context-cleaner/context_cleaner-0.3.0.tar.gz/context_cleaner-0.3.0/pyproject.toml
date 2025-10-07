@@ -1,0 +1,166 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "context-cleaner"
+version = "0.3.0"
+description = "Advanced productivity tracking and context optimization for AI-assisted development"
+readme = "README.md"
+authors = [{name = "Context Cleaner Team", email = "team@context-cleaner.dev"}]
+license = {text = "MIT"}
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "pandas>=2.0.0",
+    "plotly>=5.17.0",
+    "GitPython>=3.1.40",
+    "watchdog>=3.0.0",
+    "APScheduler>=3.10.4",
+    "click>=8.1.0",
+    "pydantic>=2.5.0",
+    "SQLAlchemy>=2.0.0",
+    "cryptography>=41.0.0",
+    "flask>=2.3.0",
+    "flask-socketio>=5.3.0",
+    "numpy>=1.24.0",
+    "psutil>=5.9.0",
+    "protobuf>=4.25.0",
+    "eventlet>=0.33.0,<0.40",
+    "croniter>=1.4.0",
+    "fastapi>=0.110.0",
+    "orjson>=3.9.0",
+    "matplotlib>=3.8.0",
+    "PyYAML>=6.0",
+    "aiohttp>=3.9.0",
+    "websockets>=10.0",
+    "gunicorn>=21.2.0",
+    "requests>=2.31.0",
+    "redis>=5.0.0",
+    "aiofiles>=23.1.0",
+    "nltk>=3.8.1",
+    "scikit-learn>=1.3.0",
+    "textblob>=0.17.1",
+    "python-dateutil>=2.8.2",
+    "pytz>=2023.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.9.0",
+    "flake8>=6.1.0",
+    "mypy>=1.6.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+]
+
+[project.scripts]
+context-cleaner = "context_cleaner.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/context-cleaner/context-cleaner"
+Documentation = "https://context-cleaner.readthedocs.io"
+Repository = "https://github.com/context-cleaner/context-cleaner"
+Issues = "https://github.com/context-cleaner/context-cleaner/issues"
+
+[tool.hatch.version]
+path = "src/context_cleaner/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/context_cleaner"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/context_cleaner/resources/telemetry/docker-compose.yml" = "context_cleaner/resources/telemetry/docker-compose.yml"
+"src/context_cleaner/resources/telemetry/otel-simple.yaml" = "context_cleaner/resources/telemetry/otel-simple.yaml"
+"src/context_cleaner/resources/telemetry/otel-clickhouse-init.sql" = "context_cleaner/resources/telemetry/otel-clickhouse-init.sql"
+"src/context_cleaner/resources/telemetry/clickhouse-users.xml" = "context_cleaner/resources/telemetry/clickhouse-users.xml"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/context_cleaner/**/*.py",
+    "src/context_cleaner/resources/telemetry/*.yaml",
+    "src/context_cleaner/resources/telemetry/*.yml",
+    "src/context_cleaner/resources/telemetry/*.sql",
+    "src/context_cleaner/resources/telemetry/*.xml",
+    "src/context_cleaner/resources/telemetry/docker-compose.yml",
+    "README.md",
+    "LICENSE", 
+    "CHANGELOG.md",
+    "pyproject.toml",
+]
+
+[tool.black]
+target-version = ["py39"]
+line-length = 88
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["src/context_cleaner"]
+omit = ["tests/*", "src/context_cleaner/__main__.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+]
