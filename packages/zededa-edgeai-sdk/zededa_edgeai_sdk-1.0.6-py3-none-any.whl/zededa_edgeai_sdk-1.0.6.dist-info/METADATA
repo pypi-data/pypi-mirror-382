@@ -1,0 +1,263 @@
+Metadata-Version: 2.4
+Name: zededa-edgeai-sdk
+Version: 1.0.6
+Summary: Zededa EdgeAI SDK - CLI and Python library for authentication and MLflow integration
+Author-email: Zededa <support@zededa.com>
+License: Apache-2.0
+Project-URL: Homepage, https://github.com/zededa/edgeai
+Project-URL: Issues, https://github.com/zededa/edgeai/issues
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.31.0
+Dynamic: license-file
+
+# Zededa EdgeAI SDK
+
+The Zededa EdgeAI SDK provides both a pluggable command-line interface and a Python library for authenticating with the Zededa EdgeAI backend and preparing ML tooling environments.
+
+## Highlights
+
+- 🧩 **Modular command registry** – each CLI sub-command lives in its own module under `zededa_edgeai_sdk.commands`, making it easy to add new commands such as `catalog` or `model` without touching existing code.
+- 🧠 **Typed service layer** – shared HTTP, authentication, catalog, and storage logic is encapsulated under `zededa_edgeai_sdk.services`, so workflows reuse the same battle-tested primitives.
+- 🔐 **Secure OAuth login** – browser-based authentication with automatic callback port discovery and detailed debug logging when needed.
+- ⚙️ **Environment bootstrap** – exports MLflow and MinIO credentials into your shell and keeps helpers available for Python embedding.
+
+## Installation
+
+```bash
+pip install zededa-edgeai-sdk
+```
+
+To work from source:
+
+```bash
+git clone https://github.com/zededa/edgeai-sdk.git
+cd edgeai-sdk
+pip install -e .
+```
+
+## CLI Usage
+
+Every action is exposed as a sub-command. The current release ships the `login`, `catalog`, and `set-catalog-context` commands; future commands (for models, etc.) follow the same structure.
+
+```bash
+# Interactive OAuth login with optional catalog selection
+zededa-edgeai login
+
+# Login for a specific catalog using the default backend
+zededa-edgeai login --catalog zededa
+
+# Non-interactive login with credentials
+zededa-edgeai login --email user@example.com --prompt-password
+
+# Override backend URL and enable debug logging
+EDGEAI_SERVICE_URL=https://custom.backend.local \
+  zededa-edgeai login --debug
+```
+
+After a successful login the CLI launches a child shell with the relevant environment variables applied. Exit that shell to return to your previous context.
+
+### Catalog Management
+
+List available catalogs and switch between catalogs with an authenticated shell session:
+
+```bash
+# List all available catalogs
+zededa-edgeai catalog --list
+
+# Switch to a catalog and launch authenticated shell (recommended)
+zededa-edgeai set-catalog-context zededa
+
+# List catalogs with custom backend URL and debug logging  
+EDGEAI_SERVICE_URL=https://custom.backend.local \
+  zededa-edgeai catalog --list --debug
+
+# Switch to catalog with debug logging
+zededa-edgeai set-catalog-context production --debug
+
+# Override service URL for one-time use
+zededa-edgeai set-catalog-context staging --service-url https://staging.backend.com
+```
+
+The catalog list shows all catalogs you have access to, highlighting your current catalog. The `set-catalog-context` command switches to a catalog and launches an authenticated shell session with all required environment variables set, similar to the login command.
+
+### Available Options
+
+#### Login Command
+```
+zededa-edgeai login [-h]
+                    [--catalog CATALOG]
+                    [--email EMAIL]
+                    [--password PASSWORD]
+                    [--prompt-password]
+                    [--service-url SERVICE_URL]
+                    [--debug]
+```
+
+#### Catalog Listing Command
+```
+zededa-edgeai catalog [-h]
+                      [--list]
+                      [--service-url SERVICE_URL]
+                      [--debug]
+```
+
+#### Set Catalog Context Command
+```
+zededa-edgeai set-catalog-context [-h]
+                                  catalog
+                                  [--service-url SERVICE_URL]
+                                  [--debug]
+```
+
+## Python Usage
+
+Use the high-level client, the module helpers, or the command workflow directly:
+
+### Authentication
+```python
+from zededa_edgeai_sdk.client import ZededaEdgeAIClient
+
+client = ZededaEdgeAIClient()
+creds = client.login(catalog_id="zededa")
+print(creds["environment"]["MLFLOW_TRACKING_URI"])
+```
+
+### Catalog Management
+```python
+from zededa_edgeai_sdk.client import ZededaEdgeAIClient
+
+# Using the client
+client = ZededaEdgeAIClient()
+
+# List available catalogs (prints formatted output by default)
+client.list_catalogs()
+# Output:
+# Available Catalogs:
+# ==================
+#  1. demo1
+#  2. demo2 (current)
+#  3. zededa
+#  4. production
+#  5. staging
+#
+# Total: 5 catalogs
+# Current catalog: demo2
+# User: alice@company.com
+
+# Get catalog data as dictionary (formatted=False)
+catalogs = client.list_catalogs(formatted=False)
+print(f"Available catalogs: {catalogs['available_catalogs']}")
+
+# Switch to a catalog
+creds = client.switch_catalog("production")
+
+# Or using the module-level convenience functions
+from zededa_edgeai_sdk import list_catalogs, switch_catalog
+
+# List catalogs (formatted output)
+list_catalogs()
+
+# Get catalog data as dictionary
+catalogs = list_catalogs(formatted=False)
+
+# Switch catalog
+creds = switch_catalog("production")
+```
+
+### Direct Command Usage
+Call the command workflows directly if you need finer-grained control:
+
+```python
+from zededa_edgeai_sdk.commands.login import execute_login
+from zededa_edgeai_sdk.commands.catalogs import execute_catalog_switch, execute_catalog_list
+
+# Login
+credentials = execute_login("zededa", debug=True)
+
+# List catalogs
+catalog_info = execute_catalog_list(debug=True)
+
+# Switch catalogs (updates environment variables only)
+credentials = execute_catalog_switch("production", debug=True)
+```
+
+Environment variables can be cleared programmatically via `zededa_edgeai_sdk.client.logout()` or `zededa_edgeai_sdk.environment.clear_environment()`.
+
+## Architecture Overview
+
+```
+zededa_edgeai_sdk/
+├── commands/              # CLI sub-command modules
+│   ├── login.py           # CLI handler + reusable login workflow helper
+│   ├── catalogs.py        # CLI handler + catalog listing workflow
+│   └── set_catalog_context.py # CLI handler for catalog switching with shell launch
+├── services/              # Low-level backend interactions
+│   ├── http.py            # Debug-aware HTTP client built on requests
+│   ├── auth.py            # OAuth browser flow and callback server
+│   ├── catalogs.py        # Catalog discovery and token scoping helpers
+│   └── storage.py         # MinIO credential retrieval
+├── environment.py         # Environment application/sanitisation helpers
+├── client.py              # Public high-level Python API
+└── zededa_edgeai_sdk.py   # Service coordination facade
+```
+
+Adding a new command means:
+
+1. Create `zededa_edgeai_sdk/commands/<command>.py` with a `CommandSpec`
+   registration function.
+2. Implement the workflow using the shared services.
+3. Optionally expose convenient helpers from `client.py` or `__init__.py`.
+
+The CLI automatically discovers commands from the registry.
+
+## Environment Variables
+
+The login workflow applies the following variables to the current process and any spawned shells:
+
+- `ZEDEDA_CURRENT_CATALOG`
+- `ZEDEDA_ACCESS_TOKEN`
+- `MLFLOW_TRACKING_TOKEN`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `MLFLOW_S3_ENDPOINT_URL`
+- `MLFLOW_TRACKING_URI`
+- `MINIO_BUCKET`
+- `ZEDEDA_BACKEND_URL`
+
+Use `zededa_edgeai_sdk.environment.APPLIED_ENVIRONMENT_KEYS` for the authoritative list.
+
+## Development
+
+```bash
+# Run unit tests (creates/uses the local virtual environment)
+./.venv/bin/python -m unittest discover -s tests
+
+# Lint or format as needed
+ruff check
+black zededa_edgeai_sdk tests
+```
+
+All new features should include a matching command module and, when 
+backend access is required, a focused service module.
+
+## Troubleshooting
+
+- Pass `--debug` to log all HTTP requests/responses with sensitive fields masked.
+- If the browser doesn't open automatically, copy the printed URL into a browser window manually.
+- To retry a failed OAuth flow, simply rerun the command; a fresh callback port is selected automatically.
+
+## Support
+
+- File an issue at [github.com/zededa/edgeai-sdk](https://github.com/zededa/edgeai-sdk)
+- Email support@zededa.com
