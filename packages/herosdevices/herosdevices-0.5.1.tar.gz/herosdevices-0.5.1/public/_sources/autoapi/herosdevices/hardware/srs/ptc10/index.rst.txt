@@ -1,0 +1,128 @@
+herosdevices.hardware.srs.ptc10
+===============================
+
+.. py:module:: herosdevices.hardware.srs.ptc10
+
+.. autoapi-nested-parse::
+
+   HERO Drivers for the SRS PTC10 programmable temperature controller.
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:class:: PTC10(address: str, *_args, macros: dict | None = None, observables: dict | None = None, **_kwargs)
+
+   Bases: :py:obj:`herosdevices.core.templates.TelnetDeviceTemplate`
+
+
+   Driver for the SRS PTC10 programmable temperature controller.
+
+   This driver connects via telnet to the ethernet port.
+
+   :param address: IP address of the device.
+   :param channels_out: Names of the output channels.
+   :param channels_tc: Names of PTC330 extension cards input channels.
+   :param macros: A dict of macros which are written to the temperature controller and can be called with
+                  :py:meth:`run_macro`. The dictionary keys are the names and the values the actual macro code. Note, that
+                  the macro content must be a single line string.
+   :param observables: A dictionary of attributes that are emitted with the `observable_data` event if the device is
+                       started as a `PolledDatasourceHero`. If no values are given, the set temperature, actual temperature and
+                       TEC power are emitted.
+
+   Besides the implemented functions, you can also directly send raw commands to the controller by using
+   :py:meth:`send_raw_command` for maximum flexibility.
+
+   .. rubric:: Example
+
+   The class can be started with BOSS with the following example JSON dict::
+
+       {
+         "_id": "oven-controller",
+         "classname": "herosdevices.hardware.srs.PTC10",
+         "active": true,
+         "arguments": {
+           "address": "192.168.50.15",
+           "channels_tc": [
+             "WindowTC",
+             "OvenTC"
+           ],
+           "channels_out": [
+             "WindowOut",
+             "OvenOut"
+           ],
+           "macros": {
+             "OvenOn": "if (OvenOut.PID.setpoint==0) OvenOut.PID.setpoint=50 }else{ popup \"Oven already on\" }"
+           }
+         },
+         "datasource": {
+           "async": false,
+           "interval": 300
+         }
+       }
+
+
+   .. py:attribute:: observables
+      :type:  dict
+
+
+   .. py:attribute:: macros
+      :type:  dict | None
+      :value: None
+
+
+
+   .. py:method:: send_raw_command(command: str, read_echo: Literal[False] = False) -> None
+                  send_raw_command(command: str, read_echo: Literal[True]) -> str
+
+      Send a command to the device.
+
+      :param command: Command to send. Can end (but does not have to) in a command termination like `\n`. See the device
+                      manual for available commands.
+      :param read_echo: If a response should be read from the device.
+
+
+
+   .. py:method:: stop_macro(name: str) -> None | str
+
+      Stop a running macro.
+
+      :param name: Name of the macro to stop.
+
+
+
+   .. py:method:: run_macro(name: str) -> str
+
+      Run a macro on the hardware.
+
+      If the macro is present in the macros dictionary (see :py:meth:`__init__` for details), it will be send to
+      the device first.
+
+      :param name: Name of the macro to run.
+
+
+
+   .. py:method:: define_macro(name: str, content: str) -> str
+
+      Send a new macro with the given name and content to the device.
+
+      :param name: Name of the macro to define.
+      :param content: The content of the macro.
+
+
+
+   .. py:attribute:: address
+
+
+   .. py:attribute:: connection
+
+
+   .. py:attribute:: write
+
+
+   .. py:attribute:: read
+
+

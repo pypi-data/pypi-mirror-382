@@ -1,0 +1,280 @@
+herosdevices.hardware.santec.slm200
+===================================
+
+.. py:module:: herosdevices.hardware.santec.slm200
+
+.. autoapi-nested-parse::
+
+   HERO driver and functions to control a Santec SLM.
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:data:: msg
+   :value: Multiline-String
+
+   .. raw:: html
+
+      <details><summary>Show Value</summary>
+
+   .. code-block:: python
+
+      """Missing ftd3xx python module.
+          Get it from:
+              https://www.ftdichip.com/Support/SoftwareExamples/FT60X.htm
+          and install it. Make sure to also install D3XX driver for your platform.
+          Find it here:
+              https://www.ftdichip.com/Drivers/D3XX.htm
+          """
+
+   .. raw:: html
+
+      </details>
+
+
+
+.. py:data:: WORD_LENGTH
+   :value: 4
+
+
+.. py:data:: IMAGESIZE
+   :value: (1200, 1920)
+
+
+.. py:data:: fpga_status
+
+.. py:data:: video_mode
+
+.. py:data:: cmd_control
+
+.. py:data:: cmd_statusrequest
+
+.. py:data:: cmd_statusresponse
+
+.. py:data:: cmd_imagedata
+
+.. py:class:: SLM200(serialnumber: str, channel: int = 0, streaming_mode: bool = False, request_sleep: float = 0.015)
+
+   Bases: :py:obj:`herosdevices.hardware.santec.template.SantecSLMTemplate`
+
+
+   Driver for a Santec SLM200 spatial light modulator.
+
+   The images can be transferred to the SLM200 via USB or DVI. This driver, however, only supports
+   communication via USB. Since image upload via USB takes roughly 150ms, this driver is limited to
+   around 6Hz of refresh rate. Precise and externally synchronized timing is only possible in USB mode.
+
+   In USB mode (also called memory mode) images can be pushed via USB and stored in one of 128 memory
+   slots. The image slot displayed on the SLM can be set randomly by the driver or an advance from one
+   slot to the next can be triggered by a software trigger, and internal timer, or a logic signal
+   (Trigger IN SMB jack).
+
+   The SLM contains an FPGA that the computer communicates with by writing to an output FIFO/pipe
+   and reading from an input FIFO/pipe. These two FIFOs are transparently accessed through the FTDI
+   driver (D3xx) which provides methods to read and write these FIFOs/pipes.
+
+   This driver is reverse engineered by looking at the data the vendor software sends via USB.
+   This was achieved by looking at the API calls to the functions FT_WritePipe and FT_ReadPipe
+   in the D3XX.dll which handles the communication with the FTDI USB3.0 chip (FT601).
+
+
+   .. py:attribute:: firmware_versions
+      :value: ['2018021001', '2018021101', '2018020001', '2017080002', '2015010001']
+
+
+
+   .. py:attribute:: trigger_functions
+
+
+   .. py:attribute:: serialnumber
+
+
+   .. py:attribute:: channel
+      :value: 0
+
+
+
+   .. py:attribute:: bStreamingMode
+      :value: False
+
+
+
+   .. py:attribute:: request_sleep
+      :value: 0.015
+
+
+
+   .. py:attribute:: trigger_mode
+      :value: 'none'
+
+
+
+   .. py:attribute:: d3xx
+      :value: None
+
+
+
+   .. py:method:: write_command(cmd_dict: dict, payload: bytes, seq_id: int = 0) -> None
+
+      Send a command to the SLM.
+
+
+
+   .. py:method:: read_command(length: int) -> dict
+
+      Read a command response from the SLM.
+
+      :param length: Length of the response to read in byte.
+
+
+
+   .. py:method:: status() -> str
+
+      Get the current status of the SLM.
+
+      :returns: Status string.
+
+
+
+   .. py:method:: request(cmd_dict: dict, payload: bytes, buffer: bytes | None = None, trials: int = 100, request_sleep: float | None = None) -> str
+
+      Send a request to the SLM and wait for a response.
+
+      :param cmd_dict: Dictionary containing command metadata.
+      :param payload: Payload to send. Unused when buffer is used
+      :param buffer: Pre-assembled buffer to send.
+      :param trials: Number of trials to attempt.
+      :param request_sleep: Sleep time between retries.
+
+      :returns: Status string.
+
+
+
+   .. py:method:: write(buffer: bytes) -> None
+
+      Stream buffered data to the SLM.
+
+
+
+   .. py:method:: read(length: int) -> bytes
+
+      Read `length` bytes from the device.
+
+
+
+   .. py:method:: firmware_serialnumber() -> str
+
+      Get the serial number of the santec firmware running on the SLM.
+
+      This not the same as the serial number used to identify the FTDI chip.
+
+      :returns: Serial number.
+
+
+
+   .. py:method:: video_mode(mode: int = 0) -> str
+
+      Query or set the video source the SLM draws the images from.
+
+      :param mode: Video source. 0 = USB/Memory, 1 = DVI.
+
+      :returns: Status of the operation.
+
+
+
+   .. py:method:: display_slot(slot: int = 1) -> str
+
+      Set the memory slot to display on the SLM.
+
+      :param slot: Slot number. The lowest slot number is 1.
+
+      :returns: Status of the operation.
+
+
+
+   .. py:method:: contrast_level(value: int) -> str
+
+      Set the contrast/gamma level of the LCOS.
+
+      :param value: Value between 0 and 1023.
+
+      :returns: Status of the operation.
+
+
+
+   .. py:method:: trigger_output(on: bool | None = None) -> str
+
+      Activate the trigger output of the SLM.
+
+      This is especially useful in DVI mode orwhen software/automatic triggers are used.
+
+      :param on: Determines whether the trigger output should be activated.
+                 If not set the current status is returned.
+
+      :returns: tatus of the operation.
+
+
+
+   .. py:method:: trigger_software_fire() -> str
+
+      Fire a software trigger. Only works if the trigger mode was set to manual before.
+
+      :returns: Status of the operation.
+
+
+
+   .. py:method:: trigger(mode: str | None = None) -> str
+
+      Set or query the trigger mode.
+
+      .. hint::
+          The SLM can be triggered from four different sources:
+              * none     : The image selected by :func:`display_slot` is displayed continuously                              and no trigger changes this.
+              * manual   : The image in the next slot is displayed when the software trigger                              :func:`trigger_software_fire` is called.
+              * auto     : The change to the next image is periodically triggered by an internal timer.
+              * external : The change to the next image happens when a logic pulse on the trigger in                              SMB-connector is received.
+
+      :param mode: Name of the trigger mode to set. If no argument is given,
+                   the current trigger mode is returned.
+
+      :returns: The trigger mode.
+
+
+
+   .. py:method:: phase_calibration(wavelength: int, max_phase: int = 2) -> str
+
+      Calibrate the change of the lights phase as function of the bit value of each pixel.
+
+      This can be used to adapt for different wavelength of the light and to change the
+      maximum phase change for the maximum pixel value of 1023 (10bit).
+
+      .. attention::
+          This command takes some minutes to finish!
+
+      :param wavelength: Wavelength of the indicent light in nm.
+      :param max_phase: Maximum phase change in units of pi.
+
+      :returns: Status of the operation.
+
+
+
+   .. py:method:: push_image(slot: int, image: numpy.typing.NDArray[numpy.uint16]) -> str
+
+      Upload an image into a specified memory slot.
+
+      :param slot: Slot number. Slot numbers range from 1 to 128.
+      :param image: The image. Dimension must be (1200, 1920). Dtype must be 'u2' (`unit16`),
+                    otherwise is it casted to 'u2' which might have unpredictable results.
+
+      :returns: Status of the operation
+
+
+
+.. py:data:: logger
+

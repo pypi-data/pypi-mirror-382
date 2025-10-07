@@ -1,0 +1,126 @@
+herosdevices.core.bus.telnet.telnet
+===================================
+
+.. py:module:: herosdevices.core.bus.telnet.telnet
+
+.. autoapi-nested-parse::
+
+   This module provides a class for managing telnet connections and a context manager for handling telnet sessions.
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:data:: TELNET_DELAYS_DEFAULT
+   :type:  dict
+
+.. py:class:: TelnetConnection(address: str, port: int = 23, timeout: float = 1.0, line_termination: bytes = b'\n', keep_alive: bool = True, delays: dict | None = None)
+
+   A class to manage telnet communication connections.
+
+   This class provides functionality to handle telnet connections including opening/closing connections, reading
+   data, and writing data.
+
+   :param address: The address of the telnet socket, something like /dev/ttyUSB0.
+   :param port: Port the telnet server is listening on
+   :param line_termination: character that terminates a line in the communication.
+   :param keep_alive: Flag indicating whether to keep the connection open between operations.
+   :param delays: Dictionary containing delay times for in between telnet operations.
+                  Default telnet delays for telnet devices. Available keys are:
+
+                      * "write": Time to wait after writing a command to the device.
+                      * "read_echo": Time to wait before reading a response from the device.
+
+                  :py:data:`herosdevices.core.bus.telnet.TELNET_DELAYS_DEFAULT` sets the default delays.
+
+
+   .. py:attribute:: address
+
+
+   .. py:attribute:: port
+      :value: 23
+
+
+
+   .. py:attribute:: timeout
+      :value: 1.0
+
+
+
+   .. py:attribute:: line_termination
+      :value: b'\n'
+
+
+
+   .. py:attribute:: connection
+
+
+   .. py:attribute:: keep_alive
+      :value: True
+
+
+
+   .. py:attribute:: delays
+
+
+   .. py:method:: check_alive() -> bool
+
+      Check if the telnet connection is alive.
+
+
+
+   .. py:method:: operation() -> collections.abc.Iterator[None]
+
+      Context manager for handling telnet connection operations.
+
+      Ensures the telnet connection is open before performing operations and closes it afterward
+      if :code:`self.keep_alive` is False.
+
+      :Yields: Yields control back to the caller for performing operations within the context.
+
+
+
+   .. py:method:: wait(operation: str) -> None
+
+      Introduce a (synchronous) delay based on the specified operation type.
+
+      :param operation: The operation type. For possible types see :code:`TELNET_DELAYS_DEFAULT`.
+
+
+
+   .. py:method:: read() -> str | None
+
+      Read all available data from the telnet connection and decodes it into a string.
+
+      :returns: The decoded data as string, or None if an error occurs.
+
+
+
+   .. py:method:: read_line() -> str | None
+
+      Read a single line from the telnet connection.
+
+      :returns: The decoded line as string, or None if an error occurs.
+
+
+
+   .. py:method:: write(message: str, read_echo: Literal[True] = True, read_line: bool = True) -> str
+                  write(message: str, read_echo: Literal[False], read_line: bool = True) -> None
+                  write(message: str, read_echo: bool = False, read_line: bool = True) -> str | None
+
+      Write a message to the telnet connection.
+
+      :param message: The message to be written to the telnet connection.
+      :param read_echo: If True, reads back the echo after writing. Defaults to False.
+      :param read_line: If True, data is read until `self.line_termination` occurs in the data. Otherwise all available
+                        data is read.
+
+      :returns: If read_echo is True, returns the echo read from the connection as string; otherwise returns None.
+
+
+

@@ -1,0 +1,237 @@
+herosdevices.hardware.rigol
+===========================
+
+.. py:module:: herosdevices.hardware.rigol
+
+.. autoapi-nested-parse::
+
+   Rigol Devices.
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:class:: RigolDSA(address: str, **kwargs)
+
+   Bases: :py:obj:`herosdevices.core.templates.oscilloscope.OscilloscopeTemplate`
+
+
+   A class to interface Rigol digital spectrum analyzers.
+
+   :param address: Address or IP of the instrument.
+   :param \*\*kwargs: Additional keyword arguments are passed to
+                      :py:class:`herosdevices.core.templates.oscilloscope.OscilloscopeTemplate`
+
+   .. note:: Currently, this driver only implements retrieving the current trace and getting the marker positions.
+
+
+   .. py:attribute:: MAX_MARKERS
+      :type:  int
+      :value: 4
+
+
+
+   .. py:attribute:: address
+      :type:  str
+
+
+   .. py:attribute:: default_config_dict
+
+
+   .. py:method:: get_identification() -> str
+
+      Query the device identification.
+
+      :returns: Device identification string.
+
+
+
+   .. py:method:: get_markers() -> dict
+
+      Query all markers from the Rigol spectrum analyzer.
+
+      :returns: Dictionary with :code:`{marker_number: (freq_Hz, amp_dBm)}`.
+
+
+
+   .. py:attribute:: get_scope
+
+
+   .. py:attribute:: acquisition_running
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: payload_metadata
+      :type:  dict
+
+
+   .. py:attribute:: keep_device_open
+      :value: True
+
+
+
+   .. py:attribute:: default_config
+      :type:  str
+
+
+   .. py:method:: get_device() -> collections.abc.Iterator[None]
+
+      Yield a device handle.
+
+      .. code-block:: python
+
+          # use the device in a with statement
+          with self.get_device() as camera:
+              camera.do_something()
+
+
+
+   .. py:method:: open() -> Any
+
+      Open the device handler and assign it to `self._device`.
+
+
+
+   .. py:method:: teardown() -> None
+
+      Release the device handler and potentially de-initialize the API.
+
+
+
+   .. py:method:: start() -> bool
+
+      Fire a software trigger.
+
+      :returns: True if successful
+
+
+
+   .. py:method:: stop() -> bool
+
+      Abort the exposure and release queued buffers.
+
+      :returns: True if successful
+
+
+
+   .. py:method:: reset() -> None
+
+      Reset the device by aborting any ongoing exposure, closing and re-opening the handler.
+
+
+
+   .. py:method:: get_status() -> dict
+
+      Get a dict with the current device status.
+
+      :returns: A dict with the device status
+
+
+
+   .. py:property:: config_dict
+      :type: dict
+
+
+      Get a copy of the configuration dict.
+
+      :returns: Copy of the configuration dict
+
+
+   .. py:method:: update_configuration(new_config_dict: dict, merge: bool = True) -> None
+
+      Update the configuration dict with new configuration.
+
+      Each dict key corresponds a (new) configuration name.
+      Each value is a dict with config property -> config value.
+
+      :param new_config_dict: A dict of configurations where the keys are the configuration names
+      :param merge: If ``True``, the new dict is recursively merged with the current set config dict. If ``False`` the
+                    old configurations with the provided names (keys) are overwritten.
+
+
+
+   .. py:method:: get_configuration() -> dict
+
+      Get the currently active configuration.
+
+      :returns: The currently active configuration.
+
+
+
+   .. py:method:: configure(config: str = '', metadata: dict | None = None) -> bool
+
+      Configure the device with the known configuration `config`.
+
+      To add a configuration to the device, use :meth:`update_configuration`.
+
+      :param config: Key (name) of the configuration
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+
+
+
+   .. py:attribute:: set_configuration
+
+
+   .. py:method:: update_payload_metadata(metadata: dict, merge: bool = True) -> None
+
+      Update metadata dict send with every emitted frame by the :code:`acquisition_data` event method.
+
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+      :param merge: If ``True``, the new dict is merged with the current set metadata dict. If ``False`` the old
+                    metadata is overwritten by the given dict.
+
+
+
+   .. py:method:: arm(metadata: dict | None = None, kill_running: bool = False) -> bool
+
+      Arm the device with the currently active configuration.
+
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+      :param kill_running: If ``True`` any running acquisition will be stopped. If ``False`` and an acquisition is
+      :param already running:
+      :param an error will be raised.:
+
+      :returns: True if arming was successful else False
+
+
+
+   .. py:method:: acquisition_data(frame: numpy.ndarray, metadata: dict | None = None) -> tuple
+
+      Event to emit new frames.
+
+      .. note::
+          The dtype of the frame is not changed here.
+
+      :param frame: The frame payload data (for example an image or an scope trace)
+      :param metadata: The metadata which is passed along the payload. This argument takes precedence over the
+                       :code:`payload_metadata` attribute (for example set by the :code:`update_payload_metadata` method)
+                       while merging the two dicts.
+
+      :returns: A tuple of image and metadata(-dict)
+
+
+
+   .. py:method:: acquisition_started(metadata: dict | None = None) -> dict
+
+      Event emitted when the acquisition thread starts.
+
+      :returns: A dict with acquisition metadata
+
+
+
+   .. py:method:: acquisition_stopped(metadata: dict | None = None) -> dict
+
+      Event emitted when the acquisition thread stops.
+
+      :returns: A dict with acquisition metadata
+
+
+

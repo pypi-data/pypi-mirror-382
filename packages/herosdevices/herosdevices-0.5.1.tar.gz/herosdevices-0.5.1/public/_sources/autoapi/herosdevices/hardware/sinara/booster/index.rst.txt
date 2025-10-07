@@ -1,0 +1,347 @@
+herosdevices.hardware.sinara.booster
+====================================
+
+.. py:module:: herosdevices.hardware.sinara.booster
+
+.. autoapi-nested-parse::
+
+   Hardware driver for the Booster RF amplifiers.
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:class:: Version
+
+   Bases: :py:obj:`NamedTuple`
+
+
+   A named tuple representing the version information of a device.
+
+
+   .. py:attribute:: fw_rev
+      :type:  str
+
+
+   .. py:attribute:: fw_hash
+      :type:  str
+
+
+   .. py:attribute:: fw_build_date
+      :type:  datetime.datetime
+
+
+   .. py:attribute:: device_id
+      :type:  str
+
+
+   .. py:attribute:: hw_rev
+      :type:  str
+
+
+.. py:class:: Status_short
+
+   Bases: :py:obj:`NamedTuple`
+
+
+   A named tuple representing the short version status information of a device.
+
+
+   .. py:attribute:: detected
+      :type:  bool
+
+
+   .. py:attribute:: enabled
+      :type:  bool
+
+
+   .. py:attribute:: interlock
+      :type:  bool
+
+
+   .. py:attribute:: output_power_mu
+      :type:  int
+
+
+   .. py:attribute:: reflected_power_mu
+      :type:  int
+
+
+   .. py:attribute:: I29V
+      :type:  float
+
+
+   .. py:attribute:: I6V
+      :type:  float
+
+
+   .. py:attribute:: V5VMP
+      :type:  float
+
+
+   .. py:attribute:: temp
+      :type:  float
+
+
+   .. py:attribute:: output_power
+      :type:  float
+
+
+   .. py:attribute:: reflected_power
+      :type:  float
+
+
+.. py:class:: Status_long
+
+   Bases: :py:obj:`NamedTuple`
+
+
+   A named tuple representing the long version status information of a device.
+
+
+   .. py:attribute:: detected
+      :type:  bool
+
+
+   .. py:attribute:: enabled
+      :type:  bool
+
+
+   .. py:attribute:: interlock
+      :type:  bool
+
+
+   .. py:attribute:: output_power_mu
+      :type:  int
+
+
+   .. py:attribute:: reflected_power_mu
+      :type:  int
+
+
+   .. py:attribute:: I29V
+      :type:  float
+
+
+   .. py:attribute:: I6V
+      :type:  float
+
+
+   .. py:attribute:: V5VMP
+      :type:  float
+
+
+   .. py:attribute:: temp
+      :type:  float
+
+
+   .. py:attribute:: output_power
+      :type:  float
+
+
+   .. py:attribute:: reflected_power
+      :type:  float
+
+
+   .. py:attribute:: input_power
+      :type:  float
+
+
+   .. py:attribute:: fan_speed
+      :type:  float
+
+
+   .. py:attribute:: error_occurred
+      :type:  bool
+
+
+   .. py:attribute:: hw_id
+      :type:  str
+
+
+   .. py:attribute:: i2c_error_count
+      :type:  int
+
+
+.. py:data:: UNIT_MAP
+
+.. py:class:: Booster(device: str, port: int = 5000, read_timeout: float = 1, *_args, **_kwargs)
+
+   Booster 8-channel RF Amplifier.
+
+
+   .. py:attribute:: dev
+
+
+   .. py:method:: get_version() -> Version
+
+      Return the device version information as a named tuple.
+
+
+
+   .. py:method:: ping() -> bool
+
+      Return True if we are connected to a Booster.
+
+
+
+   .. py:method:: set_enabled(channel: int, enabled: bool = True) -> None
+
+      Enable/disable a channel.
+
+
+
+   .. py:method:: get_enabled(channel: int) -> bool
+
+      Return True is the channel is enabled.
+
+
+
+   .. py:method:: get_detected(channel: int) -> bool
+
+      Return True is the channel is detected, otherwise False.
+
+      Non-detected channels indicate a serious hardware error!
+
+
+
+   .. py:method:: get_status(channel: int) -> Status_short | Status_long
+
+      Return a named tuple containing information about the status of a given channel.
+
+      .. list-table:: Channel Status Fields
+          :header-rows: 1
+          :widths: 20 80
+
+          * - Field
+            - Description
+          * - detected
+            - True if the channel is detected
+          * - enabled
+            - True if the channel was enabled
+          * - interlock
+            - True if the interlock has tripped for this channel
+          * - output_power_mu
+            - Output (forward) power detector raw ADC value
+          * - reflected_power_mu
+            - Output reverse power detector raw ADC value
+          * - output_power
+            - Output (forward) power (dBm)
+          * - reflected_power
+            - Output reverse power (dBm)
+          * - input_power
+            - Input power (dBm)
+          * - I29V
+            - Current consumption on the main 29V rail (A)
+          * - I6V
+            - Current consumption on the 6V (preamp) rail (A)
+          * - V5VMP
+            - Voltage on the 5VMP rail
+          * - temp
+            - Channel temperature (°C)
+          * - fan_speed
+            - Chassis fan speed (%)
+          * - error_occurred
+            - True if an error (e.g. over temperature) has occurred, otherwise False.
+              Error conditions can only be cleared by power-cycling Booster.
+          * - hw_id
+            - Unique ID number for the channel
+          * - i2c_error_count
+            - Number of I2C bus errors that have been detected for this channel
+
+
+
+   .. py:method:: get_current(channel: int) -> float
+
+      Return the FET bias current (A) for a given channel.
+
+
+
+   .. py:method:: get_temperature(channel: int) -> float
+
+      Return the temperature (C) for a given channel.
+
+
+
+   .. py:method:: get_output_power(channel: int) -> float
+
+      Return the output (forwards) power for a channel in dBm.
+
+
+
+   .. py:method:: get_input_power(channel: int) -> float
+
+      Return the input power for a channel in dBm.
+
+
+
+   .. py:method:: get_reflected_power(channel: int) -> float
+
+      Return the reflected power for a channel in dBm.
+
+
+
+   .. py:method:: get_fan_speed() -> float
+
+      Return the fan speed as a number between 0 and 100.
+
+
+
+   .. py:method:: set_interlock(channel: int, threshold: float) -> str | bool
+
+      Set the output forward power interlock threshold (dBm) for a given channel channel.
+
+      This setting is stored in non-volatile memory and retained across power
+      cycles.
+
+      :param threshold: must lie between 0dBm and 38dBm
+
+
+
+   .. py:method:: get_interlock(channel: int) -> float
+
+      Return the output forward power interlock threshold (dBm) for a channel.
+
+
+
+   .. py:method:: clear_interlock(channel: int) -> None
+
+      Reset the forward and reverse power interlocks for a given channel.
+
+
+
+   .. py:method:: get_interlock_tripped(channel: int) -> bool
+
+      Return True if the output forwards or reverse power interlock has tripped for a given channel.
+
+
+
+   .. py:method:: get_forward_power_interlock_tripped(channel: int) -> bool
+
+      Return True if the output forwards power interlock has tripped for a given channel.
+
+
+
+   .. py:method:: get_reverse_power_interlock_tripped(channel: int) -> bool
+
+      Return True if the output forwards power interlock has tripped for a given channel.
+
+
+
+   .. py:method:: get_error_occurred(channel: int) -> bool
+
+      Return True if a device error (over temperature etc) has occurred on a given channel.
+
+
+
+   .. py:method:: teardown() -> None
+
+      Close the device connection.
+
+
+

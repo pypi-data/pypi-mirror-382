@@ -1,0 +1,516 @@
+herosdevices.hardware.teledyne.pvcam
+====================================
+
+.. py:module:: herosdevices.hardware.teledyne.pvcam
+
+.. autoapi-nested-parse::
+
+   HEROS drivers for teledyne cameras using the PVCam API.
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:data:: pvc
+   :value: None
+
+
+.. py:data:: DEFAULT_CONFIG
+
+.. py:class:: PvcamCamera(cam_id: str, config_dict: dict, default_config: str | None = None, lib_path: str | None = None)
+
+   Bases: :py:obj:`herosdevices.core.templates.camera.CameraTemplate`
+
+
+   A class to interface with Teledyne PVCam Cameras.
+
+   The class provides functionality to control and capture images from cameras.
+   It manages camera configuration, acquisition, and data streaming compatible with the atomiq camera template.
+
+   :param cam_id: Serial number of the cam. Can be obtained for example from the ids-peak GUI. Note, that the id
+                  is only the first part of the value shown in the GUI, the part including the device type is not
+                  unique and may not be added to :code:`cam_id`.
+   :param lib_path: Path to vendor library.
+   :param config_dict: Dict of configuration values like shown in the json example above.
+   :param default_config: Default key in :code:`config_dict` to use.
+
+   .. note::
+
+      The vendor library must be obtained from the
+      `official website <https://www.teledynevisionsolutions.com/products/pvcam-sdk-amp-driver/>`_
+      Make sure that after the installation either the environment variable :code:`PVCAM_SDK_PATH` is set to the
+      correct path or pass it via the :code:`lib_path` argument.
+
+   .. rubric:: Example
+
+   The class can be started with BOSS with the following example JSON dict::
+
+       {
+         "_id": "my-camera",
+         "classname": "herosdevices.hardware.teledyne.PvcamCamera",
+         "arguments": {
+           "cam_id": "pvcamUSB_0",
+           "default_config": "default",
+           "config_dict": {
+             "default": {
+               "roi": [
+                 1500,
+                 800,
+                 700,
+                 700
+               ],
+               "exp_mode": "Edge Trigger"
+             }
+           }
+         }
+       }
+
+
+   Other than the special config keys listed below, the keys are property names of the pyvcam
+   :code:`Camera` object. You can find the full list of available properties sometimes in the pyvcam documentation
+   or by crawling `this file <https://github.com/Photometrics/PyVCAM/blob/master/src/pyvcam/camera.py>`_.
+
+   **Special Config Keys:**
+
+   - ``exposure_time``: exposure time in seconds. Automatically sets the nearest resolution (`exp_res` camera
+     parameter). If you want to set the `exp_res` attribute manually, use the camera key `exp_time`
+     (in the corresponding units) instead of `exposure_time`.
+   - ``trigger_delay``: Is added to the trigger delay that can be obtained by :py:attr:`PvcamCamera.trigger_delay`
+     and can be used for a cable and camera dependent delay.
+   - ``frame_count``: number of frame buffers to set up, `-1` means infinite number of frames. Note, that this is
+     currently not supported though. If you need it implemented via a circular buffer, please open an issue or get
+     in contact with us.
+   - ``post_processing``: A dict of post processing parameters (only if camera supports it), of the form
+     :code:`{'feature_name': ['param_name', 'param_value']}`. See the documentation of the camera for details.
+
+
+
+   .. py:attribute:: trigger_delay
+      :type:  float | None
+      :value: None
+
+
+
+   .. py:attribute:: default_config_dict
+
+
+   .. py:attribute:: cam_id
+
+
+   .. py:method:: get_pyvcam_property(name: str) -> Any
+
+      Read a property value from the underlying pyvcam camera class.
+
+      This is for example useful to get possible
+      configuration options for the camera. Possible properties can be found in the source code of the
+      `pyvcam driver <https://github.com/Photometrics/PyVCAM/blob/master/src/pyvcam/camera.py>`_.
+
+      :param name: name of the property as defined in the driver
+
+
+
+   .. py:attribute:: get_camera
+
+
+   .. py:attribute:: acquisition_running
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: payload_metadata
+      :type:  dict
+
+
+   .. py:attribute:: keep_device_open
+      :value: True
+
+
+
+   .. py:attribute:: default_config
+      :type:  str
+
+
+   .. py:method:: get_device() -> collections.abc.Iterator[None]
+
+      Yield a device handle.
+
+      .. code-block:: python
+
+          # use the device in a with statement
+          with self.get_device() as camera:
+              camera.do_something()
+
+
+
+   .. py:method:: open() -> Any
+
+      Open the device handler and assign it to `self._device`.
+
+
+
+   .. py:method:: teardown() -> None
+
+      Release the device handler and potentially de-initialize the API.
+
+
+
+   .. py:method:: start() -> bool
+
+      Fire a software trigger.
+
+      :returns: True if successful
+
+
+
+   .. py:method:: stop() -> bool
+
+      Abort the exposure and release queued buffers.
+
+      :returns: True if successful
+
+
+
+   .. py:method:: reset() -> None
+
+      Reset the device by aborting any ongoing exposure, closing and re-opening the handler.
+
+
+
+   .. py:method:: get_status() -> dict
+
+      Get a dict with the current device status.
+
+      :returns: A dict with the device status
+
+
+
+   .. py:property:: config_dict
+      :type: dict
+
+
+      Get a copy of the configuration dict.
+
+      :returns: Copy of the configuration dict
+
+
+   .. py:method:: update_configuration(new_config_dict: dict, merge: bool = True) -> None
+
+      Update the configuration dict with new configuration.
+
+      Each dict key corresponds a (new) configuration name.
+      Each value is a dict with config property -> config value.
+
+      :param new_config_dict: A dict of configurations where the keys are the configuration names
+      :param merge: If ``True``, the new dict is recursively merged with the current set config dict. If ``False`` the
+                    old configurations with the provided names (keys) are overwritten.
+
+
+
+   .. py:method:: get_configuration() -> dict
+
+      Get the currently active configuration.
+
+      :returns: The currently active configuration.
+
+
+
+   .. py:method:: configure(config: str = '', metadata: dict | None = None) -> bool
+
+      Configure the device with the known configuration `config`.
+
+      To add a configuration to the device, use :meth:`update_configuration`.
+
+      :param config: Key (name) of the configuration
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+
+
+
+   .. py:attribute:: set_configuration
+
+
+   .. py:method:: update_payload_metadata(metadata: dict, merge: bool = True) -> None
+
+      Update metadata dict send with every emitted frame by the :code:`acquisition_data` event method.
+
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+      :param merge: If ``True``, the new dict is merged with the current set metadata dict. If ``False`` the old
+                    metadata is overwritten by the given dict.
+
+
+
+   .. py:method:: arm(metadata: dict | None = None, kill_running: bool = False) -> bool
+
+      Arm the device with the currently active configuration.
+
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+      :param kill_running: If ``True`` any running acquisition will be stopped. If ``False`` and an acquisition is
+      :param already running:
+      :param an error will be raised.:
+
+      :returns: True if arming was successful else False
+
+
+
+   .. py:method:: acquisition_data(frame: numpy.ndarray, metadata: dict | None = None) -> tuple
+
+      Event to emit new frames.
+
+      .. note::
+          The dtype of the frame is not changed here.
+
+      :param frame: The frame payload data (for example an image or an scope trace)
+      :param metadata: The metadata which is passed along the payload. This argument takes precedence over the
+                       :code:`payload_metadata` attribute (for example set by the :code:`update_payload_metadata` method)
+                       while merging the two dicts.
+
+      :returns: A tuple of image and metadata(-dict)
+
+
+
+   .. py:method:: acquisition_started(metadata: dict | None = None) -> dict
+
+      Event emitted when the acquisition thread starts.
+
+      :returns: A dict with acquisition metadata
+
+
+
+   .. py:method:: acquisition_stopped(metadata: dict | None = None) -> dict
+
+      Event emitted when the acquisition thread stops.
+
+      :returns: A dict with acquisition metadata
+
+
+
+.. py:class:: Kinetix(cam_id: str, config_dict: dict, default_config: str | None = None, lib_path: str | None = None)
+
+   Bases: :py:obj:`PvcamCamera`
+
+
+   Driver class for the Kinetix camera.
+
+   This class adds the following device specific functionality:
+
+   - The trigger delay stored in the :py:attr:`Kinetix.trigger_delay` is calculated from the user specified trigger
+     delay and the delay from the trigger input to the `All Rows` condition.
+
+   For more information refer to :py:class:`PvcamCamera`
+
+   .. note::
+
+      It is well possible to that other PVCam cameras that support the fake global shutter concept (e.g. defined
+      `All Rows` condition) can also be used with this driver.
+
+
+   .. py:attribute:: trigger_delay
+      :type:  float | None
+      :value: None
+
+
+
+   .. py:attribute:: default_config_dict
+
+
+   .. py:attribute:: cam_id
+
+
+   .. py:method:: get_pyvcam_property(name: str) -> Any
+
+      Read a property value from the underlying pyvcam camera class.
+
+      This is for example useful to get possible
+      configuration options for the camera. Possible properties can be found in the source code of the
+      `pyvcam driver <https://github.com/Photometrics/PyVCAM/blob/master/src/pyvcam/camera.py>`_.
+
+      :param name: name of the property as defined in the driver
+
+
+
+   .. py:attribute:: get_camera
+
+
+   .. py:attribute:: acquisition_running
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: payload_metadata
+      :type:  dict
+
+
+   .. py:attribute:: keep_device_open
+      :value: True
+
+
+
+   .. py:attribute:: default_config
+      :type:  str
+
+
+   .. py:method:: get_device() -> collections.abc.Iterator[None]
+
+      Yield a device handle.
+
+      .. code-block:: python
+
+          # use the device in a with statement
+          with self.get_device() as camera:
+              camera.do_something()
+
+
+
+   .. py:method:: open() -> Any
+
+      Open the device handler and assign it to `self._device`.
+
+
+
+   .. py:method:: teardown() -> None
+
+      Release the device handler and potentially de-initialize the API.
+
+
+
+   .. py:method:: start() -> bool
+
+      Fire a software trigger.
+
+      :returns: True if successful
+
+
+
+   .. py:method:: stop() -> bool
+
+      Abort the exposure and release queued buffers.
+
+      :returns: True if successful
+
+
+
+   .. py:method:: reset() -> None
+
+      Reset the device by aborting any ongoing exposure, closing and re-opening the handler.
+
+
+
+   .. py:method:: get_status() -> dict
+
+      Get a dict with the current device status.
+
+      :returns: A dict with the device status
+
+
+
+   .. py:property:: config_dict
+      :type: dict
+
+
+      Get a copy of the configuration dict.
+
+      :returns: Copy of the configuration dict
+
+
+   .. py:method:: update_configuration(new_config_dict: dict, merge: bool = True) -> None
+
+      Update the configuration dict with new configuration.
+
+      Each dict key corresponds a (new) configuration name.
+      Each value is a dict with config property -> config value.
+
+      :param new_config_dict: A dict of configurations where the keys are the configuration names
+      :param merge: If ``True``, the new dict is recursively merged with the current set config dict. If ``False`` the
+                    old configurations with the provided names (keys) are overwritten.
+
+
+
+   .. py:method:: get_configuration() -> dict
+
+      Get the currently active configuration.
+
+      :returns: The currently active configuration.
+
+
+
+   .. py:method:: configure(config: str = '', metadata: dict | None = None) -> bool
+
+      Configure the device with the known configuration `config`.
+
+      To add a configuration to the device, use :meth:`update_configuration`.
+
+      :param config: Key (name) of the configuration
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+
+
+
+   .. py:attribute:: set_configuration
+
+
+   .. py:method:: update_payload_metadata(metadata: dict, merge: bool = True) -> None
+
+      Update metadata dict send with every emitted frame by the :code:`acquisition_data` event method.
+
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+      :param merge: If ``True``, the new dict is merged with the current set metadata dict. If ``False`` the old
+                    metadata is overwritten by the given dict.
+
+
+
+   .. py:method:: arm(metadata: dict | None = None, kill_running: bool = False) -> bool
+
+      Arm the device with the currently active configuration.
+
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+      :param kill_running: If ``True`` any running acquisition will be stopped. If ``False`` and an acquisition is
+      :param already running:
+      :param an error will be raised.:
+
+      :returns: True if arming was successful else False
+
+
+
+   .. py:method:: acquisition_data(frame: numpy.ndarray, metadata: dict | None = None) -> tuple
+
+      Event to emit new frames.
+
+      .. note::
+          The dtype of the frame is not changed here.
+
+      :param frame: The frame payload data (for example an image or an scope trace)
+      :param metadata: The metadata which is passed along the payload. This argument takes precedence over the
+                       :code:`payload_metadata` attribute (for example set by the :code:`update_payload_metadata` method)
+                       while merging the two dicts.
+
+      :returns: A tuple of image and metadata(-dict)
+
+
+
+   .. py:method:: acquisition_started(metadata: dict | None = None) -> dict
+
+      Event emitted when the acquisition thread starts.
+
+      :returns: A dict with acquisition metadata
+
+
+
+   .. py:method:: acquisition_stopped(metadata: dict | None = None) -> dict
+
+      Event emitted when the acquisition thread stops.
+
+      :returns: A dict with acquisition metadata
+
+
+

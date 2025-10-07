@@ -1,0 +1,221 @@
+herosdevices.hardware.raspberrypi.max318xx.max31865
+===================================================
+
+.. py:module:: herosdevices.hardware.raspberrypi.max318xx.max31865
+
+.. autoapi-nested-parse::
+
+   MAX31865 Resistance to Digital Converter.
+
+   This module implements an interface for the MAX31865 resistance temperature detector (RTD) converter.
+   The chip communicates over SPI. This implementation uses GPIO bit-banging on a Raspberry Pi.
+   Using spidev would be more efficient, but initial attempts with spidev were unsuccessful.
+
+   This code is based on the work of steve71: https://github.com/steve71/MAX31865
+
+   Classes:
+   - MAX31865: Provides methods to read resistance and temperature from PT100/PT1000 sensors.
+     - Initialization allows configuration of SPI pins, reference resistance, and wiring type.
+     - Methods to fetch resistance, convert resistance to temperature, and handle errors.
+
+   Usage:
+   - Instantiate multiple sensor objects for different chip select pins.
+   - Loop to read and print temperature readings.
+   - Gracefully handle interruption and clean GPIO resources.
+
+   Notes:
+   - Proper wiring and pull-down resistors are essential.
+   - Optimized for use with a Raspberry Pi and RPi.GPIO.
+
+
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:data:: A
+   :value: 0.003908
+
+
+.. py:data:: B
+   :value: -5.775e-07
+
+
+.. py:data:: C
+   :value: -4.183e-12
+
+
+.. py:function:: c_v_d(r: float, r_0: float) -> float
+
+   Calculate temperature using Callendar-Van Dusen equation.
+
+   This function converts resistance to temperature based on the Calendar-Van Dusen
+   equation, which relates resistance in Ohms to temperature in Celsius. It uses numpy
+   for polynomial root solving.
+
+   :param r: Resistance in Ohms.
+   :type r: float
+   :param r_0: Resistance at 0°C in Ohms.
+   :type r_0: float
+
+   :returns: Estimated temperature in degrees Celsius.
+   :rtype: float
+
+   :raises ImportError: If numpy is not installed.
+   :raises ValueError: If the polynomial root calculation encounters issues (e.g., negative discriminant).
+
+
+.. py:function:: c_v_d_quad(r: float, r_0: float) -> float
+
+   Approximate temperature using a quadratic form of the Callendar-Van Dusen equation.
+
+   This method offers a fast and reasonably accurate way to estimate temperature
+   from resistance, suitable for class A PT100 sensors with about 0.2°C accuracy.
+
+   :param r: Resistance in Ohms.
+   :type r: float
+   :param r_0: Resistance at 0°C in Ohms.
+   :type r_0: float
+
+   :returns: Estimated temperature in degrees Celsius.
+   :rtype: float
+
+   :raises ValueError: If the discriminant in the quadratic formula is negative.
+
+
+.. py:class:: MAX31865(cs_pin: int = 8, miso_pin: int = 9, mosi_pin: int = 10, clk_pin: int = 11, r_0: float = 1000.0, r_ref: float = 400.0, three_wire: bool = False)
+
+   Bases: :py:obj:`herosdevices.hardware.raspberrypi.max318xx.max318xx.MAX318xx`
+
+
+   Interface class for MAX31865 resistance temperature sensor.
+
+   :param cs_pin: Chip select GPIO pin (default: 8).
+   :type cs_pin: int
+   :param miso_pin: MISO GPIO pin (default: 9).
+   :type miso_pin: int
+   :param mosi_pin: MOSI GPIO pin (default: 10).
+   :type mosi_pin: int
+   :param clk_pin: Clock GPIO pin (default: 11).
+   :type clk_pin: int
+   :param r_0: Resistance at 0°C, in Ohms (default: 1000 for PT1000).
+   :type r_0: float
+   :param r_ref: Reference resistor resistance, in Ohms (default: 400).
+   :type r_ref: float
+   :param three_wire: Use 3-wire configuration (default: False).
+   :type three_wire: bool
+   :param log: Optional logger for debug messages.
+   :type log: logging.Logger
+
+
+   .. py:attribute:: r_ref
+      :value: 400.0
+
+
+
+   .. py:attribute:: r_0
+      :value: 1000.0
+
+
+
+   .. py:attribute:: config
+      :value: 162
+
+
+
+   .. py:method:: read_resistance(cs_pin: int) -> float
+
+      Initiate resistance measurement and return resistance value.
+
+      :returns: Resistance in Ohms.
+      :rtype: float
+
+
+
+   .. py:method:: read_temp(convert: collections.abc.Callable[[float, float], float] = c_v_d_quad) -> dict
+
+      Read resistance and convert to temperature.
+
+      :param convert: Function to convert resistance to temperature.
+                      Defaults to c_v_d_quad.
+      :type convert: function
+
+      :returns: Temperature in Celsius.
+      :rtype: float
+
+
+
+   .. py:attribute:: cs_pins
+
+
+   .. py:attribute:: miso_pin
+      :value: 9
+
+
+
+   .. py:attribute:: mosi_pin
+      :value: 10
+
+
+
+   .. py:attribute:: clk_pin
+      :value: 11
+
+
+
+   .. py:method:: write_register(reg_num: int, data_byte: int) -> None
+
+      Write a byte to a specified register.
+
+      :param regNum: Register number to write to.
+      :type regNum: int
+      :param dataByte: Data byte to write.
+      :type dataByte: int
+
+
+
+   .. py:method:: read_register(cs_pin: int, num_registers: int, reg_num_start: int | None = None) -> list[int]
+
+      Read one or more bytes starting from a specified register.
+
+      :param cs_pin: Chip select GPIO pin number.
+      :type cs_pin: int
+      :param numRegisters: Number of bytes to read.
+      :type numRegisters: int
+      :param regNumStart: Starting register number for the read operation.
+      :type regNumStart: int, optional
+
+      :returns: List of bytes read from the device.
+      :rtype: list
+
+
+
+   .. py:method:: send_byte(byte: int) -> None
+
+      Send a byte via SPI by bit-banging.
+
+      :param byte: Byte value to send.
+      :type byte: int
+
+
+
+   .. py:method:: recv_byte() -> int
+
+      Receive a byte via SPI by bit-banging.
+
+      :returns: Byte received.
+      :rtype: int
+
+
+
+   .. py:method:: create_dict(values: list[float], observable: str, unit: str) -> dict
+
+      Build dictionary of observables to be returned by the sensor.
+
+
+
