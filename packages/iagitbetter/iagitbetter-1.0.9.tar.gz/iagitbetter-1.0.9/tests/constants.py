@@ -1,0 +1,453 @@
+github_api_response = {
+    "id": 123456789,
+    "name": "testrepo",
+    "full_name": "testuser/testrepo",
+    "owner": {
+        "login": "testuser",
+        "id": 12345,
+        "avatar_url": "https://avatars.githubusercontent.com/u/12345?v=4",
+        "type": "User",
+    },
+    "private": False,
+    "html_url": "https://github.com/testuser/testrepo",
+    "description": "Test repository for iagitbetter",
+    "fork": False,
+    "created_at": "2021-01-01T00:00:00Z",
+    "updated_at": "2021-06-01T12:00:00Z",
+    "pushed_at": "2021-06-01T12:00:00Z",
+    "git_url": "git://github.com/testuser/testrepo.git",
+    "ssh_url": "git@github.com:testuser/testrepo.git",
+    "clone_url": "https://github.com/testuser/testrepo.git",
+    "svn_url": "https://github.com/testuser/testrepo",
+    "homepage": "https://example.com",
+    "size": 1024,
+    "stargazers_count": 42,
+    "watchers_count": 42,
+    "language": "Python",
+    "has_issues": True,
+    "has_projects": True,
+    "has_downloads": True,
+    "has_wiki": True,
+    "has_pages": False,
+    "forks_count": 10,
+    "mirror_url": None,
+    "archived": False,
+    "disabled": False,
+    "open_issues_count": 3,
+    "license": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+    },
+    "topics": ["archiving", "git", "python"],
+    "forks": 10,
+    "open_issues": 3,
+    "watchers": 42,
+    "default_branch": "main",
+    "network_count": 10,
+    "subscribers_count": 5,
+    "visibility": "public",
+}
+
+gitlab_api_response = {
+    "id": 12345,
+    "name": "testproject",
+    "name_with_namespace": "Test Group / testproject",
+    "path": "testproject",
+    "path_with_namespace": "testgroup/testproject",
+    "description": "GitLab test project",
+    "created_at": "2021-01-01T00:00:00.000Z",
+    "last_activity_at": "2021-06-01T12:00:00.000Z",
+    "visibility": "public",
+    "owner": {"id": 1, "name": "Test Group", "username": "testgroup"},
+    "namespace": {
+        "id": 1,
+        "name": "Test Group",
+        "path": "testgroup",
+        "kind": "group",
+        "full_path": "testgroup",
+        "avatar_url": "https://gitlab.com/uploads/-/system/group/avatar/1/logo.png",
+    },
+    "star_count": 15,
+    "forks_count": 5,
+    "open_issues_count": 2,
+    "default_branch": "main",
+    "archived": False,
+    "topics": ["gitlab", "testing"],
+    "ssh_url_to_repo": "git@gitlab.com:testgroup/testproject.git",
+    "http_url_to_repo": "https://gitlab.com/testgroup/testproject.git",
+    "web_url": "https://gitlab.com/testgroup/testproject",
+    "readme_url": "https://gitlab.com/testgroup/testproject/-/blob/main/README.md",
+    "avatar_url": None,
+    "wiki_enabled": True,
+    "issues_enabled": True,
+    "merge_requests_enabled": True,
+    "builds_enabled": True,
+    "shared_runners_enabled": True,
+    "ci_enabled": True,
+    "pages_enabled": False,
+    "forked_from_project": None,
+    "visibility": "public",
+}
+
+gitea_api_response = {
+    "id": 1,
+    "owner": {
+        "id": 1,
+        "login": "testorg",
+        "full_name": "Test Organization",
+        "email": "",
+        "avatar_url": "https://gitea.com/avatars/1",
+    },
+    "name": "testrepo",
+    "full_name": "testorg/testrepo",
+    "description": "Gitea test repository",
+    "empty": False,
+    "private": False,
+    "fork": False,
+    "template": False,
+    "parent": None,
+    "mirror": False,
+    "size": 500,
+    "language": "Go",
+    "languages_url": "https://gitea.com/api/v1/repos/testorg/testrepo/languages",
+    "html_url": "https://gitea.com/testorg/testrepo",
+    "ssh_url": "git@gitea.com:testorg/testrepo.git",
+    "clone_url": "https://gitea.com/testorg/testrepo.git",
+    "original_url": "",
+    "website": "https://example.org",
+    "stars_count": 25,
+    "forks_count": 8,
+    "watchers_count": 30,
+    "open_issues_count": 4,
+    "open_pr_counter": 2,
+    "release_counter": 3,
+    "default_branch": "main",
+    "archived": False,
+    "created_at": "2021-01-01T00:00:00Z",
+    "updated_at": "2021-06-01T12:00:00Z",
+    "permissions": {"admin": False, "push": False, "pull": True},
+    "has_issues": True,
+    "internal_tracker": {
+        "enable_time_tracker": True,
+        "allow_only_contributors_to_track_time": True,
+        "enable_issue_dependencies": True,
+    },
+    "has_wiki": True,
+    "has_pull_requests": True,
+    "has_projects": True,
+    "ignore_whitespace_conflicts": False,
+    "allow_merge_commits": True,
+    "allow_rebase": True,
+    "allow_rebase_explicit": True,
+    "allow_squash_merge": True,
+    "default_merge_style": "merge",
+    "avatar_url": "",
+}
+
+bitbucket_api_response = {
+    "scm": "git",
+    "website": "https://example.com",
+    "has_wiki": True,
+    "name": "testrepo",
+    "links": {
+        "watchers": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/watchers"
+        },
+        "branches": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/refs/branches"
+        },
+        "tags": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/refs/tags"
+        },
+        "commits": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/commits"
+        },
+        "clone": [
+            {"name": "https", "href": "https://bitbucket.org/testuser/testrepo.git"},
+            {"name": "ssh", "href": "git@bitbucket.org:testuser/testrepo.git"},
+        ],
+        "self": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo"
+        },
+        "source": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/src"
+        },
+        "html": {"href": "https://bitbucket.org/testuser/testrepo"},
+        "avatar": {"href": "https://bitbucket.org/testuser/testrepo/avatar/32/"},
+    },
+    "fork_policy": "allow_forks",
+    "full_name": "testuser/testrepo",
+    "owner": {
+        "display_name": "Test User",
+        "uuid": "{12345678-1234-1234-1234-123456789012}",
+        "links": {
+            "self": {"href": "https://api.bitbucket.org/2.0/users/testuser"},
+            "html": {"href": "https://bitbucket.org/testuser/"},
+            "avatar": {
+                "href": "https://secure.gravatar.com/avatar/12345?d=https%3A%2F%2Favatar.png"
+            },
+        },
+        "type": "user",
+        "username": "testuser",
+    },
+    "workspace": {
+        "slug": "testuser",
+        "type": "workspace",
+        "name": "Test User",
+        "links": {
+            "self": {"href": "https://api.bitbucket.org/2.0/workspaces/testuser"},
+            "html": {"href": "https://bitbucket.org/testuser/"},
+            "avatar": {
+                "href": "https://bitbucket.org/workspaces/testuser/avatar/?ts=1234567890"
+            },
+        },
+        "uuid": "{12345678-1234-1234-1234-123456789012}",
+    },
+    "has_issues": True,
+    "size": 2048000,
+    "type": "repository",
+    "slug": "testrepo",
+    "is_private": False,
+    "description": "Bitbucket test repository",
+    "created_on": "2021-01-01T00:00:00.000000+00:00",
+    "updated_on": "2021-06-01T12:00:00.000000+00:00",
+    "mainbranch": {"type": "branch", "name": "main"},
+    "project": {
+        "type": "project",
+        "key": "TEST",
+        "uuid": "{87654321-4321-4321-4321-210987654321}",
+        "name": "Test Project",
+        "links": {
+            "self": {
+                "href": "https://api.bitbucket.org/2.0/workspaces/testuser/projects/TEST"
+            },
+            "html": {"href": "https://bitbucket.org/testuser/workspace/projects/TEST"},
+            "avatar": {
+                "href": "https://bitbucket.org/account/user/testuser/projects/TEST/avatar/32"
+            },
+        },
+    },
+    "language": "python",
+    "uuid": "{98765432-5678-5678-5678-567890123456}",
+}
+
+# GitHub user repositories response
+github_user_repos_response = [
+    {
+        "id": 1,
+        "name": "repo1",
+        "full_name": "testuser/repo1",
+        "owner": {
+            "login": "testuser",
+            "id": 12345,
+            "avatar_url": "https://avatars.githubusercontent.com/u/12345?v=4",
+            "type": "User",
+        },
+        "private": False,
+        "html_url": "https://github.com/testuser/repo1",
+        "description": "First test repository",
+        "fork": False,
+        "clone_url": "https://github.com/testuser/repo1.git",
+        "created_at": "2021-01-01T00:00:00Z",
+        "updated_at": "2021-06-01T12:00:00Z",
+        "archived": False,
+        "language": "Python",
+    },
+    {
+        "id": 2,
+        "name": "repo2",
+        "full_name": "testuser/repo2",
+        "owner": {
+            "login": "testuser",
+            "id": 12345,
+            "avatar_url": "https://avatars.githubusercontent.com/u/12345?v=4",
+            "type": "User",
+        },
+        "private": False,
+        "html_url": "https://github.com/testuser/repo2",
+        "description": "Second test repository (fork)",
+        "fork": True,
+        "clone_url": "https://github.com/testuser/repo2.git",
+        "created_at": "2021-02-01T00:00:00Z",
+        "updated_at": "2021-05-01T12:00:00Z",
+        "archived": False,
+        "language": "JavaScript",
+    },
+    {
+        "id": 3,
+        "name": "repo3",
+        "full_name": "testuser/repo3",
+        "owner": {
+            "login": "testuser",
+            "id": 12345,
+            "avatar_url": "https://avatars.githubusercontent.com/u/12345?v=4",
+            "type": "User",
+        },
+        "private": False,
+        "html_url": "https://github.com/testuser/repo3",
+        "description": "Third test repository (archived)",
+        "fork": False,
+        "clone_url": "https://github.com/testuser/repo3.git",
+        "created_at": "2021-03-01T00:00:00Z",
+        "updated_at": "2021-04-01T12:00:00Z",
+        "archived": True,
+        "language": "Go",
+    },
+]
+
+# GitLab user lookup response
+gitlab_user_lookup_response = [
+    {
+        "id": 12345,
+        "username": "testuser",
+        "name": "Test User",
+        "state": "active",
+        "avatar_url": "https://gitlab.com/uploads/-/system/user/avatar/12345/avatar.png",
+        "web_url": "https://gitlab.com/testuser",
+    }
+]
+
+# GitLab user projects response
+gitlab_user_projects_response = [
+    {
+        "id": 1,
+        "name": "project1",
+        "path": "project1",
+        "path_with_namespace": "testuser/project1",
+        "description": "First GitLab project",
+        "created_at": "2021-01-01T00:00:00.000Z",
+        "last_activity_at": "2021-06-01T12:00:00.000Z",
+        "visibility": "public",
+        "http_url_to_repo": "https://gitlab.com/testuser/project1.git",
+        "web_url": "https://gitlab.com/testuser/project1",
+        "archived": False,
+        "forked_from_project": None,
+    },
+    {
+        "id": 2,
+        "name": "project2",
+        "path": "project2",
+        "path_with_namespace": "testuser/project2",
+        "description": "Second GitLab project (fork)",
+        "created_at": "2021-02-01T00:00:00.000Z",
+        "last_activity_at": "2021-05-01T12:00:00.000Z",
+        "visibility": "public",
+        "http_url_to_repo": "https://gitlab.com/testuser/project2.git",
+        "web_url": "https://gitlab.com/testuser/project2",
+        "archived": False,
+        "forked_from_project": {"id": 999, "path_with_namespace": "original/project2"},
+    },
+    {
+        "id": 3,
+        "name": "project3",
+        "path": "project3",
+        "path_with_namespace": "testuser/project3",
+        "description": "Third GitLab project (archived)",
+        "created_at": "2021-03-01T00:00:00.000Z",
+        "last_activity_at": "2021-04-01T12:00:00.000Z",
+        "visibility": "public",
+        "http_url_to_repo": "https://gitlab.com/testuser/project3.git",
+        "web_url": "https://gitlab.com/testuser/project3",
+        "archived": True,
+        "forked_from_project": None,
+    },
+]
+
+# Gitea user repositories response
+gitea_user_repos_response = [
+    {
+        "id": 1,
+        "owner": {
+            "id": 1,
+            "login": "testuser",
+            "full_name": "Test User",
+            "avatar_url": "https://gitea.com/avatars/1",
+        },
+        "name": "repo1",
+        "full_name": "testuser/repo1",
+        "description": "First Gitea repository",
+        "private": False,
+        "fork": False,
+        "template": False,
+        "archived": False,
+        "clone_url": "https://gitea.com/testuser/repo1.git",
+        "html_url": "https://gitea.com/testuser/repo1",
+        "created_at": "2021-01-01T00:00:00Z",
+        "updated_at": "2021-06-01T12:00:00Z",
+    },
+    {
+        "id": 2,
+        "owner": {
+            "id": 1,
+            "login": "testuser",
+            "full_name": "Test User",
+            "avatar_url": "https://gitea.com/avatars/1",
+        },
+        "name": "repo2",
+        "full_name": "testuser/repo2",
+        "description": "Second Gitea repository (fork)",
+        "private": False,
+        "fork": True,
+        "template": False,
+        "archived": False,
+        "clone_url": "https://gitea.com/testuser/repo2.git",
+        "html_url": "https://gitea.com/testuser/repo2",
+        "created_at": "2021-02-01T00:00:00Z",
+        "updated_at": "2021-05-01T12:00:00Z",
+    },
+]
+
+# Bitbucket user repositories response
+bitbucket_user_repos_response = {
+    "values": [
+        {
+            "scm": "git",
+            "name": "repo1",
+            "full_name": "testuser/repo1",
+            "description": "First Bitbucket repository",
+            "is_private": False,
+            "parent": None,
+            "links": {
+                "clone": [
+                    {
+                        "name": "https",
+                        "href": "https://bitbucket.org/testuser/repo1.git",
+                    },
+                    {"name": "ssh", "href": "git@bitbucket.org:testuser/repo1.git"},
+                ],
+                "html": {"href": "https://bitbucket.org/testuser/repo1"},
+            },
+            "created_on": "2021-01-01T00:00:00.000000+00:00",
+            "updated_on": "2021-06-01T12:00:00.000000+00:00",
+        },
+        {
+            "scm": "git",
+            "name": "repo2",
+            "full_name": "testuser/repo2",
+            "description": "Second Bitbucket repository (fork)",
+            "is_private": False,
+            "parent": {
+                "full_name": "original/repo2",
+                "links": {"html": {"href": "https://bitbucket.org/original/repo2"}},
+            },
+            "links": {
+                "clone": [
+                    {
+                        "name": "https",
+                        "href": "https://bitbucket.org/testuser/repo2.git",
+                    },
+                    {"name": "ssh", "href": "git@bitbucket.org:testuser/repo2.git"},
+                ],
+                "html": {"href": "https://bitbucket.org/testuser/repo2"},
+            },
+            "created_on": "2021-02-01T00:00:00.000000+00:00",
+            "updated_on": "2021-05-01T12:00:00.000000+00:00",
+        },
+    ],
+    "pagelen": 10,
+    "page": 1,
+    "size": 2,
+    "next": None,
+}
