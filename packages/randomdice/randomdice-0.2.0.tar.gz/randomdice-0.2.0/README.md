@@ -1,0 +1,101 @@
+randomdice™ 
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Author: aiwonderland
+Date: 2025-10-01
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 快速开始
+
+安装（开发 / 本地测试）
+```bash
+cd /d d:\evan\codes_evan\randomdice
+py -3 -m pip install --upgrade build
+py -3 -m build
+py -3 -m pip install dist\randomdice-*.whl
+```
+
+也可以直接从 Git 仓库安装：
+```bash
+pip install git+https://github.com/<owner>/<repo>.git
+```
+
+依赖与版本
+- 兼容 Python 3.8+（在本仓库中使用标准库 random）
+- 在打包或 CI 中需要 `build` / `twine` 等工具
+
+常用示例（在 Python 交互式环境或脚本中）
+
+Die（掷骰子）
+```python
+from randomdice import Die
+d6 = Die("D6")
+print(d6)                # e.g. Die(type=D6, sides=6)
+print(d6.roll())         # 单次掷骰
+print(d6.roll(5))        # 多次掷骰，返回列表
+
+# 自定义面值
+d_custom = Die()
+d_custom.DIYdie(5, sidevalue=['A','B','C','D','E'])
+print(d_custom.roll(3))
+```
+
+Coin（抛硬币）
+```python
+from randomdice import Coin
+c = Coin(2)              # coin_number = 2
+print(c.flip(3))         # 每个硬币抛三次，返回二维列表
+```
+
+SpinWheel（转盘 / 奖励转盘）
+```python
+from randomdice import SpinWheel
+wheel = SpinWheel(["Red","Green","Blue"])
+print(wheel.spin(4))     # 返回 4 次转盘结果
+
+# 高级：创建加权转盘（若实现了权重接口）
+new = wheel.DIYwheelsegments([...], whith_wheel=True, segment_size=10, weights=[...])
+```
+
+Card（牌组）
+```python
+from randomdice import Card
+deck = Card("standard")
+print(deck.draw(5))      # 抽 5 张牌
+print(deck)              # 查看剩余牌数
+```
+
+Target（目标选择）
+```python
+from randomdice import Target
+
+target3 = Target(3)
+print(target3) #输出耙子
+print("Shooting at (1,1):", target3.shoot(1, 1,random_shot=False))
+
+```
+
+
+
+发布与分发（替代方案）
+- 若无法上传 PyPI，可使用 GitHub Releases 上传 wheel：
+  1. 本地 build：`py -3 -m build`
+  2. 在 Release 页面上传 dist/* 作为 release assets
+  3. 用户可用 pip 直接安装 release asset 的 URL
+
+贡献 & 报告问题
+- 欢迎提交 Issue 描述复现步骤和错误信息
+- 按功能分支提交 PR（例如：fix/die-init 或 feat/spinwheel-weights）
+- 在 PR 中包含单元测试或示例以说明变更
+
+许可
+- MIT License（见仓库根目录 LICENSE 文件）
+
+常见问题（FAQ）
+- “导入失败：cannot import name 'Die'” — 确保 package 已正确安装或在项目根目录运行脚本；避免使用与模块同名的脚本（如 die.py 放在脚本同目录下会遮蔽包）。
+- “如何发布到 PyPI” — 推荐先在 Test PyPI 测试；若无法创建 API token，可使用 GitHub Releases 作为替代分发方式。
+
+
+
