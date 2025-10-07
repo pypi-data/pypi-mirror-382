@@ -1,0 +1,83 @@
+
+1. Build a cnn model to perform handwritten
+number recognition using tensorflow.
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.utils import to_categorical
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+tf.random.set_seed(42)
+np.random.seed(42)
+(x_train, y_train), (x_test, y_test) =
+tf.keras.datasets.mnist.load_data()
+x_train = x_train.astype("float32") / 255.0
+x_test = x_test.astype("float32") / 255.0
+x_train = np.expand_dims(x_train, -1)
+x_test = np.expand_dims(x_test, -1)
+num_classes = 10
+y_train_cat = to_categorical(y_train, num_classes)
+y_test_cat = to_categorical(y_test, num_classes)
+def build_model():
+model = models.Sequential([
+layers.Input(shape=(28, 28, 1)),
+layers.Conv2D(32, (3,3), activation='relu',
+padding='same'),
+layers.Conv2D(64, (3,3), activation='relu',
+padding='same'),
+layers.MaxPooling2D((2,2)),
+layers.Dropout(0.25),
+layers.Flatten(),
+layers.Dense(128, activation='relu'),
+layers.Dropout(0.5),
+layers.Dense(num_classes, activation='softmax')
+])
+return model
+model = build_model()
+model.compile(optimizer='adam',
+loss='categorical_crossentropy',
+metrics=['accuracy'])
+model.summary()
+epochs = 5
+batch_size = 128
+history = model.fit(
+x_train, y_train_cat,
+batch_size=batch_size,
+epochs=epochs,
+validation_split=0.1,
+verbose=2
+)
+plt.figure(figsize=(10,4))
+plt.subplot(1,2,1)
+plt.plot(history.history['loss'], label='train loss')
+plt.plot(history.history['val_loss'], label='val loss')
+plt.title('Loss')
+plt.xlabel('epoch')
+plt.legend()
+plt.subplot(1,2,2)
+plt.plot(history.history['accuracy'], label='train acc')
+plt.plot(history.history['val_accuracy'], label='val acc')
+plt.title('Accuracy')
+plt.xlabel('epoch')
+plt.legend()
+plt.tight_layout()
+plt.show()
+test_loss, test_acc = model.evaluate(x_test, y_test_cat,
+verbose=0)
+print(f"\nTest accuracy: {test_acc:.4f}, Test loss:
+{test_loss:.4f}")
+preds = model.predict(x_test[:9])
+pred_labels = np.argmax(preds, axis=1)
+true_labels = y_test[:9]
+plt.figure(figsize=(6,6))
+for i in range(9):
+plt.subplot(3,3,i+1)
+plt.imshow(x_test[i].squeeze(), cmap='gray',
+origin='upper')
+plt.title(f"pred: {pred_labels[i]} / true: {true_labels[i]}")
+plt.axis('off')
+plt.tight_layout()
+plt.show()
+
+
+

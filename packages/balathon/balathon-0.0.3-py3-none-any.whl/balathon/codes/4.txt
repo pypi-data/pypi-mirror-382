@@ -1,0 +1,71 @@
+4. Develop a cnn model to perform object detection.
+import tensorflow as tf
+from tensorflow.keras import layers, models
+import numpy as np
+import matplotlib.pyplot as plt
+def generate_data(num_samples=500):
+images = []
+boxes = []
+labels = []
+for _ in range(num_samples):
+img = np.zeros((100, 100, 3), dtype=np.uint8)
+x1, y1 = np.random.randint(10, 60, 2)
+x2, y2 = x1 + np.random.randint(10, 40), y1 +
+np.random.randint(10, 40)
+color = np.random.randint(0, 255, 3)
+img[y1:y2, x1:x2] = color
+images.append(img / 255.0)
+boxes.append([x1 / 100, y1 / 100, x2 / 100, y2 / 100])
+labels.append(np.random.randint(0, 3))
+return np.array(images), np.array(boxes),
+np.array(labels)
+X, y_boxes, y_labels = generate_data()
+input_layer = layers.Input(shape=(100, 100, 3))
+x = layers.Conv2D(32, (3,3), activation='relu',
+padding='same')(input_layer)
+x = layers.MaxPooling2D(2)(x)
+x = layers.Conv2D(64, (3,3), activation='relu',
+padding='same')(x)
+x = layers.MaxPooling2D(2)(x)
+x = layers.Conv2D(128, (3,3), activation='relu',
+padding='same')(x)
+x = layers.Flatten()(x)
+x = layers.Dense(128, activation='relu')(x)
+bbox_output = layers.Dense(4, activation='sigmoid',
+name='bbox')(x)
+class_output = layers.Dense(3, activation='softmax',
+name='class')(x)
+model = models.Model(inputs=input_layer,
+outputs=[bbox_output, class_output])
+model.compile(optimizer='adam',
+loss={'bbox': 'mse', 'class':
+'sparse_categorical_crossentropy'},
+metrics={'bbox': 'mae', 'class': 'accuracy'})
+model.summary()
+history = model.fit(
+X, {'bbox': y_boxes, 'class': y_labels},
+epochs=10,
+batch_size=32,
+validation_split=0.2
+)
+idx = np.random.randint(0, len(X))
+img = X[idx]
+true_box = y_boxes[idx]
+true_label = y_labels[idx]
+pred_box, pred_class =
+model.predict(np.expand_dims(img, axis=0))
+pred_box, pred_class = pred_box[0],
+np.argmax(pred_class[0])
+plt.imshow(img)
+h, w = 100, 100
+plt.gca().add_patch(plt.Rectangle((true_box[0]*w,
+true_box[1]*h),(true_box[2]-true_box[0])*w,
+(true_box[3]-true_box[1])*h,fill=False, color='green',
+linewidth=2))
+plt.gca().add_patch(plt.Rectangle((pred_box[0]*w,
+pred_box[1]*h), (pred_box[2]-pred_box[0])*w,
+(pred_box[3]-pred_box[1])*h,fill=False, color='red',
+linewidth=2))
+plt.title(f"True Class: {true_label}, Predicted:
+{pred_class}")
+plt.show()
