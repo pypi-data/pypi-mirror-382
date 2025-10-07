@@ -1,0 +1,165 @@
+{% import 'core_utils.jinja' as utils %}
+{% import 'completion_utils.jinja' as completion_utils %}
+{% import 'unnest_utils.jinja' as unnest_utils %}
+{#- Unlike some of the other core templates, in order to get easier access
+to the nested dates in the period, we'll do the preliminary querying in
+two steps.
+
+TODO: profile speed vs a single step, consider extending date col methods
+to traverse nested elements if performance is impacted-#}
+CREATE TABLE core__encounter AS
+WITH
+
+temp_encounter_completion AS {{ completion_utils.complete_encounters(schema) }},
+
+temp_encounter_nullable AS (
+    SELECT DISTINCT
+        {{- utils.basic_cols(
+                'encounter',
+                'e',
+                [
+                    'id'
+                ], 
+            ) 
+        }},
+        {{- utils.nullable_cols(
+                'encounter',
+                'e',
+                [
+                    'status',
+                    ('class', 'code', 'class_code'),
+                    ('class', 'system', 'class_system'),
+                    ('class', 'display', 'class_display'),
+                    ('subject', 'reference', 'subject_ref'),
+                    ('serviceProvider', 'reference', 'serviceProvider_ref'),
+                ], 
+                schema
+            ) 
+        }},
+        {{- utils.date_cols_from_str(
+                'encounter',
+                'e',
+                [
+                    ('period', 'start', 'period_start'),
+                ],
+                schema
+            ) 
+        }},
+        {{- utils.truncate_date_cols(
+                'encounter',
+                'e',
+                [
+                    ('period', 'end', 'period_end_day', 'day'),
+                    ('period', 'start', 'period_start_day', 'day'),
+                    ('period', 'start', 'period_start_week', 'week'),
+                    ('period', 'start', 'period_start_month', 'month'),
+                    ('period', 'start', 'period_start_year', 'year'),
+                ],
+                schema
+            ) 
+        }}
+    FROM encounter AS e
+    LEFT JOIN temp_encounter_completion AS tec ON tec.id = e.id
+    WHERE (
+        -- NULL completion just means it's a row that isn't completion-tracked
+        -- (likely a legacy row), so allow it in.
+        tec.is_complete IS NULL OR tec.is_complete
+    )
+),
+
+temp_participant AS (
+    SELECT
+        id,
+
+{% if schema["encounter"]["participant"]["individual"]["reference"] %}
+        u.participant.individual.reference AS participant_ref
+    FROM encounter,
+         unnest(participant) AS u (participant) --noqa
+
+{% else %}
+        cast('' AS varchar) AS participant_ref
+    FROM encounter
+    WHERE 1=0 -- forces an empty table
+
+{% endif %}
+),
+
+temp_encounter AS (
+    SELECT DISTINCT
+        e.id,
+        e.status,
+        e.class_code,
+        e.class_system,
+        e.class_display,
+        e.subject_ref,
+        e.period_start,
+        e.period_start_day,
+        e.period_end_day,
+        e.period_start_week,
+        e.period_start_month,
+        e.period_start_year,
+        e.serviceProvider_ref,
+        edt.code AS type_code,
+        edt.system AS type_system,
+        edt.display AS type_display,
+        eds.code AS serviceType_code,
+        eds.system AS serviceType_system,
+        eds.display AS serviceType_display,
+        edp.code AS priority_code,
+        edp.system AS priority_system,
+        edp.display AS priority_display,
+        edr.code AS reasonCode_code,
+        edr.system AS reasonCode_system,
+        edr.display AS reasonCode_display,
+        edd.code AS dischargeDisposition_code,
+        edd.system AS dischargeDisposition_system,
+        edd.display AS dischargeDisposition_display
+
+    FROM temp_encounter_nullable AS e
+    LEFT JOIN core__encounter_dn_type AS edt ON e.id = edt.id
+    LEFT JOIN core__encounter_dn_servicetype AS eds ON e.id = eds.id
+    LEFT JOIN core__encounter_dn_priority AS edp ON e.id = edp.id
+    LEFT JOIN core__encounter_dn_reasoncode AS edr ON e.id = edr.id
+    LEFT JOIN core__encounter_dn_dischargedisposition AS edd ON e.id = edd.id
+)
+
+SELECT DISTINCT
+    e.id,
+    e.status,
+    COALESCE (ac.code, e.class_code) AS class_code,
+    COALESCE (ac.display, e.class_display) AS class_display,
+    e.type_code,
+    e.type_system,
+    e.type_display,
+    e.serviceType_code,
+    e.serviceType_system,
+    e.serviceType_display,
+    e.priority_code,
+    e.priority_system,
+    e.priority_display,
+    e.reasonCode_code,
+    e.reasonCode_system,
+    e.reasonCode_display,
+    e.dischargeDisposition_code,
+    e.dischargeDisposition_system,
+    e.dischargeDisposition_display,
+    date_diff('year', cast(p.birthdate AS date), e.period_start_day) AS age_at_visit,
+    p.gender,
+    p.race_display,
+    p.ethnicity_display,
+    p.postalcode_3,
+    e.period_start_day,
+    coalesce(e.period_end_day, e.period_start_day) AS period_end_day,
+    e.period_start_week AS period_start_week,
+    e.period_start_month AS period_start_month,
+    e.period_start_year AS period_start_year,
+    e.subject_ref,
+    tp.participant_ref,
+    e.serviceProvider_ref,
+    concat('Encounter/', e.id) AS encounter_ref
+FROM temp_encounter AS e
+LEFT JOIN temp_participant AS tp ON e.id = tp.id
+LEFT JOIN core__fhir_mapping_expected_act_encounter_code_v3 AS eac
+    ON e.class_code = eac.found AND e.class_system = eac.found_system
+LEFT JOIN core__fhir_act_encounter_code_v3 AS ac ON eac.expected = ac.code
+INNER JOIN core__patient AS p ON e.subject_ref = p.subject_ref;

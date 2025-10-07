@@ -1,0 +1,21 @@
+{%- import 'syntax.sql.jinja' as syntax -%}
+CREATE TABLE "{{ schema_name }}"."{{ table_name }}" AS (
+    SELECT * FROM (
+        VALUES
+        {%- for row in dataset %}
+        (
+            {%- for field in row -%}
+            cast('{{ field }}' AS varchar)
+            {{- syntax.comma_delineate(loop) }}
+            {%- endfor -%}
+        )
+        {{- syntax.comma_delineate(loop) }}
+        {%- endfor %}
+    )
+        AS t (
+            {%- for col in table_cols -%}
+            "{{ col }}"
+            {{- syntax.comma_delineate(loop) }}
+            {%- endfor -%}
+        )
+);

@@ -1,0 +1,161 @@
+{%- import 'syntax.sql.jinja' as syntax -%}
+{%- import 'unnest_utils.jinja' as unnest_utils -%}
+
+{% set extra_alias_done = false -%}
+
+CREATE TABLE {{ target_table }} AS (
+    WITH
+    {%- if is_array %}
+
+    flattened_rows AS (
+        {{ unnest_utils.flatten(
+            source_table,
+            column_name,
+            parent_field=parent_field,
+            extra_fields=extra_fields,
+        ) }}
+    ),
+    {%- set source_table = 'flattened_rows' -%}
+    {%- set parent_field = false %}
+    {%- set extra_alias_done = true %}
+    {%- endif %}
+
+    {%- set field_alias = (
+        (parent_field + "." + column_name) if parent_field else column_name
+    ) %}
+
+    {%- if child_is_array %}
+
+    child_flattened_rows AS (
+        SELECT DISTINCT
+            s.id,
+            {%- if is_array %}
+            s.row, -- keep the parent row number
+            {%- endif %}
+            {%- for extra_field in extra_fields %}
+            {%- if extra_alias_done %}
+            {{ extra_field[1] }},
+            {%- else %}
+            s.{{ extra_field[0] }} AS {{ extra_field[1] }},
+            {%- endif %}
+            {%- endfor %}
+            u."{{ column_name }}"
+        FROM
+            {{ source_table }} AS s,
+            UNNEST(s.{{ field_alias }}) AS u ("{{ column_name }}")
+    ),
+    {%- set source_table = 'child_flattened_rows' -%}
+    {%- set field_alias = column_name %}
+    {%- set extra_alias_done = true %}
+    {%- endif %}
+
+    {%- for system in code_systems %}
+
+    system_{{ column_name }}_{{ loop.index0 }} AS (
+        SELECT DISTINCT
+            s.{{ source_id }} AS id,
+            {%- if is_array %}
+            s.row,
+            {%- else %}
+            0 AS row,
+            {%- endif %}
+            {%- if filter_priority %}
+            '{{ loop.index0 }}' AS priority,
+            {%- endif %}
+            {%- for extra_field in extra_fields %}
+            {%- if extra_alias_done %}
+            {{ extra_field[1] }},
+            {%- else %}
+            s.{{ extra_field[0] }} AS {{ extra_field[1] }},
+            {%- endif %}
+            {%- endfor %}
+            u.coding.code,
+            u.coding.display,
+            u.coding.system,
+            u.coding.userSelected
+        FROM
+        {#- Temp workaround - to be reworked by generic DN #}
+            {{ source_table }} AS s,
+            UNNEST(s.{{ field_alias }}.coding) AS u (coding)
+        {%- if filter_priority %}
+        WHERE
+            {{ syntax.like('u.coding.system', system) }}
+        {%- endif %}
+    ), --noqa: LT07
+    {%- endfor %}
+
+    union_table AS (
+        {%- for system in code_systems %}
+        SELECT
+            id,
+            row,
+            {%- if filter_priority %}
+            priority,
+            {%- endif %}
+            {%- for extra_field in extra_fields %}
+            {{ extra_field[1] }},
+            {%- endfor %}
+            system,
+            code,
+            display,
+            userSelected
+        FROM system_{{ column_name }}_{{ loop.index0 }}
+        {{ syntax.union_delineate(loop) }}
+        {%- endfor %}
+    )
+    {%- if filter_priority -%},
+
+    partitioned_table AS (
+        SELECT
+            id,
+            row,
+            {%- for extra_field in extra_fields %}
+            {{ extra_field[1] }},
+            {%- endfor %}
+            code,
+            system,
+            display,
+            userSelected,
+            priority,
+            ROW_NUMBER()
+                OVER (
+                    PARTITION BY id
+                    ORDER BY priority ASC, code ASC
+                ) AS available_priority
+        FROM union_table
+        GROUP BY
+            id, row, priority, system, code, display, userSelected
+            {%- for extra_field in extra_fields %}, {{ extra_field[1] }}{% endfor %}
+    )
+
+    SELECT
+        id,
+        {%- if is_array %}
+        row,
+        {%- endif %}
+        {%- for extra_field in extra_fields %}
+        {{ extra_field[1] }},
+        {%- endfor %}
+        code,
+        system,
+        display,
+        userSelected
+    FROM partitioned_table
+    WHERE available_priority = 1
+);
+{% else %}
+    SELECT
+        id,
+        {%- if is_array %}
+        row,
+        {%- endif %}
+        {%- for extra_field in extra_fields %}
+        {{ extra_field[1] }},
+        {%- endfor %}
+        code,
+        system,
+        display,
+        userSelected
+    FROM union_table
+);
+{% endif %}

@@ -1,0 +1,24 @@
+{%- import 'syntax.sql.jinja' as syntax -%}
+INSERT INTO "{{ schema_name }}"."{{ table_name }}"
+(
+    {%- for col in table_cols -%}
+    "{{ col }}"
+    {{- syntax.comma_delineate(loop) }}
+    {%- endfor -%}
+)
+VALUES
+{%- for row in dataset %}
+(
+    {%- for field in row -%}
+    {%- if table_cols[loop.index0] in type_casts.keys() -%}
+    {{ type_casts[table_cols[loop.index0]] }} '{{ field }}'
+    {%- elif not field -%}
+    CAST(NULL AS VARCHAR)
+    {%- else -%}
+    '{{ field }}'
+    {%- endif -%}
+    {{- syntax.comma_delineate(loop) }}
+    {%- endfor -%}
+)
+{{- syntax.comma_delineate(loop) }}
+{%- endfor %};

@@ -1,0 +1,52 @@
+{# Flattens an array into multiple rows, with ordinality #}
+
+{%- macro flatten(table, field, parent_field = null, source_id = 'id', extra_fields = null) -%}
+{%- if db_type == 'duckdb' %}
+        {#-
+            DuckDB does not yet have WITH ORDINALITY, which is a bit simpler than this branch.
+            TODO: remove this branch once the following PR lands:
+                https://github.com/duckdb/duckdb/pull/9014
+            But first make sure that it does not run out of memory on lots (>=5GB?) of data.
+        -#}
+        WITH
+        data_and_row_num AS (
+            SELECT
+                t.{{ source_id }} AS id,
+                {%- if parent_field %}
+                generate_subscripts(t."{{ parent_field }}", 1) AS row,
+                UNNEST(t."{{ parent_field }}") AS data -- must unnest in SELECT here
+                {%- else %}
+                generate_subscripts(t."{{ field }}", 1) AS row,
+                UNNEST(t."{{ field }}") AS "{{ field }}" -- must unnest in SELECT here
+                {%- endif %}
+            FROM {{ table }} AS t
+        )
+        SELECT
+            id,
+            row,
+            {%- if parent_field %}
+            {% for extra_field in (extra_fields or []) -%}
+            data."{{ extra_field[0] }}" AS "{{ extra_field[1] }}",
+            {% endfor -%}
+            data."{{ field }}"
+            {%- else %}
+            "{{ field }}"
+            {%- endif %}
+        FROM data_and_row_num
+{%- else -%}
+        SELECT
+            t.{{ source_id }} AS id,
+            row,
+            {% for extra_field in (extra_fields or []) -%}
+            r."{{ extra_field[0] }}" AS "{{ extra_field[1] }}",
+            {% endfor -%}
+            r."{{ field }}"
+        FROM
+            {{ table }} AS t,
+            {%- if parent_field %}
+            UNNEST(t."{{ parent_field }}") WITH ORDINALITY AS parent (r, row)
+            {%- else %}
+            UNNEST(t."{{ field }}") WITH ORDINALITY AS r ("{{ field }}", row)
+            {%- endif %}
+{%- endif %}
+{%- endmacro -%}

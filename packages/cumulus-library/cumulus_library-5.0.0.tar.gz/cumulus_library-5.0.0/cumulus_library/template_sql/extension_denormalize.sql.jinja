@@ -1,0 +1,82 @@
+{%- import 'syntax.sql.jinja' as syntax -%}
+CREATE TABLE {{ target_table }} AS (
+    WITH
+    {%- for system in ext_systems %}
+
+    system_{{ system }} AS (
+        SELECT DISTINCT
+            s.{{ source_id }} AS id,
+            '{{ loop.index0 }}' AS priority,
+            '{{ system }}' AS system, -- noqa: RF04
+            ext_child.ext.valuecoding.code AS {{ target_col_prefix }}_code,
+            ext_child.ext.valuecoding.display AS {{ target_col_prefix }}_display
+        FROM
+            {{ source_table }} AS s,
+            UNNEST(s.extension) AS ext_parent (ext),
+            UNNEST(ext_parent.ext.extension) AS ext_child (ext)
+        WHERE
+            ext_parent.ext.url = '{{ fhir_extension }}'
+            AND ext_child.ext.url = '{{ system }}'
+            AND ext_child.ext.valuecoding.display != ''
+    ),
+    {%- endfor %}
+
+    union_table AS (
+        {%- for system in ext_systems %}
+        SELECT
+            id,
+            priority,
+            system,
+            {{ target_col_prefix }}_code,
+            {{ target_col_prefix }}_display
+        FROM system_{{ system }}
+        {{ syntax.union_delineate(loop) }}
+        {%- endfor %}
+        ORDER BY id, priority
+    )
+
+    SELECT
+        id,
+        system,
+        {{ target_col_prefix }}_code,
+        {{ target_col_prefix }}_display
+    FROM (
+        SELECT
+            id,
+            system,
+            {%- if is_array %}
+            LOWER(
+                ARRAY_JOIN(
+                    ARRAY_SORT(
+                        ARRAY_AGG(
+                            {{ target_col_prefix }}_code
+                        )
+                    ), '; '
+                )
+            )
+                AS {{ target_col_prefix }}_code,
+            LOWER(
+                ARRAY_JOIN(
+                    ARRAY_SORT(
+                        ARRAY_AGG(
+                            {{ target_col_prefix }}_display
+                        )
+                    ), '; '
+                )
+            ) AS {{ target_col_prefix }}_display,
+            {%- else %}
+            LOWER({{ target_col_prefix }}_code) AS {{ target_col_prefix }}_code,
+            LOWER(
+                {{ target_col_prefix }}_display
+            ) AS {{ target_col_prefix }}_display,
+            {%- endif %}
+            ROW_NUMBER()
+                OVER (
+                    PARTITION BY id
+                    ORDER BY priority ASC
+                ) AS available_priority
+        FROM union_table
+        GROUP BY id, system, priority
+    )
+    WHERE available_priority = 1
+);

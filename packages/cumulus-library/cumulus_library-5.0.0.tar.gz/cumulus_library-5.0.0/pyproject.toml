@@ -1,0 +1,83 @@
+[project]
+name = "cumulus-library"
+requires-python = ">= 3.11"
+dependencies = [
+    "awswrangler >= 3.11, < 4",
+    "cumulus-fhir-support >= 1.6",
+    "duckdb >= 1.1.3, <1.3", # 1.3 has an issue that is breaking our unit tests
+    "Jinja2 > 3",
+    "pandas <3, >=2.1.3",
+    "psmpy <1, >=0.3.13",
+    "pyarrow >= 11.0",
+    "pyathena >= 2.23",
+    "pytablewriter >= 1.2",
+    "requests >= 2.28",
+    "rich >= 13.2",
+    "sqlfluff  >= 3",
+    "sqlparse >0.4",
+]
+description = "Clinical study SQL generation for data derived from bulk FHIR"
+readme = "README.md"
+license = { text="Apache License 2.0" }
+keywords = ["FHIR", "SQL", "Health Informatics"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dynamic=["version"]
+[project.optional-dependencies]
+dev = [
+    # if you update the ruff version, also update .pre-commit-config.yaml
+    "ruff < 0.14",
+    "pre-commit",
+]
+test = [
+    "freezegun",
+    "pytest",
+    "pytest-cov",
+    "responses"
+]
+
+[project.urls]
+Home = "https://smarthealthit.org/cumulus/"
+Documentation = "https://docs.smarthealthit.org/cumulus/library/"
+Source = "https://github.com/smart-on-fhir/cumulus-library"
+
+
+[project.scripts]
+cumulus-library = "cumulus_library.cli:main_cli"
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.sdist]
+include = [".sqlfluff"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = [
+    "tests",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+allowed-confusables = ["’"]  # allow proper apostrophes
+select = [
+    "A",  # prevent using keywords that clobber python builtins
+    "E",  # pycodestyle
+    "F",  # pyflakes
+    "I",  # isort
+    "PLE",  # pylint errors
+    "RUF",  # the ruff developer's own rules
+    "S",  # bandit security warnings
+    "T201", #checks for print statements
+    "UP",  # alert you when better syntax is available in your python version
+]
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401"]  # init files hold API, so not using imports is intentional
+"tests/**" = ["S"]  # tests do suspicious stuff that's fine, actually
