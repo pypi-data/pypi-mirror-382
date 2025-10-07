@@ -1,0 +1,254 @@
+Metadata-Version: 2.4
+Name: logforge-django
+Version: 0.1.1
+Summary: Django audit logging package for LogForge
+Home-page: https://github.com/logforge/logforge-django
+Author: LogForge Team
+Author-email: team@logforge.dev
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 3.2
+Classifier: Framework :: Django :: 4.0
+Classifier: Framework :: Django :: 4.1
+Classifier: Framework :: Django :: 4.2
+Classifier: Framework :: Django :: 5.0
+Classifier: Framework :: Django :: 5.1
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: Django<6.0,>=3.2
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0; extra == "dev"
+Requires-Dist: pytest-django>=4.0; extra == "dev"
+Requires-Dist: black>=22.0; extra == "dev"
+Requires-Dist: flake8>=4.0; extra == "dev"
+Requires-Dist: isort>=5.0; extra == "dev"
+Provides-Extra: celery
+Requires-Dist: celery>=5; extra == "celery"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+﻿# LogForge Django
+
+Unified audit logging for Django: creates audit_logs rows on create, update, delete, restore, force_delete with diffs, actor, IP, and context.
+
+## Install
+
+```bash
+pip install logforge-django
+```
+
+## Configure (settings.py)
+
+```python
+INSTALLED_APPS = [
+    # ...
+    'logforge.audit',  # or 'logforge.audit.apps.AuditConfig'
+]
+
+MIDDLEWARE = [
+    # ...
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'logforge.audit.middleware.request_context.RequestContextMiddleware',
+]
+
+LOGFORGE = {
+    'enabled': True,
+    'events': ['create','update','delete','restore','force_delete'],
+    'include': [],
+    'exclude': ['updated_at'],
+    'redact': ['password','token','secret'],
+    'actor': {'resolver': None, 'default': None},
+    'context': {'capture_ip': True, 'capture_user_agent': True},
+    'payload_max_bytes': 65536,
+    'suppress_exceptions': True,
+    'writer': 'db',  # 'db' (default) or 'queue'
+    'queue': {'queue': 'celery', 'delay': 0},
+    'archive': {'enabled': False, 'path': None, 'format': 'json'},
+    'performance': {'enabled': False, 'slow_threshold_ms': 100, 'sample_rate': 1.0},
+}
+```
+
+Run:
+
+```bash
+python manage.py migrate
+```
+
+## Use
+
+```python
+from django.db import models
+from logforge.audit.mixins.logs_activity import LogsActivity
+
+class Post(LogsActivity, models.Model):
+    title = models.CharField(max_length=200)
+    content = models.TextField(blank=True)
+```
+
+## Writers
+
+- Database (default): `'writer': 'db'` (sync)
+- Queue (Celery): `'writer': 'queue'`
+
+  - Default queue name is `'audit-logs'`. You can override via `LOGFORGE['queue']['queue']`.
+  - settings.py:
+    ```python
+    CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
+    CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/1'
+    ```
+  - myproject/celery.py:
+    ```python
+    import os
+    from celery import Celery
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE','myproject.settings')
+    app = Celery('myproject')
+    app.config_from_object('django.conf:settings', namespace='CELERY')
+    app.autodiscover_tasks()
+    ```
+  - myproject/**init**.py:
+    ```python
+    from .celery import app as celery_app
+    __all__ = ('celery_app',)
+    ```
+  - Run:
+
+    ```bash
+    python manage.py runserver
+    celery -A myproject worker -P solo -l info
+    ```
+
+  - Example writer configuration (overrides shown):
+    ```python
+    LOGFORGE.update({
+        'writer': 'queue',
+        'queue': {
+            # default is 'audit-logs' if not set
+            'queue': 'audit-logs',
+            # seconds to delay (optional)
+            'delay': 0,
+        },
+    })
+    ```
+
+## Include/Exclude & Redaction
+
+```python
+LOGFORGE.update({
+    'include': [],
+    'exclude': ['updated_at'],
+    'redact': ['password','token'],
+    'per_model': {
+        'myapp.Post': {'include': ['title','content'], 'redact': ['content']},
+        'myapp.CustomUser': {'exclude': ['last_login','date_joined'], 'redact': ['password','email']},
+    }
+})
+```
+
+- Diffs are filtered; `changed` respects filters.
+- If update diff is empty after filtering, it’s skipped.
+- Redaction supports dot-notation (e.g., `new.metadata.user.profile.email`).
+
+## Soft Deletes
+
+- Set `is_deleted=True` or `deleted_at` → event “delete”
+- Clear them → “restore”
+- Hard row removal (on soft-deletable model) → “force_delete”
+  Note: you implement the soft-delete behavior (manager/override); LogForge just logs it.
+
+## Batching
+
+```python
+from logforge.audit.support.audit_batch import AuditBatch
+with AuditBatch.run_context(context={'job':'seed'}) as batch_uuid:
+    Post.objects.create(title='A', content='x')
+```
+
+## Commands
+
+- Prune:
+
+```bash
+python manage.py prune_audit_logs --days=30 --dry-run
+python manage.py prune_audit_logs --days=30
+```
+
+- Archive:
+
+```bash
+python manage.py archive_audit_logs --days=90 --output="media/logforge/audit_90d.jsonl"
+```
+
+If `LOGFORGE['archive']['path']` is unset, defaults to `MEDIA_ROOT/logforge` if available.
+
+## Dashboard
+
+Add the LogForge dashboard routes to your project URLs to enable the UI and API endpoints:
+
+```python
+# myproject/urls.py
+from django.urls import include, path
+
+urlpatterns = [
+    # ...
+    path('logforge/', include('logforge.audit.urls', namespace='logforge')),
+]
+```
+
+Access control defaults to authenticated staff users. You can customize with `LOGFORGE['dashboard']`:
+
+```python
+LOGFORGE.update({
+    'dashboard': {
+        # Dotted path to a callable that receives a user and returns True/False
+        # Example: 'myproject.auth.can_view_logforge'
+        'allow': None,  # None => default to user.is_authenticated and user.is_staff
+
+        # When True, redirects unauthorized users to Django admin login instead of LOGIN_URL
+        'use_admin_login': False,
+    }
+})
+```
+
+## Performance (optional)
+
+```python
+LOGFORGE['performance'] = {'enabled': True, 'slow_threshold_ms': 100, 'sample_rate': 1.0}
+```
+
+## Admin (optional)
+
+```python
+from django.contrib import admin
+from logforge.audit.models.activity_log import ActivityLog
+
+@admin.register(ActivityLog)
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ('event_type','resource_type','resource_id','user_id','ip_address','batch_uuid','created_at')
+    list_filter = ('event_type','resource_type','created_at')
+    search_fields = ('resource_type','resource_id','user_id','ip_address','batch_uuid')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_at','updated_at')
+```
+
+## License
+
+MIT
