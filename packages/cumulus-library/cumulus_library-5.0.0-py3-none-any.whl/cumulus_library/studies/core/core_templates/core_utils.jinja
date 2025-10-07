@@ -1,0 +1,140 @@
+{% import 'syntax.sql.jinja' as syntax %}
+{#- A collection of macros for constructing common safe column selects
+
+    For layout, is is generally assumed that these are being invoked from within
+    a WITH TABLE AS(...) statement, so they will always assume two levels of
+    indentation.
+-#}
+
+{#- gets a list of columns from a known present source -#}
+{% macro basic_cols(table, alias, targets) %}
+        {%- for col in targets %}
+        {{ alias }}.{{ col }}
+        {{- syntax.comma_delineate(loop) }}
+        {%- endfor %}
+{%- endmacro %}
+
+{#- gets a list of columns from a potentially null source.
+
+targets is an array expecting a data type of the following:
+    string: refers to a vanilla SQL primitive column
+    tuple(col, object, col_alias): refers to a one level nested SQL object
+    tuple(col, object, , child, col_alias): refers to a two level nested SQL object
+
+-#}
+{% macro nullable_cols(table, alias, targets, schema) %}
+        {%- for col in targets %}
+        {#- depth one nested column-#}
+        {%- if col is not string and col|length ==3%}
+        {%- if schema[table][col[0]][col[1]] %}
+        {{ alias }}.{{ col[0] }}.{{ col[1] }} AS {{ col[2] }}
+        {%- else %}
+        cast(NULL as varchar) AS {{ col[2] }}
+        {%- endif %}
+        {#- depth two nested column -#}
+        {%- elif col is not string and col|length ==4%}
+        {%- if schema[table][col[0]][col[1]][col[2]] %}
+        {{ alias }}.{{ col[0] }}.{{ col[1] }}.{{ col[2] }} AS {{ col[3] }}
+        {%- else %}
+        cast(NULL as varchar) AS {{ col[3] }}
+        {%- endif %}
+        {#- SQL primitive column column-#}
+        {%- elif schema[table][col] %}
+        {{ alias }}.{{ col }}
+        {%- else %}
+        {#- workaround for docref date-#}
+        {%- if col == "date"%}
+        cast(NULL as timestamp) AS "{{ col }}"
+        {%- else %}
+        cast(NULL as varchar) AS {{ col }}
+        {%- endif %}
+        {%- endif %}        
+        {{- syntax.comma_delineate(loop) }}
+        {%- endfor %}
+{%- endmacro %}
+
+{#- creates a date from a from an ISO formatted date str 
+targets is an array expecting a data type of the following:
+    string: refers to a vanilla SQL primitive column
+    tuple(col, object, col_alias): refers to a one level nested SQL object
+    tuple(col, object, child, col_alias): refers to a two level nested SQL obj
+-#}
+{% macro date_cols_from_str(table, alias, targets, schema) %}
+        {%- for col in targets %}
+        {#- depth one nested column-#}
+        {%- if col is not string and col|length ==3%}
+        {%- if schema[table][col[0]][col[1]] %}
+        cast(from_iso8601_timestamp({{ alias }}.{{ col[0] }}.{{ col[1] }}) AS date) AS {{ col[2] }}
+        {%- else %}
+        cast(NULL AS date) AS {{ col[1] }}
+        {% endif %}
+        {#- depth two nested column -#}
+        {%- elif col is not string and col|length ==4%}
+        {%- if schema[table][col[0]][col[1]][col[2]] %}
+        cast(from_iso8601_timestamp({{ alias }}.{{ col[0] }}.{{ col[1] }}.{{ col[2] }}) AS date) AS {{col[3]}}
+        {%- else %}
+        cast(NULL AS date) AS {{ col[3] }}
+        {%- endif %}
+        {#- SQL primitive column column-#}
+        {%- elif schema[table][col] %}
+        cast(from_iso8601_timestamp({{ alias }}.{{ col }}) AS date) AS {{ col }}
+        {%- else %}
+        cast(NULL AS date) AS {{ col }}
+        {%- endif %}    
+        {{- syntax.comma_delineate(loop) }}
+        {%- endfor %}
+{%- endmacro %}
+
+{#- creates a truncated date from an iso formatted date of the specified period
+
+targets is assumed to be a list of tuples of one of the following format:
+(colName, period) - bare date col, named 'colname_period'
+(colName, object, alias, period) - one level nested date, names 'alias'
+(colName, object, child, alias, period) - two level nested date, names 'alias'
+ -#}
+{% macro truncate_date_cols(table, alias, targets, schema) %}
+        {%- for col in targets %}
+        {%- if col is not string and col|length ==4%}
+        {%- if schema[table][col[0]][col[1]] %}
+        date_trunc('{{ col[3] }}', cast(from_iso8601_timestamp({{ alias }}."{{ col[0] }}"."{{ col[1] }}") AS date))
+            AS {{ col[2] }}
+        {%- else %}
+        cast(NULL AS date) AS {{col[2]}}
+        {% endif %}
+        {#- depth two nested column -#}
+        {%- elif col is not string and col|length ==5%}
+        {%- if schema[table][col[0]][col[1]][col[2]] %}
+        date_trunc('{{ col[4] }}', cast(from_iso8601_timestamp({{ alias }}."{{ col[0] }}"."{{ col[1] }}"."{{col[2]}}") AS date))
+            AS {{ col[3] }}
+        {%- else %}
+        cast(NULL AS date) AS {{col[3]}}
+        {%- endif %}
+        {#- SQL primitive column column-#}
+        {%- elif schema[table][col[0]] %}
+        date_trunc('{{ col[1] }}', cast(from_iso8601_timestamp({{ alias }}."{{ col[0] }}") AS date))
+            AS {{ col[0] }}_{{ col[1] }}
+        {%- else %}
+        cast(NULL AS date) AS {{ col[0] }}_{{ col[1] }}
+        {%- endif %}    
+        {{- syntax.comma_delineate(loop) }}
+        {%- endfor %}
+{%- endmacro %}
+
+{#- makes an array of one #}
+{% macro make_array(item) -%}
+{%- if db_type == 'duckdb' -%}
+    [{{ item }}]
+{%- else -%}
+    array[{{ item }}]
+{%- endif -%}
+{%- endmacro %}
+
+{#- prepends an item into another array, handling either side being null #}
+{% macro prepend_to_array(item, array) -%}
+    CASE
+        WHEN {{ item }} IS NULL AND {{ array }} IS NULL THEN NULL
+        WHEN {{ item }} IS NULL THEN {{ array }}
+        WHEN {{ array }} IS NULL THEN {{ make_array(item) }}
+        ELSE {{ make_array(item) }} || {{ array }}
+    END
+{%- endmacro %}
