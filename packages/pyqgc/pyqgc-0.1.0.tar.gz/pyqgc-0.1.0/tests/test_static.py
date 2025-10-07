@@ -1,0 +1,180 @@
+"""
+Helper, Property and Static method tests for pyqgc.UBXMessage
+
+Created on 6 Oct 2025
+
+*** NB: must be saved in UTF-8 format ***
+
+@author: semuadmin
+"""
+
+# pylint: disable=line-too-long, invalid-name, missing-docstring, no-member
+
+import os
+import unittest
+
+import pyqgc.qgctypes_core as qgt
+from pyqgc import QGCReader
+from pyqgc.qgchelpers import (
+    attsiz,
+    att2idx,
+    att2name,
+    bytes2val,
+    calc_checksum,
+    escapeall,
+    get_bits,
+    hextable,
+    isvalid_checksum,
+    val2bytes,
+    val2twoscomp,
+    val2signmag,
+)
+
+
+class StaticTest(unittest.TestCase):
+    def setUp(self):
+        self.maxDiff = None
+        dirname = os.path.dirname(__file__)
+        self.streamQGC = open(os.path.join(dirname, "pygpsdata_lg580p_qgc.log"), "rb")
+
+    def tearDown(self):
+        self.streamQGC.close()
+
+    # def testDefinitions(self):  # DEBUG test for possible missing payload definitions
+    #     for msg in ubt.UBX_MSGIDS.values():
+    #         if (
+    #             msg not in (ubp.UBX_PAYLOADS_POLL)
+    #             and msg not in (ubg.UBX_PAYLOADS_GET)
+    #             and msg not in (ubs.UBX_PAYLOADS_SET)
+    #         ):
+    #             print(f"Possible missing payload definition {msg}")
+    #     for msg in ubg.UBX_PAYLOADS_GET:
+    #         if msg not in ubt.UBX_MSGIDS.values():
+    #             print(f"Possible missing core definition {msg} GET")
+    #     for msg in ubs.UBX_PAYLOADS_SET:
+    #         if msg not in ubt.UBX_MSGIDS.values():
+    #             print(f"Possible missing core definition {msg} SET")
+    #     for msg in ubp.UBX_PAYLOADS_POLL:
+    #         if msg not in ubt.UBX_MSGIDS.values():
+    #             print(f"Possible missing core definition {msg} POLL")
+
+    def testVal2Bytes(self):  # test conversion of value to bytes
+        INPUTS = [
+            (2345, qgt.U2),
+            (b"\x44\x55", qgt.X2),
+            (23.12345678, qgt.R4),
+            (-23.12345678912345, qgt.R8),
+        ]
+        EXPECTED_RESULTS = [
+            b"\x29\x09",
+            b"\x44\x55",
+            b"\xd7\xfc\xb8\x41",
+            b"\x1f\xc1\x37\xdd\x9a\x1f\x37\xc0",
+        ]
+        for i, inp in enumerate(INPUTS):
+            (val, att) = inp
+            res = val2bytes(val, att)
+            self.assertEqual(res, EXPECTED_RESULTS[i])
+
+    def testBytes2Val(self):  # test conversion of bytes to value
+        INPUTS = [
+            (b"\x29\x09", qgt.U2),
+            (b"\x44\x55", qgt.X2),
+            (b"\xd7\xfc\xb8\x41", qgt.R4),
+            (b"\x1f\xc1\x37\xdd\x9a\x1f\x37\xc0", qgt.R8),
+        ]
+        EXPECTED_RESULTS = [
+            2345,
+            b"\x44\x55",
+            23.12345678,
+            -23.12345678912345,
+        ]
+        for i, inp in enumerate(INPUTS):
+            (valb, att) = inp
+            res = bytes2val(valb, att)
+            if att == qgt.R4:
+                self.assertAlmostEqual(res, EXPECTED_RESULTS[i], 6)
+            elif att == qgt.R8:
+                self.assertAlmostEqual(res, EXPECTED_RESULTS[i], 14)
+            else:
+                self.assertEqual(res, EXPECTED_RESULTS[i])
+
+    def testCalcChecksum(self):
+        res = calc_checksum(b"\x06\x01\x02\x00\xf0\x05")
+        self.assertEqual(res, b"\xfe\x16")
+
+    def testGoodChecksum(self):
+        res = isvalid_checksum(b"\xb5b\x06\x01\x02\x00\xf0\x05\xfe\x16")
+        self.assertTrue(res)
+
+    def testBadChecksum(self):
+        res = isvalid_checksum(b"\xb5b\x06\x01\x02\x00\xf0\x05\xfe\x15")
+        self.assertFalse(res)
+
+    def testgetbits(self):
+        INPUTS = [
+            (b"\x89", 192),
+            (b"\xc9", 3),
+            (b"\x89", 9),
+            (b"\xc9", 9),
+            (b"\x18\x18", 8),
+            (b"\x18\x20", 8),
+        ]
+        EXPECTED_RESULTS = [2, 1, 9, 9, 1, 0]
+        for i, (vb, mask) in enumerate(INPUTS):
+            vi = get_bits(vb, mask)
+            self.assertEqual(vi, EXPECTED_RESULTS[i])
+
+    def testdatastream(self):  # test datastream getter
+        EXPECTED_RESULT = "<class '_io.BufferedReader'>"
+        res = str(type(QGCReader(self.streamQGC).datastream))
+        self.assertEqual(res, EXPECTED_RESULT)
+
+    def testhextable(self):  # test hextable*( method)
+        EXPECTED_RESULT = "000: 2447 4e47 4c4c 2c35 3332 372e 3034 3331  | b'$GNGLL,5327.0431'                                                 |\n016: 392c 532c 3030 3231 342e 3431 3339 362c  | b'9,S,00214.41396,'                                                 |\n032: 452c 3232 3332 3332 2e30 302c 412c 412a  | b'E,223232.00,A,A*'                                                 |\n048: 3638 0d0a                                | b'68\\r\\n'                                                           |\n"
+        res = hextable(b"$GNGLL,5327.04319,S,00214.41396,E,223232.00,A,A*68\r\n", 8)
+        self.assertEqual(res, EXPECTED_RESULT)
+
+    def testattsiz(self):  # test attsiz
+        self.assertEqual(attsiz("CH"), -1)
+        self.assertEqual(attsiz("C032"), 32)
+
+    def testatt2idx(self):  # test att2idx
+        EXPECTED_RESULT = [4, 16, 101, 0, (3, 6), 0]
+        atts = ["svid_04", "gnssId_16", "cno_101", "gmsLon", "gnod_03_06", "dodgy_xx"]
+        for i, att in enumerate(atts):
+            res = att2idx(att)
+            # print(res)
+            self.assertEqual(res, EXPECTED_RESULT[i])
+
+    def testatt2name(self):  # test att2name
+        EXPECTED_RESULT = ["svid", "gnssId", "cno", "gmsLon"]
+        atts = ["svid_04", "gnssId_16", "cno_101", "gmsLon"]
+        for i, att in enumerate(atts):
+            res = att2name(att)
+            # print(res)
+            self.assertEqual(res, EXPECTED_RESULT[i])
+
+    def testescapeall(self):
+        EXPECTED_RESULT = "b'\\x68\\x65\\x72\\x65\\x61\\x72\\x65\\x73\\x6f\\x6d\\x65\\x63\\x68\\x61\\x72\\x73'"
+        val = b"herearesomechars"
+        res = escapeall(val)
+        print(res)
+        self.assertEqual(res, EXPECTED_RESULT)
+
+    def testval2twoscomp(self):
+        res = val2twoscomp(10, "U24")
+        self.assertEqual(res, 0b0000000000000000000001010)
+        res = val2twoscomp(-10, "U24")
+        self.assertEqual(res, 0b111111111111111111110110)
+
+    def testval2signmag(self):
+        res = val2signmag(10, "U24")
+        self.assertEqual(res, 0b0000000000000000000001010)
+        res = val2signmag(-10, "U24")
+        self.assertEqual(res, 0b1000000000000000000001010)
+
+
+if __name__ == "__main__":
+    # import sys;sys.argv = ['', 'Test.testName']
+    unittest.main()
