@@ -1,0 +1,62 @@
+[project]
+authors = [{name = "Raniere Gaia Costa da Silva", email = "Raniere.CostadaSilva@gesis.org"}]
+dependencies = [ "jupyterlite-core>=0.6.4,<0.7", "jupyterlite-xeus>=4.2.2,<5", "pyyaml>=6.0.3,<7", "jupyter_server>=2.17.0,<3", "jupyterlab_server>=2.27.3,<3"]
+name = "repo2wasm"
+requires-python = ">= 3.11"
+dynamic = ["version"]
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Repository = "https://github.com/repo2wasm/repo2wasm-py.git"
+Issues = "https://github.com/repo2wasm/repo2wasm-py/issues"
+
+[project.scripts]
+repo2wasm = "repo2wasm:cli"
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.hatch.version]
+path = "src/repo2wasm/__init__.py"
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tool.pixi.pypi-dependencies]
+repo2wasm = { path = ".", editable = true }
+
+[tool.pixi.tasks]
+
+[tool.pixi.dependencies]
+micromamba = ">=2.3.2,<3"
+
+[tool.pixi.feature.release.dependencies]
+python-build = "*"
+twine = "*"
+
+[tool.pixi.feature.release.tasks]
+build = "python -m build"
+upload = { cmd = "python3 -m twine upload --repository pypi dist/*", depends-on = ["build"] }
+
+[tool.pixi.feature.docs.dependencies]
+sphinx = "*"
+sphinx_rtd_theme = "*"
+sphinxcontrib-mermaid = "*"
+myst-parser = "*"
+
+[tool.pixi.feature.docs.tasks]
+docs = "sphinx-build docs/source docs/build"
+
+[tool.pixi.feature.docs-preview.dependencies]
+sphinx-autobuild = "*"
+
+[tool.pixi.feature.docs-preview.tasks]
+preview = "sphinx-autobuild docs/source docs/build"
+
+[tool.pixi.environments]
+docs = { features = ["docs", "docs-preview"], no-default-feature = true }
+release = { features = ["release"] }
