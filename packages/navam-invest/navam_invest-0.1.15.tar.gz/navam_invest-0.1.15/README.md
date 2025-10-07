@@ -1,0 +1,845 @@
+<div align="center">
+
+# 🤖 Navam Invest
+
+**AI-Powered Investment Advisor for Retail Investors**
+
+[![PyPI version](https://badge.fury.io/py/navam-invest.svg)](https://badge.fury.io/py/navam-invest)
+[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/navam-invest)](https://pepy.tech/project/navam-invest)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Checked with mypy](https://img.shields.io/badge/mypy-checked-blue)](http://mypy-lang.org/)
+
+[Features](#-features) •
+[Quick Start](#-quick-start) •
+[Agents](#-specialized-ai-agents) •
+[Examples](#-example-interactions) •
+[Documentation](#-documentation)
+
+</div>
+
+---
+
+## 🆕 What's New in v0.1.15
+
+**Macro Lens Market Strategist** - Top-down macroeconomic analysis and regime identification:
+
+- ✨ **Macro Lens Agent**: Economic cycle regime identification with 4-phase framework (Early/Mid/Late Expansion, Contraction)
+- ✨ **Sector & Factor Guidance**: Macro-driven allocation recommendations aligned with economic conditions
+- ✨ **Yield Curve Analysis**: Recession signaling and interest rate trend interpretation
+- ✨ **Specialized Agent Suite Complete**: Quill (v0.1.13) + Screen Forge (v0.1.14) + Macro Lens (v0.1.15)
+
+**Agent Count**: 4 → **5 specialized agents** | **Ready for Multi-Agent Workflows** (Phase 2B)
+
+See [Release Notes](backlog/release-0.1.15.md) for details | Previous: [v0.1.14 - Screen Forge](backlog/release-0.1.14.md)
+
+---
+
+## 📖 Overview
+
+`navam-invest` brings **institutional-grade portfolio intelligence** to individual retail investors. Built with [LangGraph](https://langchain-ai.github.io/langgraph/) and powered by [Anthropic's Claude](https://www.anthropic.com/claude), it provides **specialized AI agents** for equity research, systematic screening, macro analysis, portfolio management, and market research—all accessible through an interactive terminal interface.
+
+### Why Navam Invest?
+
+- **🎯 Specialized Agents**: Purpose-built agents for equity research, screening, macro strategy, portfolio analysis, and market research
+- **🔒 Privacy-First**: Run locally with your own API keys—your data stays yours
+- **💡 Transparent**: Full audit trails and explainable AI reasoning with real-time streaming
+- **🆓 Free Data Sources**: Leverages high-quality public APIs (free tiers available)
+- **🔧 Extensible**: Modular architecture makes it easy to add new agents and data sources
+
+---
+
+## ✨ Features
+
+### 🤖 **Specialized AI Agents** (Powered by LangGraph)
+
+<table>
+<tr>
+<td width="50%">
+
+#### **Quill - Equity Research**
+*Deep fundamental analysis & thesis building*
+
+- Investment thesis development
+- DCF & comparable company valuation
+- 5-year historical fundamentals (Tiingo)
+- Quarterly earnings tracking
+- SEC filings analysis (10-K, 10-Q)
+- Insider trading pattern analysis
+- Company-specific news validation
+- **16 specialized tools**
+
+**Use Case**: "Analyze AAPL and provide an investment thesis with fair value"
+
+</td>
+<td width="50%">
+
+#### **Screen Forge - Equity Screening**
+*Systematic stock discovery & idea generation*
+
+- Multi-factor screening (value, growth, quality)
+- Systematic candidate identification
+- Weekly watchlist generation
+- Factor-based ranking systems
+- Sentiment validation (Finnhub)
+- Integration with Quill for deep-dives
+- **9 specialized tools**
+
+**Use Case**: "Screen for value stocks with P/E < 15 and market cap > $1B"
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+#### **Macro Lens - Market Strategist** 🆕
+*Top-down macro analysis & regime identification*
+
+- Economic cycle regime analysis (4 phases)
+- Yield curve interpretation & recession signals
+- Sector allocation guidance based on macro
+- Factor recommendations (value/growth, size)
+- Inflation, growth, employment tracking
+- Fed policy and interest rate analysis
+- **10 specialized tools**
+
+**Use Case**: "What's the current macro regime and which sectors should I overweight?"
+
+</td>
+<td width="50%">
+
+#### **Portfolio Analysis** (Legacy)
+*Comprehensive portfolio tools*
+
+- Real-time stock quotes & metrics
+- Company fundamentals & financial ratios
+- News & social sentiment analysis
+- SEC filings & institutional holdings
+- Multi-criteria stock screening
+- Local file reading (CSV, JSON, Excel)
+- **24 tools** (backward compatible)
+
+**Use Case**: "What's the current price and fundamentals of MSFT?"
+
+</td>
+</tr>
+<tr>
+<td colspan="2">
+
+#### **Market Research** (Legacy)
+*Top-down macro analysis*
+
+- Macroeconomic indicators (GDP, CPI, unemployment)
+- Treasury yield curves & spreads
+- Federal Reserve data (FRED)
+- Economic regime detection
+- Debt-to-GDP analysis
+- Market news & sentiment
+- **10 tools**
+
+**Use Case**: "Show me the Treasury yield curve and economic indicators"
+
+*Note: Will be phased out in favor of Macro Lens agent in v0.2.0*
+
+</td>
+</tr>
+</table>
+
+### 📊 **Real API Integrations** (27 Tools Across 8 Data Sources)
+
+| API | Tools | Purpose | Free Tier |
+|-----|-------|---------|-----------|
+| **Alpha Vantage** | 2 | Stock prices, company overviews | 25-500 calls/day |
+| **Financial Modeling Prep** | 4 | Financial statements, ratios, screening | 250 calls/day |
+| **Tiingo** | 4 | Historical fundamentals (5yr), quarterly data | 50 symbols/hr |
+| **Finnhub** | 5 | News/social/insider sentiment, analyst ratings | 60 calls/min |
+| **FRED (St. Louis Fed)** | 2 | Economic indicators, macro data | Unlimited |
+| **U.S. Treasury** | 4 | Yield curves, treasury rates | Unlimited |
+| **SEC EDGAR** | 5 | Corporate filings (10-K, 10-Q, 13F) | 10 req/sec |
+| **NewsAPI.org** | 3 | Market news, headlines | 100 calls/day |
+| **Anthropic Claude** | - | AI reasoning (Sonnet 4.5) | Pay-as-you-go |
+
+### 💬 **Interactive Terminal UI**
+
+- **Chat Interface**: Natural language interaction with specialized agents
+- **Real-time Streaming**: Watch agents think and reason live
+- **Granular Progress**: See which tools are called with what arguments
+- **Markdown Rendering**: Beautiful formatted output with tables
+- **Agent Switching**: `/quill`, `/screen`, `/macro`, `/portfolio`, `/research`
+- **Command Palette**: Quick access to common actions
+- **File Reading**: Analyze local portfolio files
+
+### 🏗️ **Built on Modern Tech**
+
+```
+LangGraph (Agent Orchestration) → LangChain (Tools) → Anthropic Claude (Reasoning)
+     ↓
+Textual (Terminal UI) + Typer (CLI) + httpx (Async HTTP)
+```
+
+**Architecture Highlights**:
+- **Specialized Agents**: Purpose-built agents with focused tool sets
+- **Tools Registry**: Agent-specific tool mappings for optimal performance
+- **ReAct Pattern**: Reasoning + Acting for transparent decision-making
+- **Async/Await**: Non-blocking I/O for responsive UI
+- **Type Safety**: Full type hints with MyPy strict mode
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Python 3.9+** (3.13 recommended)
+- **pip** package manager
+- API keys (see [Configuration](#configuration))
+
+### Installation
+
+#### Option 1: Install from PyPI (Recommended)
+
+```bash
+pip install navam-invest
+```
+
+#### Option 2: Install from Source
+
+```bash
+git clone https://github.com/navam-io/navam-invest.git
+cd navam-invest
+python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+```
+
+### Configuration
+
+1. **Copy environment template:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Add your API keys** to `.env`:
+   ```bash
+   # Required
+   ANTHROPIC_API_KEY=sk-ant-...
+
+   # Optional (but recommended for full functionality)
+   ALPHA_VANTAGE_API_KEY=your_key_here
+   FMP_API_KEY=your_key_here
+   TIINGO_API_KEY=your_key_here
+   FINNHUB_API_KEY=your_key_here
+   FRED_API_KEY=your_key_here
+   NEWSAPI_API_KEY=your_key_here
+   ```
+
+3. **Get API Keys** (all have free tiers):
+
+   | Service | Link | Free Tier |
+   |---------|------|-----------|
+   | **Anthropic** ⭐ | [console.anthropic.com](https://console.anthropic.com/) | Pay-as-you-go ($3-15/M tokens) |
+   | **Alpha Vantage** | [alphavantage.co/support/#api-key](https://www.alphavantage.co/support/#api-key) | 25 calls/day |
+   | **FMP** | [financialmodelingprep.com/developer](https://financialmodelingprep.com/developer) | 250 calls/day |
+   | **Tiingo** | [tiingo.com](https://www.tiingo.com/) | 50 symbols/hr, 5yr history |
+   | **Finnhub** | [finnhub.io/register](https://finnhub.io/register) | 60 calls/min |
+   | **FRED** | [fredaccount.stlouisfed.org/apikeys](https://fredaccount.stlouisfed.org/apikeys) | Unlimited |
+   | **NewsAPI** | [newsapi.org/register](https://newsapi.org/register) | 100 calls/day |
+   | **Treasury & SEC** | - | No keys required! |
+
+### Usage
+
+#### Launch the Interactive Interface
+
+```bash
+navam invest
+```
+
+This opens an interactive chat interface with 5 specialized AI agents.
+
+#### Quick Command Reference
+
+| Command | Agent | Description |
+|---------|-------|-------------|
+| `/quill` | Quill (Equity Research) | Deep fundamental analysis & thesis building |
+| `/screen` | Screen Forge | Systematic stock screening & idea generation |
+| `/macro` 🆕 | Macro Lens | Top-down macro analysis & regime identification |
+| `/portfolio` | Portfolio Analysis | Comprehensive stock & portfolio tools |
+| `/research` | Market Research | Macroeconomic analysis & treasury data (legacy) |
+| `/examples` | - | Show example queries for current agent |
+| `/help` | - | Show all commands |
+| `/clear` | - | Clear chat history |
+| `/quit` | - | Exit application |
+
+---
+
+## 💡 Example Interactions
+
+### Macro Lens - Market Strategist Agent 🆕
+
+<details>
+<summary><b>🌍 Economic Regime Analysis & Sector Guidance</b></summary>
+
+```
+You: /macro
+You: What's the current macro regime? Are we in expansion, peak, or recession?
+
+Macro Lens (Market Strategist):
+  → Calling get_key_macro_indicators()
+  ✓ get_key_macro_indicators completed
+  → Calling get_treasury_yield_curve()
+  ✓ get_treasury_yield_curve completed
+  → Calling get_economic_indicator(series_id=UNRATE)
+  ✓ get_economic_indicator completed
+
+**Current Macro Regime Assessment**
+
+**Regime: Late Expansion (Peak Phase)**
+
+**Supporting Indicators**:
+- **GDP Growth**: 2.4% (Q3 2024) - Slowing from 3.2% in Q2, below trend
+- **Unemployment**: 3.9% - Near multi-decade lows, tight labor market
+- **Inflation (CPI)**: 3.2% YoY - Above Fed target, persistent services inflation
+- **Fed Funds Rate**: 5.25-5.50% - Restrictive territory, likely at terminal rate
+- **Yield Curve**: **Inverted** (10Y-2Y spread: -0.54%)
+  - Classic recession warning signal
+  - Historically precedes recession by 12-18 months
+  - Currently 16 months into inversion
+
+**Yield Curve Interpretation**:
+The inverted yield curve (short rates > long rates) indicates market expectations
+of Fed rate cuts due to economic slowdown. This is a highly reliable recession
+indicator with a 12-18 month lead time. We're now 16 months into the inversion,
+suggesting recession risk elevated for H1 2025.
+
+**Sector Allocation Guidance**:
+
+**Overweight** (Late Cycle/Defensive):
+- ✅ **Energy** - Persistent inflation, geopolitical premium, strong FCF
+- ✅ **Healthcare** - Defensive earnings, demographic tailwinds, low cyclicality
+- ✅ **Utilities** - Recession hedge, stable dividends, rate cut beneficiary
+- ✅ **Consumer Staples** - Defensive spending, pricing power intact
+
+**Underweight** (Cyclical/Growth):
+- ❌ **Technology** - Valuation risk, vulnerable to earnings downgrades
+- ❌ **Consumer Discretionary** - Weakening consumer, high debt levels
+- ❌ **Financials** - Credit cycle turning, recession = loan losses
+
+**Factor Recommendations**:
+
+**Favor**:
+- **Quality** (high ROE, low debt) - Resilience in downturn
+- **Low Volatility** - Defensive positioning
+- **Value** - Lower downside in bear market, reasonable valuations
+- **Large Cap** - Flight to safety in risk-off environment
+
+**Avoid**:
+- **Growth** - High valuations vulnerable to multiple compression
+- **Small Cap** - Liquidity risk, credit stress, recession sensitivity
+- **High Beta** - Amplified drawdowns in market sell-off
+
+**Key Risks to Monitor** (Next 6 Months):
+
+1. **Recession Timing**: Yield curve un-inversion often marks recession start
+2. **Fed Policy Error**: Holding rates too high = hard landing risk
+3. **Credit Stress**: Corporate debt refinancing at higher rates
+4. **Consumer Weakness**: Excess savings depleted, student loan restart
+5. **Geopolitical Shocks**: Oil supply disruptions, trade tensions
+
+**Leading Indicators to Watch**:
+- PMI Manufacturing (recession if < 45 for 3 months)
+- Initial Jobless Claims (recession if > 350K sustained)
+- Yield Curve (recession risk when it steepens after inversion)
+- Credit Spreads (widening = stress)
+- Consumer Confidence (falling = spending slowdown ahead)
+
+**Investment Strategy Summary**:
+Position defensively with quality, low-volatility stocks in healthcare, utilities,
+and staples. Reduce cyclical and growth exposure. Build cash for opportunities
+when recession arrives. Consider long-duration bonds (10Y+ treasuries) as
+Fed cuts rates in 2025.
+
+**Data Sources**:
+- FRED (GDP, unemployment, inflation) - Latest release
+- U.S. Treasury (yield curve) - Real-time
+- Confidence: High (inverted curve is highly reliable signal)
+```
+</details>
+
+<details>
+<summary><b>📈 Yield Curve Analysis & Recession Signals</b></summary>
+
+```
+You: Analyze the yield curve. Is it signaling recession risk?
+
+Macro Lens (Market Strategist):
+  → Calling get_treasury_yield_curve()
+  ✓ get_treasury_yield_curve completed
+  → Calling get_treasury_yield_spread(maturity1=10Y, maturity2=2Y)
+  ✓ get_treasury_yield_spread completed
+
+**Yield Curve Analysis - Recession Signal Check**
+
+**Current Yield Curve** (2025-10-06):
+
+```
+Rate (%)
+5.5 |                    ┌──── 1M (5.42%)
+5.0 |                ┌───┘
+4.5 |            ┌───┘
+4.0 |        ┌───┘          ┌──── 30Y (4.42%)
+3.5 |    ┌───┘          ┌───┘
+    └────┴────┴────┴────┴────┴────
+         3M   6M   1Y   2Y  5Y  10Y
+```
+
+**Key Spreads**:
+- **10Y - 2Y**: **-0.54%** 🔴 INVERTED (Recession warning)
+- **10Y - 3M**: **-1.10%** 🔴 INVERTED (Strong recession signal)
+- **30Y - 10Y**: **+0.14%** 🟡 Slightly positive
+
+**Interpretation**:
+
+🔴 **RECESSION RISK: HIGH**
+
+The yield curve shows a classic **inversion pattern** where short-term rates
+(2-year: 4.82%) exceed long-term rates (10-year: 4.28%). This inversion has
+persisted for **16 months**, which is well into the danger zone.
+
+**Why This Matters**:
+1. **Historical Accuracy**: Yield curve inversions have preceded every recession
+   since 1970 with only one false signal (1998)
+2. **Lead Time**: Recession typically follows 12-18 months after inversion
+3. **Current Status**: We're at month 16 of inversion → recession likely H1 2025
+4. **Un-inversion Signal**: When curve steepens (uninverts), recession often
+   begins within 3-6 months
+
+**What the Curve Is Telling Us**:
+- **Short Rates (High)**: Fed policy is restrictive, fighting inflation
+- **Long Rates (Lower)**: Markets expect economic slowdown forcing Fed rate cuts
+- **Investor Behavior**: Flight to safety into long-duration bonds
+
+**Historical Context**:
+- **2006-2007**: Inverted 10 months before Great Recession
+- **2000**: Inverted 7 months before dot-com recession
+- **1989**: Inverted 15 months before 1990 recession
+- **Current**: Inverted 16 months and counting...
+
+**What to Watch Next**:
+1. **Steepening Event**: If 10Y-2Y spread returns to positive (uninverts),
+   recession clock starts ticking (3-6 months)
+2. **Long-End Selloff**: Rising 10Y yields = inflation concerns dominate
+3. **Fed Pivot**: First rate cut often coincides with curve steepening
+
+**Investment Implications**:
+- ✅ **Defensive Positioning**: Quality stocks, low volatility sectors
+- ✅ **Duration Play**: Long-duration bonds (10Y+) benefit from Fed cuts
+- ✅ **Cash Buildup**: Dry powder for buying opportunities in recession
+- ❌ **Avoid Cyclicals**: Tech, discretionary, financials vulnerable
+- ❌ **Credit Caution**: High-yield bonds face default risk
+
+**Bottom Line**: The inverted yield curve is one of the most reliable recession
+indicators. At 16 months of inversion, we're well past the typical lead time.
+Maintain defensive positioning and prepare for potential recession in 2025.
+```
+</details>
+
+### Quill - Equity Research Agent
+
+<details>
+<summary><b>📊 Investment Thesis & Valuation</b></summary>
+
+```
+You: /quill
+You: Analyze AAPL and provide an investment thesis with fair value
+
+Quill (Equity Research):
+  → Calling get_stock_price(symbol=AAPL)
+  ✓ get_stock_price completed
+  → Calling get_company_fundamentals(symbol=AAPL)
+  ✓ get_company_fundamentals completed
+  → Calling get_historical_fundamentals(symbol=AAPL, years=5)
+  ✓ get_historical_fundamentals completed
+
+**AAPL - Investment Thesis**
+
+**Recommendation**: BUY
+**Fair Value Range**: $185 - $205 (Current: $178)
+
+**Investment Thesis**:
+Apple demonstrates exceptional business quality with a durable competitive moat
+in hardware/software integration. The services transition is accelerating with
+28% annual growth, improving margins and reducing cyclicality. 5-year revenue
+CAGR of 8.7% with expanding net margins (21% → 25%) shows pricing power.
+
+**Key Catalysts**:
+1. Vision Pro spatial computing platform opening new TAM
+2. Services growth (Apple One, advertising) driving margin expansion
+3. India manufacturing diversification reducing supply chain risk
+
+**Key Risks**:
+1. iPhone dependency (52% of revenue) creates cyclical exposure
+2. Regulatory pressure on App Store (EU DMA compliance)
+3. Premium valuation (P/E 30x) limits margin of safety
+
+**Valuation**:
+- DCF (10% WACC, 3% terminal growth): $195
+- P/E multiple (25x normalized earnings): $185
+- Fair value: $190 (7% upside from current)
+
+**Financial Metrics**:
+- ROE: 147% (exceptional capital efficiency)
+- Free Cash Flow: $100B annually (supports $15B dividends + buybacks)
+- Debt/Equity: 1.69 (manageable with strong cash generation)
+```
+</details>
+
+### Screen Forge - Equity Screening Agent
+
+<details>
+<summary><b>🔍 Multi-Factor Stock Screening</b></summary>
+
+```
+You: /screen
+You: Screen for value stocks: P/E under 15, P/B under 2, market cap over $1B
+
+Screen Forge (Equity Screening):
+  → Calling screen_stocks(peRatioLowerThan=15, pbRatioLowerThan=2...)
+  ✓ screen_stocks completed
+  → Calling get_financial_ratios(symbol=BAC)
+  ✓ get_financial_ratios completed
+
+**Stock Screening Results - Value Screen**
+
+**Methodology**: Value stocks with P/E < 15, P/B < 2, Market Cap > $1B
+**Candidates Found**: 12 stocks | **Top 5 Shown**
+
+**1. BAC - Bank of America Corp**
+   Price: $34.50 | Market Cap: $271.2B
+   P/E: 11.2 | P/B: 1.1 | ROE: 9.8%
+   **Standout**: Trading below book value with solid profitability
+
+**2. WFC - Wells Fargo & Company**
+   Price: $48.20 | Market Cap: $168.5B
+   P/E: 10.5 | P/B: 1.3 | ROE: 12.4%
+   **Standout**: Highest ROE in banking peers, P/E at 5-year low
+
+**3. VZ - Verizon Communications**
+   Price: $41.30 | Market Cap: $173.4B
+   P/E: 8.9 | P/B: 1.8 | Dividend Yield: 6.2%
+   **Standout**: Defensive telecom with strong dividend yield
+
+**4. PFE - Pfizer Inc**
+   Price: $28.70 | Market Cap: $161.8B
+   P/E: 9.4 | P/B: 1.5 | Net Margin: 18.3%
+   **Standout**: Beaten down pharma with strong pipeline
+
+**5. CVX - Chevron Corporation**
+   Price: $156.80 | Market Cap: $289.3B
+   P/E: 10.8 | P/B: 1.7 | FCF Yield: 8.1%
+   **Standout**: Energy major with exceptional free cash flow
+
+**Next Steps**:
+→ Deep dive with Quill on top 3 picks (BAC, WFC, VZ)
+→ Consider sector diversification (3 financials, 1 telecom, 1 pharma, 1 energy)
+→ Validate thesis with macro environment (interest rate sensitivity for financials)
+
+**Screening Limitations**:
+- Excludes companies with negative earnings
+- Does not account for cyclical earnings adjustments
+- Static snapshot; fundamentals may change
+```
+</details>
+
+### Portfolio Analysis Examples
+
+<details>
+<summary><b>📈 Stock Fundamentals & Ratios</b></summary>
+
+```
+You: /portfolio
+You: Show me MSFT's financial ratios
+
+Portfolio Analyst:
+**MSFT - Financial Ratios**
+
+**Profitability:**
+Gross Margin: 0.68
+Operating Margin: 0.42
+Net Margin: 0.36
+ROE: 0.43
+ROA: 0.19
+
+**Liquidity:**
+Current Ratio: 1.31
+Quick Ratio: 1.27
+
+**Leverage:**
+Debt/Equity: 0.39
+Interest Coverage: 28.5x
+
+**Valuation:**
+P/E Ratio: 34.2
+P/B Ratio: 12.8
+EV/EBITDA: 22.1
+```
+</details>
+
+<details>
+<summary><b>📰 Sentiment Analysis</b></summary>
+
+```
+You: What's the sentiment around NVDA?
+
+Portfolio Analyst:
+**NVDA - Sentiment Analysis**
+
+**News Sentiment** (Finnhub):
+Company Score: 0.82 (Very Bullish)
+Sector Average: 0.58
+Articles (7 days): 67 | Buzz: 2.1x
+
+**Social Sentiment**:
+Reddit: 4,500 mentions | Score: 0.73 (Positive)
+Twitter: 12,300 mentions | Score: 0.68 (Positive)
+
+**Insider Sentiment**:
+MSPR: 0.45 (Strong net buying)
+Recent Insider Buys: 3 executives ($2.1M)
+
+**Analyst Recommendations**:
+Strong Buy: 25 | Buy: 8 | Hold: 2 | Sell: 0
+Consensus: 🟢 Very Bullish (AI accelerator dominance)
+```
+</details>
+
+### Market Research Examples
+
+<details>
+<summary><b>📊 Macro Indicators & Yield Curve</b></summary>
+
+```
+You: /research
+You: Show me key economic indicators and the yield curve
+
+Market Researcher:
+**Key Macroeconomic Indicators**
+
+**GDP Growth (Real):** 2.4% (Q3 2024)
+**Unemployment Rate:** 3.9% (October 2024)
+**CPI Inflation:** 3.2% (YoY, October 2024)
+**Fed Funds Rate:** 5.25-5.50% (Current)
+
+**U.S. Treasury Yield Curve** (2025-10-06)
+
+1 Month:   5.42%  |  1 Year:    5.15%
+3 Month:   5.38%  |  2 Year:    4.82%
+6 Month:   5.32%  |  5 Year:    4.35%
+                  | 10 Year:    4.28%
+                  | 30 Year:    4.42%
+
+**2Y-10Y Spread:** -0.54% (Inverted)
+**Curve Shape:** 🔴 Inverted (Recession signal)
+
+**Economic Regime:** Late Cycle Expansion
+**Investment Implications:** Defensive positioning, monitor credit spreads
+```
+</details>
+
+---
+
+## 📚 Documentation
+
+### Agent Tool Mappings
+
+Each specialized agent has curated tools for optimal performance:
+
+| Agent | Tool Count | Categories | Focus |
+|-------|------------|------------|-------|
+| **Quill** | 16 | Market, Fundamentals, SEC, News | Deep fundamental analysis, thesis building |
+| **Screen Forge** | 9 | Market, Fundamentals, Sentiment | Systematic screening, idea generation |
+| **Macro Lens** 🆕 | 10 | Macro, Treasury, News, Files | Top-down regime analysis, sector guidance |
+| **Portfolio** | 24 | All categories | Comprehensive backward compatibility |
+| **Research** | 10 | Macro, Treasury, News | Top-down economic analysis (legacy) |
+
+### Project Structure
+
+```
+navam-invest/
+├── src/navam_invest/
+│   ├── agents/                 # 🤖 LangGraph specialized agents
+│   │   ├── quill.py           #    Equity research analyst
+│   │   ├── screen_forge.py    #    Systematic screener
+│   │   ├── macro_lens.py      #    🆕 Market strategist
+│   │   ├── portfolio.py       #    Portfolio analysis (legacy)
+│   │   └── research.py        #    Market research (legacy)
+│   ├── tools/                  # 🔧 API integration (27 tools)
+│   │   ├── __init__.py        #    Tools registry with agent mappings
+│   │   ├── alpha_vantage.py   #    Stock prices & overviews
+│   │   ├── fmp.py             #    Fundamentals & screening
+│   │   ├── tiingo.py          #    Historical fundamentals
+│   │   ├── finnhub.py         #    Sentiment & alternative data
+│   │   ├── fred.py            #    Economic indicators
+│   │   ├── treasury.py        #    Yield curves & treasury data
+│   │   ├── sec_edgar.py       #    Corporate filings
+│   │   ├── newsapi.py         #    Market news
+│   │   └── file_reader.py     #    Local file reading
+│   ├── tui/                    # 💬 Textual terminal UI
+│   │   └── app.py             #    Chat interface with streaming
+│   ├── config/                 # ⚙️ Configuration
+│   │   └── settings.py        #    Pydantic settings with .env
+│   └── cli.py                  # 🖥️ Typer CLI entry point
+├── tests/                      # ✅ Test suite (48 tests, 38% coverage)
+├── backlog/                    # 📋 Development roadmap
+│   ├── active.md              #    Current tasks
+│   └── release-*.md           #    Release notes
+└── pyproject.toml             # 📦 Package configuration
+```
+
+### Technology Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **AI & Agents** | LangGraph 0.2+, LangChain Core 0.3+, Anthropic Claude Sonnet 4.5 | Agent orchestration, tool framework, AI reasoning |
+| **User Interface** | Textual 1.0+, Typer 0.15+, Rich 13+ | Terminal UI, CLI framework, markdown rendering |
+| **Data & HTTP** | httpx 0.28+, Pydantic 2.0+, python-dotenv | Async HTTP, data validation, config management |
+
+---
+
+## 🛠️ Development
+
+### Setup Development Environment
+
+```bash
+git clone https://github.com/navam-io/navam-invest.git
+cd navam-invest
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+# All tests with coverage
+pytest
+
+# Specific test file
+pytest tests/test_finnhub.py -v
+
+# With coverage report
+pytest --cov=src/navam_invest --cov-report=term-missing
+```
+
+**Current Status**: ✅ 48/48 tests passing (38% coverage)
+
+### Code Quality
+
+```bash
+# Format code
+black src/ tests/
+
+# Lint
+ruff check src/ tests/
+
+# Type check
+mypy src/
+
+# All quality checks
+black src/ tests/ && ruff check src/ tests/ && mypy src/
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Here's how:
+
+1. **🐛 Report Bugs**: [Open an issue](https://github.com/navam-io/navam-invest/issues)
+2. **💡 Suggest Features**: [Start a discussion](https://github.com/navam-io/navam-invest/discussions)
+3. **📝 Improve Docs**: Submit PR for documentation
+4. **🔧 Submit Code**: Fork, branch, PR
+
+### Development Workflow
+
+```bash
+# 1. Create feature branch
+git checkout -b feature/your-feature
+
+# 2. Make changes and test
+pytest && black src/ tests/
+
+# 3. Commit and push
+git commit -m "feat: add your feature"
+git push origin feature/your-feature
+
+# 4. Open Pull Request
+```
+
+See `CLAUDE.md` for comprehensive agent development guide.
+
+---
+
+## 📋 Roadmap
+
+### ✅ v0.1.15 (Current)
+- [x] Macro Lens agent - Top-down macro analysis and regime identification
+- [x] Economic cycle framework - 4-phase regime analysis
+- [x] Yield curve analysis - Recession signaling capability
+- [x] Specialized agent suite complete - Ready for multi-agent workflows
+
+### 🚀 v0.1.16 (Next - Phase 2B)
+- [ ] Multi-agent workflows - Comprehensive investment analysis (Quill → Macro Lens → Atlas)
+- [ ] `/analyze <SYMBOL>` command - End-to-end analysis workflow
+- [ ] Refactor Portfolio → Atlas (Investment Strategist)
+
+### v0.2.0 (Planned)
+- [ ] Multi-agent supervisor for coordinated workflows
+- [ ] Tax-loss harvesting agent
+- [ ] Portfolio optimization (PyPortfolioOpt)
+- [ ] Conversation persistence (LangGraph checkpointers)
+- [ ] Enhanced TUI with portfolio panels
+
+### Future
+- [ ] Web UI (Streamlit or FastAPI)
+- [ ] LangGraph Cloud deployment
+- [ ] Broker integrations (Alpaca, IBKR)
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+**Built with**:
+- [LangGraph](https://github.com/langchain-ai/langgraph) - Agent orchestration
+- [Anthropic Claude](https://www.anthropic.com/) - AI reasoning
+- [Textual](https://github.com/Textualize/textual) - Terminal UI
+
+**Data sources**:
+- [Alpha Vantage](https://www.alphavantage.co/), [FMP](https://financialmodelingprep.com/), [Tiingo](https://www.tiingo.com/)
+- [Finnhub](https://finnhub.io/), [FRED](https://fred.stlouisfed.org/), [U.S. Treasury](https://fiscaldata.treasury.gov/)
+- [SEC EDGAR](https://www.sec.gov/edgar), [NewsAPI](https://newsapi.org/)
+
+---
+
+## 🔗 Links
+
+- **PyPI**: [pypi.org/project/navam-invest](https://pypi.org/project/navam-invest/)
+- **GitHub**: [github.com/navam-io/navam-invest](https://github.com/navam-io/navam-invest)
+- **Issues**: [Report bugs](https://github.com/navam-io/navam-invest/issues)
+- **Discussions**: [Join conversation](https://github.com/navam-io/navam-invest/discussions)
+
+---
+
+<div align="center">
+
+**⭐ Star this project if you find it useful!**
+
+Made with ❤️ by the Navam team
+
+</div>
