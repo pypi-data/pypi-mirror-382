@@ -1,0 +1,185 @@
+Metadata-Version: 2.4
+Name: tnm-circuit-breaker
+Version: 0.2.1
+Summary: A ligthweight circuit breaker implementation for Python.
+Author-email: Justice Sandram <justicesandram@gmail.com>
+Project-URL: Repository, https://github.com/mpamba/tnm-circuit-breaker
+Keywords: breaker,circuit,circuit breaker,redis
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: typeguard>=4.0.1
+Requires-Dist: inflect>=7.4.0
+Provides-Extra: redis
+Requires-Dist: redis[hiredis]>=5.3.1; extra == "redis"
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"
+Requires-Dist: pytest_asyncio; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: tox; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: black>=23; extra == "dev"
+Requires-Dist: mypy>=1.9; extra == "dev"
+Requires-Dist: twine; extra == "dev"
+Requires-Dist: build; extra == "dev"
+Requires-Dist: pydantic; extra == "dev"
+Requires-Dist: httpx; extra == "dev"
+Dynamic: license-file
+
+# tnm-circuit-breaker
+
+A lightweight Python circuit breaker for protecting downstream systems.
+
+> See **[USAGE](https://github.com/tnm-circuit-breaker/USAGE.md)** for full examples.
+
+---
+
+## Quick summary
+
+* Purpose: protect downstream services (i.e., Elasticsearch, RabbitMQ, Kafka, Postgres, external HTTP APIs, ...) from
+  cascading failures.
+* Backends:
+
+    * `local`: no extra dependencies needed
+    * `redis`: distributed backend using Redis for atomic operations.
+
+---
+
+## Install
+
+```bash
+# core package
+pip install tnm-circuit-breaker
+
+# redis support
+pip install "tnm-circuit-breaker[redis]"
+
+```
+
+---
+
+## `CircuitBreaker` Public APIs
+
+```python
+class CircuitBreaker:
+    def record_failure(*args) -> int: ...
+
+    def last_failure(*args): ...
+
+    def record_success(*args) -> None: ...
+
+    def protect(*args): ...
+
+    # a decorator
+
+    def execute(*args): ...
+
+    async def execute_async(*args): ...
+
+    def raise_circuit_open_error(*args): ...
+
+```
+
+---
+
+## Quick Usage
+
+### Using the `protect` decorator
+
+```py
+from tnm.circuit import get_breaker
+from tnm.circuit.exceptions import CircuitOpenError
+
+breaker = get_breaker()  # defaults
+
+
+@breaker.protect("service-name")
+def my_function():
+    pass
+
+
+try:
+    my_function()
+except CircuitOpenError:
+    ...
+    # handle circuit open
+```
+
+### Using the `execute` method
+
+```py
+from tnm.circuit import get_breaker
+from tnm.circuit.exceptions import CircuitOpenError
+
+breaker = get_breaker()  # defaults
+
+
+def my_function():
+    pass
+
+
+try:
+    breaker.execute("service-name", my_function)
+except CircuitOpenError:
+    ...
+    # handle circuit open
+```
+
+### Using the `execute_async` method
+
+```py
+import asyncio
+from tnm.circuit import get_breaker
+from tnm.circuit.exceptions import CircuitOpenError
+
+breaker = get_breaker()  # defaults
+
+
+async def my_async_function():
+    pass
+
+
+async def main():
+    try:
+        await breaker.execute_async("service-name", my_async_function)
+    except CircuitOpenError:
+        ...
+        # handle circuit open
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Exceptions
+
+All library exceptions inherit from a small, focused hierarchy:
+
+* `CircuitError`: Base exception for all circuit breaker errors.
+* `CircuitBackendError`: backend operational issues.
+* `CircuitOpenError`: raised when an operation is attempted while a service's circuit is open.
+* `ReturnValuePolicyError`: raised when a return-value rule matched; contains `.retval` and `.retval_policy`.
+
+Handle `CircuitOpenError` or `ReturnValuePolicyError` as an expected operational outcome.
+
+When catching, inspect `.args` or `.__cause__` for low-level detail.
+
+---
+
+## Contributing
+
+Contributions welcome.
+
+---
+
+## License
+
+MIT
