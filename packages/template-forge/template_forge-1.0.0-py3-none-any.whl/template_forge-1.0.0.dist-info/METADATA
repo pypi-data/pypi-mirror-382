@@ -1,0 +1,316 @@
+Metadata-Version: 2.4
+Name: template-forge
+Version: 1.0.0
+Summary: Transform structured data (JSON/YAML/XML) into code, configs, and docs with Jinja2 templates
+Project-URL: Homepage, https://github.com/CarloFornari/template_forge
+Project-URL: Documentation, https://github.com/CarloFornari/template_forge/blob/main/docs/README.md
+Project-URL: Quickstart, https://github.com/CarloFornari/template_forge/blob/main/QUICKSTART.md
+Project-URL: Bug Reports, https://github.com/CarloFornari/template_forge/issues
+Project-URL: Source, https://github.com/CarloFornari/template_forge
+Project-URL: Changelog, https://github.com/CarloFornari/template_forge/releases
+Author-email: Carlo Fornari <carlo.fornari@example.com>
+License: MIT
+License-File: LICENSE
+Keywords: arxml,automation,autosar,boilerplate,code-generation,code-generator,configuration,jinja2,json,scaffolding,template,xml,yaml
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: Topic :: Software Development :: Code Generators
+Classifier: Topic :: Text Processing :: Markup
+Classifier: Typing :: Typed
+Requires-Python: >=3.8
+Requires-Dist: defusedxml>=0.7.1
+Requires-Dist: jinja2>=3.1.2
+Requires-Dist: pyyaml>=6.0.1
+Provides-Extra: dev
+Requires-Dist: bandit[toml]>=1.7.5; extra == 'dev'
+Requires-Dist: build>=1.0.0; extra == 'dev'
+Requires-Dist: coverage>=7.0.0; extra == 'dev'
+Requires-Dist: mypy>=1.6.0; extra == 'dev'
+Requires-Dist: pre-commit>=3.5.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.1.0; extra == 'dev'
+Requires-Dist: pytest>=7.4.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Requires-Dist: safety>=2.3.0; extra == 'dev'
+Requires-Dist: twine>=4.0.0; extra == 'dev'
+Provides-Extra: docs
+Requires-Dist: mkdocs-material>=9.4.0; extra == 'docs'
+Requires-Dist: mkdocs>=1.5.0; extra == 'docs'
+Requires-Dist: mkdocstrings[python]>=0.23.0; extra == 'docs'
+Provides-Extra: testing
+Requires-Dist: coverage>=7.0.0; extra == 'testing'
+Requires-Dist: pytest-cov>=4.1.0; extra == 'testing'
+Requires-Dist: pytest>=7.4.0; extra == 'testing'
+Description-Content-Type: text/markdown
+
+# 🔨 Template Forge
+
+**Stop writing boilerplate. Start building features.**
+
+Transform your structured data (JSON, YAML, XML, ARXML) into any text-based output—code, configs, docs, infrastructure—with the power of Jinja2 templates and intelligent data extraction.
+
+[![PyPI version](https://img.shields.io/pypi/v/template-forge.svg)](https://pypi.org/project/template-forge/)
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-403%20passing-brightgreen)]()
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/template-forge.svg)](https://pypi.org/project/template-forge/)
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Install
+pip install template-forge
+
+# Generate from your data
+template-forge config.yaml
+
+# That's it! 🎉
+```
+
+**[📖 Getting Started Guide](docs/getting-started.md)** | **[📚 Full Documentation](docs/)** | **[💡 Examples](examples/)**
+
+---
+
+## ⚡ Why Template Forge?
+
+### The Problem
+- 📝 Writing the same boilerplate code across services
+- 🔄 Keeping configurations synchronized across environments
+- 📚 Maintaining documentation that matches your code
+- 😱 Losing custom code when regenerating files
+
+### The Solution
+Template Forge uses your existing data to generate everything:
+
+```
+Your Data (JSON/YAML/XML) + Your Templates → Generated Everything
+```
+
+**One command. Zero repetition. Complete control.**
+
+---
+
+## ✨ 30-Second Demo
+
+**1. Your data** (`app.json`):
+```json
+{
+  "service": {
+    "name": "UserAPI",
+    "port": 8080,
+    "endpoints": ["users", "auth", "profile"]
+  }
+}
+```
+
+**2. Your template** (`service.py.j2`):
+```python
+# Generated {{ service.name }} Service
+from flask import Flask
+app = Flask("{{ service.name }}")
+
+{% for endpoint in service.endpoints %}
+@app.route("/{{ endpoint }}")
+def {{ endpoint }}():
+    return {"endpoint": "{{ endpoint }}"}
+{% endfor %}
+
+if __name__ == "__main__":
+    app.run(port={{ service.port }})
+```
+
+**3. Your config** (`config.yaml`):
+```yaml
+inputs:
+  - path: "app.json"
+    namespace: "service"
+
+templates:
+  - template: "service.py.j2"
+    output: "service.py"
+```
+
+**4. Generate**:
+```bash
+template-forge config.yaml
+```
+
+**5. Result** (`service.py`):
+```python
+# Generated UserAPI Service
+from flask import Flask
+app = Flask("UserAPI")
+
+@app.route("/users")
+def users():
+    return {"endpoint": "users"}
+
+@app.route("/auth")
+def auth():
+    return {"endpoint": "auth"}
+
+@app.route("/profile")
+def profile():
+    return {"endpoint": "profile"}
+
+if __name__ == "__main__":
+    app.run(port=8080)
+```
+
+**That's the power of Template Forge.** 🚀
+
+---
+
+## 🎯 Key Features
+
+### 📊 Universal Data Support
+- **JSON, YAML, XML, ARXML** - Parse any structured format
+- **Multiple sources** - Combine data from different files
+- **Namespacing** - Avoid token collisions with hierarchical organization
+- **Smart extraction** - Dot notation, array operations, wildcards
+
+### 🎨 Powerful Templates
+- **Full Jinja2** - Complete template language support
+- **Custom filters** - `snake_case`, `pascal_case`, `flatten`, `unique`, more
+- **Conditional generation** - Only create files when conditions are met
+- **Foreach iteration** - Generate multiple files from arrays
+- **Matrix generation** - Cross-product combinations (platforms × configs)
+
+### 🛡️ Code Preservation
+- **Keep custom code** - Mark sections to preserve across regenerations
+- **Safe regeneration** - Never lose your manual changes
+- **Smart merging** - Automatically merge template updates with custom code
+
+### ⚙️ Advanced Automation
+- **Pre/post hooks** - Run commands before/after generation
+- **Conditional hooks** - Execute based on data values
+- **Template inheritance** - Reuse common template sections
+- **File watching** - Auto-regenerate on data changes (coming soon)
+
+---
+
+## 📦 Installation
+
+```bash
+# From PyPI (recommended)
+pip install template-forge
+
+# With development tools
+pip install template-forge[dev]
+
+# From source
+git clone https://github.com/CarloFornari/template-forge.git
+cd template-forge
+pip install -e .
+```
+
+**Requirements**: Python 3.8+
+
+---
+
+## 🎓 Learn More
+
+- **[Getting Started Guide](docs/getting-started.md)** - From zero to expert
+- **[User Guide](docs/user-guide.md)** - Complete feature reference
+- **[Examples](examples/)** - Real-world use cases
+  - [Basic Usage](examples/basic/) - Simple config and template
+  - [Advanced Features](examples/advanced-features/) - All capabilities
+  - [AUTOSAR](examples/autosar/) - Automotive XML processing
+  - [Docker](examples/docker/) - Container configuration
+  - [C++ Projects](examples/cpp-project/) - Code generation
+  - [Python Classes](examples/python-class/) - Dynamic class creation
+  - [YAML Configs](examples/yaml-config/) - Configuration management
+- **[API Reference](docs/api.md)** - Detailed API documentation
+- **[Configuration Guide](docs/CONFIGURATION.md)** - All config options
+
+---
+
+## 💡 Common Use Cases
+
+### 🏗️ Multi-Environment Configurations
+Generate environment-specific configs from a single data source:
+```bash
+# dev.yaml, staging.yaml, prod.yaml from one template
+```
+
+### 🔧 Microservices Boilerplate
+Create consistent service structures across your architecture:
+```bash
+# API endpoints, Docker configs, K8s manifests, docs
+```
+
+### 📝 Documentation Generation
+Keep docs in sync with your code/data:
+```bash
+# API docs, config references, user guides
+```
+
+### 🚗 Automotive (AUTOSAR)
+Transform ARXML into C headers, configs, and documentation:
+```bash
+# ECU configs, CAN message definitions, system docs
+```
+
+### 🎨 Code Generation
+Generate type-safe code from data models:
+```bash
+# Classes, interfaces, DTOs, validators
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+**Development Setup**:
+```bash
+git clone https://github.com/CarloFornari/template-forge.git
+cd template-forge
+pip install -e ".[dev]"
+pytest
+```
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgments
+
+Built with:
+- [Jinja2](https://jinja.palletsprojects.com/) - Template engine
+- [PyYAML](https://pyyaml.org/) - YAML parsing
+- [pytest](https://pytest.org/) - Testing framework
+
+---
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/CarloFornari/template-forge/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/CarloFornari/template-forge/discussions)
+- **Email**: carlo.fornari@example.com
+
+---
+
+<div align="center">
+
+**[⭐ Star us on GitHub](https://github.com/CarloFornari/template-forge)** if Template Forge saves you time!
+
+Made with ❤️ by [Carlo Fornari](https://github.com/CarloFornari)
+
+</div>
