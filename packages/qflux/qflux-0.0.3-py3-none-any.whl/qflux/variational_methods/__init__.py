@@ -1,0 +1,2 @@
+# initialization
+from . import qmad
