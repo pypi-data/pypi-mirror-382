@@ -1,0 +1,133 @@
+3. Experiment the model performance using the
+available cnn models.
+# CNN Architecture Comparison: LeNet, AlexNet,
+VGGNet, GoogLeNet, ResNet
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.applications import (
+VGG16, InceptionV3, ResNet50
+)
+import numpy as np
+import matplotlib.pyplot as plt
+(x_train, y_train), (x_test, y_test) =
+tf.keras.datasets.mnist.load_data()
+x_train = np.expand_dims(x_train, -1) / 255.0
+x_test = np.expand_dims(x_test, -1) / 255.0
+y_train = to_categorical(y_train, 10)
+y_test = to_categorical(y_test, 10)
+x_train_rgb = np.repeat(x_train, 3, axis=-1)
+x_test_rgb = np.repeat(x_test, 3, axis=-1)
+x_train_resized = tf.image.resize(x_train_rgb, (224,224))
+x_test_resized = tf.image.resize(x_test_rgb, (224,224))
+def build_lenet():
+model = models.Sequential([
+layers.Conv2D(6, (5,5), activation='tanh',
+input_shape=(28,28,1)),
+layers.AveragePooling2D(),
+layers.Conv2D(16, (5,5), activation='tanh'),
+layers.AveragePooling2D(),
+layers.Flatten(),
+layers.Dense(120, activation='tanh'),
+layers.Dense(84, activation='tanh'),
+layers.Dense(10, activation='softmax')
+])
+model.compile(optimizer='adam',
+loss='categorical_crossentropy', metrics=['accuracy'])
+return model
+def build_alexnet():
+model = models.Sequential([
+layers.Conv2D(96, (3,3), activation='relu',
+input_shape=(28,28,1), padding='same'),
+layers.MaxPooling2D((2,2)),
+layers.Conv2D(256, (3,3), activation='relu',
+padding='same'),
+layers.MaxPooling2D((2,2)),
+layers.Conv2D(384, (3,3), activation='relu',
+padding='same'),
+layers.Conv2D(384, (3,3), activation='relu',
+padding='same'),
+layers.Conv2D(256, (3,3), activation='relu',
+padding='same'),
+layers.MaxPooling2D((2,2)),
+layers.Flatten(),
+layers.Dense(4096, activation='relu'),
+layers.Dropout(0.5),
+layers.Dense(4096, activation='relu'),
+layers.Dropout(0.5),
+layers.Dense(10, activation='softmax')
+])
+model.compile(optimizer='adam',
+loss='categorical_crossentropy', metrics=['accuracy'])
+return model
+def build_vggnet():
+base = VGG16(weights=None, include_top=False,
+input_shape=(224,224,3))
+model = models.Sequential([
+base,
+layers.Flatten(),
+layers.Dense(256, activation='relu'),
+layers.Dropout(0.5),
+layers.Dense(10, activation='softmax')
+])
+model.compile(optimizer='adam',
+loss='categorical_crossentropy', metrics=['accuracy'])
+return model
+def build_googlenet():
+base = InceptionV3(weights=None, include_top=False,
+input_shape=(224,224,3))
+model = models.Sequential([
+base,
+layers.GlobalAveragePooling2D(),
+layers.Dense(256, activation='relu'),
+layers.Dropout(0.5),
+layers.Dense(10, activation='softmax')
+])
+model.compile(optimizer='adam',
+loss='categorical_crossentropy', metrics=['accuracy'])
+return model
+def build_resnet():
+base = ResNet50(weights=None, include_top=False,
+input_shape=(224,224,3))
+model = models.Sequential([
+base,
+layers.GlobalAveragePooling2D(),
+layers.Dense(128, activation='relu'),
+layers.Dropout(0.5),
+layers.Dense(10, activation='softmax')
+])
+model.compile(optimizer='adam',
+loss='categorical_crossentropy', metrics=['accuracy'])
+return model
+def train_model(model, name, x_train, y_train, x_test,
+y_test, epochs=3):
+print(f"\nTraining {name}...")
+hist = model.fit(x_train, y_train, epochs=epochs,
+batch_size=128,
+validation_split=0.1, verbose=2)
+loss, acc = model.evaluate(x_test, y_test, verbose=0)
+print(f"{name} Test Accuracy: {acc:.4f}")
+return acc, hist
+results = {}
+histories = {}
+results['LeNet'], histories['LeNet'] =
+train_model(build_lenet(), 'LeNet', x_train, y_train, x_test,
+y_test)
+results['AlexNet'], histories['AlexNet'] =
+train_model(build_alexnet(), 'AlexNet', x_train, y_train,
+x_test, y_test)
+results['VGGNet'], histories['VGGNet'] =
+train_model(build_vggnet(), 'VGGNet', x_train_resized,
+y_train, x_test_resized, y_test)
+results['GoogLeNet'], histories['GoogLeNet'] =
+train_model(build_googlenet(), 'GoogLeNet',
+x_train_resized, y_train, x_test_resized, y_test)
+results['ResNet'], histories['ResNet'] =
+train_model(build_resnet(), 'ResNet', x_train_resized,
+y_train, x_test_resized, y_test)
+plt.figure(figsize=(10,6))
+plt.bar(results.keys(), results.values(),
+color=['blue','orange','green','red','purple'])
+plt.title("CNN Architecture Comparison on MNIST")
+plt.ylabel("Test Accuracy")
+plt.show()

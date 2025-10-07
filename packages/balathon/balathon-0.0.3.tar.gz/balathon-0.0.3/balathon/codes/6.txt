@@ -1,0 +1,82 @@
+6. Image to image translation using pix 2 pix gan.
+import tensorflow as tf
+from tensorflow.keras import layers, Model
+import matplotlib.pyplot as plt
+def build_generator():
+inputs = layers.Input(shape=[256,256,3])
+x = layers.Conv2D(64, 4, strides=2,
+padding='same')(inputs)
+x = layers.ReLU()(x)
+x = layers.Conv2D(128, 4, strides=2,
+padding='same')(x)
+x = layers.ReLU()(x)
+x = layers.Conv2DTranspose(64, 4, strides=2,
+padding='same')(x)
+x = layers.ReLU()(x)
+outputs = layers.Conv2DTranspose(3, 4, strides=2,
+padding='same', activation='tanh')(x)
+return Model(inputs, outputs)
+def build_discriminator():
+inp = layers.Input(shape=[256,256,3])
+tar = layers.Input(shape=[256,256,3])
+x = layers.Concatenate()([inp, tar])
+x = layers.Conv2D(64, 4, strides=2, padding='same')(x)
+x = layers.LeakyReLU()(x)
+x = layers.Conv2D(128, 4, strides=2,
+padding='same')(x)
+x = layers.LeakyReLU()(x)
+x = layers.Conv2D(1, 4, strides=1, padding='same')(x)
+return Model([inp, tar], x)
+generator = build_generator()
+discriminator = build_discriminator()
+loss_object =
+tf.keras.losses.BinaryCrossentropy(from_logits=True)
+gen_optimizer = tf.keras.optimizers.Adam(2e-4,
+beta_1=0.5)
+disc_optimizer = tf.keras.optimizers.Adam(2e-4,
+beta_1=0.5)
+def gen_loss(disc_generated_output, gen_output, target):
+gan_loss =
+loss_object(tf.ones_like(disc_generated_output),
+disc_generated_output)
+l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
+return gan_loss + (100 * l1_loss)
+def disc_loss(disc_real, disc_fake):
+real_loss = loss_object(tf.ones_like(disc_real),
+disc_real)
+fake_loss = loss_object(tf.zeros_like(disc_fake),
+disc_fake)
+return 0.5*(real_loss + fake_loss)
+@tf.function
+def train_step(input_image, target):
+with tf.GradientTape() as gen_tape, tf.GradientTape() as
+disc_tape:
+gen_output = generator(input_image, training=True)
+disc_real = discriminator([input_image, target],
+training=True)
+disc_fake = discriminator([input_image, gen_output],
+training=True)
+g_loss = gen_loss(disc_fake, gen_output, target)
+d_loss = disc_loss(disc_real, disc_fake)
+generator_grad = gen_tape.gradient(g_loss,
+generator.trainable_variables)
+discriminator_grad = disc_tape.gradient(d_loss,
+discriminator.trainable_variables)
+gen_optimizer.apply_gradients(zip(generator_grad,
+generator.trainable_variables))
+disc_optimizer.apply_gradients(zip(discriminator_grad,
+discriminator.trainable_variables))
+return g_loss, d_loss
+import numpy as np
+input_image =
+np.random.rand(1,256,256,3).astype('float32')*2 -1
+target_image =
+np.random.rand(1,256,256,3).astype('float32')*2 -1
+g_loss, d_loss = train_step(input_image, target_image)
+print("Generator Loss:", g_loss.numpy(), "Discriminator
+Loss:", d_loss.numpy())
+output_image = generator(input_image, training=False)
+plt.imshow((output_image[0]+1)/2)
+plt.title("Generated Image")
+plt.axis('off')
+plt.show()
