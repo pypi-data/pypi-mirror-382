@@ -1,0 +1,222 @@
+Metadata-Version: 2.4
+Name: pyecholog
+Version: 3.0.5
+Summary: Lightweight, file-backed logger with colored console output
+Author-email: Aymene Boudali <boudaliaymene4@example.com>
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: colorama>=0.4.0
+Dynamic: license-file
+
+````markdown
+# EchoLog 🪶  
+A lightweight and colorful Python logger for daily logging — built for simplicity, readability, and reliability.
+
+EchoLog logs messages both to the console (with colors using **colorama**) and to a daily log file automatically created under a configurable `logs/` folder.
+
+---
+
+## ✨ Features
+
+- **Daily log files** — automatically organized by date  
+- **Colorized console output** (via `colorama`)  
+- **Simple API** — `info()`, `error()`, `debug()`, etc.  
+- **Custom log levels** including `SMTP` and `AUDIT`  
+- **Custom formatting** support via user-defined callback  
+- **Optional environment variable** for log folder (`ECHOLOG_LOGS_FOLDER`)  
+- **Graceful fallback** if file writing fails  
+
+---
+
+## 📦 Installation
+
+```bash
+pip install colorama
+````
+
+> `colorama` is optional — if unavailable, EchoLog still works for file-only logging.
+
+---
+
+## 🧠 Quick Start
+
+```python
+from echolog import Logger, LogLevel
+
+logger = Logger("MyApp")
+
+logger.info("Application started successfully.")
+logger.debug("Debugging details here...")
+logger.warning("This might cause issues later.")
+logger.error("Something went wrong!")
+logger.critical("Critical failure encountered.")
+logger.smtp("SMTP message logged.")
+logger.audit("User access event recorded.")
+```
+
+**Console Output:**
+
+```
+2025-10-06 [INFO] [MyApp] Application started successfully.
+2025-10-06 [ERROR] [MyApp] Something went wrong!
+```
+
+**File Output (`logs/2025-10-06.log`):**
+
+```
+[2025-10-06 14:33:02] [INFO] [MyApp] Application started successfully.
+[2025-10-06 14:33:05] [ERROR] [MyApp] Something went wrong!
+```
+
+---
+
+## 🗂️ Log Files
+
+By default, EchoLog stores logs in the `logs/` directory, one file per day:
+
+```
+logs/
+ ├─ 2025-10-06.log
+ ├─ 2025-10-07.log
+ └─ ...
+```
+
+To change this location, set an environment variable:
+
+```bash
+export ECHOLOG_LOGS_FOLDER=/var/log/myapp
+```
+
+---
+
+## 🧩 Custom Formatting
+
+You can define your own console format function:
+
+```python
+def custom_format(msg, level):
+    return f"[{level.text}] :: {msg.upper()}"
+
+logger.set_custom_format(custom_format)
+logger.info("custom formatting enabled")
+```
+
+---
+
+## 🧾 API Reference
+
+### `Logger(name: Optional[str] = None)`
+
+Creates a new logger instance.
+If `name` is provided, it’s included in all log entries.
+
+### Methods
+
+| Method                          | Description                                    |
+| :------------------------------ | :--------------------------------------------- |
+| `debug(text, print_only=False)` | Log a debug message.                           |
+| `info(text)`                    | Log an info message.                           |
+| `notice(text)`                  | Log an informational notice.                   |
+| `warning(text)`                 | Log a warning.                                 |
+| `error(text)`                   | Log an error message.                          |
+| `critical(text)`                | Log a critical error.                          |
+| `smtp(text)`                    | Log SMTP-related events.                       |
+| `audit(text)`                   | Log security or access events.                 |
+| `get_logs()`                    | Return the current day’s log lines as a list.  |
+| `file_name()`                   | Return the current log file’s full path.       |
+| `set_custom_format(formatter)`  | Set a function that customizes console output. |
+
+---
+
+## 🧱 Log Levels
+
+| Level      | Color      | Example Prefix  |
+| :--------- | :--------- | :-------------- |
+| `DEBUG`    | Cyan       | `[DEBUG]`       |
+| `INFO`     | Green      | `[INFO]`        |
+| `NOTICE`   | Blue       | `[NOTICE]`      |
+| `WARNING`  | Yellow     | `[WARNING]`     |
+| `ERROR`    | Red        | `[ERROR]`       |
+| `CRITICAL` | Magenta    | `[CRITICAL]`    |
+| `SMTP`     | Light Cyan | `[SMTP SERVER]` |
+| `AUDIT`    | Light Blue | `[AUDIT]`       |
+
+---
+
+## ⚙️ Internals
+
+Each log line follows this structure:
+
+```
+[YYYY-MM-DD HH:MM:SS] [LEVEL] [LoggerName] message
+```
+
+* Files are appended daily
+* If the `logs` folder cannot be created, EchoLog falls back to the current directory
+* Handles file I/O errors gracefully and continues printing to console
+
+---
+
+## 🧩 Example Project Layout
+
+```
+my_project/
+ ├─ echolog/
+ │   ├─ __init__.py
+ │   ├─ logger.py
+ ├─ main.py
+ └─ logs/
+```
+
+`main.py`:
+
+```python
+from echolog import Logger
+
+log = Logger("Main")
+log.info("App initialized.")
+```
+
+---
+
+## 🧰 Environment Variables
+
+| Variable              | Description             | Default  |
+| :-------------------- | :---------------------- | :------- |
+| `ECHOLOG_LOGS_FOLDER` | Directory for log files | `"logs"` |
+
+---
+
+## 🪶 License
+
+**Copyright © 2025 Aymene Boudali**
+All rights reserved.
+
+You may use and distribute EchoLog as part of your personal or commercial projects **without modification**.
+You **may not** edit, alter, or redistribute modified versions of this library under any name.
+
+Usage in compiled, packaged, or public software is permitted — provided EchoLog remains intact and unmodified.
+
+---
+
+## ⚠️ Legal Notes
+
+* Modification of the code or derived works is strictly prohibited.
+* Redistribution must include this README and full copyright notice.
+* Use is allowed in both open-source and closed-source projects if unchanged.
+* Credit to **Aymene Boudali** is required in any documentation or about section.
+
+---
+
+## 🤝 Acknowledgments
+
+Special thanks to developers and open-source contributors who inspired EchoLog’s simplicity.
+Built with ❤️ in Python.
+
+```
+```
