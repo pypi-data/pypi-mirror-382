@@ -1,0 +1,103 @@
+name: Claude Review Automation
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  process-claude-review:
+    # Only run on PR comments from Claude
+    if: |
+      github.event.issue.pull_request &&
+      (github.event.comment.user.login == 'claude[bot]' ||
+       contains(github.event.comment.body, 'claude-code-action') ||
+       contains(github.event.comment.body, 'APPROVED - Ready to merge') ||
+       contains(github.event.comment.body, 'CHANGES REQUESTED'))
+    
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Process Claude Review Decision
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.issue.number }}
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          
+          echo "Processing Claude review for PR #$PR_NUMBER"
+          
+          # Get PR details to identify the agent
+          PR_DATA=$(gh pr view $PR_NUMBER --json headRefName,author)
+          BRANCH_NAME=$(echo "$PR_DATA" | jq -r '.headRefName')
+          PR_AUTHOR=$(echo "$PR_DATA" | jq -r '.author.login')
+          
+          echo "Branch: $BRANCH_NAME"
+          echo "Author: $PR_AUTHOR"
+          
+          # Extract agent name from branch (agent-codex-*, agent-copilot-*, etc.)
+          if [[ $BRANCH_NAME =~ ^agent-([a-z]+)- ]]; then
+            AGENT_NAME="${BASH_REMATCH[1]}"
+            echo "Identified agent: $AGENT_NAME"
+          else
+            echo "Not an agent branch, skipping automation"
+            exit 0
+          fi
+          
+          # Check Claude's decision
+          if echo "$COMMENT_BODY" | grep -q "✅ APPROVED - Ready to merge"; then
+            echo "Claude approved the PR - proceeding with auto-merge"
+            
+            # Add approved label
+            gh pr edit $PR_NUMBER --add-label "claude-approved"
+            
+            # Auto-merge the PR
+            gh pr merge $PR_NUMBER --squash --auto --delete-branch
+            
+            echo "PR #$PR_NUMBER auto-merged successfully"
+            
+          elif echo "$COMMENT_BODY" | grep -q "❌ CHANGES REQUESTED"; then
+            echo "Claude requested changes - routing feedback to agent"
+            
+            # Add needs-changes label  
+            gh pr edit $PR_NUMBER --add-label "claude-changes-requested"
+            
+            # Create feedback issue for the agent
+            gh issue create \
+              --title "Review Feedback for $AGENT_NAME: PR #$PR_NUMBER" \
+              --assignee "$AGENT_NAME-bot" \
+              --label "agent-feedback,$AGENT_NAME-agent" \
+              --body "## Claude Review Feedback for PR #$PR_NUMBER
+
+            **Agent**: @$AGENT_NAME
+            **Branch**: \`$BRANCH_NAME\`
+            **PR**: #$PR_NUMBER
+
+            ### Claude's Review Comments:
+            $COMMENT_BODY
+
+            ### Next Steps:
+            1. Address the feedback in your branch: \`$BRANCH_NAME\`
+            2. Push your fixes to update the PR
+            3. Request re-review by commenting \`@claude please review\`
+
+            This issue will auto-close when the PR is approved and merged."
+            
+            echo "Feedback issue created for agent $AGENT_NAME"
+            
+            # If we have webhook endpoint, also send to AgentSwarm integration
+            # curl -X POST "$WEBHOOK_URL/api/feedback" \
+            #   -H "Content-Type: application/json" \
+            #   -d "{\"pr_number\": $PR_NUMBER, \"agent\": \"$AGENT_NAME\", \"feedback\": \"$COMMENT_BODY\"}"
+            
+          else
+            echo "Claude review doesn't contain automation triggers - no action taken"
+          fi

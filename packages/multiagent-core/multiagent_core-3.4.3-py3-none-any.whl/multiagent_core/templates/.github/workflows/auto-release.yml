@@ -1,0 +1,41 @@
+name: Auto Release on Push
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'multiagent_core/**'
+      - 'pyproject.toml'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install build tools
+        run: |
+          pip install build
+          
+      - name: Build package
+        run: python -m build
+        
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          files: dist/*
+          body: |
+            Automated release from commit ${{ github.sha }}
+            
+            Install with:
+            ```bash
+            pipx install https://github.com/vanman2024/multiagent-core/releases/latest/download/multiagent_core-*.whl
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
