@@ -1,0 +1,27 @@
+services:
+  wi1-bot:
+    container_name: wi1-bot
+    image: wthueb/wi1-bot
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    devices:
+      - /dev/dri:/dev/dri
+    environment:
+      - WB_CONFIG_PATH=/data/config.yaml
+      - WB_LOG_DIR=/data/logs
+      - MONGODB_CONNECTION_STRING=mongodb://mongodb:27017
+    volumes:
+      - .:/data
+    depends_on:
+      - mongodb
+
+  mongodb:
+    container_name: mongodb
+    image: mongo:8.0
+    ports:
+      - 27017:27017
