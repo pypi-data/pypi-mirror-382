@@ -1,0 +1,46 @@
+# LICENSE HEADER MANAGED BY add-license-header
+#
+# Copyright (C) 2025 Ethorbit
+#
+# This file is part of SoundPrompt.
+#
+# SoundPrompt is free software: you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, either version 3
+# of the License, or (at your option) any later version.
+#
+# SoundPrompt is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the
+# GNU General Public License along with SoundPrompt.
+# If not, see <https://www.gnu.org/licenses/>.
+#
+
+import asyncio
+
+
+class Event():
+    _subscribers: list
+
+    def __init__(self):
+        self._subscribers = []
+
+    def subscribe(self, callback):
+        self._subscribers.append(callback)
+
+    def unsubscribe(self, callback):
+        self._subscribers.remove(callback)
+
+    def notify(self, *args, **kwargs) -> None:
+        for cb in self._subscribers:
+            cb(*args, **kwargs)
+
+    async def notify_async(self, *args, **kwargs) -> None:
+        for cb in self._subscribers:
+            if asyncio.iscoroutinefunction(cb):
+                await cb(*args, **kwargs)
+            else:
+                cb(*args, **kwargs)
