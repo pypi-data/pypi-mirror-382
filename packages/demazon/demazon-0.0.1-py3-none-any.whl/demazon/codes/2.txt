@@ -1,0 +1,40 @@
+from google.colab import userdata
+import os
+import pandas as pd
+import numpy as np
+import re
+import nltk
+import matplotlib.pyplot as plt
+pd.options.display.max_colwidth = 200
+corpus_df=pd.read_csv("/content/samsum-train.csv", nrows=5000)
+corpus_df.head()
+corpus=np.array(corpus_df['summary'])
+print(corpus)
+from sklearn.feature_extraction.text import CountVectorizer
+cv = CountVectorizer(min_df=0., max_df=1.)
+cv_matrix = cv.fit_transform(corpus)
+cv_matrix
+print(cv_matrix)
+cv_matrix = cv_matrix.toarray()
+cv_matrix
+vocab = cv.get_feature_names_out()
+pd.DataFrame(cv_matrix, columns=vocab)
+bv = CountVectorizer(ngram_range=(2,2))
+bv_matrix = bv.fit_transform(corpus)
+bv_matrix = bv_matrix.toarray()
+vocab = bv.get_feature_names_out()
+pd.DataFrame(bv_matrix, columns=vocab)
+from sklearn.feature_extraction.text import TfidfTransformer
+tt = TfidfTransformer(norm='l2', use_idf=True, smooth_idf=True)
+tt_matrix = tt.fit_transform(cv_matrix)
+tt_matrix = tt_matrix.toarray()
+vocab = cv.get_feature_names_out()
+pd.DataFrame(np.round(tt_matrix, 2), columns=vocab)
+from sklearn.feature_extraction.text import TfidfVectorizer
+tv = TfidfVectorizer(min_df=0., max_df=1., norm='l2',
+use_idf=True, smooth_idf=True)
+tv_matrix = tv.fit_transform(corpus)
+tv_matrix = tv_matrix.toarray()
+vocab = tv.get_feature_names_out()
+pd.DataFrame(np.round(tv_matrix, 2), columns=vocab)
+

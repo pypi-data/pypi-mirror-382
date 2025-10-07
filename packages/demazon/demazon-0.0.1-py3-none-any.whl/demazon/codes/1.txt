@@ -1,0 +1,133 @@
+import nltk
+nltk.download('stopwords')
+nltk.download('wordnet')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('punkt')
+import numpy as np
+import pandas as pd
+import re
+import nltk
+import spacy
+import string
+pd.options.mode.chained_assignment = None
+full_df = pd.read_csv("/content/allfootball.csv", nrows=5000)
+df = full_df[["title"]]
+df["title"] = df["title"].astype(str)
+full_df.head()
+"""Sentence Tokenization"""
+import nltk
+from nltk.tokenize import sent_tokenize
+import pandas as pd
+def tokenize_text(text):
+return sent_tokenize(text)
+df['sentences'] = df['title'].apply(tokenize_text)
+print(df.head())
+for index, row in df.head().iterrows():
+print(f"Total sentences in entry {index}: {len(row['sentences'])}")
+print("Sentences:")
+print(np.array(row['sentences']))
+print()
+common_text = df['title']
+import nltk
+import numpy as np
+import pandas as pd
+default_st = nltk.sent_tokenize
+def tokenize_text(text):
+return default_st(text)
+df['sentences'] = df['title'].apply(tokenize_text)
+sample_sentences = df.iloc[0]['sentences']
+print('Total sentences in sample_text:', len(sample_sentences))
+print('Sample text sentences:')
+print(np.array(sample_sentences))
+punkt_st = nltk.tokenize.PunktSentenceTokenizer()
+def tokenize_text(text):
+return punkt_st.tokenize(text)
+df['desccriptions'] = df['title'].apply(tokenize_text)
+sample_sentences = df.iloc[0]['title']
+print(np.array(sample_sentences))
+"""Word Tokenization"""
+from nltk.tokenize.toktok import ToktokTokenizer
+tokenizer = ToktokTokenizer()
+words = tokenizer.tokenize(sample_sentences)
+np.array(words)
+TOKEN_PATTERN = r'\w+'
+regex_wt = nltk.RegexpTokenizer(pattern=TOKEN_PATTERN, gaps=False)
+words = regex_wt.tokenize(sample_sentences)
+np.array(words)
+GAP_PATTERN = r'\s+'
+regex_wt = nltk.RegexpTokenizer(pattern=GAP_PATTERN, gaps=True)
+words = regex_wt.tokenize(sample_sentences)
+np.array(words)
+"""TEXT NORMALISATION
+Lower Casing """
+import pandas as pd
+import string
+df['text_lower'] = df['title'].str.lower()
+df.head()
+"""Removal of Punctuations"""
+PUNCT_TO_REMOVE = string.punctuation
+def remove_punctuation(text):
+"""Custom function to remove the punctuation"""
+return text.translate(str.maketrans('', '', PUNCT_TO_REMOVE))
+df["text_wo_punct"] = df["text_lower"].apply(remove_punctuation)
+df.drop(["text_lower"], axis=1, inplace=True)
+df.head()
+"""Removal of stopwords"""
+from nltk.corpus import stopwords
+stop_words = stopwords.words('english')
+stop_words_string = ", ".join(stop_words)
+print(stop_words_string)
+STOPWORDS = set(stopwords.words('english'))
+def remove_stopwords(text):
+"""custom function to remove the stopwords"""
+return " ".join([word for word in str(text).split() if word not in STOPWORDS])
+df["text_wo_stop"] = df["text_wo_punct"].apply(lambda text: remove_stopwords(text))
+df.head()
+"""Removal of Frequent words"""
+from collections import Counter
+cnt = Counter()
+for text in df["text_wo_stop"].values:
+for word in text.split():
+cnt[word] += 1
+cnt.most_common(10)
+FREQWORDS = set([w for (w, wc) in cnt.most_common(10)])
+def remove_freqwords(text):
+"""custom function to remove the frequent words"""
+return " ".join([word for word in str(text).split() if word not in FREQWORDS])
+df["text_wo_stopfreq"] = df["text_wo_stop"].apply(lambda text: remove_freqwords(text))
+df.head()
+"""Stemming"""
+from nltk.stem.porter import PorterStemmer
+# Drop the two columns
+# df.drop(["text_wo_stopfreq", "text_wo_stopfreqrare"], axis=1, inplace=True)
+stemmer = PorterStemmer()
+def stem_words(text):
+return " ".join([stemmer.stem(word) for word in text.split()])
+df["text_stemmed"] = df["title"].apply(lambda text: stem_words(text))
+df.head()
+from nltk.stem.snowball import SnowballStemmer
+SnowballStemmer.languages
+"""Lemmatization"""
+from nltk.stem import WordNetLemmatizer
+lemmatizer = WordNetLemmatizer()
+def lemmatize_words(text):
+return " ".join([lemmatizer.lemmatize(word) for word in text.split()])
+df["text_lemmatized"] = df["title"].apply(lambda text: lemmatize_words(text))
+df.head()
+lemmatizer.lemmatize("running")
+lemmatizer.lemmatize("running", "v")
+print("Word is : stripes")
+print("Lemma result for verb : ",lemmatizer.lemmatize("stripes", 'v'))
+print("Lemma result for noun : ",lemmatizer.lemmatize("stripes", 'n'))
+from nltk.corpus import wordnet
+from nltk.stem import WordNetLemmatizer
+lemmatizer = WordNetLemmatizer()
+wordnet_map = {"N":wordnet.NOUN, "V":wordnet.VERB, "J":wordnet.ADJ,
+"R":wordnet.ADV}
+def lemmatize_words(text):
+pos_tagged_text = nltk.pos_tag(text.split())
+return " ".join([lemmatizer.lemmatize(word, wordnet_map.get(pos[0], wordnet.NOUN))
+for word, pos in pos_tagged_text])
+df["text_lemmatized"] = df["title"].apply(lambda text: lemmatize_words(text))
+df.head()
+

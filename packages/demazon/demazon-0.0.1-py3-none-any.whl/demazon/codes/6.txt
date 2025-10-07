@@ -1,0 +1,107 @@
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize, sent_tokenize
+import nltk
+nltk.download('stopwords')
+nltk.download('punkt')
+# importing libraries
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize, sent_tokenize
+# Input text - to summarize
+text = """Here's a step-by-step breakdown of the Latent Dirichlet Allocation (LDA)
+algorithm and an implementation using the gensim library in Python:
+Compute the probability of the word given each topic (P(W|T)), which is the proportion of
+assignments to each topic over all documents containing the word.
+Reassign the word to a new topic based on these probabilities.
+Repeat the iterative process for several iterations until convergence """
+# Tokenizing the text
+stopWords = set(stopwords.words("english"))
+words = word_tokenize(text)
+freqTable = dict()
+for word in words:
+word = word.lower()
+if word in stopWords:
+continue
+if word in freqTable:
+freqTable[word] += 1
+else:
+freqTable[word] = 1
+# Creating a dictionary to keep the score
+# of each sentence
+sentences = sent_tokenize(text)
+sentenceValue = dict()
+for sentence in sentences:
+for word, freq in freqTable.items():
+if word in sentence.lower():
+if sentence in sentenceValue:
+sentenceValue[sentence] += freq
+else:
+sentenceValue[sentence] = freq
+sumValues = 0
+for sentence in sentenceValue:
+sumValues += sentenceValue[sentence]
+# Average value of a sentence from the original text
+average = int(sumValues / len(sentenceValue))
+# Storing sentences into our summary.
+summary = ''
+for sentence in sentences:
+if (sentence in sentenceValue) and (sentenceValue[sentence] > (1.2 * average)):
+summary += " " + sentence
+print(summary)
+import nltk
+from nltk.tokenize import sent_tokenize
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from gensim import corpora, models
+import numpy as np
+# Download NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')
+# Input text - to summarize
+text = """Here's a step-by-step breakdown of the Latent Semantic Analysis (LSA) algorithm:
+Latent Semantic Analysis (LSA), also known as Latent Semantic Indexing (LSI), is a
+technique in natural language processing used to analyze relationships between a set of
+documents or terms. Summarize the text by extracting important sentences based on their
+similarity scores.
+Let's implement LSA for automatic text summarization using the gensim library in
+Python."""
+# Step 1: Tokenize the text into sentences
+sentences = sent_tokenize(text)
+# Step 2: Preprocess the text
+stop_words = set(stopwords.words('english'))
+preprocessed_sentences = []
+for sentence in sentences:
+# Tokenize words
+words = word_tokenize(sentence)
+# Convert to lowercase and remove stopwords
+words = [word.lower() for word in words if word.isalnum() and word.lower() not in
+stop_words]
+preprocessed_sentences.append(words)
+# Step 3: Create a dictionary and corpus
+dictionary = corpora.Dictionary(preprocessed_sentences)
+corpus = [dictionary.doc2bow(sentence) for sentence in preprocessed_sentences]
+# Step 4: Apply SVD to reduce dimensionality
+lsa_model = models.LsiModel(corpus, id2word=dictionary, num_topics=2) # We choose 2
+topics for simplicity
+# Step 5: Get the document-topic matrix
+document_topic_matrix = lsa_model[corpus]
+# Step 6: Compute similarity scores for sentences
+similarity_scores = []
+for i, sentence in enumerate(sentences):
+vec_bow = dictionary.doc2bow(preprocessed_sentences[i])
+vec_lsa = lsa_model[vec_bow]
+# Compute similarity score as the length of the vector projection onto the first two topics
+similarity_score = np.sqrt(np.sum(np.array([val[1] ** 2 for val in vec_lsa]) ** 2))
+similarity_scores.append((sentence, similarity_score))
+# Step 7: Summarize the text based on similarity scores
+sorted_sentences = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
+summary_length = min(3, len(sorted_sentences)) # Choose the top 3 sentences as summary
+summary = " ".join([sentence[0] for sentence in sorted_sentences[:summary_length]])
+# Print the summary
+print("Summary:")
+print(summary)
+
+
+
+
