@@ -1,0 +1,223 @@
+Metadata-Version: 2.4
+Name: django-global-search
+Version: 0.0.5
+Summary: Global search for Django Admin, search across all registered models with permissions and search_fields support
+Author-email: Youngkwang Yang <me@youngkwang.dev>
+License: MIT
+License-File: LICENSE
+Keywords: admin,django,global,search
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 4.2
+Classifier: Framework :: Django :: 5.0
+Classifier: Framework :: Django :: 5.1
+Classifier: Framework :: Django :: 5.2
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.9
+Requires-Dist: django>=4.2
+Description-Content-Type: text/markdown
+
+# Django Global Search
+
+[![PyPI](https://img.shields.io/pypi/v/django-global-search)](https://pypi.org/project/django-global-search/)
+[![Python Version](https://img.shields.io/pypi/pyversions/django-global-search)](https://pypi.org/project/django-global-search/)
+[![Django Version](https://img.shields.io/badge/django-4.2%2B-blue)](https://www.djangoproject.com/)
+[![License](https://img.shields.io/github/license/2ykwang/django-global-search)](https://github.com/2ykwang/django-global-search/blob/main/LICENSE)
+
+A global search extension for Django Admin that allows searching across multiple models from a single page. Search through all registered models with permission handling and respect for existing `search_fields` configurations.
+
+Documentation can be found at https://django-global-search.readthedocs.io/
+
+## Features
+
+- **Unified Search Interface** - Search across multiple models from a single page
+- **Django Admin Integration** - Seamlessly integrates with Django Admin UI
+- **Model Selection** - Filter search by specific models or apps
+
+## Installation
+
+Install using pip:
+
+```bash
+pip install django-global-search
+```
+
+Or using uv:
+
+```bash
+uv add django-global-search
+```
+
+## Usage
+
+### Basic Setup (Automatic Integration)
+
+1. Add `django_global_search` to your `INSTALLED_APPS`:
+
+```python
+# settings.py
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django_global_search',  # Add after admin
+    # ... other apps
+]
+```
+
+2. The global search will be automatically available at `/admin/global-search/`
+
+That's it! The package will automatically inject itself into the default Django admin site.
+
+### Adding a Navigation Button (Optional)
+
+Add a search button to the admin interface by creating `templates/admin/base_site.html`:
+
+```html
+{% extends "admin/base_site.html" %}
+
+{% block userlinks %}
+    {{ block.super }}
+    {% include 'global_search/button.html' %}
+{% endblock %}
+```
+
+This adds a convenient "Global Search" button in the admin header.
+
+### Advanced Setup (Custom Admin Site)
+
+If you're using a custom admin site, you can explicitly inherit from the mixin:
+
+```python
+# admin.py
+from django.contrib.admin import AdminSite
+from django_global_search.admin import GlobalSearchAdminSiteMixin
+
+class MyAdminSite(GlobalSearchAdminSiteMixin, AdminSite):
+    site_header = "My Custom Admin"
+
+# Replace the default admin site
+admin_site = MyAdminSite(name='myadmin')
+```
+
+```python
+# urls.py
+from myproject.admin import admin_site
+
+urlpatterns = [
+    path('admin/', admin_site.urls),
+]
+```
+
+### Configuration
+
+Configure global search behavior in your `settings.py`:
+
+```python
+# Minimum query length (default: 2)
+GLOBAL_SEARCH_MIN_QUERY_LENGTH = 2
+
+# Maximum results per model (default: 10)
+GLOBAL_SEARCH_MAX_RESULTS_PER_MODEL = 10
+
+# Search timeout in milliseconds (default: 20000)
+GLOBAL_SEARCH_TIMEOUT_MS = 20000
+
+# Exclude specific models from search
+GLOBAL_SEARCH_EXCLUDED_MODELS = [
+    'admin.logentry',
+    'auth.permission',
+    'contenttypes.contenttype',
+]
+
+# Disable automatic injection (if using custom admin site)
+GLOBAL_SEARCH_INJECT_DEFAULT_ADMIN_SITE_ENABLED = False
+```
+
+### Model Configuration
+
+No additional configuration needed. automatically uses your existing `ModelAdmin` settings:
+
+```python
+from django.contrib import admin
+from .models import Article
+
+@admin.register(Article)
+class ArticleAdmin(admin.ModelAdmin):
+    search_fields = ['title', 'content', 'author__name']  # Used by global search
+    list_display = ['title', 'author', 'published_date']
+```
+
+## How It Works
+
+1. **Automatic Model Detection** - Discovers all registered ModelAdmin classes
+2. **Permission Checking** - Filters models based on user's view/change permissions
+3. **Search Execution** - Uses Django's built-in `get_search_results()` method
+4. **Result Aggregation** - Groups results by app and model
+5. **Performance Control** - Applies timeout and result limits to prevent slow queries
+
+## Screenshots
+
+### Global Search Interface
+![Global Search Interface](./docs/media/admin_search_page.png)
+
+*Search across all models with permission-based filtering and model selection*
+
+### Search Results
+![Search Results](./docs/media/admin_search_result_page.png)
+
+*Results grouped by app and model with direct links to detail and changelist views*
+
+## Requirements
+
+- Python 3.9+
+- Django 4.2+
+
+## Development
+
+### Setup Development Environment
+
+```bash
+# Clone the repository
+git clone https://github.com/2ykwang/django-global-search.git
+cd django-global-search
+
+# Install dependencies
+uv sync
+
+# Run linter
+just lint
+
+# Format code
+just format
+
+# Build package
+just build
+```
+
+### Documentation
+
+```bash
+# Serve documentation locally
+just docs-serve
+
+# Build documentation
+just docs-build
+
+# Deploy to GitHub Pages
+just docs-deploy
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+- Email: me@youngkwang.dev
+- Issues: [GitHub Issues](https://github.com/2ykwang/django-global-search/issues)
+- Documentation: [Read the Docs](https://django-global-search.readthedocs.io/)
+
