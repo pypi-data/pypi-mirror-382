@@ -1,0 +1,418 @@
+Metadata-Version: 2.3
+Name: tapestry-orm
+Version: 0.0.1
+Summary: A prototype ORM for SurrealDB
+Author-email: timothee@obrecht.xyz
+License: MIT
+Requires-Dist: more-itertools>=10.7.0
+Requires-Dist: pydantic>=2.11.7
+Requires-Dist: surrealdb>=1.0.6
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+
+# 🚀 Tapestry
+
+**A modern, type-safe Python ORM for SurrealDB**
+
+Tapestry brings the power of Pydantic validation and Python's type system to SurrealDB, enabling you to build graph-aware applications with confidence. Define your models once, get automatic schema generation, full-text search, and intelligent query building with complete IDE autocomplete support.
+
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Type Checked](https://img.shields.io/badge/type%20checked-mypy%2Bpyright-blue)](https://github.com/python/mypy)
+[![SurrealDB](https://img.shields.io/badge/SurrealDB-compatible-purple)](https://surrealdb.com/)
+
+---
+
+## ✨ Features
+
+- 🎯 **Type-Safe Queries** - Full IDE autocomplete and static type checking (to the extent of what Python allows)
+- 📊 **Graph-First Design** - Native support for relationships and graph traversals
+- 🔍 **Full-Text Search** - Built-in tokenizers for multilingual search (as long as you speak French)
+- 🔄 **Auto Schema Generation** - Define models in Python, generate SurrealQL DDL (actually works quiet well)
+- ✅ **Pydantic Integration** - Automatic validation and serialization
+- ⚡ **Async/Await** - Built for modern async Python applications
+- 🎨 **Pythonic API** - Clean, intuitive (...really ?) query building
+
+---
+
+## 📦 Installation
+
+```bash
+uv add tapestry-orm
+```
+
+---
+
+## 🎯 Quick Start
+
+### Define Your Models
+
+```python
+from tapestry import Node, Edge
+from datetime import date
+
+class Person(Node):
+    """A person in our database"""
+    first_name: str
+    last_name: str
+    email: str
+    date_of_birth: date
+
+class Company(Node):
+    """A company"""
+    name: str
+    founded: date
+    industry: str
+
+class WorksAt(Edge):
+    """Relationship: Person works at Company"""
+    in_: Person      # Source: the person
+    out_: Company    # Target: the company
+    position: str
+    since: date
+```
+
+### Connect and Setup
+
+```python
+from surrealdb import AsyncSurreal
+from tapestry import Base
+
+async with AsyncSurreal("ws://localhost:8000/rpc") as db:
+    await db.signin({"username": "root", "password": "root"})
+    await db.use("myapp", "myapp")
+    
+    # Generate and apply schema automatically
+    schema = Base.generate_schema()
+    await db.query(schema)
+```
+
+### Create Records
+
+```python
+# Create a person
+alice = Person(
+    first_name="Alice",
+    last_name="Johnson",
+    email="alice@example.com",
+    date_of_birth=date(1990, 5, 15)
+)
+await alice.create(db)
+
+# Batch insert multiple records
+people = [
+    Person(first_name="Bob", last_name="Smith", email="bob@example.com", date_of_birth=date(1985, 3, 20)),
+    Person(first_name="Carol", last_name="Williams", email="carol@example.com", date_of_birth=date(1992, 7, 8))
+]
+await Person.insert(db, people)
+
+# Create a company
+acme = Company(
+    name="Acme Corp",
+    founded=date(2010, 1, 1),
+    industry="Technology"
+)
+await acme.create(db)
+```
+
+### Build Relationships
+
+```python
+# Connect Alice to Acme Corp
+employment = WorksAt(
+    in_=alice,
+    out_=acme,
+    position="Software Engineer",
+    since=date(2020, 6, 1)
+)
+await employment.relate(db)
+```
+
+### Query with Type Safety
+
+```python
+from tapestry import Q
+
+# Simple query - returns list[Person]
+adults = await Q(Person).where(Person.date_of_birth < date(2000, 1, 1)).execute(db)
+
+# IDE autocomplete works on results!
+for person in adults:
+    print(f"{person.first_name} {person.last_name}")  # ✓ Full autocomplete
+    print(f"Email: {person.email}")                   # ✓ Type-safe access
+
+# Query with field selection
+emails = await Q(Person).select("email", "first_name").execute(db)
+
+# Get just the values
+names = await Q(Person).select("first_name").value().execute(db)
+
+# Complex conditions
+tech_workers = await (Q(Person)
+    .where(
+        (Person.first_name == "Alice") |
+        (Person.last_name == "Smith")
+    )
+    .execute(db)
+)
+```
+
+### Graph Traversals
+
+```python
+# Forward traversal: Find where Alice works
+companies = await (
+    Q(Person)
+    .where(Person.email == "alice@example.com")
+    >> WorksAt
+    >> Company
+).execute(db)
+
+# Backward traversal: Find who works at Acme
+employees = await (
+    Q(Company)
+    .where(Company.name == "Acme Corp")
+    << WorksAt
+    << Person
+).execute(db)
+
+# Conditional edges: Senior positions only
+seniors = await (
+    Q(Company)
+    << WorksAt.where(WorksAt.position == "Senior Engineer")
+    << Person
+).execute(db)
+
+# Multi-hop traversals
+complex_query = (
+    Q(Person)
+    >> WorksAt
+    >> Company
+    .where(Company.industry == "Technology")
+)
+```
+
+### Full-Text Search
+
+```python
+from tapestry import Text
+from tapestry.tokenizer import EnglishTokenizer
+
+class Article(Node):
+    title: str
+    content: Text[EnglishTokenizer]
+    author: str
+
+# Search articles
+results = await Q(Article).where(Article.content @ "machine learning").execute(db)
+```
+
+### Update and Delete
+
+```python
+# Update an existing record
+alice.email = "alice.johnson@newcompany.com"
+await alice.save(db)
+
+# Query, modify, and save
+person = (await Q(Person).where(Person.email == "bob@example.com").execute(db))[0]
+person.last_name = "Johnson-Smith"
+await person.save(db)
+```
+
+---
+
+## 🎨 Advanced Features
+
+### Computed Fields
+
+```python
+from pydantic import computed_field
+
+class Person(Node):
+    first_name: str
+    last_name: str
+    
+    @computed_field
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name}"
+
+# Use in queries
+people = await Q(Person).execute(db)
+for person in people:
+    print(person.full_name)
+```
+
+### Nested Field Queries
+
+```python
+class Role(Node):
+    title: str
+    department: str
+
+class Person(Node):
+    name: str
+    role: Role
+
+# Query nested fields
+managers = await Q(Person).where(Person.role.title == "Manager").execute(db)
+```
+
+### Connection Pooling
+
+```python
+from tapestry import create_engine
+
+# Create a connection pool
+engine = create_engine(
+    "ws://localhost:8000/rpc",
+    {"username": "root", "password": "root"},
+    pool_size=10
+)
+
+async with engine.session() as db:
+    await db.use("myapp", "myapp")
+    people = await Q(Person).execute(db)
+```
+
+---
+
+## 🔍 Type Safety in Action
+
+Tapestry provides **full type inference** for IDE autocomplete and static type checking:
+
+```python
+# Type checker knows this returns Q[Person]
+query = Q(Person).where(Person.email == "alice@example.com")
+
+# Type checker knows this returns list[Person]
+people: list[Person] = await query.execute(db)
+
+# IDE provides autocomplete on person
+for person in people:
+    person.  # ← Your IDE shows: first_name, last_name, email, date_of_birth, id
+```
+
+Works with **mypy** and **pyright** for catching errors at build time!
+
+---
+
+## 📚 Architecture
+
+```
+┌─────────────┐
+│   Models    │  Define using Python classes (Node/Edge)
+│ (Your Code) │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   Tapestry  │  Handles validation, serialization, queries
+│     ORM     │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  SurrealDB  │  Graph database with SQL-like queries
+│   Database  │
+└─────────────┘
+```
+
+---
+
+## 🛠️ Development
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage
+uv run pytest --cov=tapestry
+
+# Run specific test
+uv run pytest tests/test_complete.py::TestWorkflow::test_select_queries
+```
+
+### Running CI Locally
+
+To test the GitLab CI pipeline locally before pushing, use [`gitlab-ci-local`](https://github.com/firecow/gitlab-ci-local?tab=readme-ov-file#installation):
+
+```bash
+# Run the test job locally (configuration is already set up)
+gitlab-ci-local test
+```
+
+The project includes two configuration files that make this work:
+- `.gitlab-ci-local-env` - Mounts the Docker socket from your host
+- `.gitlab-ci-local-variables.yml` - Configures testcontainers to use the mounted socket
+
+This gives you an identical testing experience to the actual CI pipeline, ensuring your tests will pass when you push.
+
+### Type Checking
+
+```bash
+# With mypy
+uv run mypy src/tapestry
+
+# With pyright
+uv run pyright src/tapestry
+```
+
+### Building Documentation
+
+```bash
+cd docs
+make html
+make serve  # View at http://localhost:8000
+```
+
+---
+
+## 📖 Documentation
+
+- **[API Reference](docs/source/api/)** - Complete API documentation
+- **[Tutorials](docs/source/tutorials/)** - Step-by-step guides
+- **[Examples](tests/test_complete.py)** - Real-world usage examples
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit issues and pull requests.
+
+---
+
+## 📋 Roadmap
+
+### Schema Definition
+- [ ] Add default values and constructors to fields
+- [ ] Custom validators (ASSERT clause)
+- [ ] Maximum size for arrays and sets
+
+### Queries
+- [ ] Aggregation queries (COUNT, SUM, AVG, etc.)
+- [ ] GROUP BY and LIMIT clauses
+- [ ] Subqueries and CTEs (imho should not be needed)
+
+### CRUD Operations
+- [ ] `.update()` method for instances
+- [ ] Bulk update operations
+- [ ] Bulk delete operations
+- [ ] Upsert with ON DUPLICATE KEY UPDATE
+
+### Advanced Features
+- [ ] Migration system
+- [ ] Query result caching
+- [ ] Lazy relationship loading
+- [ ] Transaction support
+
+---
+
+
+## 🙏 Acknowledgments
+
+Built with:
+- [Pydantic](https://docs.pydantic.dev/) - Data validation and settings management
+- [SurrealDB Python SDK](https://github.com/surrealdb/surrealdb.py) - Official Python driver
