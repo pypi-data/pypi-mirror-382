@@ -1,0 +1,53 @@
+
+import dataclasses
+import datetime
+from typing import List
+from .. knowledge import hash, Uri, Literal
+
+@dataclasses.dataclass
+class Triple:
+    s : str
+    p : str
+    o : str
+
+@dataclasses.dataclass
+class ConfigKey:
+    type : str
+    key : str
+
+@dataclasses.dataclass
+class ConfigValue:
+    type : str
+    key : str
+    value : str
+
+@dataclasses.dataclass
+class DocumentMetadata:
+    id : str
+    time : datetime.datetime
+    kind : str
+    title : str
+    comments : str
+    metadata : List[Triple]
+    user : str
+    tags : List[str]
+
+@dataclasses.dataclass
+class ProcessingMetadata:
+    id : str
+    document_id : str
+    time : datetime.datetime
+    flow : str
+    user : str
+    collection : str
+    tags : List[str]
+
+@dataclasses.dataclass
+class CollectionMetadata:
+    user : str
+    collection : str
+    name : str
+    description : str
+    tags : List[str]
+    created_at : str
+    updated_at : str
