@@ -1,0 +1,85 @@
+name: Release to PyPI and Update Homebrew
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+
+      - name: Build package
+        run: |
+          uv build
+          echo "PACKAGE_VERSION=$(uv run python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')" >> $GITHUB_ENV
+
+      - name: Publish to PyPI
+        run: |
+          uv publish
+
+      - name: Get PyPI download URL and SHA256
+        run: |
+          ./scripts/get-pypi-info.sh lazy-ecs ${{ env.PACKAGE_VERSION }} >> $GITHUB_ENV
+
+      - name: Generate dependency resources
+        run: |
+          RESOURCES=$(./scripts/generate-homebrew-resources.sh)
+          echo "HOMEBREW_RESOURCES<<EOF" >> $GITHUB_ENV
+          echo "$RESOURCES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: vertti/homebrew-lazy-ecs
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          cat > homebrew-tap/Formula/lazy-ecs.rb << EOF
+          class LazyEcs < Formula
+            include Language::Python::Virtualenv
+
+            desc "Interactive CLI tool for navigating AWS ECS clusters"
+            homepage "https://github.com/vertti/lazy-ecs"
+            url "${PYPI_DOWNLOAD_URL}"
+            sha256 "${PACKAGE_SHA256}"
+            license "MIT"
+
+            depends_on "python@3.11"
+
+          ${HOMEBREW_RESOURCES}
+
+            def install
+              virtualenv_install_with_resources
+              bin.install_symlink libexec/"bin/lazy-ecs"
+            end
+
+            test do
+              assert_match "lazy-ecs", shell_output("#{bin}/lazy-ecs --help")
+            end
+          end
+          EOF
+
+      - name: Commit and push changes
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/lazy-ecs.rb
+          git commit -m "Update lazy-ecs to ${{ env.PACKAGE_VERSION }}"
+          git push
