@@ -1,0 +1,129 @@
+Metadata-Version: 2.2
+Name: mlua
+Version: 1.0.3
+Summary: 一个基于 lupa 模块的轻量级扩展库，提供了便捷的 Lua 模块加载与管理功能。
+Home-page: https://github.com/FreeStar007/mlua
+Author: FreeStar007
+Author-email: 3089666858@qq.com
+License: Apache-2.0
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: lupa
+Requires-Dist: colorama
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# MLua 使用指南
+
+## 概述
+
+一个基于 lupa 模块的轻量级扩展库，提供了便捷的 Lua 环境管理和模块加载功能。
+
+## 快速开始
+
+### 1. 创建 Lua 环境
+
+```python
+from mlua import MLuaEnvironment
+
+# 创建 Lua 运行时环境
+lua_env = MLuaEnvironment()
+```
+
+### 2. 加载 Lua 模块
+
+```python
+from mlua import MLuaModule, MLuaManager
+
+# 加载单个 Lua 模块
+module = MLuaModule("path/to/module.lua")
+
+# 挂载模块到环境，指定secure=True以选择安全模式，默认选择
+mlua_obj = module.mount(lua_env: MLuaEnvironment, [secure = True])
+
+# 加载模块及其依赖
+mlua_objects = module.mount_deeply(lua_env: MLuaEnvironment, [security=True])
+
+# 注入模块到全局环境，指定globals_dict以指定全局环境，直接传入globals()以注入当前全局环境
+module.inject(lua_env: MLuaEnvironment, globals_dict: dict[Any, Any], [security=True])
+
+# 加载模块及其依赖，并注入到全局环境
+module.inject_deeply(lua_env: MLuaEnvironment, globals_dict: dict[Any, Any], [security=True])
+
+# 加载多个 Lua 模块，返回一个mlua_objects列表
+manager = MLuaManager(module1: MLuaModule, module2: MLuaModule, ...)
+mlua_objects = manager.mount_all(lua_env: MLuaEnvironment, [secure = True])
+
+# 注入多个模块到全局环境
+manager.inject_all(lua_env: MLuaEnvironment, globals_dict: dict[Any, Any], [security=True])
+```
+
+### 3. 使用模块功能
+
+```python
+# 调用模块函数
+results = mlua_obj.functions.some_function()
+
+# 访问模块值
+value = mlua_obj.values.some_variable
+```
+
+### 4. 处理模块依赖
+
+```python
+from mlua import MLuaResolver
+
+# 解析模块依赖
+modules_to_load = MLuaResolver.requirements(module1: MLuaModule, module2: MLuaModule, ...)
+
+# 打印依赖关系
+MLuaResolver.relationship(module1: MLuaModule, module2: MLuaModule, ...)
+```
+
+### 5.打包
+
+```python
+# 打包模块，返回字节串
+results_bytes = MLuaPackager.pack(module1: MLuaModule, module2: MLuaModule, ...)
+
+# 解包模块，返回模块列表
+results_modules = MLuaPackager.unpack(data_bytes: bytes)
+```
+
+### 6.保存
+
+```python
+# 保存模块至文件，默认仓库目录为./mlua_modules
+MLuaManager.save(module1: MLuaModule, module2: MLuaModule, ..., [directory = "./mlua_modules"])
+
+# 加载模块文件，返回模块列表
+results_modules = MLuaManager.load([directory = "./mlua_modules"])
+
+# 直接使用指定模块
+results_modules = MLuaManager.use("module1", "module2", ..., [directory = "./mlua_modules"])
+```
+
+### 校验状态
+
+```python
+from mlua import status
+
+status()
+```
+
+## 注意事项
+
+1. 建议始终使用安全模式挂载模块
+2. 模块依赖关系应避免循环依赖
+3. 模块文件路径应为绝对路径或相对于工作目录的有效路径
