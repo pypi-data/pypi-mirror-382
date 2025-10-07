@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+
+{% block title %}
+	&raquo; Report Runs &raquo; {{row.report_run.id}} &raquo; Row {{row.id}}
+{% endblock %}
+
+{% block nav %}
+	<a href="/report_runs">Report Runs</a> &raquo;
+	<a href="/report_runs/{{row.report_run.id}}">{{row.report_run.id}}</a>
+	&raquo; Row {{row.id}}
+{% endblock %}
+
+{% block content %}
+	{% set data = row.data['data'] %}
+	{% set properties = row.data.get('properties', {}) %}
+	{% set market_role_code = data['market_role_code'] %}
+	{% if market_role_code == 'X' %}
+		{% set contract_type = 'supplier' %}
+	{% elif market_role_code == 'C' %}
+		{% set contract_type = 'dc' %}
+	{% elif market_role_code == 'M' %}
+		{% set contract_type = 'mop' %}
+	{% endif %}
+
+	<table>
+		<caption>Bill Check</caption>
+		<thead>
+			<tr>
+				<th>Contract</th>
+				<th>Supply</th>
+				<th>Import MPAN Core</th>
+				<th>Export MPAN Core</th>
+				<th>Site</th>
+				<th>From</th>
+				<th>To</th>
+				<th>Actual Net GBP</th>
+				<th>Virtual Net GBP</th>
+				<th>Difference Net GBP</th>
+				<th>Problem</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td>
+					{% if data.contract_id is not none %}
+					  <a href="/e/{{contract_type}}_contracts/{{data.contract_id}}">{{data['contract_name']}}</a>
+					{% endif %}
+				</td>
+				<td>
+					{% if data.supply_id != None %}
+						<a href="/e/supplies/{{data.supply_id}}">view</a>
+					{% endif %}
+				</td>
+				<td>{{data['imp_mpan_core']}}</td>
+				<td>
+					{% if data['exp_mpan_core'] is not none %}
+					  {{data['exp_mpan_core']}}
+					{% endif %}
+				</td>
+				<td>
+					{% if data.site_id is not none %}
+					  <a href="/sites/{{data['site_id']}}">{{data['site_code']}} {{data['site_name']}}</a>
+					{% endif %}
+				</td>
+				<td>{{data['period_start']}}</td>
+				<td>{{data['period_finish']}}</td>
+				<td>{{"{:0,.2f}".format(data['actual_net_gbp'])}}</td>
+				<td>{{"{:0,.2f}".format(data['virtual_net_gbp'])}}</td>
+				<td>{{"{:0,.2f}".format(data['difference_net_gbp'])}}</td>
+				<td>{{data['problem']}}</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<table>
+		<caption>Actual Bills</caption>	
+		<thead>
+			<tr>
+				<th>Batch</th>
+				<th>View</th>
+				<th>Start Date</th>
+				<th>Finish Date</th>
+				<th>Net GBP</th>
+				<th>Vat GBP</th>
+				<th>Gross GBP</th>
+				<th>Problem</th>
+				<th>Breakdown</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for bill in data.actual_bills %}
+				<tr>
+					<td>
+						{% if data.contract_id is not none %}
+							<a href="/e/{{contract_type}}_batches/{{bill.batch_id}}">{{bill.batch_reference}}</a>
+						{% endif %}
+					</td>
+					<td>
+						{% if data.contract_id is not none %}
+							<a href="/e/{{contract_type}}_bills/{{bill.id}}">view</a>
+						{% endif %}
+					</td>
+					<td>{{bill.start_date}}</td>
+					<td>{{bill.finish_date}}</td>
+					<td>{{bill.net}}</td>
+					<td>{{bill.vat}}</td>
+					<td>{{bill.gross}}</td>
+					<td>
+						<strong style="color: red">{{bill.problem}}</strong>
+					</td>
+					<td>
+						<details>
+							<summary>Breakdown</summary>
+							<pre>{{bill.breakdown}}</pre>
+						</details>
+					</td>
+				</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+  
+	<section class="elements">
+		<!--
+		<table>
+			<caption>GBP</caption>
+			<thead>
+				<tr>
+					<th>Part</th>
+					<th>Covered</th>
+					<th>Virtual</th>
+					<th>Difference</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>gross</td>
+					<td>
+						{% if 'covered-gross-gbp' in data and data['covered-gross-gbp'] is number %}
+							{{"{:0,.2f}".format(data['covered-gross-gbp'])}}
+						{% endif %}
+					</td>
+					<td>
+						{% if 'virtual-gross-gbp' in data and data['virtual-gross-gbp'] is number %}
+							{{"{:0,.2f}".format(data['virtual-gross-gbp'])}}
+						{% endif %}
+					</td>
+					<td>
+						{% if 'difference-gross-gbp' in data and data['difference-gross-gbp'] is number %}
+							{{"{:0,.2f}".format(data['difference-gross-gbp'])}}
+						{% endif %}
+					</td>
+				</tr>
+				<tr>
+					<td>net</td>
+					<td>
+						{% if 'covered-net-gbp' in data and data['covered-net-gbp'] is number %}
+							{{"{:0,.2f}".format(data['covered-net-gbp'])}}</td>
+						{% endif %}
+					<td>
+						{% if 'virtual-net-gbp' in data and data['virtual-net-gbp'] is number %}
+							{{"{:0,.2f}".format(data['virtual-net-gbp'])}}</td>
+						{% endif %}
+					<td>
+						{% if 'difference-net-gbp' in data and data['difference-net-gbp'] is number %}
+							{{"{:0,.2f}".format(data['difference-net-gbp'])}}</td>
+						{% endif %}
+				</tr>
+				<tr>
+					<td>vat</td>
+					<td>
+						{% if 'covered-vat-gbp' in data and data['covered-vat-gbp'] is number %}
+							{{"{:0,.2f}".format(data['covered-vat-gbp'])}}</td>
+						{% endif %}
+					<td>
+						{% if 'virtual-vat-gbp' in data and data['virtual-vat-gbp'] is number %}
+							{{"{:0,.2f}".format(data['virtual-vat-gbp'])}}</td>
+						{% endif %}
+					<td>
+						{% if 'difference-vat-gbp' in data and data['difference-vat-gbp'] is number %}
+							{{"{:0,.2f}".format(data['difference-vat-gbp'])}}</td>
+						{% endif %}
+				</tr>
+				<tr>
+					<td>vat-rate</td>
+					<td>
+						{{data['covered-vat-rate']}}</td>
+					<td>{{data['virtual-vat-rate']}}</td>
+					<td>
+						{% if data['difference-vat-rate'] is number %}
+							{{"{:0,.2f}".format(data['difference-vat-rate'])}}
+						{% endif %}
+					</td>
+				</tr>
+			</tbody>
+		</table>
+		-->
+
+		{% for table in tables %}
+			{% set element = data['elements'][table] %}
+			{% set parts = element['parts'] %}
+
+			<div style="display: flex; gap: 4rem;">
+				<table>
+					<caption>{{table}}</caption>
+					<thead>
+						<tr>
+							<th>Part</th>
+							<th>Actual</th>
+							<th>Virtual</th>
+							<th>Difference</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>gbp</td>
+							{% for k in ('actual', 'virtual', 'difference') %}
+								<td style="text-align: right;">
+									{% set part = parts['gbp'] %}
+									{% if k in part %}
+										{% set val = part[k] %}
+									{% else %}
+										{% set val = '' %}
+									{% endif %}
+									{% if val is none %}
+									{% elif val is number %}
+										{{"{:0,.2f}".format(val)}}
+									{% else %}
+										{{val}}
+									{% endif %}
+								</td>
+							{% endfor %}
+						</tr>
+						{% for part_name, part in parts.items()|sort %}
+							{% if part_name != 'gbp' %}
+								<tr>
+									<td>{{part_name}}</td>
+									{% for k in ('actual', 'virtual', 'difference') %}
+										<td style="text-align: right;">
+											{% if k in part %}
+												{% set val = part[k] %}
+											{% else %}
+												{% set val = '' %}
+											{% endif %}
+											{% if val is none %}
+											{% elif val is number %}
+												{{"{:0,.2f}".format(val)}}
+											{% elif (val is string) or (val is boolean) %}
+												{{val}}
+											{% else %}
+												{% for v in val %}
+													{% if v is number %}
+														{{"{:0,.2f}".format(v)}}
+													{% else %}
+														{{v}}
+													{% endif %}
+													{% if not loop.last %}
+														|
+													{% endif %}
+												{% endfor %}
+											{% endif %}
+										</td>
+									{% endfor %}
+								</tr>
+							{% endif %}
+						{% endfor %}
+					</tbody>
+				</table>
+
+				<table>
+					<caption>Actual {{table}} Elements</caption>
+					<thead>
+						<tr>
+							<th>View</th>
+							<th>Batch</th>
+							<th>Bill</th>
+							<th>Start Date</th>
+							<th>Finish Date</th>
+							<th>Net GBP</th>
+							<th>Breakdown</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for el in element['actual_elements'] %}
+							<tr>
+								<td><a href="/e/{{contract_type}}_elements/{{el.id}}">View</a></td>
+								<td>
+									<a href="/e/{{contract_type}}_batches/{{el.bill.batch.id}}"
+										  >{{el.bill.batch.reference}}</a>
+								</td>
+								<td><a href="/e/{{contract_type}}_bills/{{el.bill.id}}">View</a></td>
+								<td>{{el.start_date}}</td>
+								<td>{{el.finish_date}}</td>
+								<td>{{"{:0,.2f}".format(el.net)}}</td>
+								<td>{{el.breakdown}}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+
+			</div>
+		{% endfor %}
+
+	</section>
+
+	<h2>Raw</h2>	
+	<pre>{{raw_data}}</pre>
+{% endblock %}
