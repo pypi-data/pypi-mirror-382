@@ -1,0 +1,81 @@
+#!python
+
+#
+# Project Librarian: Brandon Piotrzkowski
+#              Graduate Student
+#              UW-Milwaukee Department of Physics
+#              Center for Gravitation & Cosmology
+#              <brandon.piotrzkowski@ligo.org>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+"""
+Script to execute the online spatiotemporal coincidence search between external
+triggers and internal gravitational wave candidate superevents
+"""
+__author__ = "Brandon Piotrzkowski <brandon.piotrzkowski@ligo.org>"
+
+
+
+# Global imports.
+import numpy as np
+from ligo.raven import search
+from ligo.raven.gracedb_events import is_skymap_moc, load_skymap
+from ligo.skymap.io import read_sky_map
+
+import argparse
+
+# Command line options.
+# arguments
+parser = argparse.ArgumentParser(description='Calculate overlap between sky maps')
+parser.add_argument('-i', '--inputfiles', nargs='+', dest="inputfiles", type=str, required=True, metavar=('gw_skymap_filename', 'ext_skymap_filename'),
+                    help="Paths to sky map(s), up to two.")
+parser.add_argument('-m', '--gw_moc', dest="gw_moc", action="store_true", help="Assume the superevent sky map is multi-ordered (MOC).")
+parser.add_argument('-M', '--ext_moc', dest="ext_moc", action="store_true", help="Assume the external sky map is multi-ordered (MOC).")
+parser.add_argument('-r', '--gw_ring', dest="gw_ring", action="store_true", help="Assume the superevent map uses RING ordering rather than nested.")
+parser.add_argument('-R', '--ext_ring', dest="ext_ring", action="store_true", help="Assume the external sky map uses RING ordering rather than nested.")
+parser.add_argument('-c', '--ra_dec', nargs=2, dest="ra_dec", type=float, metavar="ra dec",
+                    help="RA and dec of external sky map if a single pixel sky map.")
+args = parser.parse_args()
+print(args)
+
+# Check either one or two skymaps are given
+if not (0 < len(args.inputfiles) <= 2):
+    raise AssertionError('Please provide one or two sky map filenames')
+
+if args.ra_dec:
+    ra, dec = args.ra_dec[0], args.ra_dec[1]
+else:
+    ra, dec = None, None
+
+gw_fitsfile = args.inputfiles[0]
+ext_fitsfile = args.inputfiles[1]
+gw_moc = args.gw_moc
+ext_moc = args.ext_moc
+
+# False means flattened or no value given, check just in case of the latter
+if gw_moc is False:
+    gw_moc = is_skymap_moc(gw_fitsfile)
+gw_skymap = load_skymap(gw_fitsfile, is_moc=gw_moc, nested=not args.gw_ring)
+
+if ext_moc is False:
+    ext_moc = is_skymap_moc(ext_fitsfile)
+ext_skymap = load_skymap(ext_fitsfile, is_moc=ext_moc, nested=not args.ext_ring)
+
+result = search.skymap_overlap_integral(gw_skymap, ext_skymap,
+                                        ra=ra, dec=dec,
+                                        gw_nested=not args.gw_ring,
+                                        ext_nested=not args.ext_ring)
+print("Skymap overlap integral: {}".format(result))

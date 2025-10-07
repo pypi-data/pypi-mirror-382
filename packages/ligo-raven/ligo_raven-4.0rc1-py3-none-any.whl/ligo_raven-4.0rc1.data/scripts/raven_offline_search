@@ -1,0 +1,156 @@
+#!python
+
+#
+# Project Librarian: Brandon Piotrzkowski
+#              Staff Scientist
+#              UW-Milwaukee Department of Physics
+#              Center for Gravitation & Cosmology
+#              <brandon.piotrzkowski@ligo.org>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+"""
+Script to perform offline RAVEN search, where the inputs can be any combination
+of two online GraceDB instances or local files.
+"""
+__author__ = "Brandon Piotrzkowski <brandon.piotrzkowski@ligo.org>"
+
+
+# Global imports
+from ligo.raven.offline_search import offline_search
+from ligo.raven.mock_gracedb import choose_gracedb
+
+import argparse
+
+
+# Command line options.
+parser = argparse.ArgumentParser(description='Perform query of GraceDB')
+parser.add_argument("-i", "--inputs", nargs=2, metavar="input.csv https://gracedb.ligo.org/api/",
+                    action="append", default=None,
+                    help="Filepath of input file(s) or URL of GraceDB API(s) (any combination of the two)"),
+parser.add_argument("-o", "--output_path", metavar="results", default="results",
+                    help="Filepath of output directory"),
+parser.add_argument("-t", "--time_period", nargs=2, metavar="XXX.XX", type=float,
+                    action="append", default=None,
+                    help="GPS times [t_start, t_end] in seconds to search (required with t_end > t_start)"),            
+parser.add_argument("-w", "--window", nargs=2, metavar="t", type=int,
+                    action="append", default=None,
+                    help="Time window [tl, th] in seconds centered on the GW candidate to search (required with th > th)"),
+parser.add_argument("-r", "--ext_rate", metavar="1e-4", default=None,
+                    help="Rate threshold of external events."),
+parser.add_argument("-f", "--ext_far_thresh", metavar="1e-4", default=None,
+                    help="False alarm rate threshold to consider external candidate."),
+parser.add_argument("-F", "--gw_far_thresh", metavar="2.77e-4", default=None,
+                    help="False alarm rate threshold to consider GW candidate."),
+parser.add_argument("-T", "--alert_far_thresh", metavar="3.805e-7", default=None,
+                    help="False alarm rate threshold to consider for public alert."),
+parser.add_argument("-n", "--trials_factor", metavar="4", default=None,
+                    help="Number of independent GW pipelines to calculate the trials factor, penalizing joint FAR"),
+parser.add_argument("-c", "--use_radec", dest="use_radec", action="store_true",
+                    help="Choose to use RA and dec of external sky map if a single pixel sky map."),
+parser.add_argument("-e", "--use_calculated_ext_rate", dest="use_calculated_ext_rate", action="store_true",
+                    help="Calculate joint FAR using calculated rate of external candidates. Note this and ext_rate cannot both be used simultaneously."),
+parser.add_argument("-G", "--load_gw_fars", dest="load_gw_fars", action="store_true",
+                    help="Load and include GW FARs for comparison."),
+parser.add_argument("-j", "--joint_far_method", dest="joint_far_method", metavar="untargeted targeted",
+                    help="Joint FAR method to use, either 'untargeted' or 'targeted'. If None, will try to determine from given search field.", default=None),
+parser.add_argument("-g", "--group", metavar="CBC or Burst", default=None,
+                    help="Group of GW event searching for."),
+parser.add_argument("-p", "--pipeline", metavar="Fermi Swift AGILE INTEGRAL", default=None,
+                    help="Pipelines of external event searching for."),
+parser.add_argument("-s", "--ext_search", metavar="GRB SubGRB SubGRBTargeted HEN MDC", default=None,
+                    help="Searches of external event searching for.")
+parser.add_argument("-S", "--se_search", metavar="AllSky BBH IMBH MDC", default=None,
+                    help="Searches of superevent searching for.")
+args = parser.parse_args()
+print(args)
+
+# Check required options are there
+if not args.inputs:
+    raise AssertionError('Inputs (GraceDB API URL(s) and/or or file path(s)) not given')
+else:
+    input1, input2 = str(args.inputs[0][0]), str(args.inputs[0][1])
+
+if not args.time_period:
+    raise AssertionError('Time period to search not given')
+else:
+    t_start, t_end = int(args.time_period[0][0]), int(args.time_period[0][1])
+
+if not args.window:
+    raise AssertionError('Search window not given')
+else:
+    tl, th = int(args.window[0][0]), int(args.window[0][1])
+
+group = args.group
+
+pipeline = args.pipeline
+
+ext_search = args.ext_search
+
+se_search = args.se_search
+
+if args.ext_rate is not None:
+    ext_rate = float(args.ext_rate)
+
+if args.gw_far_thresh is None:
+    if 'SubGRBTargeted' == ext_search:
+        gw_far_thresh = 2 / (24. * 60. * 60.)
+    else:
+        gw_far_thresh = 1 / 3600
+else:
+    gw_far_thresh = float(args.gw_far_thresh)
+
+if args.ext_far_thresh is None:
+    if 'SubGRBTargeted' == ext_search:
+        if pipeline == 'Swift':
+            ext_far_thresh = 1e-3
+        elif pipeline == 'Fermi':
+            ext_far_thresh = 1e-4
+        else:
+            raise ValueError(
+                'If running a SubGRBTargeted search, please provide an '
+                'external FAR threshold or a valid pipeline to a assign one '
+                'from (Fermi or Swift)')
+    else: # If any other search don't use
+        ext_far_thresh = None
+else:
+    ext_far_thresh = float(args.ext_far_thresh)
+
+# Set value if none given
+if args.alert_far_thresh is None:
+    if group in {'CBC', 'Test'}:
+        alert_far_thresh = 1 / (365. * 24. * 60. * 60.) * 12.
+    else:
+        alert_far_thresh = 1 / (365. * 24. * 60. * 60.)
+else:
+    alert_far_thresh = float(args.alert_far_thresh)
+
+# Pass None to assign a value later
+if args.trials_factor is not None:
+    trials_factor = float(args.trials_factor)
+
+
+# Perform search
+offline_search(input1, input2, t_start=t_start, t_end=t_end, tl=tl, th=th,
+               gw_far_thresh=gw_far_thresh, ext_far_thresh=ext_far_thresh,
+               alert_far_thresh=alert_far_thresh,
+               trials_factor=trials_factor,
+               output_path=args.output_path,
+               use_radec=args.use_radec,
+               use_calculated_ext_rate=args.use_calculated_ext_rate,
+               load_gw_fars=args.load_gw_fars,
+               joint_far_method=args.joint_far_method,
+               group=group, pipeline=pipeline, ext_search=ext_search,
+               se_search=se_search)
