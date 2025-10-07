@@ -1,0 +1,109 @@
+# README for docin OCR Tool
+
+## Overview
+**docin** is a lightweight OCR (Optical Character Recognition) tool powered by the Mistral API. It extracts text and images from PDF and image files, converting them into clean, structured Markdown format for easy reading, indexing, or further processing.
+
+---
+
+## Features
+- Automatically detects PDF or image input  
+- Performs OCR using the Mistral API  
+- Exports results as Markdown (.md)  
+- Optionally includes extracted images  
+- Displays real-time progress for multi-page documents  
+- Prevents accidental overwriting of output files  
+
+---
+
+## Requirements
+- Python 3.8+  
+- A valid Mistral API key  
+
+---
+
+## Installation
+```bash
+pip install docin
+```
+
+---
+
+## Usage
+```python
+from ocr import MistOcr
+
+# Initialize with your Mistral API key
+ocr = MistOcr(api_key='your_mistral_api_key')
+
+# Run OCR on a PDF or image file
+ocr.doc_to_md(
+    filename='path/to/document.pdf',
+    output_filename='output/result.md',
+    include_image=False,        # Include embedded or saved images (optional)
+    return_response=False      # Return OCR response (optional)
+)
+```
+
+---
+
+## Output
+- Saves extracted text in a Markdown (.md) file  
+- Creates an `images/` folder in the same directory for any extracted images  
+- Displays progress during export  
+- Returns an OCR response object when `return_response=True`  
+
+---
+
+## Supported File Types
+- PDF (.pdf)  
+- Image formats: .jpg, .jpeg, .png, .bmp, .tiff  
+
+---
+
+## Error Handling
+- Raises `ValueError` for unsupported file types  
+- Prompts before overwriting existing files  
+- Logs warnings for missing or invalid image data  
+
+---
+
+## Notes
+- For best accuracy, use high-resolution images (≥300 DPI)  
+- Supports multi-page PDFs and large documents  
+- Extracted images are named using their unique IDs and saved in the `images/` directory  
+
+---
+
+## Example Output
+**Markdown file:**
+```
+# Page 1
+Extracted text...
+
+# Page 2
+More extracted text...
+```
+
+**Images folder:**
+```
+images/
+ ├── image_1.png
+ ├── image_2.jpg
+```
+
+---
+
+## Known Issue
+- Typo in `_load_image` method: 'base66' should be 'base64'.  
+  Replace `base66.b64encode` with `base64.b64encode` for correct encoding.
+
+---
+
+## Author
+EnServ docin development team: Chukwudi Asibe, Ime Inyang, Oluwasey Akinbosola
+
+## License
+MIT
+
+## Version
+1.0.0
