@@ -1,0 +1,170 @@
+name: Python CI/CD
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+  release:
+    types:
+      - published
+  schedule:
+    # * is a special character in YAML so you have to quote this string
+    # Execute a "nightly" build at 2 AM UTC
+    - cron: "0 2 * * *"
+
+jobs:
+
+  package:
+    name: Package the project
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.*"
+
+      - name: Install Python tools
+        run: pip install build twine
+
+      - name: Create distributions
+        run: python -m build -o dist/
+
+      - name: Inspect dist folder
+        run: ls -lah dist/
+
+      - name: Check wheel's abi and platform tags
+        run: test $(find dist/ -name *-none-any.whl | wc -l) -gt 0
+
+      - name: Run twine check
+        run: twine check dist/*
+
+      - name: Check PEP440 compliance
+        run: |
+          pip install packaging setuptools_scm
+          python -c "import packaging.version as v; v.Version(\"$(python -m setuptools_scm)\")"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: dist/*
+          name: dist
+
+  test:
+    name: 'Python${{ matrix.python }}@${{ matrix.type }}@${{ matrix.os }}'
+    needs: package
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          # This runner can be updated to ubuntu > jammy as soon as we bump
+          # the minimum libsdformat to v14.
+          - ubuntu-22.04
+          - macos-latest
+          - windows-latest
+        type:
+          - apt
+          - conda
+        python:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+        exclude:
+          - os: macos-latest
+            type: apt
+          - os: windows-latest
+            type: apt
+
+    steps:
+
+      - name: Set up Python
+        if: matrix.type == 'apt'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - uses: actions/checkout@v4
+
+      - uses: conda-incubator/setup-miniconda@v3
+        if: matrix.type == 'conda'
+        with:
+          python-version: ${{ matrix.python }}
+          miniforge-version: latest
+          channel-priority: strict
+          environment-file: ./environment.yml
+          activate-environment: rod
+          conda-remove-defaults: "true"
+
+
+      - name: Install system dependencies
+        if: matrix.type == 'apt'
+        run: |
+          sudo apt-get update
+          sudo apt-get install lsb-release wget gnupg
+          wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends libsdformat13 gz-tools2
+
+      - name: Download Python packages
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          name: dist
+
+      - name: Install wheel (apt)
+        if: matrix.type == 'apt'
+        run: pip install "$(find dist/ -type f -name '*.whl')[all]"
+
+      - name: Install wheel (conda)
+        if: matrix.type == 'conda'
+        run: pip install --no-deps "$(find dist/ -type f -name '*.whl')[all]"
+
+      - name: Pip check
+        run: pip check
+
+      - name: Import the package
+        run: python -c "import rod"
+        env:
+          ROD_LOGGING_LEVEL: DEBUG
+
+      - name: Run tests
+        run: pytest
+        env:
+          ROD_LOGGING_LEVEL: DEBUG
+
+  publish:
+    name: Publish to PyPI
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+        id-token: write
+
+    steps:
+
+      - name: Download Python packages
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          name: dist
+
+      - name: Inspect dist folder
+        run: ls -lah dist/
+
+      - name: Publish to PyPI
+        if: |
+          github.repository == 'ami-iit/rod' &&
+          ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+           (github.event_name == 'release' && github.event.action == 'published'))
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip_existing: true
