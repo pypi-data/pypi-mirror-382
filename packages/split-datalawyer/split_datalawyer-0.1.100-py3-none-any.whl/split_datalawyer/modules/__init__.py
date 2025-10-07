@@ -1,0 +1,6 @@
+from split_datalawyer.modules.modules_types import *
+from split_datalawyer.modules.force_drop_duplicated_module import ForceDropPageNumberLinesModule
+from split_datalawyer.modules.replace_long_words_module import ReplaceLongWordsModule
+from split_datalawyer.modules.replace_module import ReplaceModule
+from split_datalawyer.modules.replace_concatenated_dot_module import ReplaceConcatenatedDotModule
+from split_datalawyer.modules.replace_underscore_sequence_module import ReplaceUnderscoreSequenceModule
