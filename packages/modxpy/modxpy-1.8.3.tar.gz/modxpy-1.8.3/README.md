@@ -1,0 +1,316 @@
+🌟 ModXPy — The Python Module Universe at Your Fingertips 
+
+Welcome to ModXPy, the ultimate playground for Python’s modules.  
+With ModXPy you can instantly import, explore, and experiment with the entire Python standard library — plus any installed third-party modules — all from one simple interface.
+
+ UPDATE 1.8.3---
+
+Updated vcompat to filter out
+and version issues that are a comment
+or a string. In other words, vcompat()
+now checks if the version issue is actually
+being used in the code, not just contained
+in the code.---
+
+ 🚀 Installation
+
+Install directly from PyPI:
+pip install modxpy
+
+In Python, import as import modx (not modxpy)
+
+
+# Functions:
+
+🔹import_all()
+
+Imports about every standard library module at once.
+
+
+🔹 import_random(n)
+
+Imports n random modules from the standard library.
+
+
+🔹 import_letter(letter)
+
+Imports all standard library modules whose names start with the given letter.
+
+
+🔹 import_external()
+
+Attempts to import every third-party module you currently have installed.
+
+
+🔹 import_screen()
+
+Imports every module that uses a screen/GUI (like pygame or turtle).
+
+
+🔹 list_importall()
+
+Returns a list of modules that would be imported by import_all().
+
+
+🔹 modules_loaded()
+
+Shows how many modules you currently have downloaded on your device.
+
+
+🔹 imported()
+
+Lists the modules imported since ModX loaded (user + ModX), including dependencies.
+
+
+🔹 modx_imported()
+
+Lists the modules that were ONLY imported by ModX, NOT including user imports
+
+and dependencies.
+
+🔹 import_letter(letter)
+
+Import every standard library module from the ModX 'modules' list
+whose name starts with the given letter (case-insensitive).
+
+
+🔹 search_modules(keyword)
+
+Search for modules whose names contain the keyword.
+
+
+🔹 info(module_name)
+
+Shows basic info about typed module: file path, built-in status, docstring.
+
+
+🔹 is_imported(module)
+
+Checks if module is currently imported into Python Shell (Not Pythonlib)
+
+
+🔹 dependencies()
+
+Shows what other modules a specific module depends on without importing it.
+
+
+🔹 vcompat(module_name, python_version)
+
+Checks if a module is compatible with a python version, if a version was given.
+
+
+🔹 modfunctions(module)
+
+Show how many and what functions a module has without importing it.
+
+
+# Example Code:
+
+
+import modx   #import ModX module
+
+
+
+\#Import almost every standard library module at once
+modx.import_all()
+Output: (Imports 200+ standard library modules silently)
+Bulk import completed!
+
+
+
+\#Show all modules imported after ModX loaded (user + ModX)
+modx.imported()
+Output:
+Modules imported after ModX load (user, ModX and dependencies):
+
+* _collections_abc
+* _weakrefset
+* abc
+* collections
+* codecs
+* copyreg
+* encodings
+* encodings.aliases
+* encodings.utf_8
+* enum
+* io
+* keyword
+* linecache
+* os
+* random
+* re
+* sys
+* turtle
+* zipfile
+
+Total modules imported after ModX load: 19
+
+
+
+\#Show only modules imported via ModX functions
+modx.modx_imported()
+Output:
+
+Modules imported via ModX:
+
+* collections
+* json
+* math
+* random
+* re
+* turtle
+* zipfile
+
+Total modules imported via ModX: 7
+
+
+
+Import 5 random modules from ModX list
+modx.import_random(5)
+Output: \['turtle', 'json', 'zipfile', 'math', 're']
+These 5 modules were randomly selected and imported
+
+
+
+Import all modules starting with letter 't'
+modx.import_letter('t')
+Output: \['tabnanny', 'tarfile', 'tempfile', 'test', 'textview', 'textwrap', 'threading', 'timeit', 'tkinter', 'token', 'tokenize', 'tomllib', 'tooltip', 'trace', 'traceback', 'tracemalloc', 'tree', 'turtle', 'turtledemo', 'types', 'typing']
+All modules in the Modules Master list starting with 't' were imported
+
+
+
+Import all installed third-party modules (if any)
+modx.import_external()
+Output: (Imports numpy, pandas, requests, etc. if installed silently)
+Third-party modules imported if available
+
+
+
+Import common screen/GUI/game modules if available
+modx.import_screen()
+Output: (Imports pygame, tkinter, turtle, etc. if available silently)
+GUI modules imported if available
+
+
+
+Get the list of modules import_all() would import
+modx.list_importall()
+Output: \['collections', 'sys', 'asyncio', 'concurrent', 'ctypes', 'dbm', 'email', 'encodings', 'ensurepip', 'html', ...] (250+ modules)
+Complete list of all modules ModX can import
+
+
+
+Get list of standard library modules NOT yet imported
+modx.nonimported()
+Output: \['abc', 'argparse', 'ast', 'base64', 'bdb', 'bisect', 'bz2', 'calendar', 'cmd', 'codecs', ...] (xxx modules)
+Standard library modules that haven't been imported yet
+
+
+
+Search for modules containing the keyword 'json'
+modx.search_modules('json')
+Output: \['json']
+Found modules containing 'json' in their names
+
+
+
+Show information about a specific module
+modx.info('random')
+Output:
+
+Module: random
+Path: /usr/lib/python3.11/random.py
+Docstring: Random variable generators.
+Shows file path and docstring for the random module
+
+
+
+Check if module random is imported
+is_imported("random")
+Output: True
+
+
+
+Check all dependencies of module random
+dependencies("random")
+Output: Dependencies found:
+_collections_abc
+_random
+_sha2
+argparse
+bisect
+hashlib
+itertools
+math
+operator
+os
+statistics
+time
+warnings
+
+
+
+Show if pygame is compatible with Python 2.0
+
+modx.vcompat("pygame", 2.0)
+Output: Compatibility Report for: pygame
+Target Python Version: 2.0
+Warnings Found: 2
+
+1. UNAVAILABLE: match - Added in 3.10
+2. SYNTAX: f-strings require Python 3.6+
+
+
+
+Show ModX built-in help screen
+modx.modxhelp()
+Output:
+ModX — The Python Module Universe
+
+=================================
+
+
+
+Functions:
+
+----------
+
+
+
+import_all()
+
+Import almost every standard library module at once.
+
+Example: modx.import_all()
+
+
+
+import_external()
+
+Import all installed third-party modules.
+
+Example: modx.import_external()
+
+
+
+(Full help text continues...)
+
+
+
+# 💡 Why Use ModX?
+
+
+
+1.) Explore the Python standard library in seconds
+2.) Stress-test your environment by bulk importing modules
+3.) See hidden dependencies that load behind the scenes
+4.) Experiment with random imports for fun or testing
+5.) Discover new modules you didn’t know existed
+
+
+
+ModXPy turns Python’s module system into a playground —
+perfect for learning, testing, or just satisfying your curiosity.
+Install it today with pip install modxpy, import it with import modx,
+and start discovering how many modules Python already has waiting for you!
+
