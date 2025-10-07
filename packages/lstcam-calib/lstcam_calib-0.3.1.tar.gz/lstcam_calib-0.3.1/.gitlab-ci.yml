@@ -1,0 +1,174 @@
+variables:
+  GIT_DEPTH: 0
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+stages:
+  - static-checks
+  - test
+  - sonarqube
+  - deploy
+
+static:
+  stage: static-checks
+  image: "harbor.cta-observatory.org/proxy_cache/python:3.11"
+
+  before_script:
+    - apt update && apt install -y --no-install-recommends git
+    - python --version
+    - pip install pre-commit
+
+  script:
+    - pre-commit run --all-files
+
+tests:
+  tags:
+    - hi-load
+  services:
+    - name: "harbor.cta-observatory.org/proxy_cache/mongo:7"
+      alias: db
+
+  variables:
+    LSTCAM_CALIB_DB_URL: "mongodb://db:27017"
+
+  stage: test
+  parallel:
+    matrix:
+      - PYTHON_VERSION:
+        - "3.11"
+        - "3.12"
+
+  image: "harbor.cta-observatory.org/proxy_cache/python:$PYTHON_VERSION"
+
+  before_script:
+    - python --version
+    - pip install -e .[test]
+
+  script:
+    - pytest -v --color=yes --doctest-modules --doctest-glob='docs/**/*.rst'
+    # check tools are installed and can print help
+    - lstcam_calib_create_drs4_pedestal_file --help
+
+# Run the coverage on the oldest supported python version
+# no special reason, just to have no "gap" in the versions in the matrix above
+tests-with-cov:
+  tags:
+    - hi-load
+  stage: test
+  image: "harbor.cta-observatory.org/proxy_cache/python:3.11"
+
+  services:
+    - name: "harbor.cta-observatory.org/proxy_cache/mongo:7"
+      alias: db
+
+  variables:
+    LSTCAM_CALIB_DB_URL: "mongodb://db:27017"
+
+  before_script:
+    - python --version
+    - pip install -e .[test]
+
+  script:
+    - pytest -v --color=yes --doctest-modules --doctest-glob='docs/**/*.rst' --cov --cov-report=xml
+
+  artifacts:
+    paths:
+      - coverage.xml
+
+sonarqube:
+  stage: sonarqube
+  allow_failure: true
+  needs:
+    - job: tests-with-cov
+      artifacts: true
+  image:
+    name: harbor.cta-observatory.org/proxy_cache/sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: "0"
+
+  script:
+    - sonar-scanner
+
+test-docs-build:
+  stage: test
+  image: "harbor.cta-observatory.org/proxy_cache/python:3.11"
+
+  before_script:
+    - apt update && apt install -y graphviz pandoc
+    - python --version
+    - pip install .[doc]
+    # needed to make the notebooks work both using conda envs and using pip
+    - python -m ipykernel install --name 'lstcam-calib-dev'
+    - jupyter kernelspec list
+
+  script:
+    - make -C docs html
+    # for some reason, we need to insert an additional /-/ between base url and the project path for this to work
+    - echo "ENVIRONMENT_URL=${CI_PAGES_URL}" | sed -e "s|$CI_PAGES_DOMAIN|${CI_PAGES_DOMAIN}/-|"  >> deploy.env
+    - echo "BUILD_JOB_ID=${CI_JOB_ID}" >> deploy.env
+
+  artifacts:
+    paths:
+      - docs/build/html
+    expose_as: "Rendered Documentation"
+    reports:
+      dotenv: deploy.env
+
+deploy_docs_env:
+  stage: deploy
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  needs:
+    - job: test-docs-build
+      artifacts: true
+
+  script:
+    - echo "Using ${ENVIRONMENT_URL} to host documentation"
+
+  environment:
+    name: "review-docs/mr-${CI_MERGE_REQUEST_IID}"
+    url: ${ENVIRONMENT_URL}/-/jobs/${BUILD_JOB_ID}/artifacts/docs/build/html/index.html
+
+
+# actual deployment to gitlab pages, only on main
+pages:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+  needs:
+    - job: test-docs-build
+      artifacts: true
+  image: "harbor.cta-observatory.org/proxy_cache/python:3.11"
+  before_script:
+    - pip install git+https://gitlab.cta-observatory.org/cta-computing/common/gitlab-multi-version-sphinx/
+  script:
+    - gitlab_multi_version_sphinx -v -n test-docs-build
+    - find public -maxdepth 1
+    - mv docs/build/html public
+  artifacts:
+    paths:
+      - public
+  environment: production
+
+
+# need to set the TWINE_PASSWORD env variable in the gitlab ci secrets
+pypi:
+  image: "harbor.cta-observatory.org/proxy_cache/python:3.11"
+  stage: deploy
+  script:
+    - pip install -U twine build
+    - python -m build
+    - twine upload dist/*
+  only:
+    - tags
+  variables:
+    TWINE_NON_INTERACTIVE: "true"
+    TWINE_USERNAME: "__token__"

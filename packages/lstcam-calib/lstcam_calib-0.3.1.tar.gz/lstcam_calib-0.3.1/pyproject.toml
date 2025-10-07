@@ -1,0 +1,208 @@
+[build-system]
+requires = ["setuptools>=65", "setuptools_scm[toml]>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lstcam_calib"
+description = "Camera calibration code for the LSTCam"
+readme = "README.md"
+license = {text = "BSD-3-Clause"}
+authors = [
+    {name = "Franca Cassol", email = "cassol@cppm.in2p3.fr"},
+    {name = "Maximilian Linhoff", email = "maximilian.linhoff@tu-dortmund.de"},
+]
+
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "ctapipe ~=0.26.0",
+    "ctapipe_io_lst>=0.26.0,<0.28.0a0",
+    "protozfits>=2.6,<3",
+    "matplotlib",
+    "eventio ~=1.16",
+    "iminuit",
+    "pymongo",
+    "pydantic",
+    "jsonschema",
+]
+
+# needed for setuptools_scm, we don"t define a static version
+dynamic = ["version"]
+
+[project.scripts]
+lstcam_calib_create_drs4_pedestal_file = "lstcam_calib.tools.create_drs4_pedestal_file:main"
+lstcam_calib_create_drs4_time_file = "lstcam_calib.tools.create_drs4_time_file:main"
+lstcam_calib_extract_drs4_timelapse_data = "lstcam_calib.tools.extract_drs4_timelapse_data:main"
+lstcam_calib_aggregate_drs4_timelapse_data = "lstcam_calib.tools.aggregate_drs4_timelapse_data:main"
+lstcam_calib_create_drs4_timelapse_file = "lstcam_calib.tools.create_drs4_timelapse_file:main"
+lstcam_calib_create_calibration_file = "lstcam_calib.tools.create_calibration_file:main"
+lstcam_calib_create_cat_B_calibration_file = "lstcam_calib.tools.create_cat_b_calibration_file:main"
+lstcam_calib_create_fit_intensity_scan_file = "lstcam_calib.tools.create_fit_intensity_scan_file:main"
+lstcam_calib_find_enabled_calibration_files = "lstcam_calib.tools.find_enabled_calibration_files:main"
+lstcam_calib_change_database_document = "lstcam_calib.tools.change_database_document:main"
+
+lstcam_calib_onsite_create_calibration_file = "lstcam_calib.onsite.onsite_create_calibration_file:main"
+lstcam_calib_onsite_create_calibration_files_with_batch = "lstcam_calib.onsite.onsite_create_calibration_files_with_batch:main"
+lstcam_calib_onsite_create_cat_B_calibration_file = "lstcam_calib.onsite.onsite_create_cat_b_calibration_file:main"
+lstcam_calib_onsite_create_cat_B_calibration_files_with_batch = "lstcam_calib.onsite.onsite_create_cat_b_calibration_files_with_batch:main"
+lstcam_calib_onsite_create_drs4_time_file = "lstcam_calib.onsite.onsite_create_drs4_time_file:main"
+lstcam_calib_onsite_create_drs4_timelapse_file = "lstcam_calib.onsite.onsite_create_drs4_timelapse_file:main"
+lstcam_calib_onsite_create_drs4_pedestal_file = "lstcam_calib.onsite.onsite_create_drs4_pedestal_file:main"
+lstcam_calib_onsite_create_fit_intensity_scan_file = "lstcam_calib.onsite.onsite_create_fit_intensity_scan_file:main"
+
+[project.urls]
+repository = "https://gitlab.cta-observatory.org/cta-array-elements/lst/analysis/lstcam_calib/"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["lstcam_calib._dev_version"]
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "pytest-cov",
+  "pytest-order",
+]
+doc = [
+  "sphinx",
+  "numpydoc",
+  "pydata-sphinx-theme",
+  "sphinx-automodapi",
+  "sphinx-argparse",
+  "sphinx-design",
+  "sphinxcontrib-bibtex",
+  "sphinx-exec-code",
+  "nbsphinx",
+  "ipykernel",
+  "autodoc_pydantic",
+  "sphinx-changelog",
+]
+dev = [
+  "setuptools_scm",
+  "towncrier",
+]
+
+[tool.towncrier]
+package = "lstcam_calib"
+directory = "docs/changes"
+filename = "CHANGES.rst"
+template = "docs/changes/template.rst"
+underlines = ["-", "~", "^"]
+# Let towncrier create proper links to the merged MR.
+# By default, towncrier connects everything to issues.
+# We rather want to connect it to merge request
+issue_format = "`!{issue} <https://gitlab.cta-observatory.org/cta-array-elements/lst/analysis/lstcam_calib/-/merge_requests/{issue}>`__"
+
+[tool.towncrier.fragment.feature]
+    name = "New Features"
+    showcontent = true
+
+[tool.towncrier.fragment.bugfix]
+    name = "Bug Fixes"
+    showcontent = true
+
+[tool.towncrier.fragment.api]
+    name = "API Changes"
+    showcontent = true
+
+[tool.towncrier.fragment.optimization]
+    name = "Refactoring and Optimization"
+    showcontent = true
+
+[tool.towncrier.fragment.maintenance]
+    name = "Maintenance"
+    showcontent = true
+
+
+# we can use self-references to simplify all
+all = [
+  "lstcam_calib[test,doc,dev]",
+]
+
+[tool.setuptools_scm]
+write_to = "src/lstcam_calib/_version.py"
+
+[tool.black]
+line-length = 88
+target-version = ["py38", "py39", "py310", "py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.coverage.run]
+relative_files = true
+source = ["src"]
+concurrency = ["multiprocessing", "thread"]
+parallel = true
+omit = [
+    "src/lstcam_calib/_version.py",
+    "src/lstcam_calib/_dev_version/*"
+]
+patch = ["subprocess"]
+
+[tool.pytest.ini_options]
+minversion = "7"
+testpaths = ["src"]
+log_cli_level = "INFO"
+xfail_strict = true
+# print summary of failed tests, force errors if settings are misspelled
+addopts = ["-ra", "--strict-config", "--strict-markers","--ignore-glob=src/lstcam_calib/_dev_version"]
+filterwarnings = [
+    "error",
+    # warning raised by protobuf under python 3.12, ignore, nothing we can do about it for now
+    "ignore:Type .* uses PyType_Spec with a metaclass that has custom tp_new:DeprecationWarning",
+    "ignore:datetime.datetime.utcfromtimestamp\\(\\) is deprecated:DeprecationWarning",
+    "ignore:subprocess .* is still running:ResourceWarning",  # warning raised py eventio
+    "ignore: Input data contains invalid values",
+    "default::pytest.PytestUnraisableExceptionWarning",
+    "default::ctapipe.core.provenance.MissingReferenceMetadata",
+    "ignore:'mode' parameter is deprecated and will be removed in Pillow 13",
+]
+
+[tool.repo-review]
+select = ["PY", "PP", "PC"]
+ignore = [
+    "PY007", # we do not use tox for now
+    "PC140", # mypy is not used
+    "PC170", # pygrep is not used
+    "PC180", # prettier is not used
+    "PC111", # blacken-docs is not used
+    "PC901", # no CI setup currently for updating pre-commit hooks
+]
+
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+
+[tool.ruff.lint]
+extend-select = [
+    "I", # isort
+    "N", # pep8 naming
+    "D", # pydocstyle
+    "NPY", # numpy
+    "PT", # pytest
+    "UP", # pyupgrade
+    "COM", # flake8-commas
+    "ISC", # implicit string concat rules
+    "ICN", # import name conventions
+    "G", # logging
+]
+ignore = [
+    "COM812", # incompatible with ruff format
+    "ISC001", # incompatible with ruff format
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# no documentation linting for test files
+"**/tests/**" = ["D"]
+"**/tests_*.py" = ["D"]
+"**/conftest.py" = ["D"]
+
+[tool.codespell]
+skip = "*.fits,*.fits.gz,*.fits.fz"
