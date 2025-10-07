@@ -1,0 +1,91 @@
+model:
+  simulation_name: "lagged_sickness_09"
+  time_granularity: "M"
+  simulation_length: 50
+  features:
+    - name: "population"
+      function: |
+        def get_population():
+          return 10000
+    - name: "mean_temperature"
+      function: |
+        def get_temperature(i):
+          i = (i - 1) % 52 + 1
+          seasonal_temp = 24 + 5 * np.sin(2 * np.pi * i / 52)
+          random_noise = np.random.normal(0, 2)
+          return seasonal_temp + random_noise
+    - name: "rainfall"
+      function: |
+        def get_rainfall(region, i):
+          i = (i - 1) % 52 + 1
+          rain_season = False
+          for season in region.rain_season:
+            if season.start <= i <= season.end:
+              rain_season = True
+          if rain_season:
+              return np.random.gamma(shape=6, scale=1.0) * 4
+          else:
+              return np.random.gamma(shape=2, scale=0.5) * 2
+    - name: "lagged_sickness"
+      function: |
+        def get_lagged_sickness(disease_cases):
+          return disease_cases[-1]
+    - name: "disease_cases"
+      function: |
+        def get_disease_cases(mean_temperature, rainfall, lagged_sickness):
+          sickness = (mean_temperature[-1] * 0.5) + (rainfall[-1] * 0.5) + (lagged_sickness[-1] * 0.9)
+          return int(sickness + np.random.uniform(-2, 2))
+
+  regions:
+    - name: "Finnmark"
+      region_id: 1
+      rain_season: [[10, 23], [45, 52]]
+      neighbour: [2]
+    - name: "Troms"
+      region_id: 2
+      rain_season: [[10, 23], [45, 52]]
+      neighbour: [1]
+    - name: "Nordland"
+      region_id: 3
+      rain_season: []
+      neighbour: [2]
+
+simulations:
+  - simulation_name: "lagged_sickness_05"
+    features:
+      - name: "disease_cases"
+        function: |
+          def get_disease_cases(mean_temperature, rainfall, lagged_sickness):
+            sickness = (mean_temperature[-1] * 0.5) + (rainfall[-1] * 0.5) + (lagged_sickness[-1] * 0.5)
+            return int(sickness + np.random.uniform(-2, 2))
+  - simulation_name: "lagged_sickness_02"
+    features:
+      - name: "disease_cases"
+        function: |
+          def get_disease_cases(mean_temperature, rainfall, lagged_sickness):
+            sickness = (mean_temperature[-1] * 0.5) + (rainfall[-1] * 0.5) + (lagged_sickness[-1] * 0.2)
+            return int(sickness + np.random.uniform(-2, 2))
+  - simulation_name: "lagged_sickness_00"
+    features:
+      - name: "disease_cases"
+        function: |
+          def get_disease_cases(mean_temperature, rainfall):
+            sickness = (mean_temperature[-1] * 0.5) + (rainfall[-1] * 0.5)
+            return int(sickness + np.random.uniform(-2, 2))
+evaluators:
+  - evaluation_technique: "holdout"
+    time_granularity: "W"
+    prediction_lengt: 12
+    model: "https://github.com/sandvelab/chap_auto_ewars_weekly@737446a7accf61725d4fe0ffee009a682e7457f6"
+  - evaluation_technique: "holdout"
+    time_granularity: "M"
+    prediction_lengt: 3
+    model: "https://github.com/sandvelab/chap_auto_ewars@58d56f86641f4c7b09bbb635afd61740deff0640"
+  - evaluation_technique: "holdout"
+    time_granularity: "W"
+    prediction_lengt: 12
+    model: "models/weekly_ar_model"
+  - evaluation_technique: "holdout"
+    time_granularity: "M"
+    prediction_lengt: 3
+    model: https://github.com/sandvelab/monthly_ar_model@cadd785872624b4bcd839a39f5e7020c25254c31
