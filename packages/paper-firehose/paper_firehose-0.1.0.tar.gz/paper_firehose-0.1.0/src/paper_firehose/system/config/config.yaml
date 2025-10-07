@@ -1,0 +1,225 @@
+# this is an example config file for paper_firehose. Edit with your own settings.
+# Main application configuration
+database:
+  path: "papers.db" # resolved under the runtime data directory (defaults to ~/.paper_firehose)
+  all_feeds_path: "all_feed_entries.db" # all RSS entries for deduplication
+  history_path: "matched_entries_history.db" # historical matches across all topics
+
+llm:
+  model: "gpt-5-mini"
+  api_key_env: "OPENAI_API_KEY"
+  # Optional: override the default key location (~/.paper_firehose/secrets/openaikulcs.env)
+  # api_key_file: "secrets/openaikulcs.env"
+  # Fallback model if the primary is unavailable/unsupported
+  model_fallback: "gpt-5-nano"
+  # Slower by default to be polite to API
+  rps: 0.5
+  max_retries: 3
+  # GPT-5 specific parameters
+  verbosity: "low" # values: low, medium, high
+  reasoning_effort: "minimal" # low, medium (default), high. GPT‑5 also supports minimal, which minimizes GPT‑5’s reasoning to return an answer quickly.
+
+# Paper-QA and arXiv downloader configuration
+paperqa:
+  # Download arXiv PDFs for entries with rank_score >= this threshold
+  download_rank_threshold: 0.35
+  # arXiv API ToU recommends ~1 request per 3 seconds; keep rps <= 0.33
+  rps: 0.3
+  max_retries: 3
+  # Prompt used by paper-qa summarization (Phase 2). Keep concise and JSON-only.
+  prompt: >
+    Read the PDF and summarize for an expert reader, according to the following rules.
+    CRITICAL: only reply in JSON format. RETURN EXACTLY THIS STRUCTURE: {"summary":"...", "methods":"..."}
+    Keep the text information-dense. Avoid using superlatives and other over-the-top language.
+    summary: up to 8 sentences.
+    methods: experimental setup, parameters, and analysis methods, calculation details, include names of tools used.
+  
+feeds:
+  cond-mat:
+    name: "arXiv cond-mat"
+    url: "https://rss.arxiv.org/rss/cond-mat"
+    enabled: true
+  nature:
+    name: "Nature"
+    url: "https://www.nature.com/nature.rss"
+    enabled: true
+  science:
+    name: "Science"
+    url: "https://www.science.org/action/showFeed?type=axatoc&feed=rss&jc=science"
+    enabled: true
+  nat-mat:
+    name: "Nature Materials"
+    url: "https://www.nature.com/nmat.rss"
+    enabled: true
+  nat-nanotech:
+    name: "Nature Nanotechnology"
+    url: "https://www.nature.com/nnano.rss"
+    enabled: true
+  nat-phys:
+    name: "Nature Physics"
+    url: "https://www.nature.com/nphys.rss"
+    enabled: true
+  nat-chem:
+    name: "Nature Chemistry"
+    url: "https://www.nature.com/nchem.rss"
+    enabled: true
+  nat-ener:
+    name: "Nature Energy"
+    url: "https://www.nature.com/nenergy.rss"
+    enabled: true
+  nat-catal:
+    name: "Nature Catalysis"
+    url: "https://www.nature.com/natcatal.rss"
+    enabled: true
+  nat-chem-eng:
+    name: "Nature Chemical Engineering"
+    url: "https://www.nature.com/natchemeng.rss"
+    enabled: true
+  nat-rev-phys:
+    name: "Nature Reviews Physics"
+    url: "https://www.nature.com/natrevphys.rss"
+    enabled: true
+  pnas:
+    name: "PNAS"
+    url: "https://www.pnas.org/action/showFeed?type=searchTopic&taxonomyCode=topic&tagCode=phys-sci"
+    enabled: true
+  joule:
+    name: "Joule"
+    url: "https://www.cell.com/joule/inpress.rss"
+    enabled: true
+  prb:
+    name: "Physical Review B"
+    url: "http://feeds.aps.org/rss/recent/prb.xml"
+    enabled: true
+  prl:
+    name: "Physical Review Letters"
+    url: "http://feeds.aps.org/rss/recent/prl.xml"
+    enabled: true
+  prx:
+    name: "Physical Review X"
+    url: "http://feeds.aps.org/rss/recent/prx.xml"
+    enabled: true
+  pr_res:
+    name: "Physical Review Research"
+    url: "http://feeds.aps.org/rss/recent/prresearch.xml"
+    enabled: true
+  nano-lett:
+    name: "Nano Letters"
+    url: "https://pubs.acs.org/action/showFeed?type=axatoc&feed=rss&jc=nalefd"
+    enabled: true
+  acs-nano:
+    name: "ACS Nano"
+    url: "https://pubs.acs.org/action/showFeed?type=axatoc&feed=rss&jc=ancac3"
+    enabled: true
+  acs-en-lett:
+    name: "ACS Energy Letters"
+    url: "https://pubs.acs.org/action/showFeed?type=axatoc&feed=rss&jc=aelccp"
+    enabled: true
+  en-env-sci:
+    name: "Energy & Environmental Science"
+    url: "http://feeds.rsc.org/rss/ee"
+    enabled: true
+  science-adv:
+    name: "Science Advances"
+    url: "https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=sciadv"
+    enabled: true
+  sci-rep:
+    name: "Scientific Reports"
+    url: "http://feeds.nature.com/srep/rss/current"
+    enabled: true
+  nat-comm:
+    name: "Nature Communications"
+    url: "https://www.nature.com/ncomms.rss"
+    enabled: true
+  comm-phys:
+    name: "Communications Physics"
+    url: "https://www.nature.com/commsphys.rss"
+    enabled: true
+  comm-mater:
+    name: "Communications Materials"
+    url: "https://www.nature.com/commsmat.rss"
+    enabled: true
+  scipost:
+    name: "SciPost"
+    url: "https://scipost.org/rss/submissions/"
+    enabled: true
+  small:
+    name: "Small"
+    url: "https://onlinelibrary.wiley.com/feed/16136829/most-recent"
+    enabled: true
+  adv-mater:
+    name: "Advanced Materials"
+    url: "https://onlinelibrary.wiley.com/feed/15214095/most-recent"
+    enabled: true
+  adv-sci:
+    name: "Advanced Science"
+    url: "https://onlinelibrary.wiley.com/feed/21983844/most-recent"
+    enabled: true
+  adv-func-mater:
+    name: "Advanced Functional Materials"
+    url: "https://onlinelibrary.wiley.com/feed/16163028/most-recent"
+    enabled: true
+  adv-phys-res:
+    name: "Advanced Physics Research"
+    url: "https://onlinelibrary.wiley.com/feed/27511200/most-recent"
+    enabled: true
+  national-sci-rev:
+    name: "National Science Review"
+    url: "https://academic.oup.com/rss/site_5332/advanceAccess_3198.xml"
+    enabled: true
+  npj-2d-mater:
+    name: "npj 2D Materials and Applications"
+    url: "https://www.nature.com/npj2dmaterials.rss"
+    enabled: true
+  npj-comp-mater:
+    name: "npj Computational Materials"
+    url: "https://www.nature.com/npjcompumats.rss"
+    enabled: true
+  npj-qmat:
+    name: "npj Quantum Materials"
+    url: "https://www.nature.com/npjquantmats.rss"
+    enabled: true
+
+# Priority journals (boosted in ranking)
+priority_journals:
+  - "nature"
+  - "science"
+  - "nat-nanotech"
+  - "nat-mat"
+  - "nat-phys"
+priority_journal_boost: 0.20
+
+# Global defaults
+defaults:
+  # Max age of feed entries to accumulate in all_feed_entries.db (days)
+  time_window_days: 365
+
+  top_n_per_topic: 10
+  # Above this threshold, the abstract is fetched
+  rank_threshold: 0.3
+
+  # Negative ranking penalty (applied when negative_queries match)
+  ranking_negative_penalty: 0.25
+
+  # Abstract fetching settings (Crossref and aggregators)
+  abstracts:
+    # Requests per second throttle (can be overridden by CLI --rps)
+    rps: 1.0
+    # Max retries per item (with exponential backoff and Retry-After)
+    max_retries: 3
+    # Contact email included in UA and as Crossref mailto param
+    mailto: "foo@bar.com"
+
+# Email delivery (Mailman list)
+email:
+  recipients_file: "secrets/mailing_lists.yaml"
+  # Optional subject prefix
+  subject_prefix: "paper firehose"
+  # Sender address; defaults to smtp.username if omitted
+  from: "foo@bar.com"
+  smtp:
+    host: "mail.foobar.com"
+    port: 465
+    username: "_mainaccount@foobar.com"
+    # Prefer file-based secret storage. Put the password in this file
+    password_file: "secrets/email_password.env"
