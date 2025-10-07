@@ -1,0 +1,261 @@
+# MoleditPy -- Python Molecular Editor
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17268532.svg)](https://doi.org/10.5281/zenodo.17268532)
+[![Powered by RDKit](https://img.shields.io/badge/Powered%20by-RDKit-3838ff.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQBAMAAADt3eJSAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEXc3NwUFP8UPP9kZP+MjP+0tP////9ZXZotAAAAAXRSTlMAQObYZgAAAAFiS0dEBmFmuH0AAAAHdElNRQfmAwsPGi+MyC9RAAAAQElEQVQI12NgQABGQUEBMENISUkRLKBsbGwEEhIyBgJFsICLC0iIUdnExcUZwnANQWfApKCK4doRBsKtQFgKAQC5Ww1JEHSEkAAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMy0xMVQxNToyNjo0NyswMDowMDzr2J4AAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDMtMTFUMTU6MjY6NDcrMDA6MDBNtmAiAAAAAElFTkSuQmCC)](https://www.rdkit.org/)
+
+Pythonで構築された、クロスプラットフォームかつシンプルで直感的な分子構造エディターです。2Dでの分子描画と、3D構造可視化ができます。DFT計算ソフト用のインプット用に構造ファイルのエクスポートをサポートします。
+
+A cross-platform, simple, and intuitive molecular structure editor built in Python. It allows 2D molecular drawing and 3D structure visualization. It supports exporting structure files for input to DFT calculation software.
+
+作者: HiroYokoyama
+ライセンス: Apache-2.0
+リポジトリ: [https://github.com/HiroYokoyama/python\_molecular\_editor](https://github.com/HiroYokoyama/python_molecular_editor)
+
+![](img/screenshot.png)
+
+-----
+
+## 概要
+
+このアプリケーションは、分子構造を容易に描き、その3次元的な形状を視覚的に確認するためのツールです。**PyQt6**によるモダンなGUI、**RDKit**による強力な化学計算、**PyVista**による高性能な3Dレンダリングを組み合わせています。
+
+-----
+
+## 主な機能
+
+### 1\. 2D 描画と編集
+
+  * **直感的な操作:** マウスのクリック＆ドラッグで原子や結合を簡単に追加・編集できます。
+  * **テンプレート配置の改良:** ベンゼン環や3〜9員環のテンプレートをプレビューして配置可能。既存の結合にフューズする際、**ベンゼン環の二重結合配置を自動調整する高度なロジック**を搭載しました。
+  * **電荷・ラジカル操作:** 原子をクリックするか、キーボードショートカット (`+`/`-`/`.`) で、形式電荷やラジカルを簡単に設定できます。
+  * **周期表からの選択:** 周期表ダイアログから任意の元素を選択可能です。
+  * **選択操作の充実:**
+      * `Cut` (`Ctrl+X`), `Copy` (`Ctrl+C`), `Paste` (`Ctrl+V`) に対応し、分子フラグメントのクリップボード操作が可能です。
+      * `Space`: 選択モード切替 / 選択モードで全選択。
+      * `Delete` / `Backspace`: 選択項目の削除。
+
+### 2\. キーボードショートカット
+
+| キー | 操作 | 補足 |
+| :--- | :--- | :--- |
+| `1`/`2`/`3` | 結合次数を変更 | 単結合/二重結合/三重結合 |
+| `W`/`D` | 立体化学結合に変更 | Wedge / Dash 結合 |
+| `.` | ラジカルをトグル | 0 → 1 → 2 → 0 |
+| `+`/`-` | 電荷を増減 | 形式電荷の変更 |
+| `C`, `N`, `O` など | 原子記号を変更 | カーソル下または選択中の原子に適用 |
+| `4` | ベンゼン環の配置 | カーソル下の原子/結合にワンショットで配置 |
+| `Ctrl+J` | 2D最適化を実行 | |
+| `Ctrl+K` | 3D変換を実行 | |
+| `Ctrl+L` | 3D最適化を実行 | |
+
+### 3\. 2D構造の最適化
+
+  * RDKit の `Compute2DCoords` を使った自動レイアウト（**Optimize 2D**）を実行します。
+  * 完全に重なった原子グループ（結合していないフラグメント同士など）を検出し、**自動で分離・解消するロジック**を実装しました。
+
+### 4\. 高品質な3D可視化と分析
+
+  * **3D変換:** RDKit で 3D 座標を生成し MMFF94 ベースで最適化（**Convert to 3D**）します。RDKitでの生成に失敗した場合、**Open Babelによるフォールバック**を実行し、堅牢性を高めています。
+  * **インタラクティブ表示:** PyVista / pyvistaqt によるインタラクティブな3D表示（Ball & Stick / CPK スタイル）を提供します。
+  * **インタラクティブ3D編集:** 3D編集モードを有効にすると、3Dビュー内の原子を**マウスで直接ドラッグして位置を微調整**できます。
+  * **キラルラベル表示:** 3D変換後、キラル中心に R/S ラベルを自動で付与し、**3Dビュー**に表示します。
+  * **分子分析ウィンドウ:** 分子式、分子量、SMILES、LogP、TPSAなど、RDKitベースの**主要な分子特性を一覧表示**する専用ウィンドウがあります。
+
+### 5\. ファイル入出力
+
+  * **プロジェクトファイル (.pmeraw):** 2D描画データと3D構造、電荷、ラジカル、キラルラベルの状態など、編集状態を完全に保存/読み込みできます。
+  * 2D を MOL 形式で保存。
+  * 3D を MOL / XYZ 形式で保存。
+  * MOL/SDF の読み込みに対応しています。
+
+-----
+
+## 実行とインストール
+
+#### 必要ライブラリ
+
+`PyQt6`, `RDKit`, `NumPy`, `PyVista`, `pyvistaqt`, `openbabel`
+
+#### インストール例
+
+**pip を使う場合:**
+
+```bash
+pip install moleditpy
+```
+
+> **Note**
+> RDKit と Open Babel は、科学計算ディストリビューションである `conda` を使ってインストールすることが推奨されます。Open Babelは3D構造変換のフォールバック機能に必要です。
+
+#### アプリの起動
+
+```bash
+moleditpy
+```
+
+## 開発環境
+
+MoleditPyの動作確認および推奨される開発・実行環境は以下の通りです。
+
+| コンポーネント | バージョン |
+| :--- | :--- |
+| **Python** | `3.13.7` |
+| **numpy** | `2.3.3` |
+| **openbabel-wheel** | `3.1.1.22` |
+| **PyQt6** | `6.9.1` |
+| **QtPy** | `2.4.3` |
+| **rdkit** | `2025.3.6` |
+| **vtk** | `9.5.2` |
+| **pyvista** | `0.46.3` |
+| **pyvistaqt** | `0.11.3` |
+
+-----
+
+## Windows: ショートカットとファイル関連付けガイド
+
+Windows環境でプロジェクトファイル（`.pmeraw`）をダブルクリックで開いたり、アイコン付きのショートカットからアプリケーションを起動したりするための詳細な設定手順です。
+
+### 1\. 実行ファイルとアイコンのパス
+
+| 項目 | 詳細 |
+| :--- | :--- |
+| **実行ファイル (Target Application)** | `C:\Users\%USERNAME%\AppData\Local\Programs\Python\PythonXX\Scripts\moleditpy.exe` |
+| **関連付けたい拡張子** | `.pmeraw` |
+| **アイコンファイルのパス (Icon)** | `C:\Users\%USERNAME%\AppData\Local\Programs\Python\PythonXX\Lib\site-packages\moleditpy\assets\icon.ico` |
+
+> **注意:** `%USERNAME%` はお使いのユーザー名、`PythonXX` はインストールされているPythonのバージョンディレクトリ名（例: `Python311`）に置き換えてください。
+
+### 2\. ファイルの関連付け手順 (.pmeraw をダブルクリックで開く)
+
+`.pmeraw` ファイルを `moleditpy.exe` で開けるようにする手順です。
+
+1.  **任意の `.pmeraw` ファイルを見つける:** エクスプローラーで、関連付けを行いたいファイル（例: `sample.pmeraw`）を**右クリック**します。
+2.  **関連付けの変更:** コンテキストメニューから\*\*「プロパティ」**を選択し、「全般」タブの「ファイルの種類」の横にある**「変更...」\*\*ボタンをクリックします。
+3.  **プログラムの選択:** 「このファイルを開く方法を選んでください」というウィンドウが表示されたら、「その他のアプリ」→\*\*「PCでアプリを探す」\*\*を選択します。
+4.  **実行ファイルの指定:** 上記のパス（プレースホルダーを置き換えたもの）にある **`moleditpy.exe`** を指定し、「開く」をクリックして完了です。
+
+> **補足:** カスタムアイコンをシステム全体のファイル関連付けに適用するには、通常、レジストリを編集する必要があります。レジストリ操作は上級者向けであり、慎重に行ってください。
+
+### 3\. デスクトップショートカットの作成手順
+
+アプリケーションを起動するためのアイコン付きショートカットを作成します。
+
+1.  **新規ショートカットの作成:** デスクトップなどの任意の場所を右クリックし、「新規作成」→\*\*「ショートカット」\*\*を選択します。
+2.  **実行ファイルのパスを入力:** 「項目の場所を入力してください」に、上記の実行ファイルのパスを入力し、「次へ」をクリックします。
+3.  **名前を指定:** ショートカットに任意の名前（例: `MoleditPy`）を付けて、「完了」をクリックします。
+4.  **アイコンの変更:**
+      * 作成されたショートカットを右クリックし、\*\*「プロパティ」\*\*を選択します。
+      * 「ショートカット」タブの\*\*「アイコンの変更...」\*\*ボタンをクリックします。
+      * 上記のアイコンファイルのパスを参照して `icon.ico` を選択します。
+      * 「OK」→「適用」→「OK」をクリックして完了です。
+
+### 4\. ショートカットをスタートメニューに配置する方法
+
+作成したショートカットをWindowsのスタートメニューのプログラム一覧に表示するには、以下の手順でフォルダに配置します。
+
+1.  **スタートメニューフォルダのパスを確認:** エクスプローラーのアドレスバーに以下のいずれかのパスを入力し、Enterキーを押します。
+      * **現在のユーザー専用 (推奨):** `%APPDATA%\Microsoft\Windows\Start Menu\Programs`
+      * **すべてのユーザー共通 (管理者権限が必要):** `%ALLUSERSPROFILE%\Microsoft\Windows\Start Menu\Programs`
+2.  **ショートカットのコピーまたは移動:** 上記で開いたスタートメニューフォルダに、作成したショートカット（例: デスクトップ上の `MoleditPy` ショートカット）を**コピーまたは移動**します。（Ctrlキーを押しながらドラッグするとコピーされます。）
+3.  **確認:** スタートボタンをクリックし、プログラム一覧からショートカットに付けた名前が追加されていることを確認してください。
+
+-----
+
+## macOS: Python CLIアプリをAutomator経由で.app化する方法
+
+この手順では、`pip install moleditpy` でインストールしたPythonアプリをmacOS上で\*\*.appアプリケーション\*\*として使えるようにし、独自アイコンを設定します。
+
+### 1\. バイナリの場所を確認
+
+以下のようなパスに実行ファイル（バイナリ）が生成されます：
+
+```
+/Users/<username>/Library/Python/<python_version>/bin/moleditpy
+```
+
+### 2\. Automatorで新規アプリケーションを作成
+
+1.  **Automator** を開きます。
+2.  **「新規書類」** → **「アプリケーション」** を選択します。
+3.  左の一覧から「ユーティリティ」→\*\*「シェルスクリプトを実行」\*\* を追加します。
+
+### 3\. スクリプトを設定
+
+スクリプト欄に以下を入力します。`"$@"` は、ドラッグ＆ドロップされたファイルを引数として渡すためのものです。
+
+```bash
+#!/bin/bash
+/Users/<username>/Library/Python/<python_version>/bin/moleditpy "$@"
+```
+
+### 4\. アプリとして保存
+
+1.  メニューから\*\*「ファイル」\*\* → **「保存」** を選択します。
+2.  名前を **`MoleditPy.app`** にします。
+3.  保存場所は一時的にデスクトップなど任意で構いません。
+
+### 5\. アプリケーションフォルダーへ移動
+
+保存後、作成したアプリをシステム標準のアプリケーションフォルダーへコピーします。
+
+**Finderからコピーする場合**
+
+1.  Finderで `MoleditPy.app` を選択し、`⌘ + C` でコピーします。
+2.  Finderメニューの「移動」→\*\*「アプリケーション」\*\* を開きます。
+3.  `⌘ + V` で貼り付けます。
+
+**ターミナルからコピーする場合**
+
+```bash
+sudo cp -R ~/Desktop/MoleditPy.app /Applications/
+```
+
+### 6\. アイコンを設定
+
+アイコン画像の場所：
+
+```
+/Users/<username>/Library/Python/<python_version>/lib/python<python_version>/site-packages/moleditpy/assets/icon.png
+```
+
+**アイコン設定手順（コピペ方式）**
+
+1.  Finderで上記の `icon.png` を開きます。
+2.  「プレビュー」で画像を開いた状態で `⌘ + A` で**全選択**、`⌘ + C` で**コピー**します。
+3.  Finderで `/Applications` フォルダー内の `MoleditPy.app` を選択 → `⌘ + I`（情報を見る）を押します。
+4.  左上の小さいアイコンをクリック（枠が出る） → `⌘ + V` で**貼り付け**ます。
+    これでアプリのアイコンが変更されます。
+
+### 7\. 実行権限を確認（必要な場合）
+
+起動できない場合は、以下を実行してください。
+
+```bash
+chmod +x /Users/<username>/Library/Python/<python_version>/bin/moleditpy
+```
+
+### 8\. 完了
+
+これで `/Applications` にインストールされた **`MoleditPy.app`** をダブルクリックするだけでPythonアプリが実行できます。
+
+-----
+
+## 技術的な仕組み
+
+  * **GUI と 2D 描画 (PyQt6):**
+      * `QGraphicsScene` 上にカスタムの `AtomItem`（原子）と `BondItem`（結合）を配置し、対話的に操作します。
+      * Undo/Redo機能は、アプリケーションの状態を丸ごと `pickle` でシリアライズしてスタックに保存することで実現しています。
+  * **化学計算 (RDKit / Open Babel):**
+      * 2D データから RDKit 分子オブジェクトを生成し、3D 座標生成（`AllChem.EmbedMolecule`）や分子特性計算を実行します。
+      * RDKitでの3D座標生成が失敗した際は、**Open Babel**にフォールバックして計算を試みます。
+      * 計算は別スレッド（`QThread`）で行い、GUI の応答性を維持しています。
+  * **3D 可視化 (PyVista / pyvistaqt):**
+      * RDKit のコンフォーマ座標から PyVista のメッシュ（球や円柱）を生成して描画します。
+      * カスタムの`vtkInteractorStyle`を実装し、3Dビュー内での原子の直接的なドラッグ＆ドロップ編集を可能にしています。
+
+-----
+
+## ライセンス
+
+このプロジェクトは **Apache-2.0 License** のもとで公開されています。詳細は `LICENSE` ファイルを参照してください。
+
