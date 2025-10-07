@@ -1,0 +1,83 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Vagrant configuration
+Vagrant.configure(2) do |config|
+  # CentOS base box
+  config.vm.box = "centos/6"
+  config.vm.define "myproxy_server" do |myproxy_server|
+  end
+  config.vm.provider :virtualbox do |vb|
+    vb.name = "myproxy_server"
+  end
+
+
+#  config.vm.network :private_network, ip: "172.28.128.4"
+  config.vm.network :forwarded_port, guest: 7512, host: 7512
+
+
+  # Share an additional folder to the guest VM. The first argument is
+  # the path on the host to the actual folder. The second argument is
+  # the path on the guest to mount the folder. And the optional third
+  # argument is a set of non-required options.
+  #config.vm.synced_folder "/Users/pk23/git/ceda-oauth-server", "/code/ceda-oauth-server"
+
+  # Provider-specific configuration so you can fine-tune various
+  # backing providers for Vagrant. These expose provider-specific options.
+  # Example for VirtualBox:
+  #
+  #config.vm.provider "virtualbox" do |vb|
+  #  # Display the VirtualBox GUI when booting the machine
+  #  vb.gui = true
+  #
+  #   # Customize the amount of memory on the VM:
+  #   vb.memory = "1024"
+  #end
+  #
+  # View the documentation for the provider you are using for more
+  # information on available options.
+
+  # Use a shell provisioner to disable SELinux
+  config.vm.provision :shell, inline: <<-SHELL
+echo "Copying SSH key to root..."
+mkdir -p /root/.ssh
+cp ~vagrant/.ssh/authorized_keys /root/.ssh
+
+echo "Disabling SELinux..."
+cat > /etc/selinux/config <<-SELINUXCONF
+# This file controls the state of SELinux on the system.
+# SELINUX= can take one of these three values:
+#       enforcing - SELinux security policy is enforced.
+#       permissive - SELinux prints warnings instead of enforcing.
+#       disabled - SELinux is fully disabled.
+SELINUX=disabled
+# SELINUXTYPE= type of policy in use. Possible values are:
+#       targeted - Only targeted network daemons are protected.
+#       strict - Full SELinux protection.
+SELINUXTYPE=targeted
+SELINUXCONF
+SHELL
+
+  # Disabling SELinux requires a reboot
+  #   This step requires the vagrant-reload plugin - to install, run:
+  #     vagrant plugin install vagrant-reload
+  config.vm.provision :reload
+
+  # Enable EPEL repo for Globus and tailor MyProxy service for running tests
+  config.vm.provision :shell, inline: <<-SHELL
+sudo yum update
+sudo wget http://download.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
+sudo rpm -ivh epel-release-6-8.noarch.rpm
+sudo yum install -y myproxy myproxy-server myproxy-admin myproxy-doc
+sudo cp /vagrant/localhost.crt /etc/grid-security/hostcert.pem
+sudo chown myproxy:myproxy /etc/grid-security/hostcert.pem
+sudo cp /vagrant/localhost.key /etc/grid-security/hostkey.pem
+sudo chmod 400 /etc/grid-security/hostkey.pem
+sudo chown myproxy:myproxy /etc/grid-security/hostkey.pem
+sudo cp /vagrant/myproxy-server.config /etc/
+sudo mkdir /etc/grid-security/certificates
+sudo cp /vagrant/7e15277f.0 /etc/grid-security/certificates
+sudo cp /vagrant/7e15277f.signing_policy /etc/grid-security/certificates
+sudo -u myproxy myproxy-server
+SHELL
+end
