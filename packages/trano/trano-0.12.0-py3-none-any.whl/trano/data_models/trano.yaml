@@ -1,0 +1,619 @@
+---
+id: https://w3id.org/my-org/trano
+name: trano
+title: trano
+description: |-
+  This is the project description.
+license: MIT
+see_also:
+  - https://my-org.github.io/trano
+default_curi_maps:
+  - semweb_context
+prefixes:
+  trano: https://w3id.org/my-org/trano/
+  linkml: https://w3id.org/linkml/
+  biolink: https://w3id.org/biolink/
+  schema: http://schema.org/
+
+  PATO: http://purl.obolibrary.org/obo/PATO_
+  example: https://example.org/
+  SYSTEM: http://example.org/SYSTEM/
+  MATERIAL: http://example.org/MATERIAL/
+  CONSTRUCTION: http://example.org/CONSTRUCTION/
+  CONTROL: http://example.org/CONTROL/
+  OCCUPANCY: http://example.org/OCCUPANCY/
+  SPACE: http://example.org/SPACE/
+default_prefix: trano
+default_range: string
+
+imports:
+  - linkml:types
+
+
+classes:
+  Weather:
+    slots:
+      - parameters
+    slot_usage:
+      parameters:
+        range: WeatherParameters
+  Photovoltaic:
+    slots:
+      - id
+      - name
+  Space:
+    attributes:
+      variant:
+        ifabsent: string('default')
+        range: string
+    description: >-
+      Represents a Space
+    slot_usage:
+      parameters:
+        range: SpaceParameter
+    slots:
+      - id
+      - name
+      - external_boundaries
+      - parameters
+      - occupancy
+      - emissions
+      - ventilation_inlets
+      - ventilation_outlets
+    class_uri: schema:Space
+
+  ExternalWall:
+    attributes:
+      construction:
+        description: Construction
+        range: Construction
+    slots:
+      - surface
+      - azimuth
+      - tilt
+  FloorOnGround:
+    attributes:
+      construction:
+        description: Construction
+        range: Construction
+    slots:
+      - surface
+  InternalWall:
+    attributes:
+      construction:
+        range: Construction
+      space_1:
+        range: Space
+      space_1_tilt:
+        range: string
+      space_2:
+        range: Space
+      space_2_tilt:
+        range: string
+    slots:
+      - surface
+  Window:
+    attributes:
+      construction:
+        description: Glazing
+        range: Glazing
+      width:
+        range: float
+      height:
+        range: float
+    slots:
+      - surface
+      - azimuth
+      - tilt
+  ExternalBoundaries:
+    attributes:
+      external_walls:
+        range: ExternalWall
+        multivalued: true
+        inlined: true
+      floor_on_grounds:
+        range: FloorOnGround
+        multivalued: true
+        inlined: true
+      windows:
+        range: Window
+        multivalued: true
+        inlined: true
+
+  Material:
+    slots:
+      - id
+    attributes:
+      thermal_conductivity:
+        description: Thermal conductivity [W/(m.K)]
+        range: float
+      specific_heat_capacity:
+        description: Specific thermal capacity [J/(kg.K)]
+        range: float
+      density:
+        description: Density [kg/m3]
+        range: float
+      longwave_emissivity:
+        description: Longwave emissivity [1]
+        range: float
+        ifabsent: float(0.85)
+      shortwave_emissivity:
+        description: Shortwave emissivity [1]
+        range: float
+        ifabsent: float(0.85)
+  Gas:
+    is_a: Material
+  GlassMaterial:
+    is_a: Material
+    attributes:
+      solar_transmittance:
+        range: float
+        multivalued: true
+        ifabsent: float(0.6)
+      solar_reflectance_outside_facing:
+        range: float
+        multivalued: true
+        ifabsent: float(0.075)
+      solar_reflectance_room_facing:
+        range: float
+        multivalued: true
+        ifabsent: float(0.075)
+      infrared_transmissivity:
+        range: float
+        ifabsent: float(0.0)
+      infrared_absorptivity_outside_facing:
+        range: float
+        ifabsent: float(0.84)
+      infrared_absorptivity_room_facing:
+        range: float
+        ifabsent: float(0.84)
+  GlazingLayer:
+    attributes:
+      gas:
+        description: Gas
+        range: Gas
+      glass:
+        description: Glass
+        range: GlassMaterial
+      thickness:
+        description: Thickness [m]
+        range: float
+  Layer:
+    attributes:
+      material:
+        description: Material
+        range: Material
+      thickness:
+        description: Thickness [m]
+        range: float
+  Construction:
+    slots:
+      - id
+    attributes:
+      layers:
+        description: Layers
+        range: Layer
+        multivalued: true
+  Glazing:
+    slots:
+      - id
+    attributes:
+      u_value_frame:
+        description: U-value of the frame [W/(m2.K)]
+        range: float
+        ifabsent: float(1.4)
+      layers:
+        description: Layers
+        range: GlazingLayer
+        multivalued: true
+  Parameter:
+    description: >-
+      Represents Parameters
+    slots:
+      - name
+    class_uri: schema:Parameter
+  Occupancy:
+    description: >-
+      Represents Occupancy
+    slots:
+      - parameters
+    slot_usage:
+      parameters:
+        range: OccupancyParameters
+    class_uri: schema:Occupancy
+
+  System:
+    attributes:
+      variant:
+        range: string
+        ifabsent: string('default')
+    slots:
+      - id
+      - inlets
+      - outlets
+    class_uri: schema:System
+  Systems:
+    slots:
+#      - valve
+      - split_valve
+      - three_way_valve
+      - boiler
+      - pump
+      - temperature_sensor
+      - heat_meter_sensor
+      - air_handling_unit
+    class_uri: schema:Systems
+  Solar:
+    slots:
+      - photovoltaic
+    class_uri: schema:Solar
+  Emission:
+    slots:
+      - radiator
+      - valve
+    class_uri: schema:Emission
+
+  VentilationInlet:
+    slots:
+      - duct
+      - vav
+    class_uri: schema:VentilationInlet
+  VentilationOutlet:
+    slots:
+      - duct
+      - vav
+    class_uri: schema:VentilationOutlet
+  SplitValve:
+    is_a: System
+    attributes:
+      parameters:
+        range: SplitValveParameters
+  Radiator:
+    is_a: System
+    attributes:
+      control:
+        range: Control #TODO: create radiator control
+
+
+    slots:
+      - parameters
+    slot_usage:
+      parameters:
+        range: RadiatorParameter
+  Valve:
+    is_a: System
+    attributes:
+      control:
+        range: Control
+    slots:
+      - parameters
+    slot_usage:
+      parameters:
+        range: ValveParameters
+  ThreeWayValve:
+    is_a: System
+    attributes:
+      parameters:
+        range: ThreeWayValveParameters
+      control:
+        range: Control
+  Boiler:
+    is_a: System
+    attributes:
+      parameters:
+        range: BoilerParameters
+      control:
+        range: Control
+  AirHandlingUnit:
+    is_a: System
+    attributes:
+      parameters:
+        range: Parameter
+      control:
+        range: Control
+
+  Pump:
+    is_a: System
+    attributes:
+      parameters:
+        range: PumpParameters
+      control:
+        range: Control
+  VAV:
+    is_a: System
+    attributes:
+      control:
+        range: Control
+  Duct:
+    is_a: System
+    attributes:
+        parameters:
+            range: Parameter
+
+  TemperatureSensor:
+    is_a: System
+
+  HeatMeterSensor:
+    is_a: System
+
+  EmissionControl:
+
+    slots:
+      - id
+    attributes:
+      variant:
+        ifabsent: string('default')
+        range: string
+      parameters:
+        range: EmissionControlParameters
+        multivalued: false
+    class_uri: schema:EmissionControl
+  BoilerControl:
+    slots:
+      - id
+    attributes:
+      variant:
+        ifabsent: string('default')
+        range: string
+      parameters:
+        range: BoilerControlParameters
+        multivalued: false
+    class_uri: schema:BoilerControl
+  CollectorControl:
+    slots:
+      - id
+    class_uri: schema:CollectorControl
+  ThreeWayValveControl:
+    slots:
+      - id
+    class_uri: schema:CollectorControl
+  VavControl:
+    attributes:
+      variant:
+        range: string
+        ifabsent: string('default')
+    slots:
+      - id
+    class_uri: schema:VavControl
+  AhuControl:
+    slots:
+      - id
+    class_uri: schema:AhuControl
+
+  Control:
+    slots:
+      - emission_control
+      - boiler_control
+      - collector_control
+      - three_way_valve_control
+      - vav_control
+      - ahu_control
+    class_uri: schema:Control
+  Default:
+    attributes:
+      material:
+        range: Material
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      gas:
+        range: Gas
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      glass_material:
+        range: GlassMaterial
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      glazings:
+        range: Glazing
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      constructions:
+        range: Construction
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+  Building:
+    tree_root: true
+    description: >-
+      A holder for Space objects
+    attributes:
+      default:
+        range: Default
+      material:
+        range: Material
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      gas:
+        range: Gas
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      glass_material:
+        range: GlassMaterial
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      glazings:
+        range: Glazing
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      constructions:
+        range: Construction
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      internal_walls:
+        range: InternalWall
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      spaces:
+        range: Space
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      systems:
+        range: Systems
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      weather:
+        range: Weather
+      solar:
+        range: Solar
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+
+
+
+slots:
+  id:
+    identifier: true
+    slot_uri: schema:identifier
+    description: A unique identifier for a thing
+  name:
+    slot_uri: schema:name
+    description: A human-readable name for a thing
+  parameters:
+    slot_uri: schema:parameters
+    range: Parameter
+    multivalued: false
+  inlets:
+    slot_uri: schema:inlets
+    range: System
+    multivalued: true
+  outlets:
+    slot_uri: schema:inlets
+    range: System
+    multivalued: true
+  occupancy:
+    slot_uri: schema:occupancy
+    range: Occupancy
+    multivalued: false
+  radiator:
+    range: Radiator
+    multivalued: false
+    inlined: true
+  valve:
+    range: Valve
+    multivalued: false
+    inlined: true
+  three_way_valve:
+    range: ThreeWayValve
+    multivalued: false
+    inlined: true
+  temperature_sensor:
+    range: TemperatureSensor
+    multivalued: false
+    inlined: true
+  heat_meter_sensor:
+    range: HeatMeterSensor
+    multivalued: false
+    inlined: true
+  photovoltaic:
+    range: Photovoltaic
+    multivalued: false
+    inlined: true
+  split_valve:
+    range: SplitValve
+    multivalued: false
+    inlined: true
+
+  boiler:
+    range: Boiler
+    multivalued: false
+    inlined: true
+
+  air_handling_unit:
+    range: AirHandlingUnit
+    multivalued: false
+    inlined: true
+
+  pump:
+    range: Pump
+    multivalued: false
+    inlined: true
+
+  duct:
+    range: Duct
+    multivalued: false
+    inlined: true
+  vav:
+    range: VAV
+    multivalued: false
+    inlined: true
+
+  vav_control:
+    range: VavControl
+    multivalued: false
+    inlined: true
+  ahu_control:
+    range: AhuControl
+    multivalued: false
+    inlined: true
+
+  emissions:
+    slot_uri: schema:emissions
+    range: Emission
+    multivalued: true
+    inlined: true
+  ventilation_inlets:
+    slot_uri: schema:ventilation_inlets
+    range: VentilationInlet
+    multivalued: true
+    inlined: true
+  ventilation_outlets:
+    slot_uri: schema:ventilation_outlets
+    range: VentilationOutlet
+    multivalued: true
+    inlined: true
+  emission_control:
+    slot_uri: schema:emission_control
+    range: EmissionControl
+    multivalued: false
+    inlined: true
+  three_way_valve_control:
+    slot_uri: schema:three_way_valve_control
+    range: ThreeWayValveControl
+    multivalued: false
+    inlined: true
+  collector_control:
+    slot_uri: schema:collector_control
+    range: CollectorControl
+    multivalued: false
+    inlined: true
+  boiler_control:
+    slot_uri: schema:boiler_control
+    range: BoilerControl
+    multivalued: false
+    inlined: true
+  external_boundaries:
+    slot_uri: schema:external_boundaries
+    range: ExternalBoundaries
+    multivalued: false
+  surface:
+    slot_uri: schema:surface
+    range: float
+  azimuth:
+    slot_uri: schema:azimuth
+    range: float
+  tilt:
+    slot_uri: schema:tilt
+    range: string
+
+enums:
+  ControlType:
+    permissible_values:
+      Ahu:
+      Boiler:
+      Collector:
+      Emission:
+      VAV:
+      ThreeWayValve:

@@ -1,0 +1,65 @@
+{%- macro join_list(values) -%}
+    {% raw %}{{% endraw %} {{ values | join(', ') }} {% raw %}}{% endraw %}
+{%- endmacro %}
+
+{%- macro element_parameters(boundary) -%}
+    layers={{ join_list(boundary.layers) }},
+    A={{ join_list(boundary.surfaces) }},
+    til={{ convert_tilts(boundary.tilts) }}
+{%- endmacro %}
+
+{%- macro connect(edge) -%}
+connect({{ edge.left.equation }},{{ edge.right.equation }})
+annotation (Line(
+points={{ connect_path(edge.path) }},
+    {% if edge.connection_view.color %}
+color={{ edge.connection_view.color }},
+    {% endif %}
+thickness={{ edge.connection_view.thickness }},
+smooth=Smooth.None));
+{%- endmacro %}
+
+{%- macro connect_container(edge) -%}
+connect({{ edge.left.equation }},{{ edge.right.equation }})
+    {% if not edge.connection_view.disabled %}
+annotation (Line(
+points={{ connect_path(edge.container_path) }},
+    {% if edge.connection_view.color %}
+color={{ edge.connection_view.color }},
+    {% endif %}
+thickness={{ edge.connection_view.thickness }},pattern = LinePattern.{{ edge.connection_view.pattern }},
+smooth=Smooth.None))
+    {% endif %}
+    ;
+{%- endmacro %}
+
+{%- macro connect_main_container(connection) -%}
+connect({{ connection.left.container_type }}1.{{ connection.left.equation }},{{ connection.right.container_type }}1.{{ connection.right.equation }})
+{{ connection.annotation }};
+{%- endmacro %}
+
+
+{%- macro render_parameters(parameters)  %}
+{% for key, value in parameters.items() %}
+    {{ key | safe}}={{ value | safe}}{{ "," if not loop.last }}
+{% endfor %}
+{%- endmacro %}
+
+{%- macro convert_tilts(boundary_tilts) -%}
+    {% set tilts = ({"wall":"Buildings.Types.Tilt.Wall",
+"ceiling":"Buildings.Types.Tilt.Ceiling",
+"roof":"Buildings.Types.Tilt.Roof",
+"floor":"Buildings.Types.Tilt.Floor",
+ "pitched_roof_45": 0.785,
+  "pitched_roof_30": 0.524,
+  "pitched_roof_35": 0.611,
+  "pitched_roof_40": 0.698,
+  "pitched_roof_20": 0.349}) %}
+    {% raw %}{{% endraw %} {%- for tilt in boundary_tilts -%}
+    {{ tilts[tilt.value] }}{{ "," if not loop.last }} {%- endfor %}{% raw %}}{% endraw %}
+{%- endmacro %}
+
+{%- macro connect_path(paths) -%}
+    {% raw %}{{% endraw %}{%- for path in paths -%}{% raw %}{{% endraw %} {{ path | join(', ') }} {% raw %}}{% endraw %}
+    {{ "," if not loop.last }}{%- endfor %}{% raw %}}{% endraw %}
+{%- endmacro %}
