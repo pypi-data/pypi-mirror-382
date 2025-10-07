@@ -1,0 +1,674 @@
+// Copyright (C) 2018-2019 Bloomberg LP
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package build.buildgrid;
+
+import "build/bazel/remote/execution/v2/remote_execution.proto";
+import "google/rpc/status.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/wrappers.proto";
+
+service LocalContentAddressableStorage {
+  // Retrieves the configuration details for the local CAS server.
+  // This RPC allows clients to obtain information such as the hostname,
+  // user ID, and storage root of the local CAS server.
+  rpc GetLocalServerDetails(GetLocalServerDetailsRequest) returns (LocalServerDetails) {}
+
+  // Fetch blobs from a remote CAS to the local cache.
+  //
+  // This request is equivalent to ByteStream `Read` or `BatchReadBlobs`
+  // requests, storing the downloaded blobs in the local cache.
+  //
+  // Requested blobs that failed to be downloaded will be listed in the
+  // response.
+  //
+  // Errors:
+  // * `INVALID_ARGUMENT`: The client attempted to download more than the
+  //   server supported limit.
+  //
+  // Individual requests may return the following error, additionally:
+  // * `NOT_FOUND`: The requested blob is not present in the remote CAS.
+  rpc FetchMissingBlobs(FetchMissingBlobsRequest) returns (FetchMissingBlobsResponse) {}
+
+  // Upload blobs from the local cache to a remote CAS.
+  //
+  // This request is equivalent to `FindMissingBlobs` followed by
+  // ByteStream `Write` or `BatchUpdateBlobs` requests.
+  //
+  // Blobs that failed to be uploaded will be listed in the response.
+  //
+  // Errors:
+  // * `INVALID_ARGUMENT`: The client attempted to upload more than the
+  //   server supported limit.
+  //
+  // Individual requests may return the following error, additionally:
+  // * `NOT_FOUND`: The requested blob is not present in the local cache.
+  // * `RESOURCE_EXHAUSTED`: There is insufficient disk quota to store the blob.
+  rpc UploadMissingBlobs(UploadMissingBlobsRequest) returns (UploadMissingBlobsResponse) {}
+
+  // Fetch the entire directory tree rooted at a node from a remote CAS to the
+  // local cache.
+  //
+  // This request is equivalent to `GetTree`, storing the `Directory` objects
+  // in the local cache. Optionally, this will also fetch all blobs referenced
+  // by the `Directory` objects, equivalent to `FetchMissingBlobs`.
+  //
+  // If no remote CAS is available, this will check presence of the entire
+  // directory tree (and optionally also file blobs) in the local cache.
+  //
+  // * `NOT_FOUND`: The requested tree is not present in the CAS or incomplete.
+  rpc FetchTree(FetchTreeRequest) returns (FetchTreeResponse) {}
+
+  // Upload the entire directory tree from the local cache to a remote CAS.
+  //
+  // This request is equivalent to `UploadMissingBlobs` for all blobs
+  // referenced by the specified tree (recursively).
+  //
+  // Errors:
+  // * `NOT_FOUND`: The requested tree root is not present in the local cache.
+  // * `RESOURCE_EXHAUSTED`: There is insufficient disk quota to store the tree.
+  rpc UploadTree(UploadTreeRequest) returns (UploadTreeResponse) {}
+
+  // Stage a directory tree in the local filesystem.
+  //
+  // This makes the specified directory tree temporarily available for local
+  // filesystem access. It is implementation-defined whether this uses a
+  // userspace filesystem such as FUSE, hardlinking or a full copy.
+  //
+  // Missing blobs are fetched, if a CAS remote is configured.
+  //
+  // The staging starts when the server receives the initial request and
+  // it is ready to be used on the initial (non-error) response from the
+  // server.
+  //
+  // The server will clean up the staged directory when it either
+  // receives an additional request (with all fields unset) or when the
+  // stream is closed. The server will send an additional response after
+  // cleanup is complete.
+  rpc StageTree(stream StageTreeRequest) returns (stream StageTreeResponse) {}
+
+  // Capture a directory tree from the local filesystem.
+  //
+  // This imports the specified path from the local filesystem into CAS.
+  //
+  // If a CAS remote is configured, the blobs are uploaded.
+  // The `bypass_local_cache` parameter is a hint to indicate whether the blobs
+  // shall be uploaded without first storing them in the local cache.
+  //
+  // The `move_files` parameter is a hint to indicate that files could be
+  // moved into the storage. This can make capturing more efficient by
+  // avoiding copies when it is known that files will not be needed after they
+  // are imported. If a server chooses not to move them, the source files will
+  // still exist after this request.
+  //
+  // The `skip_upload` parameter is a hint to indicate that the files do not
+  // need to be uploaded to the remote CAS. This can be useful for local-only
+  // workflows where an upload step adds unnecessary latency.
+  rpc CaptureTree(CaptureTreeRequest) returns (CaptureTreeResponse) {}
+
+  // Capture files from the local filesystem.
+  //
+  // This imports the specified paths from the local filesystem into CAS.
+  //
+  // If a CAS remote is configured, the blobs are uploaded.
+  // The `bypass_local_cache` parameter is a hint to indicate whether the blobs
+  // shall be uploaded without first storing them in the local cache.
+  //
+  // The `move_files` parameter is a hint to indicate that the files could be
+  // moved into the storage. This can make capturing more efficient by
+  // avoiding copies when it is known that files will not be needed after they
+  // are imported. If a server chooses not to move them, the source files will
+  // still exist after this request.
+  //
+  // The `skip_upload` parameter is a hint to indicate that the files do not
+  // need to be uploaded to the remote CAS. This can be useful for local-only
+  // workflows where an upload step adds unnecessary latency.
+  rpc CaptureFiles(CaptureFilesRequest) returns (CaptureFilesResponse) {}
+
+  // Configure remote CAS endpoint.
+  //
+  // This returns a string that can be used as instance_name to access the
+  // specified endpoint in further requests.
+  //
+  // DEPRECATED: Use `content_addressable_storage` in `GetInstanceNameForRemotes()`
+  // instead.
+  rpc GetInstanceNameForRemote(GetInstanceNameForRemoteRequest) returns (GetInstanceNameForRemoteResponse) {}
+
+  // Configure remote endpoints.
+  //
+  // This returns a string that can be used as instance_name to access the
+  // specified endpoints in further requests.
+  rpc GetInstanceNameForRemotes(GetInstanceNameForRemotesRequest) returns (GetInstanceNameForRemotesResponse) {}
+
+  // Configure sandboxed clients.
+  //
+  // This returns a string that can be used as instance_name to access
+  // this service from clients running in the specified filesystem/mount
+  // namespace or chroot environment
+  rpc GetInstanceNameForNamespace(GetInstanceNameForNamespaceRequest) returns (GetInstanceNameForNamespaceResponse) {}
+
+  // Query total space used by the local cache.
+  rpc GetLocalDiskUsage(GetLocalDiskUsageRequest) returns (GetLocalDiskUsageResponse) {}
+}
+
+// A request message for
+// [LocalContentAddressableStorage.GetLocalServerDetails][build.buildgrid.v2.LocalContentAddressableStorage.GetLocalServerDetails].
+message GetLocalServerDetailsRequest
+{
+    // The instance of the execution system to operate against. A server may
+    // support multiple instances of the execution system (with their own
+    // workers, storage, caches, etc.). The server MAY require use of this
+    // field to select between them in an implementation-defined fashion,
+    // otherwise it can be omitted.
+    string instance_name = 1;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.GetLocalServerDetails][build.buildgrid.v2.LocalContentAddressableStorage.GetLocalServerDetails].
+message LocalServerDetails
+{
+    // The hostname where the local CAS server is running.
+    // This is used to determine if the client is running on the same host as
+    // the server. When running on the same host, you may access the
+    // storage_root directly.
+    string hostname = 1;
+
+    // The user ID (UID) which owns the local CAS process.
+    // This is used to determine if the client is running as the same user as
+    // the server. When running as the same user, hardlinking from the
+    // storage_root is dangerous.
+    int64 process_uid = 2;
+
+    // The absolute path to the local CAS cache directory.
+    // The storage_root contains locally stored blobs for digests in CAS.
+    // The local path to a blob has the following format:
+    //     storage_root/objects/{hash[:2]}/{hash[2:]}
+    string storage_root = 3;
+}
+
+// A request message for
+// [LocalContentAddressableStorage.FetchMissingBlobs][build.buildgrid.v2.LocalContentAddressableStorage.FetchMissingBlobs].
+message FetchMissingBlobsRequest {
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 1;
+
+  // A list of the blobs to fetch.
+  repeated build.bazel.remote.execution.v2.Digest blob_digests = 2;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.FetchMissingBlobs][build.buildgrid.v2.LocalContentAddressableStorage.FetchMissingBlobs].
+message FetchMissingBlobsResponse {
+  // A response corresponding to a single blob that the client tried to download.
+  message Response {
+    // The digest to which this response corresponds.
+    build.bazel.remote.execution.v2.Digest digest = 1;
+
+    // The result of attempting to download that blob.
+    google.rpc.Status status = 2;
+  }
+
+  // The responses to the failed requests.
+  repeated Response responses = 1;
+}
+
+// A request message for
+// [LocalContentAddressableStorage.UploadMissingBlobs][build.buildgrid.v2.LocalContentAddressableStorage.UploadMissingBlobs].
+message UploadMissingBlobsRequest {
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 1;
+
+  // A list of the blobs to fetch.
+  repeated build.bazel.remote.execution.v2.Digest blob_digests = 2;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.UploadMissingBlobs][build.buildgrid.v2.LocalContentAddressableStorage.UploadMissingBlobs].
+message UploadMissingBlobsResponse {
+  // A response corresponding to a single blob that the client tried to upload.
+  message Response {
+    // The digest to which this response corresponds.
+    build.bazel.remote.execution.v2.Digest digest = 1;
+
+    // The result of attempting to upload that blob.
+    google.rpc.Status status = 2;
+  }
+
+  // The responses to the failed requests.
+  repeated Response responses = 1;
+}
+
+// A request message for
+// [LocalContentAddressableStorage.FetchTree][build.buildgrid.v2.LocalContentAddressableStorage.FetchTree].
+message FetchTreeRequest {
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 1;
+
+  // The digest of the root, which must be an encoded
+  // [Directory][build.bazel.remote.execution.v2.Directory] message
+  // stored in the
+  // [ContentAddressableStorage][build.bazel.remote.execution.v2.ContentAddressableStorage].
+  build.bazel.remote.execution.v2.Digest root_digest = 2;
+
+  // Whether to fetch blobs of files in the directory tree.
+  bool fetch_file_blobs = 3;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.FetchTree][build.buildgrid.v2.LocalContentAddressableStorage.FetchTree].
+message FetchTreeResponse {
+}
+
+// A request message for
+// [LocalContentAddressableStorage.UploadTree][build.buildgrid.v2.LocalContentAddressableStorage.UploadTree].
+message UploadTreeRequest {
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 1;
+
+  // The digest of the root, which must be an encoded
+  // [Directory][build.bazel.remote.execution.v2.Directory] message
+  // stored in the
+  // [ContentAddressableStorage][build.bazel.remote.execution.v2.ContentAddressableStorage].
+  build.bazel.remote.execution.v2.Digest root_digest = 2;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.UploadTree][build.buildgrid.v2.LocalContentAddressableStorage.UploadTree].
+message UploadTreeResponse {
+}
+
+// A request message for
+// [LocalContentAddressableStorage.StageTree][build.buildgrid.v2.LocalContentAddressableStorage.StageTree].
+message StageTreeRequest {
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 1;
+
+  // The digest of the root, which must be an encoded
+  // [Directory][build.bazel.remote.execution.v2.Directory] message
+  // stored in the
+  // [ContentAddressableStorage][build.bazel.remote.execution.v2.ContentAddressableStorage].
+  build.bazel.remote.execution.v2.Digest root_digest = 2;
+
+  // The path in the local filesystem where the specified tree should be
+  // staged. It must either point to an empty directory or not exist yet.
+  //
+  // This is optional. If not specified, the server will choose a location.
+  // The server may require the path to be on the same filesystem as the local
+  // cache to support hardlinking.
+  //
+  // The path may be a subdirectory of another staged tree. The lifetime of
+  // this staged tree will in that case be limited to the lifetime of the
+  // parent.
+  string path = 3;
+
+  message Credentials {
+    int64 uid = 1;
+    int64 gid = 2;
+  }
+
+  // The UNIX credentials of the processes that will access the staged tree.
+  // This will be used to ensure that the files have the right permissions
+  // for access without risking corruption of files in the local cache.
+  Credentials access_credentials = 4;
+
+  // The path, relative to the staging directory, where a server socket should
+  // be created for access to the Remote Execution API.
+  string remote_apis_socket_path = 7;
+
+  // The commands to run against the tree before it is cleaned.
+  // Each command must be an absolute path to an executable which can be run as
+  // `/path/to/command <path-to-stage-dir>`.
+  // The working directory of launched commands will be the same as the LocalCAS
+  // server process.
+  // The server SHOULD maintain an allowlist of commands that can be launched.
+  repeated string pre_unstage_commands = 5;
+
+  enum StagingMode {
+    // The staging mode is not specified. The LocalCAS server will use the default
+    // staging mode chosen from its configuration and environment.
+    DEFAULT = 0;
+
+    // The tree will be staged using libfuse.
+    FUSE = 1;
+
+    // The tree will be staged by copying or linking files from the local
+    // cache. The exact behavior depends on the filesystem, contents of the
+    // tree and the credentials of the client.
+    COPY_OR_LINK = 2;
+  }
+
+  // The staging mode to use for the tree.
+  // `INVALID_ARGUMENT` is returned if the server does not support the requested mode.
+  StagingMode staging_mode = 6;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.StageTree][build.buildgrid.v2.LocalContentAddressableStorage.StageTree].
+message StageTreeResponse {
+  // The path in the local filesystem where the specified tree has been staged.
+  string path = 1;
+}
+
+// A request message for
+// [LocalContentAddressableStorage.CaptureTree][build.buildgrid.v2.LocalContentAddressableStorage.CaptureTree].
+message CaptureTreeRequest {
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 1;
+
+  // The optional root path to restrict capture to a subtree.
+  // If specified, `path` will be resolved inside this root.
+  // No files outside the root will be captured.
+  string root = 6;
+
+  // The path(s) in the local filesystem to capture.
+  repeated string path = 2;
+
+  // This is a hint whether the blobs shall be uploaded to the remote CAS
+  // without first storing them in the local cache.
+  bool bypass_local_cache = 3;
+
+  // The properties of path(s) in the local filesystem to capture.
+  repeated string node_properties = 4;
+
+  // Hints whether files can be moved into the storage.
+  // If enabled, they MUST NOT be modified after issuing this request in order
+  // to guarantee consistency.
+  bool move_files = 5;
+
+  // The format that the localcas should use to capture the contents of
+  // output directories.
+  //
+  // In case this field is set to a value that is not supported by the
+  // localcas, the worker SHOULD interpret this field as TREE_ONLY. The
+  // localcas MAY store output directories in formats that are a superset
+  // of what was requested (e.g., interpreting DIRECTORY_ONLY as
+  // TREE_AND_DIRECTORY).
+  build.bazel.remote.execution.v2.Command.OutputDirectoryFormat output_directory_format = 7;
+
+  // Hints whether files should be uploaded to the remote CAS.
+  // This is mutually exclusive with `bypass_local_cache`. If both `skip_upload`
+  // and `bypass_local_cache` are set, the server MUST return an InvalidArgument
+  // error.
+  bool skip_upload = 8;
+
+  // The mask to apply to the files and directories being captured.
+  // For example, a mask of `0222` will result in contents being captured as read-only.
+  // This is only effective when the unix_mode property is captured.
+  google.protobuf.UInt32Value unix_mode_mask = 9;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.CaptureTree][build.buildgrid.v2.LocalContentAddressableStorage.CaptureTree].
+message CaptureTreeResponse {
+  // A response corresponding to a single blob that the client tried to upload.
+  message Response {
+    // The path to which this response corresponds.
+    string path = 1;
+
+    // The digest of the captured tree as an encoded
+    // [Tree][build.bazel.remote.execution.v2.Tree] proto containing the
+    // directory's contents, if successful.
+    build.bazel.remote.execution.v2.Digest tree_digest = 2;
+
+    // The result of attempting to capture and upload the tree.
+    google.rpc.Status status = 3;
+
+    // The digest of the captured directory as an encoded
+    // [Tree][build.bazel.remote.execution.v2.Directory] proto containing the
+    // directory's contents, if successful.
+    build.bazel.remote.execution.v2.Digest root_directory_digest = 4;
+  }
+
+  // The responses to the requests.
+  repeated Response responses = 1;
+}
+
+// A request message for
+// [LocalContentAddressableStorage.CaptureFiles][build.buildgrid.v2.LocalContentAddressableStorage.CaptureFiles].
+message CaptureFilesRequest {
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 1;
+
+  // The optional root path to restrict capture to a subtree.
+  // If specified, `path` will be resolved inside this root.
+  // No files outside the root will be captured.
+  string root = 6;
+
+  // The path(s) in the local filesystem to capture.
+  repeated string path = 2;
+
+  // This is a hint whether the blobs shall be uploaded to the remote CAS
+  // without first storing them in the local cache.
+  bool bypass_local_cache = 3;
+
+  // The properties of path(s) in the local filesystem to capture.
+  repeated string node_properties = 4;
+
+  // Hints whether the files can be moved into the storage.
+  // If enabled, they MUST NOT be modified after issuing this request in order
+  // to guarantee consistency.
+  bool move_files = 5;
+
+  // Hints whether files should be uploaded to the remote CAS.
+  // This is mutually exclusive with `bypass_local_cache`. If both `skip_upload`
+  // and `bypass_local_cache` are set, the server MUST return an InvalidArgument
+  // error.
+  bool skip_upload = 7;
+
+  // The mask to apply to the files being captured.
+  // For example, a mask of `0222` will result in contents being captured as read-only.
+  // This is only effective when the unix_mode property is captured.
+  google.protobuf.UInt32Value unix_mode_mask = 8;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.CaptureFiles][build.buildgrid.v2.LocalContentAddressableStorage.CaptureFiles].
+message CaptureFilesResponse {
+  // A response corresponding to a single blob that the client tried to upload.
+  message Response {
+    // The path to which this response corresponds.
+    string path = 1;
+
+    // The digest of the captured file's content, if successful.
+    build.bazel.remote.execution.v2.Digest digest = 2;
+
+    // The result of attempting to capture and upload the file.
+    google.rpc.Status status = 3;
+
+    // True if the captured file was executable, false otherwise.
+    bool is_executable = 4;
+
+    // The node properties of the captured file.
+    reserved 5;
+    build.bazel.remote.execution.v2.NodeProperties node_properties = 6;
+  }
+
+  // The responses to the requests.
+  repeated Response responses = 1;
+}
+
+// A request message for
+// [LocalContentAddressableStorage.GetInstanceNameForRemote][build.buildgrid.v2.LocalContentAddressableStorage.GetInstanceNameForRemote].
+message GetInstanceNameForRemoteRequest {
+  // The URL for the remote CAS server.
+  string url = 1;
+
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 2;
+
+  // PEM-encoded public server certificate for https connections to the remote
+  // CAS server.
+  bytes server_cert = 3;
+
+  // PEM-encoded private client key for https with certificate-based client
+  // authentication. If this is specified, `client_cert` must be specified
+  // as well.
+  bytes client_key = 4;
+
+  // PEM-encoded public client certificate for https with certificate-based
+  // client authentication. If this is specified, `client_key` must be
+  // specified as well.
+  bytes client_cert = 5;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.GetInstanceNameForRemote][build.buildgrid.v2.LocalContentAddressableStorage.GetInstanceNameForRemote].
+message GetInstanceNameForRemoteResponse {
+  string instance_name = 1;
+}
+
+message Remote {
+  // The URL for the remote server.
+  string url = 1;
+
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 2;
+
+  // PEM-encoded public server certificate for https connections to the remote
+  // server.
+  bytes server_cert = 3;
+
+  // PEM-encoded private client key for https with certificate-based client
+  // authentication. If this is specified, `client_cert` must be specified
+  // as well.
+  bytes client_key = 4;
+
+  // PEM-encoded public client certificate for https with certificate-based
+  // client authentication. If this is specified, `client_key` must be
+  // specified as well.
+  bytes client_cert = 5;
+
+  // The path to a token for optional HTTP bearer authentication.
+  string access_token_path = 7;
+
+  // Access token reload interval.
+  google.protobuf.Duration access_token_reload_interval = 8;
+
+  // Remote keepalive time. Unset or empty is treated as disabling keepalive.
+  google.protobuf.Duration keepalive_time = 6;
+
+  // The maximum number of time a request is retried on this remote
+  // A `retry_limit` of 0 indicates that
+  // there is no limit and the server can pick a retry_limit
+  int64 retry_limit = 9;
+
+  // The initial recommended retry delay before the first retry, the
+  // server might implement a backoff startegy.
+  // A `retry_delay` of unset or empty indicates
+  // that there is no delay recommended and the server can pick a retry_delay
+  google.protobuf.Duration retry_delay = 10;
+
+  // How long to wait for a response from the remote.
+  google.protobuf.Duration request_timeout = 11;
+
+  // If set, don't upload any blobs, action results or assets to the remote.
+  bool read_only = 12;
+}
+
+// A request message for
+// [LocalContentAddressableStorage.GetInstanceNameForRemotes][build.buildgrid.v2.LocalContentAddressableStorage.GetInstanceNameForRemotes].
+message GetInstanceNameForRemotesRequest {
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 3;
+
+  Remote content_addressable_storage = 1;
+  Remote remote_asset = 2;
+  Remote action_cache = 4;
+  Remote execution = 5;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.GetInstanceNameForRemotes][build.buildgrid.v2.LocalContentAddressableStorage.GetInstanceNameForRemotes].
+message GetInstanceNameForRemotesResponse {
+  string instance_name = 1;
+}
+
+
+// A request message for
+// [LocalContentAddressableStorage.GetInstanceNameForRemote][build.buildgrid.v2.LocalContentAddressableStorage.GetInstanceNameForNamespace].
+message GetInstanceNameForNamespaceRequest {
+  // The instance of the execution system to operate against. A server may
+  // support multiple instances of the execution system (with their own workers,
+  // storage, caches, etc.). The server MAY require use of this field to select
+  // between them in an implementation-defined fashion, otherwise it can be
+  // omitted.
+  string instance_name = 1;
+
+  // The root path of the mount namespace to restrict capture and staging.
+  // All paths in requests to the new instance will be resolved inside this root.
+  string root = 2;
+}
+
+// A response message for
+// [LocalContentAddressableStorage.GetInstanceNameForRemote][build.buildgrid.v2.LocalContentAddressableStorage.GetInstanceNameForNamespace].
+message GetInstanceNameForNamespaceResponse {
+  string instance_name = 1;
+}
+
+// A request message for
+// [LocalContentAddressableStorage.GetLocalDiskUsage][build.buildgrid.v2.LocalContentAddressableStorage.GetLocalDiskUsage].
+message GetLocalDiskUsageRequest {
+}
+
+// A response message for
+// [LocalContentAddressableStorage.GetLocalDiskUsage][build.buildgrid.v2.LocalContentAddressableStorage.GetLocalDiskUsage].
+message GetLocalDiskUsageResponse {
+  // Total size used by the local cache, in bytes.
+  int64 size_bytes = 1;
+
+  // Disk quota for the local cache, in bytes. A value of 0 means no quota is set.
+  int64 quota_bytes = 2;
+}
