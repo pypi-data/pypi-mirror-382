@@ -1,0 +1,36 @@
+name: Publish Starsim docs
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Install Starsim and publish docs
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+
+    - name: Install Starsim
+      run: pip install -e .[dev]
+
+    - name: Set up Quarto
+      uses: quarto-dev/quarto-actions/setup@v2
+
+    - name: Install Quarto interlinks
+      working-directory: ./docs
+      run: quarto add machow/quartodoc --no-prompt
+
+    - name: Custom Quarto publish
+      working-directory: ./docs
+      run: ./publish
