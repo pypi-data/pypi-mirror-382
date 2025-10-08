@@ -1,0 +1,29 @@
+cdef class Mesher{{ position_type }}{{ '%02d' % label_type }}:
+  cdef CMesher[uint{{ position_type }}_t, uint{{ label_type }}_t, float] *ptr      # hold a C++ instance which we're wrapping
+
+  def __cinit__(self, voxel_res):
+    self.ptr = new CMesher[uint{{ position_type }}_t, uint{{ label_type }}_t, float](voxel_res)
+
+  def __dealloc__(self):
+    del self.ptr
+
+  def mesh(self, data):
+    cdef cnp.ndarray[uint{{label_type}}_t, ndim=1] flat_data = reshape(data, (data.size,)).view(np.uint{{ label_type }})
+    self.ptr.mesh(
+      &flat_data[0],
+      data.shape[0], data.shape[1], data.shape[2],
+      data.flags.c_contiguous
+    )
+
+  def ids(self):
+    return self.ptr.ids()
+  
+  def get_mesh(self, mesh_id, normals=False, simplification_factor=0, max_simplification_error=40, min_simplification_error=(25 * sys.float_info.epsilon), transpose=True):
+    return self.ptr.get_mesh(mesh_id, normals, simplification_factor, max_simplification_error, min_simplification_error, transpose)
+  
+  def clear(self):
+    self.ptr.clear()
+
+  def erase(self, mesh_id):
+    return self.ptr.erase(mesh_id)
+
