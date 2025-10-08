@@ -1,0 +1,115 @@
+[project]
+name = "dummio"
+version = "1.10.2"
+description = "Easiest-possible IO for basic file types."
+authors = [{ name = "Zach Kurtz", email = "zkurtz@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "universal-pathlib>=0.3.2",
+]
+
+[project.urls]
+Source = "https://github.com/zkurtz/dummio"
+
+[dependency-groups]
+dev = [
+  "pre-commit >=3.8.0",
+  "pyright >=1.1.378",
+  "ruff >=0.7.4",
+  "pytest >=8.3.2",
+  "scikit-learn >=1.0.2",
+  "skl2onnx >=1.10.1",
+  "bump-my-version>=0.30.0",
+]
+azure = [
+    "adlfs>=2024.12.0",
+    "azure-storage-blob>=12.24.1",
+]
+pandas = [
+  "pyarrow>=18.1.0",
+  "fastparquet>=2024.11.0",
+  "pandas>=1.5.0",
+  "pandahandler>=0.5.4",
+]
+extras = [
+  "onnx>=1.10.1",
+  "pydantic>=2.10.2",
+  "dill>=0.2.2",
+  "click>=8.1.8",
+  "gcsfs>=2024.12.0",
+  "s3fs>=2024.12.0",
+  "ruamel-yaml>=0.18.10",
+  "mashumaro>=3.15",
+  "pyyaml>=6.0.2",
+  "orjson>=3.10.15",
+]
+
+[tool.uv]
+package = true
+
+[tool.bumpversion]
+current_version = "0.0.2"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+tag = false
+allow_dirty = true
+commit = false
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+include = ["dummio"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["dummio"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests",]
+
+[tool.pyright]
+include = ["dummio", "tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+  # ruff defaults:
+  "E4", "E7", "E9", "F",
+  # pycodestyle line formatting including line length
+  "E5",
+  # additional rule groups:
+  "I", # flake8-import-order
+  "TID", # flake8-tidy-imports
+  "D", # google-style docstrings,
+  "ANN", # require pyright type annotations
+]
+ignore = [
+  "ANN002", # Missing type annotation for *args
+  "ANN003", # Missing type annotation for **kwargs
+  "ANN101", # Missing type annotation for self in method
+  "ANN401", # Dynamically typed expressions (typing.Any) are disallowed in `**kwargs`
+  "D202", # would require one blank line after the last section of a multi-line docstring
+  "D203", # would require one blank line at start of class docstring
+  "D213", # would require multi-line docstring to start with a hard return
+  "D401", # would require imperative mood in docstring
+  "D413", # would put blank line at end of each multiline docstring
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["D104"] # would require module-level documentation
+"test_*.py" = [
+  "D", # would put requirements on docstrings in test files
+  "ANN201", # would require return type hint (normally None) for test functions
+]
