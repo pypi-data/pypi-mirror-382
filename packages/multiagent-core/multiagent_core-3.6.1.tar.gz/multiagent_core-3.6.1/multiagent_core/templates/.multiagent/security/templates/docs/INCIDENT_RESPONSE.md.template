@@ -1,0 +1,474 @@
+# Incident Response Guide - {{PROJECT_NAME}}
+
+**Generated**: {{GENERATED_DATE}}
+**Tech Stack**: {{TECH_STACK}}
+
+This guide provides step-by-step procedures for responding to security incidents, particularly secret exposure.
+
+---
+
+## 🚨 When to Use This Guide
+
+**Immediate use if**:
+- API key or token accidentally committed to git
+- Secret accidentally pushed to GitHub
+- `.env` file committed and pushed
+- Credentials shared via insecure channel
+- Suspicious billing activity detected
+- Unauthorized access detected
+
+**Time is critical** - The faster you respond, the less damage occurs.
+
+---
+
+## ⚡ Emergency Response Flow
+
+```
+DETECT → CONTAIN → ERADICATE → RECOVER → REVIEW
+  ⬇️       ⬇️          ⬇️           ⬇️        ⬇️
+0-5min   5-15min    15-30min    30-60min   24-48hr
+```
+
+---
+
+## 🔴 Phase 1: DETECT (0-5 minutes)
+
+### How Did You Discover the Incident?
+
+#### Scenario A: Git Hook Blocked Push
+**Status**: ✅ Incident prevented
+**Action**: No immediate emergency, but verify and clean up
+
+```bash
+# The pre-push hook caught the secret before it reached GitHub
+# Your secret is still only local
+git reset HEAD~1  # Undo the commit
+# Remove the secret from code
+# Commit again without the secret
+```
+
+#### Scenario B: Already Pushed to GitHub
+**Status**: 🚨 CRITICAL - Immediate action required
+**Exposure Level**: HIGH (publicly visible on GitHub)
+
+#### Scenario C: Billing Alert / Unusual Activity
+**Status**: 🚨 CRITICAL - May already be compromised
+**Exposure Level**: CRITICAL (actively being exploited)
+
+#### Scenario D: GitHub Security Alert
+**Status**: ⚠️ HIGH - GitHub detected the secret
+**Exposure Level**: HIGH (publicly visible, may be scraped)
+
+---
+
+## 🛑 Phase 2: CONTAIN (5-15 minutes)
+
+### Step 1: REVOKE THE SECRET IMMEDIATELY
+
+#### Google API Key
+```bash
+# Go to Google Cloud Console
+# APIs & Services → Credentials
+# Find the key → Delete or Regenerate
+```
+**Urgency**: CRITICAL ($2,300 GEMINI.md incident proves financial risk)
+
+#### OpenAI API Key
+```bash
+# Go to platform.openai.com/api-keys
+# Find the key → Revoke
+```
+**Urgency**: HIGH (pay-per-use, can rack up charges)
+
+#### GitHub Token
+```bash
+# Go to github.com/settings/tokens
+# Find the token → Delete
+# OR use CLI:
+gh auth token  # Get current token
+# Revoke via web interface
+```
+**Urgency**: HIGH (repository access, can leak more secrets)
+
+#### AWS Credentials
+```bash
+# Go to AWS IAM Console
+# Users → Your User → Security Credentials
+# Access Keys → Make Inactive OR Delete
+```
+**Urgency**: CRITICAL (can spin up expensive resources)
+
+#### Database Credentials
+```bash
+# Connect to database
+# Change user password immediately
+# Kill all active sessions
+```
+**Urgency**: CRITICAL (data breach risk)
+
+#### Generic API Token
+```bash
+# Log into service dashboard
+# API Settings → Revoke/Regenerate token
+```
+
+### Step 2: ASSESS EXPOSURE WINDOW
+
+```bash
+# Find when secret was committed
+git log --all --full-history --source --find-copies-harder -S "AIzaSy"
+
+# Find when it was pushed
+git log origin/main --grep="commit_message"
+
+# Calculate exposure duration
+# Pushed at: YYYY-MM-DD HH:MM
+# Revoked at: YYYY-MM-DD HH:MM
+# Exposure: X hours/days
+```
+
+### Step 3: CHECK FOR ACTIVE EXPLOITATION
+
+#### Google Cloud / OpenAI / AWS
+```bash
+# Check billing dashboard for unusual spikes
+# Review usage metrics for anomalies
+# Check audit logs for unauthorized access
+```
+
+#### GitHub
+```bash
+# Check repository access logs
+# Review recent commits by other users
+# Check for new collaborators
+# Review webhook configurations
+```
+
+#### Databases
+```bash
+# Review connection logs
+# Check for unusual queries
+# Audit data access patterns
+# Review export/backup activity
+```
+
+---
+
+## 🔥 Phase 3: ERADICATE (15-30 minutes)
+
+### Step 1: REMOVE SECRET FROM GIT HISTORY
+
+**WARNING**: This rewrites git history. Coordinate with team!
+
+#### Option A: Remove Single File
+```bash
+# Backup first!
+git clone --mirror /path/to/repo /path/to/backup
+
+# Remove the file from history
+git filter-branch --force --index-filter \
+  'git rm --cached --ignore-unmatch path/to/secret-file' \
+  --prune-empty --tag-name-filter cat -- --all
+
+# Verify
+git log --all -- path/to/secret-file
+# Should show no commits
+```
+
+#### Option B: Remove Secret Pattern (BFG Repo-Cleaner)
+```bash
+# Install BFG
+# brew install bfg  # macOS
+# or download from rtyley.github.io/bfg-repo-cleaner/
+
+# Backup first!
+git clone --mirror /path/to/repo /path/to/backup
+
+# Remove secret pattern
+bfg --replace-text patterns.txt repo.git
+# patterns.txt contains: AIzaSyXXXXXXXX
+
+# Clean up
+cd repo.git
+git reflog expire --expire=now --all
+git gc --prune=now --aggressive
+```
+
+#### Option C: Filter-Repo (Modern Tool)
+```bash
+# Install git-filter-repo
+pip install git-filter-repo
+
+# Backup first!
+git clone --mirror /path/to/repo /path/to/backup
+
+# Remove secrets
+git filter-repo --replace-text patterns.txt
+```
+
+### Step 2: FORCE PUSH (DANGER!)
+
+**Coordinate with team before running:**
+
+```bash
+# Force push to all branches
+git push origin --force --all
+
+# Force push all tags
+git push origin --force --tags
+
+# Notify team immediately
+# They must run: git fetch --all && git reset --hard origin/main
+```
+
+### Step 3: VERIFY REMOVAL
+
+```bash
+# Check GitHub
+# Browse repository on GitHub.com
+# Search for the secret pattern
+# Should return 0 results
+
+# Check local
+git log --all --full-history -S "AIzaSy"
+# Should return 0 commits
+```
+
+---
+
+## 🔧 Phase 4: RECOVER (30-60 minutes)
+
+### Step 1: GENERATE NEW SECRETS
+
+#### Google API Key
+```bash
+# Google Cloud Console → APIs & Services → Credentials
+# Create Credentials → API Key
+# Restrict key (HTTP referrers, IP addresses, API restrictions)
+```
+
+#### OpenAI API Key
+```bash
+# platform.openai.com/api-keys
+# Create new secret key
+# Copy immediately (shown only once)
+```
+
+#### GitHub Token
+```bash
+# github.com/settings/tokens/new
+# Select necessary scopes (minimize permissions)
+# Set expiration date (max 90 days)
+gh auth login  # OR use web interface
+```
+
+#### AWS Credentials
+```bash
+# AWS IAM Console → Users → Your User
+# Security Credentials → Create Access Key
+# Download credentials immediately
+# Set permissions to minimum required (least privilege)
+```
+
+### Step 2: UPDATE APPLICATION
+
+```bash
+# Update .env file
+vim .env
+# Replace old secret with new secret
+
+# Restart application
+# systemctl restart app  # OR
+# docker-compose restart  # OR
+# pm2 restart app         # OR
+# kill and restart manually
+
+# Test application
+# Verify it works with new secrets
+```
+
+### Step 3: UPDATE DEPENDENT SYSTEMS
+
+```bash
+# Update CI/CD secrets (GitHub Actions, GitLab CI, etc.)
+# Update deployment secrets (Kubernetes, Docker, etc.)
+# Update monitoring secrets (logging, alerting, etc.)
+# Notify team members who have local copies
+```
+
+### Step 4: DOCUMENT INCIDENT
+
+Create file: `incident-reports/YYYY-MM-DD-secret-exposure.md`
+
+```markdown
+# Secret Exposure Incident - {{INCIDENT_DATE}}
+
+## Summary
+- **What**: {{SECRET_TYPE}} was exposed
+- **When**: {{EXPOSURE_DATETIME}}
+- **How**: {{HOW_EXPOSED}}
+- **Duration**: {{EXPOSURE_DURATION}}
+
+## Timeline
+- {{TIME_1}}: Secret committed
+- {{TIME_2}}: Secret pushed to GitHub
+- {{TIME_3}}: Incident detected
+- {{TIME_4}}: Secret revoked
+- {{TIME_5}}: Git history cleaned
+- {{TIME_6}}: New secret deployed
+
+## Impact Assessment
+- **Financial**: {{FINANCIAL_IMPACT}}
+- **Data**: {{DATA_IMPACT}}
+- **Reputation**: {{REPUTATION_IMPACT}}
+
+## Actions Taken
+1. {{ACTION_1}}
+2. {{ACTION_2}}
+3. {{ACTION_3}}
+
+## Root Cause
+{{ROOT_CAUSE_ANALYSIS}}
+
+## Lessons Learned
+{{LESSONS_LEARNED}}
+
+## Prevention Measures
+{{PREVENTION_MEASURES}}
+```
+
+---
+
+## 📊 Phase 5: REVIEW (24-48 hours)
+
+### Damage Assessment
+
+#### Financial Impact
+```bash
+# Review billing for exposure period
+# Google Cloud: Billing → Reports
+# OpenAI: Usage → Activity
+# AWS: Cost Explorer
+
+# Calculate unauthorized charges
+# Document for potential refund request
+```
+
+#### Data Impact
+```bash
+# Review audit logs for data access
+# Check for data exports/downloads
+# Verify data integrity
+# Assess if personal data was accessed (GDPR implications)
+```
+
+#### System Impact
+```bash
+# Review for backdoors or persistence mechanisms
+# Check for new users/keys created
+# Verify infrastructure configurations unchanged
+# Scan for malware or unauthorized code
+```
+
+### Team Review Meeting
+
+**Agenda**:
+1. Incident timeline review
+2. Response effectiveness assessment
+3. Gap analysis (what worked, what didn't)
+4. Process improvements
+5. Documentation updates
+6. Team training needs
+
+### Implement Improvements
+
+```bash
+# Update .gitignore patterns
+# Add new secret patterns to pre-push hook
+# Update security scanning workflows
+# Enhance monitoring/alerting
+# Update team training materials
+```
+
+---
+
+## 🎓 Post-Incident Training
+
+### For Team
+- [ ] Review incident report
+- [ ] Understand what went wrong
+- [ ] Practice secret management procedures
+- [ ] Test git hooks locally
+- [ ] Review security documentation
+
+### For Management
+- [ ] Understand financial impact
+- [ ] Review security policies
+- [ ] Allocate resources for improvements
+- [ ] Consider security tooling investments
+
+---
+
+## 📞 Emergency Contacts
+
+### Internal
+- **Security Lead**: {{SECURITY_LEAD_CONTACT}}
+- **Engineering Manager**: {{ENG_MANAGER_CONTACT}}
+- **On-Call Engineer**: {{ONCALL_CONTACT}}
+
+### External (if needed)
+- **Google Cloud Support**: cloud.google.com/support
+- **GitHub Support**: support.github.com
+- **AWS Support**: aws.amazon.com/contact-us
+- **Legal/Compliance**: {{LEGAL_CONTACT}}
+
+---
+
+## 🚨 The $2,300 Lesson
+
+**Real Incident**: A `GEMINI.md` file containing a Google Gemini API key was accidentally committed to a public GitHub repository. Within hours, the key was discovered and used for unauthorized API calls, resulting in over $2,300 in charges.
+
+**Key Takeaways**:
+1. **Speed matters** - Minutes count, not hours
+2. **Financial risk is real** - API overcharges can be massive
+3. **Prevention is everything** - This security system exists to prevent this
+4. **Automation saves money** - Git hooks and CI/CD scanning catch secrets before exposure
+
+**This could happen to any project. This guide ensures you're prepared.**
+
+---
+
+**Last Updated**: {{LAST_UPDATED}}
+**Next Review**: {{NEXT_REVIEW_DATE}}
+**Incident Count**: {{INCIDENT_COUNT}}
+
+---
+
+## Quick Reference Card
+
+**Print this and keep it visible:**
+
+```
+🚨 SECRET EXPOSED - IMMEDIATE ACTIONS 🚨
+
+1. REVOKE secret (0-5 min)
+   → Service dashboard → Revoke/Delete
+
+2. CHECK billing (5-10 min)
+   → Service dashboard → Usage/Billing
+
+3. REMOVE from git (10-20 min)
+   → git filter-branch OR bfg
+   → git push --force
+
+4. GENERATE new secret (20-25 min)
+   → Service dashboard → Create new
+
+5. UPDATE application (25-30 min)
+   → Update .env → Restart app
+
+6. DOCUMENT incident (30-60 min)
+   → incident-reports/YYYY-MM-DD.md
+
+SPEED IS CRITICAL - EVERY MINUTE COUNTS
+```

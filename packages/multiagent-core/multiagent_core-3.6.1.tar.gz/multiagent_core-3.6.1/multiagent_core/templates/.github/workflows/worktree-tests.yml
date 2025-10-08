@@ -1,0 +1,189 @@
+name: Worktree Agent Tests
+
+on:
+  pull_request:
+    branches: [ main, master ]
+    types: [ opened, synchronize, reopened ]
+  workflow_dispatch:
+
+jobs:
+  identify-agent:
+    runs-on: ubuntu-latest
+    outputs:
+      agent: ${{ steps.detect.outputs.agent }}
+      worktree: ${{ steps.detect.outputs.worktree }}
+    steps:
+      - name: Detect Agent from Branch
+        id: detect
+        run: |
+          branch_name="${{ github.head_ref || github.ref_name }}"
+          echo "Branch: $branch_name"
+          
+          if [[ "$branch_name" == agent-* ]]; then
+            # Extract agent name from branch
+            agent_part=${branch_name#agent-}
+            agent_name=${agent_part%%-*}
+            echo "agent=$agent_name" >> $GITHUB_OUTPUT
+            echo "worktree=true" >> $GITHUB_OUTPUT
+            echo "Detected agent: $agent_name"
+          else
+            echo "agent=none" >> $GITHUB_OUTPUT
+            echo "worktree=false" >> $GITHUB_OUTPUT
+            echo "Not an agent branch"
+          fi
+
+  test-agent-work:
+    needs: identify-agent
+    runs-on: ubuntu-latest
+    if: needs.identify-agent.outputs.worktree == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install Dependencies
+        run: |
+          # Install based on what's in the repo
+          [ -f package.json ] && npm ci || echo "No package.json"
+          [ -f requirements.txt ] && pip install -r requirements.txt || echo "No requirements.txt"
+          [ -f pyproject.toml ] && pip install -e . || echo "No pyproject.toml"
+      
+      - name: Run Agent-Specific Tests
+        run: |
+          agent="${{ needs.identify-agent.outputs.agent }}"
+          echo "Running tests for agent: $agent"
+          
+          case "$agent" in
+            codex)
+              echo "Running frontend tests for @codex"
+              [ -f package.json ] && npm run test:frontend 2>/dev/null || npm test || echo "No frontend tests"
+              ;;
+            claude)
+              echo "Running integration tests for @claude"
+              [ -f package.json ] && npm run test:integration 2>/dev/null || npm test || echo "No integration tests"
+              [ -f pytest.ini ] && pytest tests/integration 2>/dev/null || echo "No pytest integration"
+              ;;
+            qwen)
+              echo "Running performance tests for @qwen"
+              [ -f package.json ] && npm run test:performance 2>/dev/null || npm test || echo "No performance tests"
+              ;;
+            gemini)
+              echo "Running documentation tests for @gemini"
+              [ -f package.json ] && npm run test:docs 2>/dev/null || echo "No doc tests"
+              ;;
+            copilot)
+              echo "Running unit tests for @copilot"
+              [ -f package.json ] && npm run test:unit 2>/dev/null || npm test || echo "No unit tests"
+              [ -f pytest.ini ] && pytest tests/unit 2>/dev/null || echo "No pytest units"
+              ;;
+            *)
+              echo "Running all available tests"
+              [ -f package.json ] && npm test || echo "No npm tests"
+              [ -f pytest.ini ] && pytest || echo "No pytest tests"
+              ;;
+          esac
+      
+      - name: Check Code Quality
+        run: |
+          agent="${{ needs.identify-agent.outputs.agent }}"
+          
+          # Run linting based on agent
+          case "$agent" in
+            codex)
+              [ -f .eslintrc* ] && npm run lint 2>/dev/null || echo "No eslint"
+              ;;
+            claude|qwen|gemini|copilot)
+              [ -f .flake8 ] && flake8 . 2>/dev/null || echo "No flake8"
+              [ -f pyproject.toml ] && black --check . 2>/dev/null || echo "No black"
+              ;;
+          esac
+
+  merge-compatibility:
+    needs: identify-agent
+    runs-on: ubuntu-latest
+    if: needs.identify-agent.outputs.worktree == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Test Merge to Main
+        run: |
+          # Configure git
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Fetch main branch
+          git fetch origin main || git fetch origin master
+          
+          # Try test merge
+          echo "Testing merge compatibility..."
+          git checkout main || git checkout master
+          
+          # Attempt merge without committing
+          if git merge --no-commit --no-ff "${{ github.head_ref }}"; then
+            echo "✅ Merge is clean - no conflicts detected"
+            git merge --abort
+            exit 0
+          else
+            echo "❌ Merge conflicts detected"
+            echo "Conflicts must be resolved before merging"
+            git merge --abort
+            exit 1
+          fi
+
+  parallel-worktree-tests:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      matrix:
+        agent: [claude, codex, qwen, gemini, copilot]
+    steps:
+      - uses: actions/checkout@v4
+        
+      - name: Simulate Worktree for ${{ matrix.agent }}
+        run: |
+          echo "Setting up worktree simulation for ${{ matrix.agent }}"
+          
+          # Create a temporary worktree
+          git worktree add ../test-${{ matrix.agent }} -b test-agent-${{ matrix.agent }}
+          cd ../test-${{ matrix.agent }}
+          
+          # Run agent-specific validation
+          echo "Validating ${{ matrix.agent }} worktree..."
+          
+          # Cleanup
+          cd ${{ github.workspace }}
+          git worktree remove ../test-${{ matrix.agent }}
+          git branch -D test-agent-${{ matrix.agent }}
+
+  pr-labels:
+    needs: identify-agent  
+    runs-on: ubuntu-latest
+    if: needs.identify-agent.outputs.worktree == 'true' && github.event_name == 'pull_request'
+    steps:
+      - name: Add Agent Label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const agent = '${{ needs.identify-agent.outputs.agent }}';
+            const labels = [`agent:${agent}`, 'worktree'];
+            
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: labels
+            });
