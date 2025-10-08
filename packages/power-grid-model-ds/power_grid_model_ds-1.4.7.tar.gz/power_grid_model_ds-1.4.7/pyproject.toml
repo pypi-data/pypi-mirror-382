@@ -1,0 +1,190 @@
+# SPDX-FileCopyrightText: Contributors to the Power Grid Model project <powergridmodel@lfenergy.org>
+#
+# SPDX-License-Identifier: MPL-2.0
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "power-grid-model-ds"
+authors = [
+  { name = "Contributors to the Power Grid Model project", email = "powergridmodel@lfenergy.org" },
+]
+description = "Power Grid Model extension which provides a grid data structure for simulation and analysis"
+readme = "README.md"
+keywords = ["power grid model"]
+license = { text = "MPL-2.0" }
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "power-grid-model>=1.7",
+    "rustworkx>= 0.15.1",
+    "numpy>=2.0",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+# Published optional dependencies, or "extras".
+
+visualizer = [
+  # Visualization (make sure these are also updated in the 'dev' group)
+  "dash>=3.0.0",
+  "dash-bootstrap-components>=2.0.0",
+  "dash-cytoscape>=1.0.2",
+]
+pandas = ["pandas>=2.2.1"]
+
+[dependency-groups]
+# Local dependencies for development.
+
+dev = [
+  "pylint",
+  "pytest",
+  "coverage",
+  "ruff",
+  "mypy",
+  "pre-commit",
+  # Visualization (make sure these stay equalivalent to the 'visualizer' group)
+  "dash>=3.0.0",
+  "dash-bootstrap-components>=2.0.0",
+  "dash-cytoscape>=1.0.2",
+]
+
+doc = [
+  "sphinx",
+  "myst-nb",
+  "sphinx_rtd_theme",
+  "readthedocs-sphinx-search",
+  "sphinx-hoverxref",
+  "numpydoc",
+]
+
+[project.urls]
+Home-page = "https://lfenergy.org/projects/power-grid-model/"
+GitHub = "https://github.com/PowerGridModel/power-grid-model-ds"
+Documentation = "https://power-grid-model-ds.readthedocs.io/en/stable/"
+Mailing-list = "https://lists.lfenergy.org/g/powergridmodel"
+Discussion = "https://github.com/orgs/PowerGridModel/discussions"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[tool.setuptools.dynamic]
+version = { file = "PYPI_VERSION" }
+
+[tool.pylint.messages_control]
+disable = [
+  "logging-fstring-interpolation", # allows usage of f-strings in logging
+  "missing-module-docstring",
+  "too-few-public-methods",
+]
+good-names = ["id"]
+extension-pkg-allow-list = ["rustworkx"]
+max-parents = 15
+max-line-length = 120
+
+[tool.ruff]
+output-format = "github"
+line-length = 120
+show-fixes = true
+
+[tool.ruff.lint]
+select = [
+  # pycodestyle
+  "E",
+  # Pyflakes
+  "F",
+  # # pyupgrade
+  # "UP",
+  # # flake8-bugbear
+  # "B",
+  # # flake8-simplify
+  # "SIM",
+  # isort
+  "I",
+  # Numpy 2.0 downstream : https://numpy.org/devdocs/numpy_2_0_migration_guide.html
+  "NPY201",
+]
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[tool.mypy]
+disable_error_code = ["assignment", "import-untyped"]
+
+[tool.coverage.run]
+relative_files = true
+source = ["src"]
+command_line = '--module pytest'
+
+[tool.coverage.report]
+fail_under = 90
+exclude_also = [
+  'if TYPE_CHECKING:',
+]
+
+[tool.poe.tasks.all]
+help = "Run all CI calls"
+control.expr = "check"
+args = [{name = "check", type="boolean", help= "Does not correct files, only warns"}]
+  [[tool.poe.tasks.all.switch]]
+  case     = "True"
+  sequence = ["lint --check", "format --check", "lock", "type", "cover", "report"]
+
+  [[tool.poe.tasks.all.switch]]
+  sequence = ["lint", "format", "lock", "type", "cover", "report"]
+
+
+[tool.poe.tasks.lint]
+help = "Lint code (with ruff & pylint)"
+# --no-fix does override --fix in ruff, if --check is given to poe.
+sequence = [
+  {cmd='ruff check --fix --show-fixes ${check:+ --no-fix}'},
+  {cmd="pylint src"},
+]
+args=[{name = "check", type="boolean", help= "Does not correct files, only warns"}]
+
+[tool.poe.tasks.format]
+help = "Format code (with ruff)"
+cmd = 'ruff format ${check:+ --diff}'
+args=[{name = "check", type="boolean", help= "Does not correct files, only warns"}]
+
+[tool.poe.tasks.sort]
+help = "Sort imports (with ruff)"
+cmd = 'ruff check --select I --fix --show-fixes ${check:+ --no-fix}'
+args=[{name = "check", type="boolean", help= "Does not correct files, only warns"}]
+
+[tool.poe.tasks.type]
+help = "Type check code (with mypy)"
+cmd = "mypy src tests"
+
+[tool.poe.tasks.tests]
+help = "Run tests"
+cmd = "pytest"
+
+[tool.poe.tasks.lock]
+help = "Asserts that dependencies are locked"
+cmd = "uv lock --check"
+
+[tool.poe.tasks.cover]
+help = "Run tests (and gather coverage)"
+cmd = "coverage run"
+
+[tool.poe.tasks.report]
+help = "Generate coverage report. Will use data from a previous cover command."
+cmd = "coverage report"
+
+[tool.poe.tasks.coverage]
+help = "Run coverage *and* generate report"
+sequence = ["cover", "report"]
