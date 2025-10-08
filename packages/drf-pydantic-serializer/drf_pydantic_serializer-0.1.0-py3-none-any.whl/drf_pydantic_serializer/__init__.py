@@ -1,0 +1,1 @@
+default_app_config = "drf_pydantic_serializer.apps.DRFPydanticSerializerConfig"
