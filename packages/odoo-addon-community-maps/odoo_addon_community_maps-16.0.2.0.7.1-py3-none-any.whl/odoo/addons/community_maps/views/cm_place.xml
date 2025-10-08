@@ -1,0 +1,258 @@
+<odoo>
+  <data>
+
+    <record id="view_place_window" model="ir.actions.act_window">
+      <field name="name">Places</field>
+      <field name="res_model">cm.place</field>
+      <field name="view_mode">tree,form</field>
+      <field name="context">{
+        'type':'place'
+      }</field>
+      <field name="domain">[('type','=','place')]</field>
+    </record>
+
+    <record id="view_place_proposal_window" model="ir.actions.act_window">
+      <field name="name">Place proposals</field>
+      <field name="res_model">cm.place</field>
+      <field name="view_mode">tree,form</field>
+      <field name="context">{
+        'type':'place_proposal'
+      }</field>
+      <field name="domain">[('type','=','place_proposal')]</field>
+    </record>
+
+    <record id="view_places_tree" model="ir.ui.view">
+      <field name="name">cm.places.tree</field>
+      <field name="model">cm.place</field>
+      <field name="arch" type="xml">
+        <tree>
+          <field name="active" invisible="1"/>
+          <field name="name"/>
+          <field name="status"/>
+          <field name="company_id" groups="base.group_multi_company"/>
+          <field name="map_id"/>
+          <field name="slug_id"/>
+          <field name="lat"/>
+          <field name="lng"/>
+          <field name="place_category_id"/>
+          <field name="presenter_model_id"/>
+          <field name="form_model_id"/>
+          <field name="crowdfunding_type"/>
+          <field name="completed_percentage"/>
+          <field name="total_committed_invoicing"/>
+          <field name="total_committed_submissions"/>
+          </tree>
+        </field>
+    </record>
+
+    <record id="view_places_form" model="ir.ui.view">
+      <field name="name">cm.places.form</field>
+      <field name="model">cm.place</field>
+      <field name="type">form</field>
+      <field name="arch" type="xml">
+        <form>
+          <field name="active" invisible="True"/>
+          <field name="type" invisible="True"/>
+          <field name="can_send_submission_transfer_notification" invisible="True" />
+          <header>
+            <button name="accept_place_proposal_workflow_action" type="object" string="Convert to place" confirm="Are you sure?" attrs="{'invisible': [('type','!=','place_proposal')]}"/>
+            <button name="publish_place_workflow_action" type="object" string="Publish" attrs="{'invisible': ['|',('type','!=','place'),('status','!=','draft')]}"/>
+            <button name="unpublish_place_workflow_action" type="object" string="Unpublish" attrs="{'invisible': ['|',('type','!=','place'),('status','!=','published')]}"/>
+            <button name="archive_workflow_action" type="object" string="Archive" attrs="{'invisible': [('active','=',False)]}"/>
+            <button name="unarchive_workflow_action" type="object" string="Unarchive" attrs="{'invisible': [('active','=',True)]}"/>
+            <button name="send_submission_transfer_notification_workflow_action" type="object" string="Send submission transfers notifications" attrs="{'invisible': [('can_send_submission_transfer_notification','=',False)]}"/>
+            <field name="status" widget="statusbar" attrs="{'invisible': [('type', '!=','place')]}"/>
+          </header>
+          <sheet>
+            <h4 style="color:green;" attrs="{'invisible': ['|',('type', '!=', 'place'),('status','!=','published')]}">Published place</h4>
+            <h4 style="color:purple;" attrs="{'invisible': ['|',('type', '!=', 'place'),('status','!=','movement_request')]}">Movement requested Place</h4>
+            <h4 style="color:orange;" attrs="{'invisible': ['|',('type', '!=', 'place'),('status','!=','draft')]}">Draft Place</h4>
+            <h4 style="color:red;" attrs="{'invisible': [('type', '!=', 'place_proposal')]}">Place Proposal</h4>
+            <widget name="web_ribbon" title="Archived" bg_color="bg-danger" attrs="{'invisible': [('active', '=', True)]}"/>
+            <group>
+              <field name="company_id" groups="base.group_multi_company"/>
+              <field name="name"/>
+              <field name="map_id"
+                options="{'no_create': True, 'no_create_edit': True}"
+                required="True"/>
+              <field name="slug_id" required="True"/>
+              <field name="allow_filter_by_status" invisible="True"/>
+              <field name="has_active_service" attrs="{'invisible': [('allow_filter_by_status', '=', False)]}"/>
+              <field name="address_txt"/>
+              <field name="lat" required="True"/>
+              <field name="lng" required="True"/>
+              <field name="place_category_id"
+                    options="{'no_create': True, 'no_create_edit': True}"
+                attrs="{'invisible': [('map_id', '=', False)]}" required="True"/>
+              <field name="filter_mids" widget="many2many_list" attrs="{'invisible': [('map_id', '=', False)]}" required="True">
+                <tree create="true" edit="false" delete="true" open="false">
+                  <field name="name"/>
+                  <field name="slug_id"/>
+                  <field name="filter_group_id"/>
+                </tree>
+              </field>
+              <field name="marker_color" options="{'no_create': True, 'no_create_edit': True}" domain="[('id', 'in', filter_mids)]"/>
+              <field name="presenter_model_id"
+                    options="{'no_create': True, 'no_create_edit': True}"
+                attrs="{'invisible': [('map_id', '=', False)]}" required="True"/>
+            </group>
+            <notebook>
+              <page string="Interaction">
+                <group>
+                  <field name="social_shareable_url"/>
+                  <field name="interaction_method" required="True" attrs="{'invisible': [('map_id', '=', False)]}"/>
+                  <field name="form_model_id" attrs="{'invisible': [('interaction_method', 'not in', ['form', 'both'])]}"/>
+                </group>
+                <group attrs="{'invisible': [('interaction_method', 'not in', ['external_link', 'both'])]}">
+                  <field name="external_link_ids" widget="one2many_list">
+                    <tree create="true" edit="true" delete="false" open="false" editable="top">
+                      <field name="sort_order" widget="handle"/>
+                      <field name="name" required="True"/>
+                      <field name="url" required="True"/>
+                      <field name="target" required="True"/>
+                      <field name="button_color_config_id" required="True"/>
+                    </tree>
+                  </field>
+                </group>
+              </page>
+              <page string="Crowdfunding">
+                <group>
+                  <field name="crowdfunding_type"/>
+                  <field name="completed_percentage" attrs="{'invisible': [('crowdfunding_type','=','none')]}"/>
+                  <field name="invoiced_target" attrs="{'invisible': [('crowdfunding_type', '!=', 'invoicing_amount')]}" required="True" />
+                  <field name="allow_contributions_beyond_goal" attrs="{'invisible': [('crowdfunding_type', '!=', 'invoicing_amount')]}" />
+                  <field name="submissions_target" attrs="{'invisible': [('crowdfunding_type', '!=', 'submission_amount')]}" required="True" />
+                  <field name="total_committed_invoicing"/>
+                  <field name="total_committed_submissions"/>
+                </group>
+              </page>
+              <page id="presenterMetas" string="Presenter" attrs="{'invisible': [('presenter_model_id', '=', False)]}">
+                <group>
+                  <field name="place_presenter_metadata_ids" widget="one2many_list">
+                    <tree create="false" edit="true" delete="false" open="false" editable="top">
+                      <field name="key" readonly="True"/>
+                      <field name="type" readonly="True"/>
+                      <field name="format" readonly="True"/>
+                      <field name="value"/>
+                    </tree>
+                  </field>
+                </group>
+              </page>
+              <page string="Form Submissions" attrs="{'invisible': [('interaction_method', '=','none')]}">
+                <group>
+                  <field name="form_submission_ids" widget="one2many_list">
+                    <tree create="false" edit="false" delete="false" open="true">
+                      <field name="create_date"/>
+                      <field name="name"/>
+                      <field name="submission_type"/>
+                      <field name="partner_id"/>
+                    </tree>
+                  </field>
+                </group>
+              </page>
+              <page string="Admin notifications">
+                <group>
+                  <field name="crowdfunding_notification_ids" widget="one2many_list" readonly="True">
+                    <tree create="true" edit="true" delete="true" open="false" editable="top">
+                      <field name="percentage"/>
+                    </tree>
+                  </field>
+                </group>
+              </page>
+              <page string="Proposal Data">
+                <group>
+                  <field name="proposal_form_submission_id"/>
+                </group>
+              </page>
+              <page string="Child places">
+                <group>
+                  <field name="child_place_ids" widget="one2many_list">
+                    <tree create="true" edit="true" delete="true" open="false" editable="top">
+                      <field name="origin_place_id" />
+                      <field name="name" />
+                      <field name="slug_id" />
+                      <field name="lat" />
+                      <field name="lng" />
+                      <field name="request_date" readonly="1" />
+                      <field name="transfer_date" readonly="1" />
+                    </tree>
+                  </field>
+                  <field name="pending_form_submission_transfer_request_ids" widget="one2many_list">
+                    <tree create="false" edit="false" delete="false" open="false">
+                      <field name="child_place_id" />
+                      <field name="submission_id" />
+                      <field name="origin_place_id" />
+                      <field name="destination_place_id" />
+                      <field name="request_date" />
+                    </tree>
+                  </field>
+                  <field name="accepted_form_submission_transfer_request_ids" widget="one2many_list">
+                    <tree create="false" edit="false" delete="false" open="false">
+                      <field name="child_place_id" />
+                      <field name="submission_id" />
+                      <field name="origin_place_id" />
+                      <field name="destination_place_id" />
+                      <field name="request_date" />
+                      <field name="transfer_date" />
+                    </tree>
+                  </field>
+                  <field name="rejected_form_submission_transfer_request_ids" widget="one2many_list">
+                    <tree create="false" edit="false" delete="false" open="false">
+                      <field name="child_place_id" />
+                      <field name="submission_id" />
+                      <field name="origin_place_id" />
+                      <field name="destination_place_id" />
+                      <field name="request_date" />
+                      <field name="rejected_date" />
+                    </tree>
+                  </field>
+                </group>
+              </page>
+              <page string="Place Images">
+                <field name="place_image_ids" widget="one2many_list" nolabel="1">
+                  <tree create="true" edit="true" delete="true" open="false" editable="top">
+                    <field name="sequence" widget="handle"/>
+                    <field
+                      name="image_1920"
+                      widget="image"
+                      class="oe_avatar"
+                      options="{'preview_image': 'image_256'}"
+                      attrs="{'required': [('image_1920', '=', False)]}"
+                    />
+                    <field name="url"/>
+                  </tree>
+                </field>
+              </page>
+            </notebook>
+          </sheet>
+          <div class="oe_chatter">
+            <field name="message_follower_ids"/>
+            <field name="message_ids" options="{'post_refresh': 'recipients'}"/>
+          </div>
+        </form>
+      </field>
+    </record>
+
+    <record id="collect_child_places" model="ir.actions.server">
+      <field name="name">Collect places as childs</field>
+      <field name="type">ir.actions.server</field>
+      <field name="model_id" ref="model_cm_place"/>
+      <field name="binding_model_id" ref="model_cm_place"/>
+      <field name="state">code</field>
+      <field name="code">action = model.get_collect_child_places_wizard_action()</field>
+    </record>
+
+    <record id="crowdfunding_notify_if_must" model="ir.actions.server">
+      <field name="name">Crowdfunding notify (if needed)</field>
+      <field name="type">ir.actions.server</field>
+      <field name="model_id" ref="model_cm_place"/>
+      <field name="binding_model_id" ref="model_cm_place"/>
+      <field name="state">code</field>
+      <field name="code">action = model.crowdfunding_notify_if_must_action()</field>
+    </record>
+
+    <menuitem name="Places" id="community_maps.place" parent="community_maps.menu_root" action="view_place_window"/>
+    <menuitem name="Place proposals" id="community_maps.place_proposal" parent="community_maps.menu_root" action="view_place_proposal_window"/>
+
+  </data>
+</odoo>

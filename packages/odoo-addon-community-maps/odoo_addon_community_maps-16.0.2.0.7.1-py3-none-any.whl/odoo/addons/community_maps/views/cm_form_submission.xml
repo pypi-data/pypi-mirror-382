@@ -1,0 +1,134 @@
+<odoo>
+  <data>
+
+    <record id="view_cm_place_submission_window" model="ir.actions.act_window">
+      <field name="name">Place Submissions</field>
+      <field name="res_model">crm.lead</field>
+      <field name="view_mode">tree,form</field>
+      <field name="domain">[('submission_type','=','place_submission')]</field>
+      <field name="context">{
+        'submission_type':'place_submission'
+      }</field>
+    </record>
+    <record id="view_cm_place_proposal_submission_window" model="ir.actions.act_window">
+      <field name="name">Place Proposals Submissions</field>
+      <field name="res_model">crm.lead</field>
+      <field name="view_mode">tree,form</field>
+      <field name="domain">[('submission_type','=','place_proposal_submission')]</field>
+      <field name="context">{
+        'submission_type':'place_proposal_submission'
+      }</field>
+    </record>
+
+    <record id="view_cm_form_submission_tree" model="ir.ui.view">
+      <field name="name">cm.form_submission.tree</field>
+      <field name="model">crm.lead</field>
+      <field name="inherit_id" ref="crm.crm_case_tree_view_oppor"/>
+      <field name="arch" type="xml">
+        <xpath expr="//field[@name='country_id']" position="attributes">
+          <attribute name='invisible'>True</attribute>
+        </xpath>
+        <xpath expr="//field[@name='company_id']" position="attributes">
+          <attribute name='invisible'>True</attribute>
+        </xpath>
+        <xpath expr="//field[@name='activity_ids']" position="attributes">
+          <attribute name='invisible'>True</attribute>
+        </xpath>
+        <xpath expr="//field[@name='team_id']" position="attributes">
+          <attribute name='invisible'>True</attribute>
+        </xpath>
+        <xpath expr="//field[@name='team_id']" position="after">
+          <field name="submission_type"/>
+        </xpath>
+      </field>
+    </record>
+
+    <record id="view_cm_form_submission_form" model="ir.ui.view">
+      <field name="name">cm.form.submission.form</field>
+      <field name="model">crm.lead</field>
+      <field name="type">form</field>
+      <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+      <field name="arch" type="xml">
+        <!-- TODO: Better way to locate revenue / probability header on crm.lead -->
+        <!-- TODO: Not working. Why?! -->
+        <!-- <xpath expr="//h2[@class='o_row row no-gutters d-flex']" position="attributes">
+          <attribute name='invisible'>[('submission_type','=','map_proposal')]</attribute>
+        </xpath> -->
+        <xpath expr="//field[@name='name']" position="before">
+          <h4 attrs="{'invisible': [('submission_type', '!=', 'place_submission')]}">Place Submission</h4>
+          <h4 attrs="{'invisible': [('submission_type', '!=', 'place_proposal_submission')]}">Place Proposal</h4>
+        </xpath>
+        <xpath expr="//group/field[@name='team_id']" position="replace">
+          <field name="type"/>
+          <field name="team_id"/>
+          <field name="submission_type" required="True"/>
+          <field name="place_id"
+            attrs="{
+              'required': [('submission_type', 'in', ['place_submission','place_proposal_submission'])],
+              'invisible': [('submission_type', 'not in', ['place_submission','place_proposal_submission'])]
+            }"
+          />
+          <field name="child_place_id"
+            attrs="{
+              'invisible': [('submission_type', 'not in', ['place_submission'])]
+            }"
+          />
+          <field name="crowdfunding_type" attrs="{'invisible': [('submission_type', 'not in', ['place_submission','place_proposal_submission'])]}"/>
+          <field name="shareable_url_base" attrs="{'invisible': [('submission_type', 'not in', ['place_submission','place_proposal_submission'])]}"/>
+          <field name="shareable_url" attrs="{'invisible': [('submission_type', 'not in', ['place_submission','place_proposal_submission'])]}"/>
+        </xpath>
+        <xpath expr="//page[@name='lead']/group/group[@name='Misc']/field[@name='team_id']" position="replace">
+          <field name="type"/>
+          <field name="team_id"/>
+          <field name="submission_type" required="True"/>
+          <field name="place_id"
+            attrs="{
+              'required': [('submission_type', 'in', ['place_submission','place_proposal_submission'])],
+              'invisible': [('submission_type', 'not in', ['place_submission','place_proposal_submission'])]
+            }"
+          />
+          <field name="child_place_id"
+            attrs="{
+              'invisible': [('submission_type', 'not in', ['place_submission'])]
+            }"
+          />
+          <field name="crowdfunding_type" attrs="{'invisible': [('submission_type', 'not in', ['place_submission','place_proposal_submission'])]}"/>
+          <field name="shareable_url_base" attrs="{'invisible': [('submission_type', 'not in', ['place_submission','place_proposal_submission'])]}"/>
+          <field name="shareable_url" attrs="{'invisible': [('submission_type', 'not in', ['place_submission','place_proposal_submission'])]}"/>
+        </xpath>
+        <xpath expr="//notebook" position="inside">
+          <page name="submission_metadata" string="Submission metadata" attrs="{'invisible': [('submission_type', '=', 'none')]}">
+            <group>
+              <field name="form_submission_metadata_ids" widget="one2many_list">
+                <tree create="false" edit="true" delete="false" open="false" editable="top">
+                  <field name="key" readonly="True"/>
+                  <field name="value" readonly="True"/>
+                  <field name="mapped_to" readonly="True"/>
+                </tree>
+              </field>
+            </group>
+          </page>
+          <page string="Child places" attrs="{'invisible': [('submission_type', 'not in', ['place_submission','place_proposal_submission'])]}">
+            <group>
+              <field name="form_submission_transfer_request_ids" widget="one2many_list">
+                <tree>
+                  <field name="origin_place_id" />
+                  <field name="destination_place_id" />
+                  <field name="request_date" />
+                  <field name="transfer_date" />
+                  <field name="rejected_date" />
+                </tree>
+              </field>
+            </group>
+          </page>
+        </xpath>
+      </field>
+    </record>
+
+    <menuitem name="Submissions" id="community_maps.form_submission_menu_root" parent="community_maps.menu_root"/>
+
+    <menuitem name="Place Submissions" id="community_maps.place_submission" parent="form_submission_menu_root" action="view_cm_place_submission_window"/>
+
+    <menuitem name="Place Proposals" id="community_maps.place_proposal_submission" parent="form_submission_menu_root" action="view_cm_place_proposal_submission_window"/>
+  </data>
+</odoo>
