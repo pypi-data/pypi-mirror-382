@@ -1,0 +1,361 @@
+Metadata-Version: 2.4
+Name: fw-gear-dicom-fixer
+Version: 1.0.0
+Summary: This gear reports on the Dicom files data elements and optionally fixes or enhances the problematic ones, generating a new archive.
+Project-URL: Repository, https://gitlab.com/flywheel-io/flywheel-apps/dicom-fixer
+Author-email: Flywheel <support@flywheel.io>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: Dicom,Fixer,Flywheel,Gears
+Classifier: Topic :: Scientific/Engineering :: Medical Science Apps.
+Requires-Python: ~=3.10
+Requires-Dist: flywheel-gear-toolkit<0.7,>=0.6
+Requires-Dist: flywheel-sdk<17,>=16.0.0
+Requires-Dist: fw-file<5,>=4.2.0
+Requires-Dist: humanize<5,>=4.8.0
+Requires-Dist: numpy~=2.1
+Requires-Dist: psutil<7,>=6.0.0
+Requires-Dist: pylibjpeg[all]~=2.0
+Description-Content-Type: text/markdown
+
+# Dicom Fixer
+
+## Overview
+
+### Summary
+
+This gear is responsible for reporting on the DICOM files data elements and optionally
+fixing/enhancing the problematic ones and generating a new archive.
+
+### Cite
+
+*License*: *MIT*
+
+### Classification
+
+*Category:* *Converter*
+
+*Gear Level:*
+
+- [ ] Project
+- [ ] Subject
+- [ ] Session
+- [X] Acquisition
+- [ ] Analysis
+
+----
+
+[[*TOC*]]
+
+----
+
+### Inputs
+
+- __dicom__: Input DICOM
+
+- *dicom*
+  - __Name__: *dicom*
+  - __Type__: *file*
+  - __Optional__: *False*
+  - __Classification__: *DICOM file*
+  - __Description__: *Input DICOM to be fixed*
+
+### Config
+
+- *debug*
+  - __Name__: *debug*
+  - __Type__: *boolean*
+  - __Description__: *Include debug statements in output.*
+  - __Default__: `False`
+- *dicom-standard*
+  - __Name__: *dicom-standard*
+  - __Type__: *string*
+  - __Description__: *Specify which DICOM standard edition to use. `local` refers to
+  the locally-saved edition for faster processing. `current` fetches the most
+  up-to-date edition at runtime.*
+  - __Default__: `"local"`
+- *fix-uids*
+  - __Name__: *fix-uids*
+  - __Type__: *boolean*
+  - __Description__: *Whether to attempt to fix invalid UIDs.*
+  - __Default__: `True`
+  - __Note__: *Before version 1.0.0, the `fix_uids` fixer utilized an allow list to
+  specify a very narrow range of UI VR tags to fix, and tags not included on the allow
+  list would have their values removed if the tag is not required or retained at the
+  original invalid value if required. As of version 1.0.0, this behavior has been
+  updated to a boolean configuration where either the gear attempts to fix all UI
+  VR tags with invalid values or no UI VR tags.*
+- *force-decompress*
+  - __Name__: *force-decompress*
+  - __Type__: *boolean*
+  - __Description__: *Expert option: Force standardize-transfer-syntax fix even if
+  filesize may be too big for available memory. WARNING: Choosing this option may
+  result in the gear failing due to being out of memory.*
+  - __Default__: `False`
+- *standardize-transfer-syntax*
+  - __Name__: *standardize-transfer-syntax*
+  - __Type__: *boolean*
+  - __Description__: *Whether or not to change `TransferSyntaxUID` to
+  ExplicitVRLittleEndian.*
+  - __Default__: `True`
+  - __Note__: *If `standardize-transfer-syntax` is `True` and the gear fails to change
+  `TransferSyntaxUID` to ExplicitVRLittleEndian, the job will be marked as failed.
+- *strict-validation*
+  - __Name__: *strict-validation*
+  - __Type__: *boolean*
+  - __Description__: *Enforce strict DICOM validation if true; else, allow
+  python-parsable values that may not meet DICOM standard.*
+  - __Default__: `True`
+- *tag*
+  - __Name__: *tag*
+  - __Type__: *string*
+  - __Description__: *The tag to be added on input file upon run completion.*
+  - __Default__: `"dicom-fixer"`
+- *unique*
+  - __Name__: *unique*
+  - __Type__: *boolean*
+  - __Description__: *Enforce DICOM uniqueness by SOPInstanceUID or file hash.
+  Remove duplicate DICOMs.*
+  - __Default__: `True`
+- *zip-single-dicom*
+  - __Name__: *zip-single-dicom*
+  - __Type__: *string*
+  - __Description__: *Output a single DICOM as zip (.dcm.zip) instead of a DICOM (.dcm)
+  or match input.*
+  - __Default__: `"match"`
+- *convert-palette*
+  - __Name__: *convert-palette*
+  - __Type__: *boolean*
+  - __Description__: *Convert palette color to RGB. Depending on the result of applying
+  the palette color Lookup tables, the pixel type may need to be changed to 16-bit
+  unsigned int to encode the pixel data without loss. Unfortunately some IODs do not
+  allow 16-bit pixel representations, so for those modalities this will nee to be
+  turned off. This is known to affect:*
+    - Ultrasound Multiframe
+  - __Default__: `"true"`
+- *new-uids-needed*
+  - __Name__: *new-uids-needed*
+  - __Type__: *boolean*
+  - __Description__: *Create new SeriesInstanceUID based on acquisition label and
+  StudyInstanceUID based on session label.*
+  - __Default__: `False`
+- *pixel-data-check*
+  - __Name__: *pixel-data-check*
+  - __Type__: *boolean*
+  - __Description__: *Check that pixel data is parsable.*
+  - __Default__: `True`
+  - __Note__: *There is no fix related to this check, as the gear cannot repair
+  corrupted/truncated pixel data. If `pixel-data-check` is `True` and the check fails,
+  the job will be marked as unsuccessful and the `tag` (if configured) will not be
+  applied to the file, so that any further tag-based gear rules are not triggered.*
+- *rename-zip-members*
+  - __Name__: *rename-zip-members*
+  - __Type__: *boolean*
+  - __Description__: *Rename zip members with the pattern:
+  {SOPInstance_UID}.{Modality}.dcm*
+  - __Default__: `True`
+
+### Metadata
+
+This gear identifies and fixes invalid DICOM tags of the input file. Additionally,
+dicom-fixer will add a QC result titled `fixed` to either the input file if no output
+is written, or the output file if there is an output.  The state will be either `PASS`
+or `FAIL`. For a `PASS` result, any fixing events will be under the `events` key.
+
+### Prerequisites
+
+#### Prerequisite Gear Runs
+
+1. __*Splitter*__
+    - Level: Acquisition
+    - Note: If multiple SeriesInstanceUIDs are present within the DICOM collection,
+    Splitter *must* be run before Dicom-Fixer.
+
+#### Prerequisite Files
+
+No prerequisite files.
+
+#### Prerequisite Metadata
+
+No prerequisite metadata.
+
+## Usage
+
+### Description
+
+This gear checks the input DICOM's tags and makes corrections as needed, whether
+configured to adhere to DICOM Standard (when `strict-validation=True`) or configured
+to only check for python parsability (when `strict-validation=False`).
+
+This gear utilizes the `tracker` functionality of `RawDataElements`
+in [fw-file](https://gitlab.com/flywheel-io/tools/lib/fw-file.git). Namely, it houses
+a collection of default and custom fixers that are applied to `RawDataElements` on
+read through `pydicom`.
+
+Dicom fixer will also decompress compressed TransferSyntaxes so that no issues are met
+on the platform downstream.
+
+### Standardize transfer syntax
+
+The `standardize_transfer_syntax` option supports the following Transfer Syntaxes:
+
+| Name                               | UID                    | Supported          |
+|------------------------------------|------------------------|--------------------|
+| Explicit VR Little Endian          | 1.2.840.10008.1.2.1    | :white_check_mark: |
+| Implicit VR Little Endian          | 1.2.840.10008.1.2      | :white_check_mark: |
+| Explicit VR Big Endian             | 1.2.840.10008.1.2.2    | :white_check_mark: |
+| Deflated Explicit VR Little Endian | 1.2.840.10008.1.2.1.99 | :white_check_mark: |
+| RLE Lossless                       | 1.2.840.10008.1.2.5    | :white_check_mark: |
+| JPEG Baseline (Process 1)          | 1.2.840.10008.1.2.4.50 | :white_check_mark: |
+| JPEG Extended (Process 2 and 4)    | 1.2.840.10008.1.2.4.51 | :white_check_mark: |
+| JPEG Lossless (Process 14)         | 1.2.840.10008.1.2.4.57 | :white_check_mark: |
+| JPEG Lossless (Process 14, SV1)    | 1.2.840.10008.1.2.4.70 | :white_check_mark: |
+| JPEG LS Lossless                   | 1.2.840.10008.1.2.4.80 | :white_check_mark: |
+| JPEG LS Lossy                      | 1.2.840.10008.1.2.4.81 | :white_check_mark: |
+| JPEG2000 Lossless                  | 1.2.840.10008.1.2.4.90 | :white_check_mark: |
+| JPEG2000                           | 1.2.840.10008.1.2.4.91 | :white_check_mark: |
+| JPEG2000 Multi-component Lossless  | 1.2.840.10008.1.2.4.92 | :x:                |
+| JPEG2000 Multi-component           | 1.2.840.10008.1.2.4.93 | :x:                |
+
+All transfer syntax decompressing is done with pydicom using either `numpy` and
+`GDCM`, `JPEG-LS`, `Pillow`, or `pylibjpeg`,  see more info on pydicom's docs on
+[supported transfer syntaxes](https://pydicom.github.io/pydicom/2.4/old/image_data_handlers.html#supported-transfer-syntaxes)
+
+### Pixel data check
+
+The `pixel-data-check` option supports the same Transfer Syntaxes as
+`standardize_transfer_syntax`.
+
+This option tests whether the pixel data is parsable with pydicom's
+`Dataset.pixel_array` property, which converts Pixel Data, Float Pixel Data, or Double
+Float Pixel Data to a`numpy.ndarray`. This option cannot fix a DICOM file with
+unparsable pixel data, but can be used to alert the user to truncated or otherwise
+corrupted pixel data.
+
+### Color space conversion
+
+For color files, after decompression (usually jpeg) the color space will be converted
+to RGB for better downstream support.  Currently color space conversion is supported
+for the following PhotometricInterpretations:
+
+- YBR_FULL_422
+- YBR_FULL
+- PALETTE COLOR
+
+For images with Modality of `US` (ultrasound) or `IVUS` (intravascular ultrasound) with
+PhotometricInterpretation of `PALETTE COLOR`, the resulting conversion to RGB 16-bit is
+rescaled to RGB 8-bit to ensure the resulting DICOM files are
+[valid](https://dicom.nema.org/medical/dicom/current/output/html/part03.html#sect_C.8.5.6.1.13).
+
+### File Specifications
+
+#### Input
+
+The input of this gear is a DICOM file.
+
+### Workflow
+
+```mermaid
+graph LR;
+    A[dicom]:::input --> C;
+    C[Upload] --> D[Acquisition];
+    D:::container --> E((Gear));
+
+    E:::gear --> F[Input replaced with fixed DICOM if fixes applied];
+
+    classDef container fill:#57d,color:#fff
+    classDef input fill:#7a9,color:#fff
+    classDef gear fill:#659,color:#fff
+
+```
+
+Description of workflow:
+
+1. Upload file to container
+1. Select file as input to gear
+1. Configure gear as needed
+1. If fixes are required and gear passes, gear replaces file with an updated version
+and QC is marked as `PASS`. If fixes are required and gear does not pass, QC is marked
+as `FAIL`. If no fixes are identified, input file is retained and marked as `PASS`.
+
+### Fixers
+
+The following fixes are applied:
+
+#### General fixes from [fw-file](https://gitlab.com/flywheel-io/tools/lib/fw-file)
+
+- Fix VR for SpecificCharacterSet and surplus SequenceDelimitationItem tags.
+- Replace VR=None with VR found in the public or private dictionaries.
+- Replace VR='UN' with VR found in the public or private dictionaries.
+- Replace invalid \ characters with _ in string VR values of VM=1.
+- Crop text VRs which are too long.
+- Fix an invalid UID. Determine if UID is semi-valid (e.g. composed of a minimum 5 nodes
+  including invalid node starting with 0), if semi-valid, generates a new UID with the
+  semi-valid UID as entropy source (deterministic), else, generates a new UID.
+- Fix date times tags. Attempt to parse an invalid date and format correctly.
+- Fix AS strings. Ensure one of D,W,M,Y is at end of the string, and pad to 4
+  characters. If no time quantifier is present, assume Years.
+- Fix number strings. Fix DS (Decimal String) and IS (Integer String) number strings by
+  removing invalid characters and truncate floats in IS VR.
+- Fix invalid character. Attempt to remove non-printable characters from byte decoding.
+- Fix invalid VR value. Try to fix an invalid value for the given VR.
+- Fix LUT Descriptor tags.
+
+#### Custom fixes
+
+- Fix incorrect units. Correct MagneticFieldStrength from milli-Tesla to Tesla.
+- Remove file in archive that are not likely DICOM (defined as having at least 2
+  public dicom tags outside the file_meta (0000, 0002) group).
+- Optionally, sets the TransferSyntaxUID to ExplicitVRLittleEndian.
+
+### Output
+
+#### File
+
+DICOM-fixer will either output a fixed file to overwrite the input or will output
+nothing
+
+#### QC
+
+DICOM-fixer will add a QC result titled `fixed` to either the input file if no output is
+written, or the output file if there is an output.  The state will be either `PASS` or
+`FAIL`:
+
+- `PASS` if either fixes were attempted and write was successful, or if no fixes were
+attempted.
+- `FAIL` if fixes were attempted but write was not successful.
+
+For a `PASS` result, any fixing events will be under the `events` key.
+
+### Use Cases
+
+#### Use Case 1: Invalid DICOM tags, strict validation
+
+__*DICOM has invalid tag values and needs to adhere to DICOM Standard*__:
+
+For DICOMs that must adhere to DICOM Standard, the `strict-validation` config option
+should be set to `True`. `dicom-standard` can be set to `"local"` (default) for faster
+processing with the locally-saved DICOM Standard, or set to `"current"` to retrieve
+the most recent DICOM Standard at runtime.
+
+#### Use Case 2: Invalid DICOM tags, non-strict validation
+
+__*DICOM has invalid tag values, but information retention is preferred over strict
+adherance to DICOM Standard*__:
+
+For situations where information retention is preferred over strict DICOM standard
+adherance, the `strict-validation` config option should be set to `False` (default).
+This tells the gear to keep tag values unless they are not python parsable.
+
+### Logging
+
+The gear logs events as it processes the input DICOM. If fixes are required, the gear
+log notates these as they are identified. The gear then logs whether or not output is
+written and reason for writing output. The `.metadata.json` created by the gear is
+logged, including the parent file, gear configuration, QC results, and file tags.
+When `debug` is set to `True`, debugging-level statements are logged.
+
+## Contributing
+
+For more information about how to get started contributing to that gear,
+checkout [CONTRIBUTING.md](CONTRIBUTING.md).
