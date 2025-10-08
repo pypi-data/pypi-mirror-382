@@ -1,0 +1,154 @@
+# AI Cogence MCP Tools
+
+Expose AI Cogence capabilities as MCP (Model Context Protocol) tools that can be used in Claude Desktop and other MCP clients.
+
+## What is This?
+
+This package provides **6 AI tools** that you can use in MCP-compatible applications:
+
+- `rag_query` - AI-powered Q&A with sources
+- `semantic_search` - Vector similarity search
+- `list_chat_sessions` - Session management
+- `get_session_messages` - Message history
+- `get_analytics` - Usage metrics
+- `search_knowledge_base` - Keyword search
+
+## Installation
+
+```bash
+pip install ai-cogence-tools
+```
+
+## Configuration
+
+Create a `.env` file with your backend credentials:
+
+```env
+POSTGRES_USER=your_user
+POSTGRES_PASSWORD=your_password
+POSTGRES_HOST=your_host
+POSTGRES_PORT=5432
+POSTGRES_DB=your_db
+OPENAI_API_KEY=sk-...
+```
+
+## Usage with Claude Desktop
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on Mac):
+
+```json
+{
+  "mcpServers": {
+    "ai-cogence-tools": {
+      "command": "ai-cogence-tools",
+      "env": {
+        "POSTGRES_USER": "your_user",
+        "POSTGRES_PASSWORD": "your_password",
+        "POSTGRES_HOST": "your_host",
+        "POSTGRES_DB": "your_db",
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop. The tools will appear in the tools menu.
+
+## Usage Programmatically
+
+```python
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+# Connect to the server
+server_params = StdioServerParameters(
+    command="ai-cogence-tools",
+    env={
+        "POSTGRES_USER": "your_user",
+        "POSTGRES_PASSWORD": "your_password",
+        # ... other env vars
+    }
+)
+
+async with stdio_client(server_params) as (read, write):
+    async with ClientSession(read, write) as session:
+        # Initialize
+        await session.initialize()
+        
+        # List available tools
+        tools = await session.list_tools()
+        print(f"Available tools: {[tool.name for tool in tools.tools]}")
+        
+        # Call a tool
+        result = await session.call_tool("rag_query", {
+            "question": "What is RAG?"
+        })
+        print(result.content)
+```
+
+## Available Tools
+
+### rag_query
+Execute a RAG query to get AI-powered answers with sources.
+
+**Arguments**:
+- `question` (required): The question to ask
+- `session_id` (optional): Session ID for conversation context
+
+### semantic_search
+Perform semantic search using vector embeddings.
+
+**Arguments**:
+- `query` (required): Search query
+- `top_k` (optional, default=5): Number of results
+
+### list_chat_sessions
+List all chat sessions with metadata.
+
+**Arguments**:
+- `limit` (optional, default=20): Maximum sessions to return
+
+### get_session_messages
+Get all messages for a specific session.
+
+**Arguments**:
+- `session_id` (required): Session ID
+
+### get_analytics
+Get usage analytics and metrics.
+
+**Arguments**:
+- `time_range` (optional, default="today"): Time range (today, week, month, all)
+
+### search_knowledge_base
+Search the knowledge base using keywords.
+
+**Arguments**:
+- `query` (required): Search query
+- `limit` (optional, default=10): Maximum results
+
+## How It Works
+
+This MCP server connects to the AI Cogence backend and exposes its capabilities as tools. It:
+
+1. Uses existing backend services (no code duplication)
+2. Connects to your PostgreSQL database with pgvector
+3. Uses OpenAI for embeddings and completions
+4. Provides RAG, search, and analytics capabilities
+
+## Requirements
+
+- Python 3.10+
+- PostgreSQL with pgvector extension
+- OpenAI API key
+- Access to AI Cogence backend database
+
+## License
+
+MIT
+
+## Support
+
+For issues or questions, visit: https://github.com/ai-cogence/mcp-tools/issues
+
