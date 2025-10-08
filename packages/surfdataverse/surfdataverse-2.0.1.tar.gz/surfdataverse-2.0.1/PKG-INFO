@@ -1,0 +1,318 @@
+Metadata-Version: 2.3
+Name: surfdataverse
+Version: 2.0.1
+Summary: A Python package for ionysis Microsoft Dataverse integration
+Keywords: dataverse,microsoft,crm,api
+Author: ionysis
+Author-email: ionysis <friedemann.heinz@ionysis.com>
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Dist: msal>=1.33.0
+Requires-Dist: numpy>=2.3.3
+Requires-Dist: pandas>=2.3.2
+Requires-Dist: requests>=2.32.5
+Requires-Python: >=3.11
+Project-URL: Bug Tracker, https://github.com/FriedemannHeinz/SurfDataverse/issues
+Project-URL: Documentation, https://github.com/FriedemannHeinz/SurfDataverse#readme
+Project-URL: Homepage, https://github.com/FriedemannHeinz/SurfDataverse
+Project-URL: Repository, https://github.com/FriedemannHeinz/SurfDataverse.git
+Description-Content-Type: text/markdown
+
+# SurfDataverse
+
+A Python package for Microsoft Dataverse integration, providing a clean, object-oriented interface for connecting to, reading from, and writing to Microsoft Dataverse environments.
+
+## Features
+
+- **Easy Authentication**: Simplified MSAL-based authentication with token caching
+- **Dynamic Table Class Generation**: Automatically generates Python classes from Dataverse table metadata
+- **Type Safety**: Built-in validation and error handling
+- **Configurable Prefixes**: Support for custom table/column naming conventions
+- **Extensible**: Easy to work with any Dataverse table structure
+
+## Quick Start
+
+### 1. Configuration
+
+Create a configuration JSON file with your Dataverse connection details:
+
+```json
+{
+    "authorityBase": "https://login.microsoftonline.com/",
+    "tenantID": "your-tenant-id",
+    "clientID": "your-client-id", 
+    "environmentURI": "https://yourorg.crm.dynamics.com/",
+    "scopeSuffix": "/.default"
+}
+```
+
+### 2. Basic Usage
+
+```python
+from surfdataverse import DataverseClient, DataverseTable
+from pathlib import Path
+
+# Initialize client
+config_path = Path("connection_configs/your_config.json")
+client = DataverseClient(config_path=config_path)
+
+# Authenticate
+client.get_authenticated_session()
+
+# Test connection
+client.test_connection()
+
+# Create a table instance using the logical table name
+product_table = DataverseTable("logical_table_name_1")
+
+# Set data using dynamic properties (auto-generated from table metadata)
+product_table.name = "My Product"
+product_table.company = "My Company"
+product_table.articlenr = "EXT-001"
+
+# Write to Dataverse
+guid = product_table.write_to_dataverse()
+print(f"Created/updated product with GUID: {guid}")
+```
+
+## Dynamic Table Class Generation
+
+The core feature of SurfDataverse is its ability to automatically generate Python properties from Dataverse table metadata. When you create a `DataverseTable` instance, it:
+
+1. **Fetches table metadata** from Dataverse
+2. **Analyzes column types** (text, choice, lookup, file, etc.)
+3. **Creates dynamic properties** with appropriate getters/setters
+4. **Handles type conversion** automatically
+
+### Example: Working with Different Field Types
+
+```python
+# Create table instances
+product = DataverseTable("logical_table_name_1")
+formula = DataverseTable("logical_table_name_2")
+
+# Text properties (auto-generated from table metadata)
+product.name = "Product Name"
+product.company = "Company Name"
+
+# Choice properties (option sets - converts text to numeric values)
+formula.type = "Production"  # Automatically maps to numeric choice value
+
+# Lookup properties (relationships to other tables)
+formula.product = product.guid  # Links formula to product
+
+# File properties (JSON data stored as files)
+product.specifications = {
+    "weight": 100,
+    "dimensions": {"length": 50, "width": 30}
+}
+
+# Save changes
+product.write_to_dataverse()
+formula.write_to_dataverse()
+```
+
+## Table Prefix Configuration
+
+SurfDataverse supports custom table/column prefixes to work with different naming conventions:
+
+```python
+# Default prefix (commonly "prefix_")
+default_table = DataverseTable("prefix_tablename")
+
+# Custom prefix
+custom_table = DataverseTable("myorg_product", table_prefix="myorg_")
+
+# The system automatically:
+# - Filters columns starting with your prefix
+# - Generates property names by removing the prefix
+# - Handles relationships between tables with the same prefix
+```
+
+## Data Retrieval
+
+Fetch data from Dataverse tables as pandas DataFrames:
+
+```python
+# Get table data as pandas DataFrame
+df = client.get_table_data(logical_name="logical_table_name_1")
+
+# Get specific record
+entity_set_name = client.get_table_entity_set_name(logical_name="logical_table_name_1")
+record = client.get_record(entity_set_name, "guid-here")
+
+# Get table metadata
+metadata = client.get_table_metadata("logical_table_name_1")
+
+# Download multiple tables (optionally filtered by schema)
+definitions, data, metadata = client.download_tables_as_df(schema_filter="prefix")
+```
+
+## Property Types
+
+The system automatically creates different property types based on Dataverse field metadata:
+
+### Data Properties
+Simple text, numeric, and date fields:
+```python
+table.name = "Some Value"
+table.quantity = 100
+table.price = 29.99
+```
+
+### Choice Properties
+Option set fields (automatically converts labels to/from numeric values):
+```python
+table.status = "Active"  # Converts to numeric value
+current_status = table.status  # Returns "Active" (readable label)
+```
+
+### Lookup Properties
+Relationships to other tables:
+```python
+table.parent_record = "parent-guid-here"
+table.related_item = related_table.guid
+```
+
+### File Properties
+Virtual file fields for storing complex data:
+```python
+table.metadata = {
+    "tags": ["important", "production"],
+    "config": {"setting1": "value1"}
+}
+```
+
+## Error Handling
+
+The package provides comprehensive error handling:
+
+```python
+from surfdataverse import (
+    AuthenticationError,
+    ConnectionError, 
+    DataverseAPIError,
+    EntityError,
+    ValidationError
+)
+
+try:
+    client.get_authenticated_session()
+    table.write_to_dataverse()
+except AuthenticationError as e:
+    print(f"Authentication failed: {e}")
+except DataverseAPIError as e:
+    print(f"API error (status {e.status_code}): {e}")
+except ValidationError as e:
+    print(f"Data validation error: {e}")
+```
+
+## Advanced Usage
+
+### Manual Property Creation
+For custom scenarios, you can create properties manually:
+
+```python
+from surfdataverse import DataverseTable
+
+# Extend the base class
+class CustomTable(DataverseTable):
+    def __init__(self, logical_name, prefix="prefix_"):
+        super().__init__(logical_name, table_prefix=prefix)
+    
+    # Add custom business logic
+    def validate_data(self):
+        if not self.name:
+            raise ValueError("Name is required")
+        return True
+```
+
+### Batch Operations
+Work with multiple records efficiently:
+
+```python
+# Create multiple records
+products = []
+for i in range(10):
+    product = DataverseTable("logical_table_name_1")
+    product.name = f"Product {i}"
+    product.company = "ACME Corp"
+    products.append(product)
+
+# Write all records
+for product in products:
+    product.write_to_dataverse()
+```
+
+### Session Management
+
+The `DataverseClient` uses a singleton pattern for connection management:
+
+```python
+# First initialization
+client1 = DataverseClient(config_path="config1.json")
+
+# Later access (returns same instance)  
+client2 = DataverseClient()  # Same as client1
+```
+
+## Project Structure
+```
+surfdataverse/
+├── __init__.py          # Package initialization
+├── core.py              # Core client and table classes
+└── exceptions.py        # Custom exceptions
+
+examples/
+├── basic_usage.py       # Basic usage examples
+├── example_auto_usage.py # Auto-generation examples
+└── schema_visualization.py # Schema analysis tools
+
+connection_configs/      # Configuration files (not tracked)
+├── dev.json
+└── production.json
+```
+
+## Dependencies
+
+- `msal`: Microsoft Authentication Library
+- `requests`: HTTP client  
+- `pandas`: Data manipulation and analysis
+
+## Testing
+
+```bash
+python -m pytest tests/ -v
+```
+
+## Code Style
+
+```bash
+uv run ruff format src/
+uv run ruff check src/
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Support
+
+For issues and questions:
+- GitHub Issues: [https://github.com/FriedemannHeinz/SurfDataverse/issues](https://github.com/FriedemannHeinz/SurfDataverse/issues)
+- Documentation: This README and inline code documentation
