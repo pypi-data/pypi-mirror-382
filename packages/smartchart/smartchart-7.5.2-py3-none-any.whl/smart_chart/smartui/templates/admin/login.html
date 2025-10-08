@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+{% load i18n static simpletags %}
+{% get_current_language as LANGUAGE_CODE %}{% get_current_language_bidi as LANGUAGE_BIDI %}
+
+<html lang="{{ LANGUAGE_CODE|default:"en-us" }}" {% if LANGUAGE_BIDI %}dir="rtl"{% endif %}>
+<head>
+    <meta charset="UTF-8">
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    {% block title %}
+        <title>{{ site_title }}-{% trans 'Log in' %}</title>
+    {% endblock %}
+    {% block icon %}
+        <link rel="icon"  href="/static/smartui/img/favicon.ico">
+    {% endblock %}
+    {% include 'admin/includes/css-part.html' %}
+<link rel="stylesheet" href="/static/smartchart/icon/iconfont.css?_=2">
+<link rel="stylesheet" href="{% static 'smartui/css/login.css' %}?_=2.3">
+
+</head>
+<body>
+{% block main %}
+    <vue id="vue_app">
+        {% block errors %}
+        <div style="display: flex;justify-content: center;margin-bottom: 10px;width:100% "><div >
+        {% if form.non_field_errors %}
+            {% for error in form.non_field_errors %}
+                <el-alert title="{{ error }}" type="error"> </el-alert>
+            {% endfor %}
+        {% endif %}
+        {% if form.errors and not form.non_field_errors %}
+            <p class="errornote">
+                {% if form.errors.items|length == 1 %}
+                    <el-alert title="{% trans "Please correct the error below." %}" type="error"></el-alert>
+                {% else %}
+                    <el-alert title="{% trans "Please correct the errors below." %}" type="error"></el-alert>
+                {% endif %}
+            </p>
+        {% endif %}
+    </div>
+    </div>
+    {% endblock %}
+    <div class="login-main">
+        <div class="left">
+            <div class="logo">
+            <img src="{% static 'smartui/img/smartviplogo.png' %}">
+            </div>
+            <p>欢迎使用SmartChart V7 - <span style="color:#b94a19;">AI Agent Inside</span> 请输入您的账号和密码进行登录!</p>
+        </div>
+
+    <div class="right">
+    {% block form %}
+         <form class="form" action="{{ app_path }}" method="post" id="login-form">
+            {% csrf_token %}
+             <label for="account">{% trans 'username' %}</label>
+             <el-input prefix-icon="fas fa-user" v-model="username" name="username"
+                           autofocus></el-input>
+             <label for="account">{% trans 'password' %}</label>
+                <el-input prefix-icon="fas fa-lock" type="password" v-model="password" name="password"
+                          @keyup.enter.native="login()"></el-input>
+            {% url 'admin_password_reset' as password_reset_url %}
+              {% if password_reset_url %}
+             <div class="password-reset-link">
+                <a class="forgot-password" href="{{ password_reset_url }}">{% trans 'Forgotten your password or username?' %}</a>
+             </div>
+              {% endif %}
+                <el-button :icon="loading?'el-icon-loading':''" @click="login()"
+                           type="primary">{% trans 'Log in' %}</el-button>
+            <input type="hidden" name="next" value="{{next}}"/>
+        </form>
+        <div class="third-login">
+    <p class="split-line"><span>其他方式登录</span></p>
+    <div class="platform-icons">
+        <a @click.prevent="third('dingding')" title="钉钉登录"><i class="iconfont icondingding"></i></a>
+        <a @click.prevent="third('qiwei')" title="企微登录"><i class="iconfont iconqiwei"></i></a>
+        <a @click.prevent="third('feishu')" title="飞书登录"><i class="iconfont iconfeishu"></i></a>
+        <a @click.prevent="third('sso')" title="SSO登录"><i class="iconfont iconzhinengti"></i></a>
+    </div>
+</div>
+</div>
+    {% endblock %}
+    </div>
+</div>
+    </vue>
+{% endblock %}
+{% include 'admin/includes/js-part.html' %}
+{% block login_js %}
+<script type="text/javascript" src="{% static 'smartui/js/login.js' %}?_=3.5"></script>
+{% endblock %}
+
+</body>
+</html>
