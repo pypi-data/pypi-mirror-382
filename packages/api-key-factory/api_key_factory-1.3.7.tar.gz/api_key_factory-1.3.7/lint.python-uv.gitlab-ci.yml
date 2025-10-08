@@ -1,0 +1,53 @@
+---
+variables:
+  LINT_PY_IMAGE_UV: ghcr.io/astral-sh/uv:$LINT_PY_IMAGE_UV_TAG
+  LINT_PY_IMAGE_UV_TAG: python3.13-bookworm-slim
+  LINT_PY_MYPY: "true"
+  LINT_PY_MYPY_ALLOW_FAILURE: "true"
+  LINT_PY_MYPY_IMAGE: $LINT_PY_IMAGE_UV
+  LINT_PY_MYPY_FLAG: "--strict"
+  LINT_PY_MYPY_SRC: "src/ tests/"
+  LINT_PY_RUFF_FORMAT: "true"
+  LINT_PY_RUFF_FORMAT_ALLOW_FAILURE: "true"
+  LINT_PY_RUFF_FORMAT_IMAGE: $LINT_PY_IMAGE_UV
+  LINT_PY_RUFF_LINT: "true"
+  LINT_PY_RUFF_LINT_ALLOW_FAILURE: "true"
+  LINT_PY_RUFF_LINT_IMAGE: $LINT_PY_IMAGE_UV
+
+.lint-abstract-uv:
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+    - uv sync --frozen
+
+lint:py-ruff-format:
+  extends: .lint-abstract-uv
+  image: $LINT_PY_RUFF_FORMAT_IMAGE
+  stage: lint
+  script:
+    - uv run ruff format --check
+  rules:
+    - if: ($LINT_PY_RUFF_FORMAT_ALLOW_FAILURE == "true") && ($LINT_PY_RUFF_FORMAT == "true")
+      allow_failure: true
+    - if: $LINT_PY_RUFF_FORMAT == "true"
+
+lint:py-ruff-lint:
+  extends: .lint-abstract-uv
+  image: $LINT_PY_RUFF_LINT_IMAGE
+  stage: lint
+  script:
+    - uv run ruff check
+  rules:
+    - if: ($LINT_PY_RUFF_LINT_ALLOW_FAILURE == "true") && ($LINT_PY_RUFF_LINT == "true")
+      allow_failure: true
+    - if: $LINT_PY_RUFF_LINT == "true"
+
+lint:py-mypy:
+  extends: .lint-abstract-uv
+  image: $LINT_PY_MYPY_IMAGE
+  stage: lint
+  script:
+    - uv run mypy "$LINT_PY_MYPY_FLAG" $LINT_PY_MYPY_SRC
+  rules:
+    - if: ($LINT_PY_MYPY_ALLOW_FAILURE == "true") && ($LINT_PY_MYPY == "true")
+      allow_failure: true
+    - if: $LINT_PY_MYPY == "true"

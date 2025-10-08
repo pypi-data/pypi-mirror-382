@@ -1,0 +1,68 @@
+---
+include:
+  - remote: 'https://gitlab.com/op_so/projects/gitlab-ci-templates/-/raw/main/templates/lint.gitlab-ci.yml'
+  - local: 'lint.python-uv.gitlab-ci.yml'
+  # - remote: 'https://gitlab.com/op_so/projects/gitlab-ci-templates/-/raw/main/templates/lint.python-rye.gitlab-ci.yml'
+  - remote: 'https://gitlab.com/op_so/projects/gitlab-ci-templates/-/raw/main/templates/gitlab-release.gitlab-ci.yml'
+  # - remote: 'https://gitlab.com/op_so/projects/gitlab-ci-templates/-/raw/main/templates/python.rye-publish.gitlab-ci.yml'
+  - local: 'python.uv-publish.gitlab-ci.yml'
+
+variables:
+  IMAGE_TRIVY: aquasec/trivy:$IMAGE_TRIVY_TAG
+  IMAGE_TRIVY_TAG: latest
+  IMAGE_UV: ghcr.io/astral-sh/uv:$LINT_PY_IMAGE_UV_TAG
+  IMAGE_UV_TAG: python3.13-bookworm-slim
+  LINT_VALE: "false"
+  LINT_MARKDOWN_GLOB: '"**/*.md" "#docs"'
+
+stages:
+  - lint
+  - tests
+  - gitlab-release
+  - pypi-release
+  - pages-release
+
+.abstract-uv:
+  image: $IMAGE_UV
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+    - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
+    - ./bin/task --version
+    - uv sync --frozen
+
+tests:pytest:
+  extends: .abstract-uv
+  stage: tests
+  script:
+    - ./bin/task 00:30-test
+
+tests:stub:
+  extends: .abstract-uv
+  stage: tests
+  script:
+    - ./bin/task 00:50-test-stub
+
+tests:trivy:
+  stage: tests
+  image:
+    name: $IMAGE_TRIVY
+    entrypoint: [""]
+  variables:
+    TRIVY_NO_PROGRESS: "true"
+    TRIVY_CACHE_DIR: ".trivycache/"
+  before_script:
+    - trivy --version
+    - trivy fs --download-db-only
+  script:
+    - trivy fs "$CI_PROJECT_DIR/uv.lock" --exit-code 0 -d --include-dev-deps
+    - trivy fs "$CI_PROJECT_DIR/uv.lock" --exit-code 1 --severity CRITICAL -d --include-dev-deps
+  cache:
+    paths:
+      - .trivycache/
+
+gitlab-release:
+  retry: 1
+  before_script:
+    - npx semantic-release --dry-run --no-ci
+    - if [ -s .VERSION ]; then task 00:00-project-set-version VERSION=$(cat .VERSION); fi
+    - if [ -s .VERSION ]; then task 00:80-package-src VERSION=$(cat .VERSION); fi

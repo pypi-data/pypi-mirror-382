@@ -1,0 +1,42 @@
+---
+variables:
+  UV_PUB_IMAGE_UV: ghcr.io/astral-sh/uv:$LINT_PY_IMAGE_UV_TAG
+  UV_PUB_IMAGE_UV_TAG: python3.13-bookworm-slim
+  UV_PUB_RELEASE_IMAGE: $UV_PUB_IMAGE_UV
+  UV_PUB_DOC_PUBLISH_IMAGE: $UV_PUB_IMAGE_UV
+  UV_PUB_DOC_PUBLISH_PAGES: "true"
+  UV_PUB_TASK_SET_VERSION: 00:00-project-set-version
+
+.uv-pub-abstract-uv:
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+    - sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
+    - ./bin/task --version
+    - uv sync --frozen
+
+pypi-release:
+  extends: .uv-pub-abstract-uv
+  image: $UV_PUB_RELEASE_IMAGE
+  stage: pypi-release
+  script:
+    - if [ -z "$PYPI_TOKEN"]; then echo "PYPI_TOKEN is empty!" && exit 1; fi
+    - VERSION=$(echo $CI_COMMIT_TAG | sed 's/v//g')
+    - if [ -n "$UV_PUB_TASK_SET_VERSION" ]; then ./bin/task ${UV_PUB_TASK_SET_VERSION} VERSION=$VERSION; fi
+    - uv build
+    - uv publish --token "$PYPI_TOKEN"
+  rules:
+    - if: $CI_COMMIT_TAG
+
+pages:
+  extends: .uv-pub-abstract-uv
+  image: $UV_PUB_DOC_PUBLISH_IMAGE
+  stage: pages-release
+  script:
+    - VERSION=$(echo $CI_COMMIT_TAG | sed 's/v//g')
+    - if [ -n "$UV_PUB_TASK_SET_VERSION" ]; then ./bin/task ${UV_PUB_TASK_SET_VERSION} VERSION=$VERSION; fi
+    - uv run mkdocs build --site-dir public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_TAG && ($UV_PUB_DOC_PUBLISH_PAGES == "true")

@@ -1,0 +1,123 @@
+---
+# https://taskfile.dev
+#
+# Taskfile.project.yml for your main project tasks. Must be commited.
+# If you always want the last version of the task templates, add the following line in your .gitignore file
+# /Taskfile.d/
+#
+version: '3'
+
+vars:
+  # TO MODIFY: Task templates to download separated by comma
+  # Example: TASK_TEMPLATES: go,lint,yarn
+  TASK_TEMPLATES: git,lint
+
+tasks:
+
+  00-get-list-templates:
+    # Get the list of templates to download
+    # Do not remove
+    cmds:
+      - echo "{{.TASK_TEMPLATES}}"
+    silent: true
+
+  00-project-set-version:
+    desc: "[PROJECT] Set version in different files. Arguments: VERSION|V=x.y.z"
+    vars:
+      PY_FILE_VERSION: src/api_key_factory/api_key_factory.py
+      MD_FILE_VERSION: docs/index.md
+      VERSION: '{{.VERSION | default .V}}'
+    cmds:
+      - echo "Version {{.VERSION}}"
+      - sed -i.bu "s/0\.0\.0/{{.VERSION}}/g" pyproject.toml
+      - defer: rm -f pyproject.toml.bu
+      - sed -i.bu "s/0\.0\.0/{{.VERSION}}/g" {{.PY_FILE_VERSION}}
+      - defer: rm -f {{.PY_FILE_VERSION}}.bu
+      - sed -i.bu "s/0\.0\.0/{{.VERSION}}/g" {{.MD_FILE_VERSION}}
+      - defer: rm -f {{.MD_FILE_VERSION}}.bu
+    preconditions:
+      - sh: test -n "{{.VERSION}}"
+        msg: "VERSION|V argument is required"
+    silent: true
+
+  10-lint:
+    desc: "[PROJECT] Python format with Ruff."
+    cmds:
+      - uv run ruff check --fix
+      - uv run ruff format
+      - uv run ruff check
+    silent: true
+
+  20-mypy:
+    desc: "[PROJECT] Static typing for Python."
+    cmds:
+      - uv run mypy --strict .
+    silent: true
+
+  30-test:
+    desc: "[PROJECT] Run unit Pytest tests."
+    cmds:
+      - uv run pytest --cov=src/ --cov-report html:reports/cov --cov-report term
+    silent: true
+
+  40-gen-stub:
+    desc: "[PROJECT] Generate stubs with mypy."
+    cmds:
+      - cd src/ && uv run stubgen api_key_factory -o .
+      - rm -f src/api_key_factory/api_key_factory.pyi
+    silent: true
+
+  50-test-stub:
+    desc: "[PROJECT] Generate stubs with mypy."
+    cmds:
+      - echo "Stubtest api_key_factory.factory"
+      - cd src/ && uv run stubtest api_key_factory.factory
+      - echo "Stubtest api_key_factory.util"
+      - cd src/ && uv run stubtest api_key_factory.util
+    silent: true
+
+  60-trivy:
+    desc: "[PROJECT] Run unit Pytest tests."
+    vars:
+      IMAGE_TRIVY: '{{.IMAGE_TRIVY | default "aquasec/trivy"}}'
+      IMAGE_TRIVY_TAG: '{{.IMAGE_TRIVY_TAG | default "latest"}}'
+    cmds:
+      - mkdir -p .trivy_cache
+      - chmod 777 .trivy_cache
+      - docker run --rm -v $(pwd)/.trivy_cache:/root/.cache/ -v $(pwd)/uv.lock:/root/uv.lock {{.IMAGE_TRIVY }}:{{.IMAGE_TRIVY_TAG}} fs /root/uv.lock -d --include-dev-deps
+    silent: true
+
+  70-doc-serve:
+    desc: "[PROJECT] Run mkdocs server."
+    cmds:
+      - uv run mkdocs serve
+    silent: true
+
+  80-package-src:
+    desc: "[PROJECT] Generate source package. Arguments: VERSION|V=x.y.z"
+    vars:
+      VERSION: '{{.VERSION | default .V}}'
+    cmds:
+      - echo "Version {{.VERSION}}"
+      - mkdir -p dist
+      - rm -f dist/*
+      - tar czf dist/api_key_factory-src-{{.VERSION}}.tar.gz -C src .
+    preconditions:
+      - sh: test -n "{{.VERSION}}"
+        msg: "VERSION|V argument is required"
+    silent: true
+
+  999-pre-commit:
+    desc: "[PROJECT] Pre-commit checks."
+    cmds:
+      - date > {{.FILE_TASK_START}}
+      - defer: rm -f {{.FILE_TASK_START}}
+      - task lint:pre-commit
+      - echo "" && echo "Markdown:" && echo "========="
+      - task lint:markdown GLOB='"**/*.md" "#docs" "#styles" "#.cache" "#.venv"'
+      - echo "" && echo "YAML:" && echo "====="
+      - task lint:yaml
+      - echo "" && echo "Lychee:" && echo "======="
+      - task lint:lychee
+      - echo "" && echo "Checks Start $(cat {{.FILE_TASK_START}}) - End $(date)"
+    silent: true
