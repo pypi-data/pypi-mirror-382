@@ -1,0 +1,104 @@
+[project]
+name = "jeepney-stubs"
+version = "0.1.0"
+description = "Type stubs for jeepney"
+readme = "README.md"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.8.13"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "jeepney-stubs"
+module-root = ""
+
+[tool.uv.workspace]
+members = [
+    ".",
+]
+
+[tool.uv.sources]
+jeepney-stubs = { workspace = true }
+
+[mypy]
+python_version = 3.12
+
+[dependency-groups]
+dev = [
+    "jeepney>=0.9.0",
+    "mypy[faster-cache]>=1.18.2",
+    "basedpyright>=1.31.4",
+    "ruff>=0.13.3",
+]
+
+
+# In large part taken from https://github.com/scipy/scipy-stubs/blob/master/pyproject.toml
+[tool.poe.tasks.clean]
+cmd = """
+rm -rf
+  **/*.pyc
+  **/__pycache__
+  **/.cache
+  **/.mypy_cache
+  **/.ruff_cache
+  **/.tox
+"""
+
+[tool.poe.tasks.mypy]
+cmd = "uv run mypy jeepney-stubs"
+
+[tool.poe.tasks.stubtest]
+cmd = """
+uv run
+  --no-editable
+  --reinstall-package=jeepney-stubs
+  stubtest
+  --ignore-disjoint-bases
+  --allowlist=.mypyignore
+  jeepney
+"""
+
+[tool.poe.tasks.basedpyright]
+cmd = """uv run basedpyright jeepney-stubs"""
+
+[tool.basedpyright]
+reportExplicitAny = false
+reportIncompleteStub = false
+
+[tool.tox]
+min_version = "4"
+requires = ["tox-uv>=1"]
+env_list = ["3.10", "3.8"]
+
+[tool.tox.env_run_base]
+description = "stubtest with {base_python}"
+runner = "uv-venv-runner"
+dependency_groups = ["dev"]
+uv_sync_flags = ["--no-editable", "--reinstall-package=jeepney-stubs"]
+commands = [
+  [ "ruff", "check" ],
+  [
+    "stubtest",
+    "--ignore-disjoint-bases",
+    "--allowlist=.mypyignore",
+    { replace = "posargs", default = ["jeepney"], extend = true },
+  ],
+  [ "mypy", "jeepney-stubs" ],
+  [ "basedpyright" ]
+]
+
+[tool.tox.env.3.8]
+description = "Check with an older version of mypy"
+runner = "uv-venv-runner"
+# 3.8 forces some older versions
+dependency_groups = []
+deps = [
+    "jeepney>=0.9.0",
+    "mypy==1.14.1",
+]
+commands = [ [ "mypy", "jeepney-stubs" ], ]
+
+[tool.tox.gh.python]
+"3.13" = ["3.13"]
+"3.8" = ["3.8"]
