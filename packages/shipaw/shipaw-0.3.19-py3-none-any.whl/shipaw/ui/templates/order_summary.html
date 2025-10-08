@@ -1,0 +1,108 @@
+<!-- templates/order_summary.html -->
+{#context = {shipment_request}#}
+{% block head %}
+    <script src="{{ url_for('static', path='ship.js') }}"></script>
+    <link href="{{ url_for('static', path='ship.css') }}" rel="stylesheet">
+{% endblock %}
+
+{% set shipment = shipment_request.shipment %}
+
+{% if shipment.direction == 'in' %}
+    {% set shipdir = "Inbound" %}
+{% elif shipment.direction == 'out' %}
+    {% set shipdir = "Outbound" %}
+{% elif shipment.direction == 'dropoff' %}
+    {% set shipdir = "Dropoff" %}
+{% else %}
+    {% set shipdir = "UNKNOWN DIRECTION!" %}
+{% endif %}
+
+{% if alerts %}
+    {% include "alerts.html" with context %}
+{% endif %}
+<script>
+    console.log('SHIP DIR: {{ shipdir }}');
+</script>
+
+<div id=requested_shipment class="wrapper wrapper__requested">
+    <section class="requested requested__head">
+        <h3 class="requested-title">{{ shipdir }} {{ shipment_request.provider_name }} Shipment:</h3>
+        <form hx-post="order_results"
+              hx-target=#content_main
+              hx-swap="innerHTML"
+        >
+            <input type="hidden" name="shipment_request_json" value="{{ shipment_request.model_dump_json() }}">
+            <button id="btn_ship" class="submit-confirm-btn" onclick=hide_main_form()>
+                Confirm Booking
+            </button>
+        </form>
+    </section>
+
+    {% if shipment.sender %}
+        {% set contact = shipment.sender.contact %}
+        {% set address = shipment.sender.address %}
+        <section class="requested requested__col_contact">
+            <h4>Sender</h4>
+            <p>{{ contact.contact_name }}</p>
+        </section>
+
+        <section class="requested requested__col_address">
+            <p>{{ address.business_name }}</p>
+            {% for line in address.address_lines %}
+                <p>{{ line }}</p>
+            {% endfor %}
+            <p>{{ address.town }}</p>
+            <p>{{ address.postcode }}</p>
+        </section>
+
+    {% endif %}
+    <section class="requested requested__contact">
+        {#        {% set contact = shipment.remote_full_contact.contact %}#}
+    </section>
+
+    {% set contact = shipment.recipient.contact %}
+    {% set address = shipment.recipient.address %}
+    <section class="requested requested__contact">
+        <h4>Recipient</h4>
+        <p>{{ contact.contact_name }}</p>
+    </section>
+    <section class="requested requested__address">
+        <p>{{ address.business_name }}</p>
+        {% for line in address.address_lines %}
+            <p>{{ line }}</p>
+        {% endfor %}
+        <p>{{ address.town }}</p>
+        <p>{{ address.postcode }}</p>
+
+    </section>
+
+
+    <section class="requested requested__details">
+        <p><strong>Boxes:</strong> {{ shipment.boxes }}</p>
+        <p><strong>Date:</strong> {{ shipment.shipping_date }}</p>
+        <p><strong>Service:</strong> {{ shipment.service }}</p>
+        <p><strong>Reference:</strong> {{ shipment.reference }}</p>
+    </section>
+</div>
+
+
+<script>
+    function hide_main_form() {
+        const main_form = document.querySelector('#main-form');
+        main_form.style.display = 'none';
+        const shipbtn = document.querySelector('#btn_ship');
+        shipbtn.style.display = 'none';
+
+        // Create and insert spinner
+        const spinner = document.createElement('div');
+        const contentMain = document.querySelector('#content_main');
+        spinner.className = 'loading-spinner';
+        spinner.innerHTML = '<span class="loader"></span>';
+        contentMain.appendChild(spinner);
+        spinner.style.display = 'flex';
+
+    }
+</script>
+
+
+
