@@ -1,0 +1,44 @@
+{% extends "bank_transaction_bridge/base.html" %}
+{% load static %}
+{% block title %}
+    {% if selected_to_delete %}
+        Confirm deletion
+    {% else %}
+        List of bankaccounts
+    {% endif %}
+{% endblock %}
+{% block body %}
+    {% include "bank_transaction_bridge/snippets/show_messages.html" %}
+    {% if items %}
+        <form method="post">
+            {% csrf_token %}
+            {% include "bank_transaction_bridge/snippets/delete_selected.html" with list_url="bank_transaction_bridge:bank_account_list" create_url="bank_transaction_bridge:bank_account_create" %}
+            <div class="grid grid-cols-5 gap-4 font-semibold border-b pb-2">
+                <div>Bank Name</div>
+                <div>Alias</div>
+                <div>Account Number</div>
+                <div>Notes</div>
+                {% if not selected_to_delete %}<div></div>{% endif %}
+            </div>
+            {% for item in items %}
+                <a href="{% url 'bank_transaction_bridge:bank_account_update' item.pk %}"
+                   class="grid grid-cols-5 gap-4 py-2 border-b hover:bg-gray-100">
+                    {% if selected_to_delete %}<input type="hidden" name="selected_item_ids" value={{ item.pk }}>{% endif %}
+                    <div class="overflow-auto whitespace-nowrap">{{ item.bank_name }}</div>
+                    <div class="overflow-auto whitespace-nowrap">{{ item.alias }}</div>
+                    <div class="overflow-auto whitespace-nowrap">{{ item.account_number }}</div>
+                    <div class="overflow-auto whitespace-nowrap">{{ item.notes }}</div>
+                    {% if not selected_to_delete %}
+                        <div>
+                            <input type="checkbox" name="items" value="{{ item.pk }}">
+                        </div>
+                    {% endif %}
+                </a>
+            {% endfor %}
+        </form>
+    {% else %}
+        <div>No bank accounts yet.</div>
+        <a class="btn btn-accent"
+           href="{% url 'bank_transaction_bridge:bank_account_create' %}">Create</a>
+    {% endif %}
+{% endblock %}

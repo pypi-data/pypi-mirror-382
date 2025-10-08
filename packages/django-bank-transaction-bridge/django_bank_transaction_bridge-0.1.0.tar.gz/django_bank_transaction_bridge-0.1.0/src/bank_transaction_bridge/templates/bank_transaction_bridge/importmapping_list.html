@@ -1,0 +1,39 @@
+{% extends "bank_transaction_bridge/base.html" %}
+{% load static %}
+{% block title %}
+    {% if selected_to_delete %}
+        Confirm deletion
+    {% else %}
+        List of import mappings
+    {% endif %}
+{% endblock %}
+{% block body %}
+    {% include "bank_transaction_bridge/snippets/show_messages.html" %}
+    {% if items %}
+        <form method="post">
+            {% csrf_token %}
+            {% include "bank_transaction_bridge/snippets/delete_selected.html" with list_url="bank_transaction_bridge:import_mapping_list" create_url="bank_transaction_bridge:import_mapping_create" %}
+            <div class="grid grid-cols-5 gap-4 font-semibold border-b pb-2">
+                <div>Name</div>
+                <div>Mapping</div>
+                {% if not selected_to_delete %}<div></div>{% endif %}
+            </div>
+            {% for item in items %}
+                <a href="{% url 'bank_transaction_bridge:import_mapping_update' item.pk %}"
+                   class="grid grid-cols-5 gap-4 py-2 border-b hover:bg-gray-100">
+                    <div class="overflow-auto whitespace-nowrap">{{ item.name }}</div>
+                    <div class="overflow-auto whitespace-nowrap col-span-3">{{ item.mapping }}</div>
+                    {% if not selected_to_delete %}
+                        <div>
+                            <input type="checkbox" name="items" value="{{ item.pk }}">
+                        </div>
+                    {% endif %}
+                </a>
+            {% endfor %}
+        </form>
+    {% else %}
+        <div>No import mappings yet.</div>
+        <a class="btn btn-accent"
+           href="{% url 'bank_transaction_bridge:import_mapping_create' %}">Create</a>
+    {% endif %}
+{% endblock %}
