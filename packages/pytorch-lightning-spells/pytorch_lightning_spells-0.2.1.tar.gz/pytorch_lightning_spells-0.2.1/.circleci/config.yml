@@ -1,0 +1,57 @@
+version: 2.1
+
+executors:
+  python-executor:
+    docker:
+      - image: cimg/python:3.11
+    resource_class: small
+
+jobs:
+  core-tests:
+    retention:
+      caches: 3d
+    executor: python-executor
+    working_directory: ~/repo
+    environment:
+      XDG_BIN_HOME: /home/circleci/uv/bin
+      UV_CACHE_DIR: /tmp/.uv-cache
+    steps:
+      - checkout:
+          path: ~/repo
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "uv.lock" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+      - run:
+          name: Install uv
+          command: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - run:
+          name: Install dependencies
+          command: uv sync --frozen --extra telegram
+      - run:
+          name: "Are we on test mode?"
+          command: echo ${TEST_MODE} # prints: XXXXXXX
+      - run:
+          name: Run linter
+          command: uvx ruff check .
+      - run:
+          name: Run tests
+          command: uv run pytest
+      - store_artifacts:
+          path: test-reports
+          destination: test-reports
+      - run:
+          name: Prune Cache
+          command: uv cache prune --ci
+      - save_cache:
+          paths:
+            - /tmp/.uv-cache
+          key: v1-dependencies-{{ checksum "uv.lock" }}
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - core-tests
