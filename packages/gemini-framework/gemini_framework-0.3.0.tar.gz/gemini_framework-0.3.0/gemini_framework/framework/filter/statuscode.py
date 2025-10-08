@@ -1,0 +1,6 @@
+OK = 0
+ERROR = -1
+NO_DATA = -2
+
+FLT_REPAIRED = 3000
+FLT_BAD = -3001
