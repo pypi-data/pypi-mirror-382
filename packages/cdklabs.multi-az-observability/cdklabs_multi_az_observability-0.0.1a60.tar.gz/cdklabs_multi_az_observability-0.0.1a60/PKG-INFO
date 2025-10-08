@@ -1,0 +1,196 @@
+Metadata-Version: 2.1
+Name: cdklabs.multi-az-observability
+Version: 0.0.1a60
+Summary: A CDK construct for implementing multi-AZ observability to detect single AZ impairments
+Home-page: https://github.com/cdklabs/cdk-multi-az-observability
+Author: Amazon Web Services<aws-cdk-dev@amazon.com>
+License: Apache-2.0
+Project-URL: Source, https://github.com/cdklabs/cdk-multi-az-observability/
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: JavaScript
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Typing :: Typed
+Classifier: Development Status :: 4 - Beta
+Classifier: License :: OSI Approved
+Requires-Python: ~=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: aws-cdk-lib<3.0.0,>=2.189.1
+Requires-Dist: constructs<11.0.0,>=10.0.5
+Requires-Dist: jsii<2.0.0,>=1.115.0
+Requires-Dist: publication>=0.0.3
+Requires-Dist: typeguard<4.3.0,>=2.13.3
+
+![Build Workflow](https://github.com/cdklabs/cdk-multi-az-observability/actions/workflows/build.yml/badge.svg) ![Release Workflow](https://github.com/cdklabs/cdk-multi-az-observability/actions/workflows/release.yml/badge.svg) ![GitHub Release](https://img.shields.io/github/v/release/cdklabs/cdk-multi-az-observability?include_prereleases&sort=semver&logo=github&label=version)
+
+# multi-az-observability
+
+This is a CDK construct for multi-AZ observability to help detect single-AZ impairments. This is currently an `alpha` version, but is being used in the AWS [Advanced Multi-AZ Resilience Patterns](https://catalog.workshops.aws/multi-az-gray-failures/en-US) workshop.
+
+There is a lot of available information to think through and combine to provide signals about single-AZ impact. To simplify the setup and use reasonable defaults, this construct (available in [TypeScript](https://www.npmjs.com/package/@cdklabs/multi-az-observability), [Go](https://github.com/cdklabs/cdk-multi-az-observability-go), [Python](https://pypi.org/project/cdklabs.multi-az-observability/), [.NET](https://www.nuget.org/packages/Cdklabs.MultiAZObservability), and [Java](https://central.sonatype.com/artifact/io.github.cdklabs/cdk-multi-az-observability)) sets up the necessary observability. To use the CDK construct, you first define your service like this:
+
+```python
+service = Service(
+    service_name="test",
+    availability_zone_names=vpc.availability_zones,
+    base_url="http://www.example.com",
+    fault_count_threshold=25,
+    period=Duration.seconds(60),
+    load_balancer=load_balancer,
+    target_groups=[target_group1, target_group2],
+    default_availability_metric_details=ServiceAvailabilityMetricDetails(
+        metric_namespace="front-end/metrics",
+        success_metric_names=["Success"],
+        fault_metric_names=["Fault", "Error"],
+        alarm_statistic="Sum",
+        unit=Unit.COUNT,
+        period=Duration.seconds(60),
+        evaluation_periods=5,
+        datapoints_to_alarm=3,
+        success_alarm_threshold=99.9,
+        fault_alarm_threshold=0.1,
+        graphed_fault_statistics=["Sum"],
+        graphed_success_statistics=["Sum"]
+    ),
+    default_latency_metric_details=ServiceLatencyMetricDetails(
+        metric_namespace="front-end/metrics",
+        success_metric_names=["SuccessLatency"],
+        fault_metric_names=["FaultLatency"],
+        alarm_statistic="p99",
+        unit=Unit.MILLISECONDS,
+        period=Duration.seconds(60),
+        evaluation_periods=5,
+        datapoints_to_alarm=3,
+        success_alarm_threshold=Duration.millis(150),
+        graphed_fault_statistics=["p99"],
+        graphed_success_statistics=["p50", "p99", "tm99"]
+    ),
+    default_contributor_insight_rule_details=ContributorInsightRuleDetails(
+        success_latency_metric_json_path="$.SuccessLatency",
+        fault_metric_json_path="$.Faults",
+        operation_name_json_path="$.Operation",
+        instance_id_json_path="$.InstanceId",
+        availability_zone_id_json_path="$.AZ-ID",
+        log_groups=[log_group]
+    ),
+    canary_test_props=AddCanaryTestProps(
+        request_count=10,
+        schedule="rate(1 minute)",
+        load_balancer=load_balancer,
+        network_configuration=NetworkConfigurationProps(
+            vpc=vpc,
+            subnet_selection=SubnetSelection(subnet_type=SubnetType.PRIVATE_ISOLATED)
+        )
+    ),
+    minimum_unhealthy_targets=MinimumUnhealthyTargets(
+        percentage=0.1
+    )
+)
+
+ride_operation = {
+    "operation_name": "ride",
+    "service": service,
+    "path": "/ride",
+    "critical": True,
+    "http_methods": ["GET"],
+    "server_side_contributor_insight_rule_details": ContributorInsightRuleDetails(
+        log_groups=[log_group],
+        success_latency_metric_json_path="$.SuccessLatency",
+        fault_metric_json_path="$.Faults",
+        operation_name_json_path="$.Operation",
+        instance_id_json_path="$.InstanceId",
+        availability_zone_id_json_path="$.AZ-ID"
+    ),
+    "server_side_availability_metric_details": OperationAvailabilityMetricDetails(OperationAvailabilityMetricDetailsProps(
+        operation_name="ride",
+        metric_dimensions=MetricDimensions({"Operation": "ride"}, "AZ-ID", "Region")
+    ), service.default_availability_metric_details),
+    "server_side_latency_metric_details": OperationLatencyMetricDetails(OperationLatencyMetricDetailsProps(
+        operation_name="ride",
+        metric_dimensions=MetricDimensions({"Operation": "ride"}, "AZ-ID", "Region")
+    ), service.default_latency_metric_details)
+}
+
+pay_operation = {
+    "operation_name": "pay",
+    "service": service,
+    "path": "/pay",
+    "critical": True,
+    "http_methods": ["GET"],
+    "server_side_contributor_insight_rule_details": ContributorInsightRuleDetails(
+        log_groups=[log_group],
+        success_latency_metric_json_path="$.SuccessLatency",
+        fault_metric_json_path="$.Faults",
+        operation_name_json_path="$.Operation",
+        instance_id_json_path="$.InstanceId",
+        availability_zone_id_json_path="$.AZ-ID"
+    ),
+    "server_side_availability_metric_details": OperationAvailabilityMetricDetails(OperationAvailabilityMetricDetailsProps(
+        operation_name="pay",
+        metric_dimensions=MetricDimensions({"Operation": "ride"}, "AZ-ID", "Region")
+    ), service.default_availability_metric_details),
+    "server_side_latency_metric_details": OperationLatencyMetricDetails(OperationLatencyMetricDetailsProps(
+        operation_name="pay",
+        metric_dimensions=MetricDimensions({"Operation": "ride"}, "AZ-ID", "Region")
+    ), service.default_latency_metric_details)
+}
+
+service.add_operation(ride_operation)
+service.add_operation(pay_operation)
+```
+
+Then you provide that service definition to the CDK construct.
+
+```python
+InstrumentedServiceMultiAZObservability(stack, "MAZObservability",
+    create_dashboards=True,
+    service=service,
+    interval=Duration.minutes(60)
+)
+```
+
+You define some characteristics of the service, default values for metrics and alarms, and then add operations as well as any overrides for default values that you need. The construct can also automatically create synthetic canaries that test each operation with a very simple HTTP check, or you can configure your own synthetics and just tell the construct about the metric details and optionally log files. This creates metrics, alarms, and dashboards that can be used to detect single-AZ impact. You can access these alarms from the `multiAvailabilityZoneObservability` object and use them in your CDK project to start automation, send SNS notifications, or incorporate in your own dashboards.
+
+If you don't have service specific logs and custom metrics with per-AZ dimensions, you can still use the construct to evaluate ALB and/or NAT Gateway metrics to find single AZ impairments.
+
+```python
+BasicServiceMultiAZObservability(stack, "MAZObservability",
+    application_load_balancer_props=ApplicationLoadBalancerDetectionProps(
+        alb_target_group_map=[AlbTargetGroupMap(
+            application_load_balancer=ApplicationLoadBalancer(stack, "alb",
+                vpc=vpc,
+                cross_zone_enabled=True
+            ),
+            target_groups=[target_group1, target_group2
+            ]
+        )
+        ],
+        fault_count_percent_threshold=1,
+        latency_statistic=Stats.percentile(99),
+        latency_threshold=Duration.millis(200),
+        latency_outlier_algorithm=ApplicationLoadBalancerLatencyOutlierAlgorithm.STATIC,
+        latency_outlier_threshold=45
+    ),
+    nat_gateway_props=NatGatewayDetectionProps(
+        nat_gateways={
+            "us-east-1a": [nat_gateway1],
+            "us-east-1b": [nat_gateway2],
+            "us-east-1c": [nat_gateway3]
+        },
+        packet_loss_percent_threshold=0.01
+    ),
+    service_name="test",
+    period=Duration.seconds(60),
+    create_dashboard=True,
+    evaluation_periods=5,
+    datapoints_to_alarm=3
+)
+```
+
+If you provide a load balancer, the construct assumes it is deployed in each AZ of the VPC the load balancer is associated with and will look for HTTP metrics using those AZs as dimensions.
+
+Both options support running workloads on EC2, ECS, Lambda, and EKS.
