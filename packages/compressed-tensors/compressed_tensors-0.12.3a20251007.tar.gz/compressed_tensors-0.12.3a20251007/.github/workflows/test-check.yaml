@@ -1,0 +1,36 @@
+name: Run Tests
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/*'
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+
+jobs:
+  python-tests:
+    runs-on: k8s-util
+    env:
+        HF_HOME: /model-cache
+        HF_TOKEN: ${{ secrets.NM_HF_TOKEN_READ_ONLY }}
+    steps:
+        - uses: actions/setup-python@v5
+          with:
+            python-version: '3.10'
+        - uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+            fetch-tags: true
+        - name: Install system dependencies
+          run: |-
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends g++ gcc make
+        - name: Set Env
+          run: pip3 install --upgrade pip setuptools
+        - name: "⚙️ Install dependencies"
+          run: pip3 install .[dev,accelerate]
+        - name: "🔬 Running tests"
+          run: make test
