@@ -1,0 +1,85 @@
+# aules-dropout-control
+
+Herramienta para obtener los usuarios que no se han conectado en un número de días a uno o varios cursos de Aules.
+
+## Instalación
+
+```bash
+pip install aules-dropout-control
+```
+
+## Uso
+
+
+```bash
+aules-dropout-control <course> --credentials <archivo.ini> [--days-without-connection N]
+```
+
+- `<course>`: ID del curso (obligatorio) o archivo con IDs de curso (uno por línea, opcionalmente con nombre separado por coma)
+- `--credentials <archivo.ini>`: Ruta al archivo INI con las credenciales (obligatorio)
+- `--days-without-connection N`: Sólo mostrará a los usuarios que no se han conectado en ese número de días (opcional, por defecto: 10)
+
+
+
+### Ejemplo: obtener un curso
+
+```bash
+aules-dropout-control 12345 --credentials example_credentials.ini --days-without-connection 15
+```
+
+La salida será un CSV similar a este:
+```csv
+name,user_name,email,roles,acceso
+Juan Pérez,20001,juan.perez@email.com,Estudiante,Nunca
+Ana Gómez,20002,ana.gomez@email.com,Estudiante,12 días 3 horas
+Luis Torres,20003,luis.torres@email.com,Estudiante,5 días 7 horas
+```
+
+### Ejemplo: obtener varios cursos a la vez
+
+1. Crea un archivo de texto (por ejemplo, `cursos.txt`) con los IDs de los cursos, uno por línea. Puedes añadir un nombre opcional separado por coma:
+
+```
+12345,Curso de Matemáticas
+67890,Curso de Historia
+54321
+```
+
+2. Ejecuta el comando usando el archivo:
+
+```bash
+aules-dropout-control cursos.txt --credentials example_credentials.ini
+```
+
+La salida será un CSV similar a este, incluyendo el id y nombre del curso (si se proporcionó):
+
+```csv
+course_id,course_name,name,user_name,email,roles,acceso
+1001,Matemáticas,Juan Pérez,20001,juan.perez@email.com,Estudiante,Nunca
+1001,Matemáticas,Ana Gómez,20002,ana.gomez@email.com,Estudiante,12 días 3 horas
+1001,Matemáticas,Luis Torres,20003,luis.torres@email.com,Estudiante,5 días 7 horas
+2002,Historia,María López,30001,maria.lopez@email.com,Estudiante,Nunca
+2002,Historia,Carlos Ruiz,30002,carlos.ruiz@email.com,Estudiante,8 días 2 horas
+3003,Inglés,Lucía Fernández,40001,lucia.fernandez@email.com,Estudiante,15 días 10 horas
+```
+
+### Ejemplo de archivo de credenciales
+
+```ini
+[credentials]
+username = tu_usuario
+password = tu_contraseña
+```
+
+**¡Protege tu archivo de credenciales y no lo subas a repositorios públicos!**
+
+## Ayuda
+
+Consulta todas las opciones con:
+
+```bash
+aules-dropout-control --help
+```
+
+## Licencia
+GPL-3.0-or-later
