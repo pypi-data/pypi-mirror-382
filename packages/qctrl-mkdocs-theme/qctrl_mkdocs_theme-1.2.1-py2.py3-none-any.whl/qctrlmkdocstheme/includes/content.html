@@ -1,0 +1,61 @@
+{%- macro admonition(title, theme, icon) -%}
+<p class="alert alert-{{ theme }} small"><strong class="d-block border-bottom border-{{ theme }}-subtle pb-2 mb-2"><i class="bi bi-{{ icon }} me-2"></i>{{ title }}:</strong>
+{%- endmacro -%}
+
+{%- set content = page.content | trim -%}
+
+{#- Remove trailing slash on void elements -#}
+{%- set content = content | replace('" />', '">') -%}
+
+{#- Open external links in new tab -#}
+{%- set content = content | replace('<a href="http', '<a target="_blank" href="http') -%}
+
+{#- Convert header links -#}
+{%- set content = content | replace('&para;</a>', '#</a>') -%}
+
+{#-
+  Convert code blocks
+
+  This is necessary because we use fenced code blocks to also define Mermaid
+  diagrams, so we need to turn this:
+
+  <pre><code class="language-mermaid">...</code></pre>
+
+  into this:
+
+  <pre class="mermaid">...</pre>
+
+  so we're going to start by coverting this:
+
+  <pre><code class="language-anything">...</code></pre>
+
+  to this:
+
+  <pre class="language-anything">...</pre>
+
+  This is a hack and breaks semantics but it's the best zero-config solution we
+  have at this point to support both syntax highlighting and Mermaid diagrams.
+-#}
+{%- set content = content | replace('<pre><code', '<pre') | replace('</code></pre>', '</pre>') -%}
+{%- set content = content | replace('<pre class="language-mermaid">', '<pre class="mermaid">') -%}
+
+{#- Convert admonitions -#}
+{%- set content = content | replace('<p><strong>Abstract:</strong>', admonition('Abstract', 'info', 'clipboard-fill')) -%}
+{%- set content = content | replace('<p><strong>Bug:</strong>', admonition('Bug', 'danger', 'bug-fill')) -%}
+{%- set content = content | replace('<p><strong>Danger:</strong>', admonition('Danger', 'danger', 'lightning-fill')) -%}
+{%- set content = content | replace('<p><strong>Error:</strong>', admonition('Error', 'danger', 'x-circle-fill')) -%}
+{%- set content = content | replace('<p><strong>Example:</strong>', admonition('Example', 'info', 'flask-fill')) -%}
+{%- set content = content | replace('<p><strong>Failure:</strong>', admonition('Failure', 'danger', 'x-circle-fill')) -%}
+{%- set content = content | replace('<p><strong>Important:</strong>', admonition('Important', 'warning', 'exclamation-circle-fill')) -%}
+{%- set content = content | replace('<p><strong>Info:</strong>', admonition('Info', 'info', 'info-circle-fill')) -%}
+{%- set content = content | replace('<p><strong>Note:</strong>', admonition('Note', 'info', 'pencil-fill')) -%}
+{%- set content = content | replace('<p><strong>Question:</strong>', admonition('Question', 'info', 'question-circle-fill')) -%}
+{%- set content = content | replace('<p><strong>Success:</strong>', admonition('Success', 'success', 'check-circle-fill')) -%}
+{%- set content = content | replace('<p><strong>Tip:</strong>', admonition('Tip', 'info', 'fire')) -%}
+{%- set content = content | replace('<p><strong>To-do:</strong>', admonition('To-do', 'warning', 'check-square-fill')) -%}
+{%- set content = content | replace('<p><strong>Warning:</strong>', admonition('Warning', 'warning', 'exclamation-triangle-fill')) -%}
+
+{#- Make tables responsive -#}
+{%- set content = content | replace('<table>', '<div class="table-responsive"><table>') | replace('</table>', '</table></div>') -%}
+
+{{- content -}}
