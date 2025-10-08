@@ -1,0 +1,2 @@
+def callme():
+    return "call me version 6.7.0-pre.1"
