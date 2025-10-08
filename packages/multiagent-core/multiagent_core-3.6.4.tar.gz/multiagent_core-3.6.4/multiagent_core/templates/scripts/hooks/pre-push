@@ -1,0 +1,191 @@
+#!/bin/bash
+# MultiAgent framework pre-push hook
+# 1. SECURITY: Block secrets from being pushed (PREVENTS $2,300 API KEY DISASTERS!)
+# 2. WORKFLOW: Provides guidance for professional commit accumulation
+
+# 🚨 CRITICAL: SECRET DETECTION FIRST (This would have prevented your $2,300 loss!)
+echo "🔍 Scanning for secrets before push..."
+
+# Check for obvious secret patterns in files to be pushed
+secret_patterns=(
+    "AIzaSy[0-9A-Za-z_-]{33}"           # Google API keys
+    "sk-[0-9A-Za-z]{48}"                # OpenAI API keys  
+    "ghp_[0-9A-Za-z]{36}"               # GitHub tokens
+    "xoxb-[0-9]+-[0-9]+-[0-9A-Za-z]+"   # Slack tokens
+    "AKIA[0-9A-Z]{16}"                  # AWS Access Keys
+    "[0-9]+-[0-9A-Za-z_]{32,}"          # Generic API patterns
+)
+
+# Count commits to push
+commits_to_push=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
+
+# Get list of files to be pushed
+files_to_push=$(git diff --name-only HEAD~${commits_to_push:-1}..HEAD)
+
+# Check for dangerous files
+dangerous_files=()
+for file in $files_to_push; do
+    if [[ -f "$file" ]]; then
+        # Check for GEMINI.md files (your specific danger!)
+        if [[ "$file" =~ GEMINI\.md$ ]]; then
+            dangerous_files+=("$file (GEMINI.md - contains API keys!)")
+        fi
+        
+        # Check for .env files
+        if [[ "$file" =~ \.env$ ]] && [[ ! "$file" =~ \.env\.(template|example)$ ]]; then
+            dangerous_files+=("$file (environment file - may contain secrets)")
+        fi
+        
+        # Check for key files
+        if [[ "$file" =~ \.(key|pem|p12|pfx|keystore|jks)$ ]]; then
+            dangerous_files+=("$file (key file - contains secrets)")
+        fi
+        
+        # Scan file content for secret patterns
+        for pattern in "${secret_patterns[@]}"; do
+            if grep -qE "$pattern" "$file" 2>/dev/null; then
+                dangerous_files+=("$file (contains API key pattern: ${pattern:0:20}...)")
+                break
+            fi
+        done
+    fi
+done
+
+# BLOCK PUSH if secrets detected
+if [[ ${#dangerous_files[@]} -gt 0 ]]; then
+    echo ""
+    echo "🚨 SECURITY ALERT: SECRETS DETECTED - PUSH BLOCKED!"
+    echo "================================================================"
+    echo "The following files contain secrets that would be exposed on GitHub:"
+    echo ""
+    for file in "${dangerous_files[@]}"; do
+        echo "  ❌ $file"
+    done
+    echo ""
+    echo "💰 THIS PREVENTS DISASTERS LIKE:"
+    echo "   - \$2,300+ in unauthorized API usage charges"
+    echo "   - Compromised accounts and data breaches"
+    echo "   - Public exposure of your private keys"
+    echo ""
+    echo "🔧 TO FIX:"
+    echo "   1. Remove secrets from these files"
+    echo "   2. Add them to .gitignore: echo 'filename' >> .gitignore"
+    echo "   3. Use environment variables instead"
+    echo "   4. Store secrets in GitHub Secrets for workflows"
+    echo ""
+    echo "🛡️  Your push has been BLOCKED for security."
+    exit 1
+fi
+
+echo "✅ Secret scan passed - no API keys detected"
+
+# Check if we need to build based on commits being pushed
+# Handle case where upstream might not be set or is at same commit
+if ! git rev-parse @{u} >/dev/null 2>&1; then
+    # No upstream set - check recent commits
+    commits_to_push_range=$(git rev-list HEAD~5..HEAD 2>/dev/null || git rev-list HEAD)
+    echo "[AUTO-BUILD] No upstream branch detected - checking recent commits"
+else
+    # Normal case with upstream
+    commits_to_push_range=$(git rev-list @{u}..HEAD 2>/dev/null)
+    if [ -z "$commits_to_push_range" ]; then
+        # Upstream and HEAD are same - check recent commit  
+        commits_to_push_range=$(git rev-list HEAD~1..HEAD)
+        echo "[AUTO-BUILD] Upstream is current - checking latest commit"
+    fi
+fi
+
+should_build=false
+
+echo "🔧 Checking commits for build triggers..."
+
+for commit in $commits_to_push_range; do
+    commit_msg=$(git log -1 --pretty=%B "$commit")
+    # Match semantic commits OR meaningful work commits
+    if echo "$commit_msg" | grep -qE "^(\[WORKING\]|\[STABLE\]|\[WIP\]|\[COMPLETE\])"; then
+        should_build=true
+        echo "[AUTO-BUILD] Found meaningful commit: $(echo "$commit_msg" | head -1)"
+        break
+    elif echo "$commit_msg" | grep -qE "^(feat|fix|docs|chore|build|ci|refactor|perf)(\(.*\))?:"; then
+        should_build=true
+        echo "[AUTO-BUILD] Found meaningful commit: $(echo "$commit_msg" | head -1)"
+        break
+    fi
+done
+
+if [ "$should_build" = true ]; then
+    echo "[AUTO-BUILD] Building before push..."
+    
+    # Run the build
+    python3 -m build
+    
+    if [ $? -eq 0 ]; then
+        echo "[AUTO-BUILD] Build completed successfully!"
+        
+        # Sync templates to all registered projects
+        echo "[AUTO-BUILD] Syncing templates to all registered projects..."
+        python3 -c "
+from multiagent_core.auto_updater import update_all_deployments
+try:
+    update_all_deployments()
+    print('[AUTO-BUILD] All registered projects have been updated')
+except Exception as e:
+    print(f'[AUTO-BUILD] Warning: Template sync failed: {e}')
+" 2>/dev/null || echo "[AUTO-BUILD] Template sync skipped (multiagent_core not available)"
+        
+        # Auto-reinstall the local multiagent command
+        echo "[AUTO-BUILD] Updating local multiagent command..."
+        WHEEL_FILE=$(ls -t dist/multiagent_core-*.whl 2>/dev/null | head -1)
+        
+        if [ -n "$WHEEL_FILE" ]; then
+            if command -v pipx >/dev/null 2>&1; then
+                pipx install --force "$WHEEL_FILE" >/dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    echo "[AUTO-BUILD] Local multiagent command updated successfully!"
+                else
+                    echo "[AUTO-BUILD] Warning: Could not update local command"
+                fi
+            else
+                echo "[AUTO-BUILD] Warning: pipx not found - skipping local command update"
+            fi
+        else
+            echo "[AUTO-BUILD] Warning: No wheel file found"
+        fi
+    else
+        echo "[AUTO-BUILD] Build failed - push aborted"
+        exit 1  # Fail the push if build fails
+    fi
+else
+    echo "[AUTO-BUILD] No meaningful commits found - skipping build"
+fi
+
+# Only guide on main branch
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$current_branch" != "main" ]]; then
+    exit 0
+fi
+
+# Only guide if 1 or fewer commits
+commits_to_push=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
+if [[ "$commits_to_push" -le 1 ]]; then
+    echo "Professional Commit Strategy Guidance"
+    echo "Commits to push: $commits_to_push"
+    echo "For richer release notes, consider accumulating 3-6 commits"
+    echo "Rich Release Pattern:"
+    echo "   git commit -m 'fix(component): specific issue'"
+    echo "   git commit -m 'feat(feature): new capability'"
+    echo "   git commit -m 'docs: update guide'"
+    echo "   git push  # <- Rich release (3+ bullets)"
+    echo ""
+    echo "🚀 Continue anyway? Proceeding in 3 seconds..."
+    echo "   Press Ctrl+C to cancel, or wait to continue"
+
+    # 3 second countdown
+    for i in {3..1}; do
+        echo -n "$i "
+        sleep 1
+    done
+    echo ""
+fi
+
+exit 0
