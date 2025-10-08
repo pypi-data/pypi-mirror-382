@@ -1,0 +1,194 @@
+Metadata-Version: 2.1
+Name: ipfs_node
+Version: 0.1.12rc5
+Summary: Run an IPFS node inside of python using kubo as a library.
+Author: Emendir
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/emendir/py_ipfs_node
+Project-URL: Repository, https://github.com/emendir/py_ipfs_node
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+License-File: LICENSE-CC0
+Dynamic: license-file
+Requires-Dist: cffi >=1.15.0
+Requires-Dist: ipfs-tk
+
+# Kubo Python Library
+
+A Python wrapper for the Kubo (Go-IPFS) library.
+
+## Overview
+
+This library provides Python bindings for [Kubo](https://github.com/ipfs/kubo), the Go implementation of IPFS, allowing you to:
+
+- Spawn an in-process IPFS node
+- Add and retrieve files/directories from IPFS
+- Connect to the IPFS network
+- Manage IPFS repositories
+- Publish and subscribe to IPFS PubSub topics
+- Mount and connect to remote TCP services via libp2p
+
+## Project Status **EXPERIMENTAL**
+
+This library is very early in its development, and is published as a proof-of-concept that it is feasible to write a python wrapper around kubo (Go-IPFS) to run IPFS nodes from within python.
+Much of the code is LLM-generated, and code coverage is poor.
+
+The API of this library WILL CHANGE in the near future!
+
+So far this library has been tested on Linux x86 64-bit and Android ARM 64-bit (in Termux & in Kivy).
+Assuming that it proves to be a reliable way of working in python, this library will be developed to maturity and maintained.
+
+## Compatibility
+
+- linux x86-64 (tested on Ubuntu)
+- linux arm-64 (tested on Ubuntu on a raspberry pi 5)
+
+## Roadmap
+
+[py_ipfs_node](https://github.com/emendir/py_ipfs_node), will be incorporated into [ipfs_toolkit](https://github.com/emendir/IPFS-Toolkit-Python) [when py_ipfs_node's API has stabilised](https://github.com/emendir/py_ipfs_node/issues/1).
+
+[ipfs_toolkit](https://github.com/emendir/IPFS-Toolkit-Python) will become a multimodal IPFS library with a unified API for alternative modes of using IPFS:
+- running an embedded IPFS node
+- interacting with a separate IPFS node via its HTTP RPC
+
+You can check out a prototype version of the combination of these two libraries under the `kubo_python` branch of the IPFS-Toolkit repo:
+https://github.com/emendir/IPFS-Toolkit-Python/tree/kubo_python
+
+## Installation
+
+```bash
+pip install ipfs_node
+```
+
+## Dev Requirements
+
+- Go 1.19
+- Python 3.7+
+- IPFS Kubo dependencies
+
+## Basic Usage
+
+### Working with Files
+
+```python
+from ipfs_node import IpfsNode
+
+# Create a new node with a temporary repository
+with IpfsNode.ephemeral() as node:
+    # Add a file to IPFS
+    cid = node.files.publish("README.md")
+    print(f"Added file with CID: {cid}")
+    
+    # Retrieve a file from IPFS
+    node.files.download(cid, "download.md")
+```
+
+### Using PubSub
+
+```python
+from ipfs_node import IpfsNode
+
+with IpfsNode.ephemeral() as node:
+    # Subscribe to a topic
+    with node.pubsub.subscribe("my-topic") as subscription:
+        # Publish a message
+        node.pubsub.publish("my-topic", "Hello, IPFS world!")
+        
+        # Receive messages
+        message = subscription.next_message(timeout=2.0)
+        if message:
+            print(f"Received: {message.data.decode('utf-8')}")
+        
+        # Or use a callback
+        def on_message(msg):
+            print(f"Received via callback: {msg.data.decode('utf-8')}")
+        
+        subscription.subscribe(on_message)
+```
+
+### Using TCP Tunnels (LibP2P Stream Mounting)
+
+```python
+from ipfs_node import IpfsNode
+
+# Create an IPFS node
+with IpfsNode.ephemeral() as node:
+    
+    # Example 1: Listen for connections on a protocol and forward them to a local service
+    node.tunnels.open_listener("my-service", 8888)
+    
+    # Example 2: Forward local connections to a remote peer
+    node.tunnels.open_sender("their-service", 8889, node.peer_id)
+    
+    # List active listeners and streams
+    tunnels = node.tunnels.get_tunnels()
+    print(tunnels.listeners)
+    print(tunnels.senders)
+    
+    # Close specific connections when done
+    node.tunnels.close_listener("my-service")
+    node.tunnels.close_sender("their-service")
+```
+
+## Documentation
+
+- [Installation Instructions](INSTALL.md)
+- [PubSub Documentation](docs/pubsub.md)
+- [P2P Stream Mounting](docs/p2p.md)
+
+## Examples
+
+- [Basic Usage](examples/basic_usage.py)
+- [File Sharing](examples/file_sharing.py)
+- [PubSub Example](examples/pubsub_example.py)
+- [Chat Application](examples/chat_app.py)
+- [P2P Stream Mounting](examples/p2p_example.py)
+- [P2P Socket Communication](examples/p2p_socket_example.py)
+
+## Contributing
+
+### Get Involved
+
+- GitHub Discussions: if you want to share ideas
+- GitHub Issues: if you find bugs, other issues, or would like to submit feature requests
+- GitHub Merge Requests: if you think you know what you're doing, you're very welcome!
+
+### Donations
+
+To support me in my work on this and other projects, you can make donations with the following currencies:
+
+- **Bitcoin:** `BC1Q45QEE6YTNGRC5TSZ42ZL3MWV8798ZEF70H2DG0`
+- **Ethereum:** `0xA32C3bBC2106C986317f202B3aa8eBc3063323D4`
+- [**Fiat** (via Credit or Debit Card, Apple Pay, Google Pay, Revolut Pay)](https://checkout.revolut.com/pay/4e4d24de-26cf-4e7d-9e84-ede89ec67f32)
+
+Donations help me:
+- dedicate more time to developing and maintaining open-source projects
+- cover costs for IT infrastructure
+- finance projects requiring additional hardware & compute
+
+## About the Developer
+
+This project is developed by a human one-man team, publishing under the name _Emendir_.  
+I build open technologies trying to improve our world;
+learning, working and sharing under the principle:
+
+> _Freely I have received, freely I give._
+
+Feel welcome to join in with code contributions, discussions, ideas and more!
+
+## Open-Source in the Public Domain
+
+I dedicate this project to the public domain.
+It is open source and free to use, share, modify, and build upon without restrictions or conditions.
+
+I make no patent or trademark claims over this project.  
+
+Formally, you may use this project under either the: 
+- [MIT No Attribution (MIT-0)](https://choosealicense.com/licenses/mit-0/) or
+- [Creative Commons Zero (CC0)](https://choosealicense.com/licenses/cc0-1.0/)
+licence at your choice.  
+
+
