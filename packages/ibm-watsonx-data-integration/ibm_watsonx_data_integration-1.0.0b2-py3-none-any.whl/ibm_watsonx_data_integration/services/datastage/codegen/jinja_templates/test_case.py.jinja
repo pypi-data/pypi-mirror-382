@@ -1,0 +1,33 @@
+tcc = (
+    {% if imported -%}
+    {% if offline -%}
+    TestCaseComposer(asset_id = "{{ asset_id }}")
+    {% else -%}
+    sdk.get_test_case(id = "{{ asset_id }}")
+    {% endif -%}
+    {% else -%}
+    {% if test_case_flow_id -%}
+    TestCaseComposer(name="{{ test_case_name }}", flow_id="{{ test_case_flow_id }}")
+    {% else -%}
+    TestCaseComposer(name="{{ test_case_name }}", flow_name="{{ test_case_flow_name }}")
+    {% endif -%}
+    {% if test_case_description -%}
+    .with_description("{{ test_case_description }}")
+    {% endif -%}
+    {% for file in input_test_data -%}
+    .use_input_test_data(("{{ file[0] }}", "test_case_data_files/{{ file[1] }}"))
+    {% endfor -%}
+    {% for file in output_test_data -%}
+    .use_output_test_data(("{{ file[0] }}", "test_case_data_files/{{ file[1] }}"))
+    {% endfor -%}
+    {% if additional_properties -%}
+    .use_additional_properties("{{ additional_properties }}")
+    {% endif -%}
+    {% if capture_data -%}
+    .use_captured_test_data()
+    {% endif -%}
+    {% if parameters -%}
+    .use_parameters({{ parameters}})
+    {% endif -%}
+    {% endif -%}
+)

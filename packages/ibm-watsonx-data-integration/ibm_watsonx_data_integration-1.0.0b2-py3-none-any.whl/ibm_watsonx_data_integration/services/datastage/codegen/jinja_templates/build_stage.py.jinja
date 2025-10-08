@@ -1,0 +1,82 @@
+{% if data_definitions -%}
+{% for data_def in data_definitions -%}
+{{ data_def["var_name"] }} = DataDefinition(name = {{data_def["name"] }})
+{% for field in data_def["fields"] %}
+{{ data_def["var_name"] }}.add_field("{{ field["type"] }}", "{{ field["name"] }}"){{ field["properties"] }}
+{% endfor %}
+
+{{ parent_composer }}.use_data_definition({{ data_def["var_name"] }}){{"\n"}}
+{%- endfor %}
+{%- endif %}
+
+{% if asset -%}
+{% if imported -%}
+{% if offline -%}
+{{ asset_var_name }} = BuildStage(asset_id = "{{ asset_id }}")
+{%- else -%}
+{{ asset_var_name }} = sdk.get_build_stage(id = "{{ asset_id }}")
+{%- endif %}
+{%- else -%}
+{{ asset_var_name }} = (
+    BuildStage()
+    {% if props -%}
+    {% for prop, val in props.items()-%}
+    .with_{{ prop }}({{ val }})
+    {%- endfor %}
+    {%- endif %}
+    {% if properties -%}
+    .with_properties([
+    {% for property in properties -%}
+        BUILDSTAGE.Property.{{ property["type"] }}(
+            {% for key, value in property["props"].items() -%}
+            {{ key }} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+    {% if inputs -%}
+    .with_inputs([
+    {% for input in inputs -%}
+        BUILDSTAGE.Input(
+            {% for key, value in input.items() -%}
+            {{key}} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+    {% if outputs -%}
+    .with_outputs([
+    {% for output in outputs -%}
+        BUILDSTAGE.Output(
+            {% for key, value in output.items() -%}
+            {{ key }} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+    {% if transfers -%}
+    .with_transfers([
+    {% for transfer in transfers -%}
+        BUILDSTAGE.Transfer(
+            {% for key, value in transfer.items() -%}
+            {{key}} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+)
+{%- endif %}
+{%- endif %}
+{% if stage -%}
+{{ stage_var_name }} = {{ parent_composer }}.add_build_stage({{ asset_var_name }}, {{ label }})
+{% for key, prop in stage_properties.items() -%}
+{{ stage_var_name }}.set_property({{key}}, {{prop}}){{ "\n" }}
+{%- endfor %}
+{% for key, prop in config_properties.items() -%}
+{{ stage_var_name }}.configuration.{{key}} = {{prop}}{{ "\n" }}
+{%- endfor %}
+{%- endif %}
