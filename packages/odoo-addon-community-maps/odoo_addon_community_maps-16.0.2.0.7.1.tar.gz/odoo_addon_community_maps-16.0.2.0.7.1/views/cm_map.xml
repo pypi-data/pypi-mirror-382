@@ -1,0 +1,210 @@
+<odoo>
+  <data>
+
+    <record id="view_map_window" model="ir.actions.act_window">
+      <field name="name">Maps</field>
+      <field name="res_model">cm.map</field>
+      <field name="view_mode">tree,form</field>
+    </record>
+
+    <record id="view_map_tree" model="ir.ui.view">
+      <field name="name">cm.map.tree</field>
+      <field name="model">cm.map</field>
+      <field name="arch" type="xml">
+        <tree>
+          <field name="name"/>
+          <field name="slug_id"/>
+          <field name="crowdfunding_type"/>
+          <field name="colorschema_id"/>
+          <field name="tile_style"/>
+          <field name="country_ids" widget="many2many_tags"/>
+        </tree>
+      </field>
+    </record>
+
+    <record id="view_map_form" model="ir.ui.view">
+      <field name="name">cm.map.form</field>
+      <field name="model">cm.map</field>
+      <field name="type">form</field>
+      <field name="arch" type="xml">
+        <form>
+          <field name="active" invisible="True"/>
+          <header>
+            <button name="archive_workflow_action" type="object" string="Archive" attrs="{'invisible': [('active','=',False)]}"/>
+            <button name="unarchive_workflow_action" type="object" string="Unarchive" attrs="{'invisible': [('active','=',True)]}"/>
+          </header>
+          <sheet>
+            <widget name="web_ribbon" title="Archived" bg_color="bg-danger" attrs="{'invisible': [('active', '=', True)]}"/>
+            <notebook>
+              <page string="General">
+                <group>
+                  <field name="company_id" groups="base.group_multi_company"/>
+                  <field name="crm_team_id" attrs="{'required': True}"/>
+                  <field name="name" attrs="{'required': True}"/>
+                  <field name="slug_id" attrs="{'required': True}"/>
+                  <field name="country_ids" widget="many2many_tags" attrs="{'required': True}"/>
+                  <field name="crowdfunding_type" attrs="{'required': True}"/>
+                  <field name="colorschema_id" attrs="{'required': True}"/>
+                  <field name="tile_style" attrs="{'required': True}"/>
+                  <field name="font_family_code" attrs="{'required': True}"/>
+                </group>
+                <group>
+                  <field name="privacy_link"/>
+                  <field name="cookies_link"/>
+                </group>
+                <group>
+                  <field name="display_tooltip_on_marker"/>
+                  <field name="show_progress_on_marker"/>
+                  <field name="show_no_opacity_marker"/>
+                  <field name="marker_style"/>
+                </group>
+                <group>
+                  <field name="lat_default" required="True"/>
+                  <field name="lng_default" required="True"/>
+                  <field name="zoom_default" required="True"/>
+                  <field name="centering_mode" required="True"/>
+                </group>
+              </page>
+              <page string="Presenters and forms">
+                <group>
+                  <field name="allowed_form_model_mids" widget="many2many_list">
+                    <tree create="true" edit="false" delete="true" open="false">
+                      <field name="name"/>
+                      <field name="slug_id"/>
+                    </tree>
+                  </field>
+                  <field name="allowed_presenter_model_mids" widget="many2many_list">
+                    <tree create="true" edit="false" delete="true" open="false">
+                      <field name="name"/>
+                    </tree>
+                  </field>
+                </group>
+              </page>
+              <page string="Search and filter">
+                <group>
+                  <field name="controlbar_bg_color" required="True"/>
+                  <field name="controlbar_border_color" required="True"/>
+                </group>
+                <group>
+                  <field name="allow_filter_by_status"/>
+                  <field name="allow_filter_by_category"/>
+                  <field name="allow_filter_by_crowdfunding"/>
+                  <field name="allow_filter_by_filter"/>
+                  <field name="filters_button_color_config_id" required="True"/>
+                </group>
+                <group>
+                  <field name="searchbar_placeholder" required="True"/>
+                  <field name="searchbar_placeholder_text_color" required="True"/>
+                  <field name="searchbar_button_color_config_id" required="True"/>
+                  <field name="noresults_msg" required="True"/>
+                </group>
+                <group>
+                  <field name="listview_button_color_config_id" required="True"/>
+                </group>
+                <group>
+                  <field name="categories_filter_title" required="True"/>
+                  <field name="allowed_place_category_mids" widget="many2many_list">
+                    <tree create="true" edit="false" delete="true" open="false">
+                      <field name="name"/>
+                      <field name="slug_id"/>
+                      <field name="icon"/>
+                      <field name="color"/>
+                    </tree>
+                  </field>
+                  <field name="allowed_filter_group_mids" widget="many2many_list">
+                    <tree create="true" edit="false" delete="true" open="false">
+                      <field name="name"/>
+                      <field name="slug_id"/>
+                    </tree>
+                  </field>
+                </group>
+              </page>
+              <page string="Proposal">
+                <group>
+                  <field name="proposal_cta_title" required="True"/>
+                  <field name="proposal_cta_button_color_config_id"/>
+                </group>
+                <group>
+                  <field name="proposal_form_model_id"/>
+                  <field name="proposal_form_title"/>
+                  <field name="proposal_form_subtitle_step_category"/>
+                  <field name="proposal_form_subtitle_step_address"/>
+                  <field name="proposal_form_subtitle_step_form"/>
+                </group>
+                <group>
+                  <field name="allowed_place_category_inproposal_mids" widget="many2many_list">
+                    <tree create="true" edit="false" delete="true" open="false">
+                      <field name="name"/>
+                      <field name="slug_id"/>
+                      <field name="icon"/>
+                      <field name="color"/>
+                    </tree>
+                  </field>
+                </group>
+              </page>
+              <page string="Admin notifications">
+                <group>
+                  <field name="crowdfunding_notification_request_ids" widget="one2many_list">
+                    <tree create="true" edit="true" delete="true" open="false" editable="top">
+                      <field name="percentage"/>
+                      <field name="notify_admins"/>
+                      <field name="notify_submissions"/>
+                      <field name="template_admins" attrs="{'required': [('notify_admins', '=', True)]}"/>
+                      <field name="template_submissions" attrs="{'required': [('notify_submissions', '=', True)]}"/>
+                    </tree>
+                  </field>
+                  <field name="admins_to_notify" widget="many2many_tags"/>
+                </group>
+              </page>
+              <page string="Social items">
+                <group>
+                  <field name="social_item_ids" widget="one2many_list">
+                    <tree create="true" edit="true" delete="true" open="true">
+                      <field name="sort_order" widget="handle"/>
+                      <field name="type"/>
+                      <field name="social_network" attrs="{'invisible': [('type','!=','one_social')]}"/>
+                      <field name="social_networks" attrs="{'invisible': [('type','!=','multiple_social')]}"/>
+                    </tree>
+                    <form>
+                      <group>
+                        <field name="type" required="1"/>
+                      </group>
+                      <group  attrs="{'invisible': [('type','!=','one_social')]}">
+                        <field name="social_network"/>
+                      </group>
+                      <group attrs="{'invisible': [('type','!=','multiple_social')]}">
+                        <field name="use_email"/>
+                        <field name="use_facebook"/>
+                        <field name="use_whatsapp"/>
+                        <field name="use_telegram"/>
+                        <field name="use_x"/>
+                        <field name="use_mastodon"/>
+                      </group>
+                      <group attrs="{'invisible': [('type','=','link')]}">
+                        <field name="message_on_presenter"/>
+                        <field name="message_on_form_submit"/>
+                      </group>
+                    </form>
+                  </field>
+                </group>
+              </page>
+              <page string="Submissions transfer">
+                <group col="4">
+                  <field name="child_place_submissions_email_template_id" />
+                  <field name="custom_child_place_submissions_email_template_id" />
+                </group>
+                <group col="4">
+                  <field name="child_place_submissions_successful_email_template_id" />
+                  <field name="custom_child_place_submissions_successful_email_template_id" />
+                </group>
+              </page>
+            </notebook>
+          </sheet>
+        </form>
+      </field>
+    </record>
+
+    <menuitem name="Maps" id="community_maps.map" parent="community_maps.menu_root" action="view_map_window"/>
+
+  </data>
+</odoo>
