@@ -1,0 +1,118 @@
+[project]
+name = "xent"
+version = "0.3.0"
+description = "Xent LLM Benchmarking System"
+keywords = ["llm", "benchmark", "ai", "evaluation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.12",
+]
+authors = [{ name = "Andrew Emil", email = "ace@xentlabs.ai" }]
+requires-python = ">=3.12, <4.0"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+    "matplotlib (>=3.10.3,<4.0.0)",
+    "anthropic (>=0.51.0,<0.52.0)",
+    "ollama (>=0.4.8,<0.5.0)",
+    "openai (>=1.81.0,<2.0.0)",
+    "torch (>=2.7.0,<3.0.0)",
+    "transformers (>=4.52.2,<5.0.0)",
+    "accelerate (>=1.7.0,<2.0.0)",
+    "click (>=8.2.1,<9.0.0)",
+    "google-genai (>=1.17.0,<2.0.0)",
+    "typeguard (>=4.4.2,<5.0.0)",
+    "hf-xet>=1.1.5",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.23.0",
+]
+
+[project.scripts]
+xent = "xent.cli.main:main"
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["**/*"]
+
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17.0",
+    "pre-commit>=4.2.0",
+    "pytest>=8.3.5,<9",
+    "pytest-asyncio>=0.24.0,<0.25",
+    "ruff>=0.12.5",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "slow: marks tests as slow running",
+]
+log_cli = true
+log_cli_level = "INFO"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "UP", "B", "SIM", "I"]
+ignore = ["E501"]  # Line too long (handled by formatter)
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.13"
+packages = ["xent"]
+mypy_path = "src"
+show_error_codes = true
+exclude = ["games/"]
+
+# Performance optimizations
+incremental = true          # Cache type information between runs
+cache_dir = ".mypy_cache"   # Explicit cache location
+sqlite_cache = true         # Use SQLite for faster cache
+
+# Enable valuable strict checks selectively instead of blanket "strict = true"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+strict_equality = true
+extra_checks = true
+no_implicit_optional = true
+
+# Disable overly strict checks for gradual typing adoption
+disallow_untyped_defs = false       # Allow missing function annotations
+disallow_untyped_calls = false      # Allow calling untyped functions
+disallow_incomplete_defs = false    # Allow partially typed functions
+
+# Keep important type safety checks
+disallow_any_explicit = false      # Allow explicit Any usage
+disallow_any_generics = true       # Require type params for generics
+disallow_subclassing_any = true    # Prevent subclassing Any
+check_untyped_defs = true           # Check function bodies even if untyped
+
+# Disable specific error codes that are overly strict
+disable_error_code = ["no-any-return", "unreachable", "func-returns-value"]
