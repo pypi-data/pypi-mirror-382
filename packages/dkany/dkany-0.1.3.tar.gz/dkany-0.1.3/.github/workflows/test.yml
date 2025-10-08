@@ -1,0 +1,59 @@
+name: Dkany - Pipeline
+
+on:
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  check-version:
+    name: Require Version Bumps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2  # Fetch all history for all branches and tags
+      - name: Fetch main branch
+        run: git fetch origin main
+      - name: Check version changed
+        run: |
+          OLD_VERSION=$(git show origin/main:src/dkany/__about__.py | head -n1)
+          NEW_VERSION=$(cat src/dkany/__about__.py)
+          echo "Old: $OLD_VERSION"
+          echo "New: $NEW_VERSION"
+          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "❌ Version not bumped. Please run `uv run hatch version $NEW_VERSION` before publishing."
+            exit 1
+          fi
+  Test:
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync --dev
+
+      - name: run tests
+        run: uv run bash scripts/test.sh
+
+      - name: types
+        run: uv run mypy ./src/dkany/**/*.py
+
+      - name: fmt
+        run: uv run ruff check .
+      
+      - name: Upload all test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-test-artifacts-${{matrix.python-version}}
+          path: test-reports/*
+
