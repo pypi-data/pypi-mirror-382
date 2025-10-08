@@ -1,0 +1,104 @@
+[project]
+name = "gbp-notifications"
+dynamic = []
+description = "Get notifications for GBP events"
+authors = [
+    { name = "Albert Hopkins", email = "marduk@letterboxes.org" },
+]
+dependencies = [
+    "gentoo-build-publisher>=2.4.0rc1",
+    "Jinja2>=3.1.2",
+    "orjson>=3.10.15",
+    "requests>=2.32.3",
+]
+requires-python = ">=3.12"
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Software Distribution",
+    "Topic :: System :: Systems Administration",
+]
+readme = "README.md"
+version = "2.0.0"
+
+[project.license]
+text = "GPL-3+"
+
+[project.entry-points."gentoo_build_publisher.plugins"]
+gbp-notifications = "gbp_notifications:plugin"
+
+[project.entry-points."gbp_notifications.notification_method"]
+email = "gbp_notifications.methods.email:EmailMethod"
+pushover = "gbp_notifications.methods.pushover:PushoverMethod"
+webhook = "gbp_notifications.methods.webhook:WebhookMethod"
+
+[project.urls]
+homepage = "https://github.com/enku/gbp-notifications"
+repository = "https://github.com/enku/gbp-notifications"
+
+[build-system]
+requires = [
+    "pdm-backend",
+]
+build-backend = "pdm.backend"
+
+[tool.coverage.run]
+source = [
+    "gbp_notifications",
+    "tests",
+]
+omit = [
+    "src/gbp_notifications/migrations/*",
+    "tests/__main__.py",
+]
+
+[tool.mypy]
+plugins = [
+    "mypy_django_plugin.main",
+]
+exclude = [
+    "/migrations/",
+]
+files = [
+    "src/gbp_notifications",
+]
+mypy_path = [
+    "tests",
+]
+
+[tool.django-stubs]
+django_settings_module = "gbp_testkit.settings"
+strict = true
+
+[tool.pylint.master]
+load-plugins = "pylint_django,pylint.extensions.bad_builtin"
+django-settings-module = "gbp_testkit.settings"
+init-hook = "import sys; sys.path.insert(0, 'tests')"
+bad-functions = "print"
+ignore = [
+    "/migrations/",
+]
+
+[tool.pdm.version]
+source = "scm"
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.black]
+skip-magic-trailing-comma = true
+
+[dependency-groups]
+dev = [
+    "pylint>=3.0.3",
+    "pylint-django>=2.5.5",
+    "typos>=1.16.24",
+    "coverage[toml]>=7.3.2",
+    "mypy>=1.7.1",
+    "django-stubs>=4.2.7",
+    "black>=23.12.0",
+    "gentoo-build-publisher[test] @ git+https://github.com/enku/gentoo-build-publisher.git@master",
+    "types-requests>=2.32.0.20250328",
+]
