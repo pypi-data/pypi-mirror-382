@@ -1,0 +1,122 @@
+[config]
+debug=false
+log_file="transmute.log"
+report=1000
+
+[principals]
+default='Plone'
+remove=['admin']
+
+[default_pages]
+keep = false
+keys_from_parent = [
+    "id",
+    "@id"
+]
+
+[pipeline]
+steps=[
+    'collective.transmute.steps.ids.process_export_prefix',
+    'collective.transmute.steps.ids.process_ids',
+    'collective.transmute.steps.paths.process_paths',
+    'collective.transmute.steps.portal_type.process_type',
+    'collective.transmute.steps.basic_metadata.process_title_description',
+    'collective.transmute.steps.review_state.process_review_state',
+    'collective.transmute.steps.default_page.process_default_page',
+    'collective.transmute.steps.image.process_image_to_preview_image_link',
+    'collective.transmute.steps.data_override.process_data_override',
+    'collective.transmute.steps.creators.process_creators',
+    'collective.transmute.steps.constraints.process_constraints',
+    'collective.transmute.steps.blocks.process_blocks',
+    'collective.transmute.steps.blobs.process_blobs',
+    'collective.transmute.steps.sanitize.process_cleanup',
+]
+do_not_add_drop = [
+    "process_paths",
+    "process_default_page",
+]
+
+[review_state.filter]
+allowed=[
+    "published"
+]
+
+[review_state.rewrite]
+states = {}
+workflows = {}
+
+[paths]
+export_prefixes = [
+    "http://localhost:8080/Plone",
+]
+
+[paths.cleanup]
+"/_" = "/"
+
+[paths.filter]
+allowed=[]
+drop=[]
+
+[paths.portal_type]
+
+[images]
+to_preview_image_link=[]
+
+[sanitize]
+drop_keys = [
+    "is_folderish",
+    "items",
+    "layout",
+    "limit",
+    "lock",
+    "nextPreviousEnabled",
+    "parent",
+]
+block_keys = [
+    "item_count",
+    "items_total",
+    "limit",
+    "query",
+    "sort_on",
+    "sort_reversed",
+    "text",
+    "template_layout",
+    "tiles",
+]
+
+[data_override]
+
+[types]
+processor='collective.transmute.steps.portal_type.default.processor'
+
+[types.'News Item']
+portal_type='News Item'
+blocks=[{"@type"= "title"}, {"@type"= "description"}]
+
+[types.'Document']
+portal_type='Document'
+blocks=[{"@type"= "title"}, {"@type"= "description"}]
+
+[types.'Event']
+portal_type='Event'
+blocks=[{"@type"= "title"}, {"@type"= "description"}]
+
+[types.File]
+portal_type="File"
+
+[types.Link]
+portal_type="Link"
+
+[types.Image]
+portal_type='Image'
+
+[types.Folder]
+portal_type = 'Document'
+
+[types.Collection]
+portal_type='Document'
+processor='collective.transmute.steps.portal_type.collection.processor'
+
+[types.Topic]
+portal_type='Document'
+processor='collective.transmute.steps.portal_type.collection.processor'
