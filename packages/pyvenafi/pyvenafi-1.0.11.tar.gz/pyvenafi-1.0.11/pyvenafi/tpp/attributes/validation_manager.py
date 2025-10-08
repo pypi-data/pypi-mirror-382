@@ -1,0 +1,11 @@
+from __future__ import annotations
+
+from pyvenafi.tpp.attributes._helper import (
+    Attribute,
+    IterableMeta,
+)
+from pyvenafi.tpp.attributes.service_module import ServiceModuleAttributes
+
+class ValidationManagerAttributes(ServiceModuleAttributes, metaclass=IterableMeta):
+    __config_class__ = "Validation Manager"
+    start_time = Attribute('Start Time', min_version='21.4')

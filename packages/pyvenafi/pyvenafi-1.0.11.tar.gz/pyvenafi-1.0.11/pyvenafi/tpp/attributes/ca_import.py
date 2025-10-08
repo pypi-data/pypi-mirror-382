@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+from pyvenafi.tpp.attributes._helper import (
+    Attribute,
+    IterableMeta,
+)
+from pyvenafi.tpp.attributes.schedule_base import ScheduleBaseAttributes
+from pyvenafi.tpp.attributes.top import TopAttributes
+
+class CAImportAttributes(ScheduleBaseAttributes, TopAttributes, metaclass=IterableMeta):
+    __config_class__ = "CA Import"
+    amazon_private_ca = Attribute('Amazon Private CA')
+    assign_contact_value_to_issued_to = Attribute('Assign Contact value to Issued To')
+    automatically_import = Attribute('Automatically Import')
+    aws_credential_dn = Attribute('Aws Credential DN')
+    bypass_reconciliation = Attribute('Bypass Reconciliation')
+    ca_type = Attribute('CA Type')
+    certificate_credential = Attribute('Certificate Credential')
+    certificate_origin = Attribute('Certificate Origin')
+    credential = Attribute('Credential')
+    default_container = Attribute('Default Container')
+    discover_all = Attribute('Discover All')
+    driver_name = Attribute('Driver Name')
+    f5_ltm_advanced_hostname = Attribute('F5 LTM Advanced:Hostname')
+    import_summary = Attribute('Import Summary')
+    in_progress = Attribute('In Progress')
+    include_expired = Attribute('Include Expired')
+    include_revoked = Attribute('Include Revoked')
+    last_processed_id = Attribute('Last Processed Id')
+    last_run = Attribute('Last Run')
+    last_update = Attribute('Last Update')
+    log_debug = Attribute('Log Debug')
+    microsoft_ca_hostname = Attribute('Microsoft CA:Hostname')
+    microsoft_ca_query_by_template_name = Attribute('Microsoft CA:Query By Template Name')
+    microsoft_ca_request_id = Attribute('Microsoft CA:Request ID')
+    microsoft_ca_request_id_by_template_name = Attribute('Microsoft CA:Request ID By Template Name')
+    microsoft_ca_service_name = Attribute('Microsoft CA:Service Name')
+    microsoft_ca_template = Attribute('Microsoft CA:Template')
+    page_size = Attribute('Page Size')
+    placement_rule = Attribute('Placement Rule')
+    placement_rule_item = Attribute('Placement Rule Item')
+    placement_summary = Attribute('Placement Summary')
+    powershell_script = Attribute('PowerShell Script')
+    powershell_script_hash_vault_id = Attribute('PowerShell Script Hash Vault Id')
+    profile_string = Attribute('Profile String')
+    region_code = Attribute('Region Code')
+    result_count = Attribute('Result Count')
+    s3_bucket = Attribute('S3 Bucket')
+    script_execution_timeout = Attribute('Script Execution Timeout')
+    script_hash_mismatch_error = Attribute('Script Hash Mismatch Error')
+    secondary_credential = Attribute('Secondary Credential')
+    service_address = Attribute('Service Address')
+    status = Attribute('Status')
+    stop_requested = Attribute('Stop Requested')
+    template_name_certificate_origin = Attribute('Template Name Certificate Origin')
+    use_external_msca_communicator = Attribute('Use External MSCA Communicator')
