@@ -1,0 +1,410 @@
+Metadata-Version: 2.4
+Name: camino-ai-sdk
+Version: 0.5.0
+Summary: Camino AI Python SDK for location intelligence and spatial reasoning
+License: MIT
+Keywords: camino,ai,geospatial,location,routing,sdk
+Author: Camino AI
+Author-email: support@getcamino.ai
+Requires-Python: >=3.9,<4.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Scientific/Engineering :: GIS
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Dist: eval-type-backport (>=0.2.0,<0.3.0) ; python_version < "3.10"
+Requires-Dist: httpx (>=0.28.0,<0.29.0)
+Requires-Dist: pydantic (>=2.0.0,<3.0.0)
+Requires-Dist: typing-extensions (>=4.5.0,<5.0.0)
+Project-URL: Documentation, https://docs.getcamino.ai
+Project-URL: Homepage, https://github.com/camino-ai/camino-sdks
+Project-URL: Repository, https://github.com/camino-ai/camino-sdks
+Description-Content-Type: text/markdown
+
+# Camino AI Python SDK
+
+The official Python SDK for [Camino AI](https://getcamino.ai) - Guide your AI agents through the real world with location intelligence, spatial reasoning, and route planning.
+
+## Features
+
+- 🌍 **Natural Language Queries**: Search for places using natural language
+- 🌐 **Web Enrichment**: Real-time verification from Yelp, TripAdvisor, and other authoritative sources
+- 📍 **Spatial Relationships**: Calculate distances, bearings, and spatial relationships
+- 🗺️ **Location Context**: Get rich contextual information about any location
+- 🧭 **Journey Planning**: Multi-waypoint journey optimization
+- 🛤️ **Routing**: Point-to-point routing with multiple transport modes
+- ⚡ **Async Support**: Full async/await support for all operations
+- 🔄 **Auto Retry**: Built-in retry logic with exponential backoff
+- 📝 **Type Hints**: Full type annotations for better IDE support
+- 🛡️ **Error Handling**: Comprehensive error handling with custom exceptions
+
+## Installation
+
+```bash
+pip install camino-ai-sdk
+```
+
+## Quick Start
+
+```python
+from camino_ai import CaminoAI
+
+# Initialize the client
+client = CaminoAI(api_key="your-api-key")
+
+# Search for coffee shops
+response = client.query("coffee shops near Central Park")
+for result in response.results:
+    print(f"{result.name}: {result.address}")
+
+# Calculate spatial relationship
+from camino_ai import RelationshipRequest, Coordinate
+
+relationship = client.relationship(RelationshipRequest(
+    from_location=Coordinate(lat=40.7831, lng=-73.9712),  # Central Park
+    to_location=Coordinate(lat=40.7589, lng=-73.9851)     # Times Square
+))
+print(f"Distance: {relationship.distance}m")
+```
+
+## Async Usage
+
+```python
+import asyncio
+from camino_ai import CaminoAI
+
+async def main():
+    async with CaminoAI(api_key="your-api-key") as client:
+        response = await client.query_async("restaurants in Brooklyn")
+        print(f"Found {len(response.results)} restaurants")
+
+asyncio.run(main())
+```
+
+## API Reference
+
+### Client Initialization
+
+```python
+client = CaminoAI(
+    api_key="your-api-key",
+    base_url="https://api.getcamino.ai",  # Optional
+    timeout=30.0,                        # Optional
+    max_retries=3,                       # Optional
+    retry_backoff=1.0                    # Optional
+)
+```
+
+### Query
+
+Search for points of interest using natural language:
+
+```python
+# Simple string query
+response = client.query("pizza places in Manhattan")
+
+# Advanced query with parameters
+from camino_ai import QueryRequest, Coordinate
+
+request = QueryRequest(
+    query="coffee shops",
+    lat=40.7831,
+    lon=-73.9712,
+    radius=1000,  # meters
+    limit=10
+)
+response = client.query(request)
+
+# Access web enrichment data (if available)
+for result in response.results:
+    print(f"{result.name}")
+
+    # Check web verification
+    if result.web_enrichment and result.web_enrichment.web_verified:
+        sources = [s['domain'] for s in result.web_enrichment.verification_sources]
+        print(f"  Found on: {', '.join(sources)}")
+
+        # Check operational status
+        if result.web_enrichment.appears_operational is True:
+            print(f"  ✅ Appears open (confidence: {result.web_enrichment.confidence})")
+        elif result.web_enrichment.appears_operational is False:
+            print(f"  ⚠️  May be closed (confidence: {result.web_enrichment.confidence})")
+```
+
+#### Query Modes
+
+Control which features are enabled with the `mode` parameter:
+
+```python
+# Basic mode (default) - Open data only
+response = client.query(QueryRequest(
+    query="coffee shops in Paris",
+    lat=48.8566,
+    lon=2.3522,
+    mode="basic"  # No web enrichment, no AWS fallback
+))
+
+# Advanced mode - Additional data sources enabled
+response = client.query(QueryRequest(
+    query="coffee shops in Paris",
+    lat=48.8566,
+    lon=2.3522,
+    mode="advanced"  # Includes web enrichment + AWS Location fallback
+))
+```
+
+**Mode options:**
+- `mode="basic"` (default): OpenStreetMap data only (no additional data sources)
+- `mode="advanced"`: Additional paid data sources enabled:
+  - **Tavily web enrichment**: Real-time verification from authoritative sources (Yelp, TripAdvisor, etc.)
+  - **AWS Location Service fallback**: When OSM has no results, fall back to AWS for better coverage
+
+**Cost consideration:** Only use `mode="advanced"` when you need real-time web verification or improved coverage. Basic mode uses only open data and is suitable for most location queries.
+
+### Search
+
+Search for places using free-form or structured queries via Nominatim:
+
+```python
+from camino_ai import SearchRequest
+
+# Free-form search
+response = client.search("Eiffel Tower")
+
+# Structured search with address components
+response = client.search(SearchRequest(
+    amenity="restaurant",
+    city="Paris",
+    country="France",
+    limit=10,
+    mode="basic"  # or "advanced" for web enrichment
+))
+
+# Access results
+for result in response.results:
+    print(f"{result.display_name}")
+    print(f"  Location: {result.lat}, {result.lon}")
+    print(f"  Type: {result.type}")
+
+    # Check for web enrichment (only in advanced mode)
+    if result.web_enrichment and result.web_enrichment.web_verified:
+        print(f"  ✓ Web verified")
+```
+
+**Mode parameter**:
+- `mode="basic"` (default): Nominatim search with open data only
+- `mode="advanced"`: Includes web enrichment for search results
+
+### Relationships
+
+Calculate spatial relationships between locations:
+
+```python
+from camino_ai import RelationshipRequest, Coordinate
+
+request = RelationshipRequest(
+    from_location=Coordinate(lat=40.7831, lng=-73.9712),
+    to_location=Coordinate(lat=40.7589, lng=-73.9851),
+    relationship_type="distance_and_bearing"
+)
+response = client.relationship(request)
+print(f"Distance: {response.distance}m, Bearing: {response.bearing}°")
+```
+
+### Context
+
+Get contextual information about a location:
+
+```python
+from camino_ai import ContextRequest, Coordinate
+
+request = ContextRequest(
+    location=Coordinate(lat=40.7831, lng=-73.9712),
+    radius=500,
+    categories=["restaurant", "entertainment"]
+)
+response = client.context(request)
+print(f"Context: {response.context}")
+```
+
+### Journey Planning
+
+Plan optimized multi-waypoint journeys:
+
+```python
+from camino_ai import JourneyRequest, Waypoint, JourneyConstraints, TransportMode
+
+request = JourneyRequest(
+    waypoints=[
+        Waypoint(location=Coordinate(lat=40.7831, lng=-73.9712)),
+        Waypoint(location=Coordinate(lat=40.7589, lng=-73.9851)),
+        Waypoint(location=Coordinate(lat=40.7505, lng=-73.9934))
+    ],
+    constraints=JourneyConstraints(
+        transport_mode=TransportMode.DRIVING,
+        avoid_tolls=True
+    ),
+    optimize=True
+)
+response = client.journey(request)
+print(f"Total distance: {response.total_distance}m")
+print(f"Total duration: {response.total_duration}s")
+```
+
+### Routing
+
+Calculate routes between two points:
+
+```python
+from camino_ai import RouteRequest, Coordinate, TransportMode
+
+request = RouteRequest(
+    start=Coordinate(lat=40.7831, lng=-73.9712),
+    end=Coordinate(lat=40.7589, lng=-73.9851),
+    transport_mode=TransportMode.WALKING,
+    avoid_highways=True
+)
+response = client.route(request)
+print(f"Route distance: {response.distance}m")
+print(f"Route duration: {response.duration}s")
+```
+
+## Error Handling
+
+The SDK provides specific exception types for different error conditions:
+
+```python
+from camino_ai import CaminoAI, APIError, AuthenticationError, RateLimitError
+
+try:
+    client = CaminoAI(api_key="invalid-key")
+    response = client.query("coffee shops")
+except AuthenticationError as e:
+    print(f"Authentication failed: {e.message}")
+except RateLimitError as e:
+    print(f"Rate limit exceeded. Retry after: {e.retry_after}s")
+except APIError as e:
+    print(f"API error: {e.message} (status: {e.status_code})")
+```
+
+## Web Enrichment
+
+Web enrichment provides real-time verification from authoritative web sources like Yelp, TripAdvisor, and official websites. This feature is only available in **advanced mode** (`mode="advanced"`).
+
+### Features
+
+- **Web Verification**: Confirms the place exists on authoritative sources
+- **Operational Status**: Detects if a place appears open or closed based on recent web mentions
+- **Verification Sources**: Lists which websites mention the location
+- **Recent Mentions**: Provides snippets from recent web content
+
+### Usage
+
+```python
+# Enable web enrichment by using advanced mode
+response = client.query(QueryRequest(
+    query="coffee shops near me",
+    lat=40.7589,
+    lon=-73.9851,
+    mode="advanced"  # Required for web enrichment
+))
+
+result = response.results[0]
+
+if result.web_enrichment:
+    # Check if verified on the web
+    if result.web_enrichment.web_verified:
+        print("✓ Verified on the web")
+
+    # Get verification sources
+    for source in result.web_enrichment.verification_sources:
+        print(f"  - {source['domain']}: {source['title']}")
+
+    # Check operational status
+    if result.web_enrichment.appears_operational is True:
+        print(f"Likely OPEN (confidence: {result.web_enrichment.confidence})")
+    elif result.web_enrichment.appears_operational is False:
+        print(f"Likely CLOSED (confidence: {result.web_enrichment.confidence})")
+
+    # Read recent mentions
+    for mention in result.web_enrichment.recent_mentions:
+        print(f"  {mention['snippet']}")
+        print(f"  Source: {mention['url']}")
+```
+
+**Requirements**:
+- Must use `mode="advanced"` in your query
+- API must have `TAVILY_API_KEY` configured
+- The place must be found in web search results
+
+**Note**: Web enrichment incurs additional costs through Tavily. Use `mode="basic"` when web verification is not needed.
+
+## Transport Modes
+
+Available transport modes for routing and journey planning:
+
+- `TransportMode.DRIVING` - Car/driving directions
+- `TransportMode.WALKING` - Walking directions
+- `TransportMode.CYCLING` - Bicycle directions
+- `TransportMode.TRANSIT` - Public transportation
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/camino-ai/camino-sdks.git
+cd camino-sdks/python
+
+# Install dependencies
+poetry install
+
+# Install pre-commit hooks
+pre-commit install
+```
+
+### Testing
+
+```bash
+# Run tests
+poetry run pytest
+
+# Run tests with coverage
+poetry run pytest --cov=camino_ai
+
+# Run type checking
+poetry run mypy camino_ai
+```
+
+### Formatting
+
+```bash
+# Format code
+poetry run black camino_ai tests
+poetry run isort camino_ai tests
+
+# Lint code
+poetry run ruff check camino_ai tests
+
+# Auto-fix linting issues
+poetry run ruff check --fix camino_ai tests
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
+
+## Support
+
+- 📧 Email: support@getcamino.ai
+- 🐛 Issues: [GitHub Issues](https://github.com/camino-ai/camino-sdks/issues)
+- 📖 Documentation: [docs.getcamino.ai](https://docs.getcamino.ai)
