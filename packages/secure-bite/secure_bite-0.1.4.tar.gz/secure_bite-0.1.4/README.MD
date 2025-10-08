@@ -1,0 +1,438 @@
+# SecureBite
+
+**SecureBite** is a Django package that provides **secure, cookie-based authentication and session management** using **JWT tokens**. It integrates seamlessly with **Django REST Framework (DRF)** and **SimpleJWT**, offering a simple and secure authentication experience for SPAs and mobile apps.
+
+It supports traditional username/password login, **OAuth2 providers (Google, GitHub, etc.)**, automatic token refreshing, and logout handling — all with HTTP-only cookies for maximum security.
+
+---
+
+## Features
+
+* **Cookie-Based JWT Authentication** – JWT tokens are stored in HTTP-only cookies to prevent XSS token theft.
+* **Automatic Token Refreshing** – Middleware refreshes access tokens before expiry.
+* **Logout Support** – Securely clears authentication cookies.
+* **OAuth2 Login Support** – Optional integration with external providers like Google, GitHub, etc.
+* **User Serialization** – Easily customize what user data is returned in `/auth/me/`.
+* **Simple Integration** – Works out of the box with minimal setup.
+
+---
+
+## Installation
+
+1. **Install required dependencies**
+
+```bash
+pip install django djangorestframework djangorestframework-simplejwt djangorestframework-simplejwt[token_blacklist] secure_bite
+```
+
+2. **Add to `settings.py`**
+
+```python
+from datetime import timedelta
+
+INSTALLED_APPS = [
+    'secure_bite',
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
+    'corsheaders',
+    ...
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    ...
+    'secure_bite.middleware.RefreshTokenMiddleware',  # SecureBite middleware
+]
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "secure_bite.authentication.JWTAuthCookieAuthentication",
+    ],
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+}
+
+JWT_AUTH_COOKIE_SETTINGS = {
+    "AUTH_COOKIE": "authToken",                 # Access token cookie name
+    "REFRESH_COOKIE": "refreshToken",           # Refresh token cookie name
+    "AUTH_COOKIE_HTTP_ONLY": True,              # Prevents JavaScript access
+    "AUTH_COOKIE_SECURE": False,                # True in production (HTTPS)
+    "AUTH_COOKIE_SAMESITE": "Lax",
+    "USER_SERIALIZER": "secure_bite.serializers.UserSerializer",
+}
+```
+
+---
+
+## URL Configuration
+
+In your root `urls.py`:
+
+```python
+from django.urls import path, include
+
+urlpatterns = [
+    path("auth/", include("secure_bite.urls", namespace="secure_bite")),
+]
+```
+
+---
+
+## Usage
+
+### 1. Login
+
+**POST /auth/login/**
+
+Authenticates a user and sets `authToken` and `refreshToken` cookies.
+
+**Request**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "your_password"
+}
+```
+
+**Response**
+
+```json
+{
+  "message": "Login successful"
+}
+```
+
+---
+
+### 2. OAuth2 Login
+
+**GET /auth/oauth_start/<provider>/example.com/**
+
+Redirects the user to the OAuth provider (e.g., Google).
+After authentication, the user is redirected back with valid cookies set.
+
+Supported providers (example):
+
+* `/auth/oauth_start/google/example.com/`
+* `/auth/oauth_start/github/example.com/`
+
+---
+
+### 3. Logout
+
+**POST /auth/logout/**
+
+Clears authentication cookies.
+
+**Response**
+
+```json
+{
+  "message": "Logged out"
+}
+```
+
+---
+
+### 4. Get Current User
+
+**GET /auth/me/**
+
+Returns user details based on the active access token.
+
+**Response**
+
+```json
+{
+  "id": 1,
+  "email": "user@example.com"
+}
+```
+
+---
+
+### 5. Automatic Token Refresh
+
+The middleware automatically refreshes tokens near expiry.
+No frontend logic is required — tokens are renewed silently via cookies.
+
+---
+
+## Example React Integration
+
+Below is a minimal React setup using **Context API** and **Axios** to work with SecureBite’s endpoints.
+
+---
+
+### **1. `UserContext.js`**
+
+```jsx
+import React, { createContext, useContext, useEffect, useState } from "react";
+import axios from "axios";
+
+const UserContext = createContext();
+
+export const UserProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchUser = async () => {
+    try {
+      const res = await axios.get("/auth/me/", { withCredentials: true });
+      setUser(res.data);
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUser();
+  }, []);
+
+  const login = async (email, password) => {
+    await axios.post("/auth/login/", { email, password }, { withCredentials: true });
+    await fetchUser();
+  };
+
+  const logout = async () => {
+    await axios.post("/auth/logout/", {}, { withCredentials: true });
+    setUser(null);
+  };
+
+  return (
+    <UserContext.Provider value={{ user, loading, login, logout }}>
+      {loading ? <div>Loading...</div> : children}
+    </UserContext.Provider>
+  );
+};
+
+export const useUser = () => useContext(UserContext);
+```
+
+---
+
+### **2. `Login.js`**
+
+```jsx
+import React, { useState } from "react";
+import { useUser } from "./UserContext";
+
+const Login = () => {
+  const { login } = useUser();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await login(email, password);
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
+      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+      <button type="submit">Login</button>
+    </form>
+  );
+};
+
+export default Login;
+```
+
+---
+
+### **3. `Profile.js`**
+
+```jsx
+import React from "react";
+import { useUser } from "./UserContext";
+
+const Profile = () => {
+  const { user, logout } = useUser();
+
+  if (!user) return <div>Not logged in</div>;
+
+  return (
+    <div>
+      <h2>Welcome, {user.email}</h2>
+      <button onClick={logout}>Logout</button>
+    </div>
+  );
+};
+
+export default Profile;
+```
+
+---
+
+### **4. App Setup**
+
+```jsx
+import React from "react";
+import { UserProvider } from "./UserContext";
+import Login from "./Login";
+import Profile from "./Profile";
+
+function App() {
+  return (
+    <UserProvider>
+      <Profile />
+      <Login />
+    </UserProvider>
+  );
+}
+
+export default App;
+```
+## OAuth2 Integration (React)
+
+SecureBite supports OAuth2 logins (Google, GitHub, etc.). The flow is simple: redirect the user to the provider, receive a callback, and set JWT cookies.
+
+---
+
+### **1. Redirect to Provider**
+
+Create a React button to redirect users:
+
+```jsx
+import React from "react";
+
+const OAuthLoginButton = ({ provider }) => {
+  const handleLogin = () => {
+    // Redirect user to backend OAuth endpoint
+    window.location.href = `/auth/oauth_start/${provider}/example.com/`;
+  };
+
+  return (
+    <button onClick={handleLogin}>
+      Login with {provider.charAt(0).toUpperCase() + provider.slice(1)}
+    </button>
+  );
+};
+
+export default OAuthLoginButton;
+```
+
+* `provider` can be `"google"`, `"github"`, etc.
+* Clicking the button sends the user to the backend OAuth login page.
+
+---
+
+### **2. OAuth Callback Handling**
+
+After the user authenticates with the provider, they are redirected back to your frontend (configured in the OAuth provider settings). SecureBite sets the JWT cookies automatically.
+
+You can handle the frontend state like this:
+
+```jsx
+import React, { useEffect } from "react";
+import { useUser } from "./UserContext";
+import { useNavigate } from "react-router-dom";
+
+const OAuthCallback = () => {
+  const { fetchUser } = useUser(); // from UserContext
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Fetch the authenticated user after OAuth callback
+    const fetchAndRedirect = async () => {
+      await fetchUser();
+      navigate("/dashboard"); // Redirect to a protected route
+    };
+    fetchAndRedirect();
+  }, [fetchUser, navigate]);
+
+  return <div>Logging you in...</div>;
+};
+
+export default OAuthCallback;
+```
+
+**Flow:**
+
+1. User clicks **Login with Google** → Redirected to `/auth/oauth_start/google/example.com/`
+2. Authenticated by Google → Redirected back to your frontend callback URL
+3. SecureBite sets JWT cookies (`authToken` and `refreshToken`)
+4. React `UserContext` fetches user data → App renders protected pages
+
+---
+
+### **3. Example Routes Setup (React Router v6)**
+
+```jsx
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { UserProvider } from "./UserContext";
+import Login from "./Login";
+import Profile from "./Profile";
+import OAuthCallback from "./OAuthCallback";
+
+function App() {
+  return (
+    <UserProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/oauth/callback" element={<OAuthCallback />} />
+        </Routes>
+      </Router>
+    </UserProvider>
+  );
+}
+
+export default App;
+```
+
+---
+
+### **4. Key Considerations**
+
+* **CORS**: Ensure your Django backend allows your frontend domain. Include `withCredentials: true` in Axios requests.
+* **HTTPS**: Required in production for secure cookies.
+* **React State**: After OAuth callback, always fetch the user via `/auth/me/` to update the frontend state.
+* **Logout**: Works the same as standard login; JWT cookies are cleared by `/auth/logout/`.
+
+---
+
+This allows React apps to handle OAuth logins **without manually dealing with tokens** — SecureBite manages cookies automatically.
+
+---
+---
+
+## Security Tips
+
+* **Use HTTPS** in production to protect cookies.
+* **Set `AUTH_COOKIE_SECURE=True`** for production.
+* **Enable CSRF protection** when using POST requests.
+* **Use `token_blacklist`** to invalidate refresh tokens when users log out.
+
+---
+
+## Contributing
+
+We welcome contributions!
+
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature-branch`)
+3. Commit your changes
+4. Push and open a pull request
+
+---
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+
+
+
+
