@@ -1,0 +1,65 @@
+commands:
+  submit: sbatch
+  get_cpu_time: sacct -j -LEMMING-JOBID- --format=Elapsed -n
+  dependency: "--dependency=afterany:"
+  cancel: scancel
+queues:
+  debug:
+    wall_time: '00:30:00'
+    # core_nb is a parameter REQUIRED BY LEMMINGS in order to correctly
+    # compute the elapsed CPU time during the chain
+    core_nb: 24
+    header: |
+            #!/bin/bash
+            #SBATCH --partition debug
+            #SBATCH --nodes=1
+            #SBATCH --ntasks-per-node=24
+            #SBATCH --job-name -LEMMING-JOB_NAME-
+            #SBATCH --time=-LEMMING-WALL-TIME-
+            -EXEC-
+  debug_pj:
+    wall_time: '00:02:00'
+    header: |
+            #!/bin/bash
+            #SBATCH --partition debug
+            #SBATCH --nodes=1
+            #SBATCH --ntasks-per-node=2
+            #SBATCH --job-name -LEMMING-JOB_NAME-
+            #SBATCH --time=-LEMMING-WALL-TIME-
+            -EXEC_PJ-
+  visu:
+    wall_time: '00:02:00'
+    header: |
+            #!/bin/bash
+            #SBATCH --partition visu
+            #SBATCH --nodes=1
+            #SBATCH --ntasks-per-node=24
+            #SBATCH --job-name -LEMMING-JOB_NAME-
+            #SBATCH --time=-LEMMING-WALL-TIME-
+
+  prod:
+    wall_time: '12:00:00'
+    # core_nb is a parameter REQUIRED BY LEMMINGS in order to correctly
+    # compute the elapsed CPU time during the chain
+    core_nb: 540
+    header: |
+            #!/bin/bash
+            #SBATCH --partition prod
+            #SBATCH --nodes=15
+            #SBATCH --ntasks-per-node=36
+            #SBATCH --job-name -LEMMING-JOB_NAME-
+            #SBATCH --time=-LEMMING-WALL-TIME-
+
+            -EXEC-
+
+  prod_pj:
+    wall_time: '00:02:00'
+    header: |
+            #!/bin/bash
+            #SBATCH --partition prod
+            #SBATCH --nodes=1
+            #SBATCH --ntasks-per-node=2
+            #SBATCH --job-name -LEMMING-JOB_NAME-
+            #SBATCH --time=-LEMMING-WALL-TIME-
+
+            -EXEC_PJ-
