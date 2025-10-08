@@ -1,0 +1,2 @@
+python -m twine upload --repository testpypi dist/* -u __token__ -p pypi-AgEIcHlwaS5vcmcCJGFhOTk3MjUxLTFmMzUtNDczNy04YzE1LWQ1NTk3OGIxZDMxNQACKlszLCJmZjBiYzU5Ni1iNDk1LTRmZmMtYmE1OS0xN2QxMDI1ZDVkZWQiXQAABiDvMKVCQjLFFNukPQ_WZp-_gjIgdXPeE2wXEMivxvvyqQ
+
