@@ -1,0 +1,85 @@
+name: Go test windows
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  SENZING_TOOLS_DATABASE_URL: "sqlite3://na:na@nowhere/C:\\Temp\\sqlite\\G2C.db"
+
+permissions: {}
+
+jobs:
+  go-test-windows:
+    name: "Go test with Senzing: ${{ matrix.senzingsdk-version }}; OS: windows-latest; Go: ${{ matrix.go }}"
+    permissions:
+      contents: read
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.24"]
+        senzingsdk-version: [production-v4, staging-v4]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup go ${{ matrix.go }}
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Set up gotestfmt
+        uses: gotesttools/gotestfmt-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Senzing SDK
+        uses: senzing-factory/github-action-install-senzing-sdk@v3
+        with:
+          senzingsdk-version: ${{ matrix.senzingsdk-version }}
+
+      - name: Add to "Path" environment variable
+        run: |
+          Add-Content "$env:GITHUB_PATH" "$Env:USERPROFILE\Senzing\er\lib"
+
+      - name: Copy test database files
+        run: |
+          mkdir "C:\Temp\sqlite"
+          copy testdata/sqlite/G2C.db "C:\Temp\sqlite\G2C.db"
+
+      - name: Run go test
+        run: |
+          $Env:SENZING_PATH = "$Env:USERPROFILE\Senzing"
+          $Env:CGO_CFLAGS = "-g -I$Env:SENZING_PATH\er\sdk\c"
+          $Env:CGO_LDFLAGS = "-L$Env:SENZING_PATH\er\lib -lSz"
+          go test -json -v -p 1 -coverprofile=cover -covermode=atomic -coverpkg=./... ./... 2>&1 | tee "C:\Temp\gotest-${{ matrix.senzingsdk-version }}.log" | gotestfmt
+          cp cover "cover-${{ matrix.senzingsdk-version }}.out"
+
+      - name: Store coverage file
+        uses: actions/upload-artifact@v4
+        with:
+          name: "cover-${{ matrix.senzingsdk-version }}.out"
+          path: "cover-${{ matrix.senzingsdk-version }}.out"
+
+      - name: Upload test log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: "test-log-${{ matrix.senzingsdk-version }}"
+          path: "C:\\Temp\\gotest-${{ matrix.senzingsdk-version }}.log"
+          if-no-files-found: error
+
+  coverage:
+    name: Coverage
+    needs: go-test-windows
+    permissions:
+      contents: read
+    uses: senzing-factory/build-resources/.github/workflows/go-coverage.yaml@v3
+    with:
+      coverage-config: ./.github/coverage/testcoverage.yaml
+      profile: "cover-production-v4.out,cover-staging-v4.out"

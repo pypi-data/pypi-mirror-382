@@ -1,0 +1,61 @@
+name: test generated files
+
+on: [push]
+
+permissions: {}
+
+jobs:
+  test-generated-files:
+    outputs:
+      status: ${{ job.status }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: verify testdata
+        run: |
+          mkdir /tmp/testdata
+          ./bin/make_testdata_responses_generated.py --output /tmp/testdata
+          diff --recursive ./testdata/responses_generated /tmp/testdata
+
+      - name: verify go/typedef/generated_typedef_test.go
+        run: |
+          mkdir /tmp/go-typedef
+          ./bin/make_go_typedef_generated_typedef_test_go.py --output /tmp/go-typedef/generated_typedef_test.go
+          cp ./go/typedef/generated_typedef_test.go /tmp/go-typedef/generated_typedef_test_original.go
+          sed --in-place '4d' /tmp/go-typedef/generated_typedef_test.go
+          sed --in-place '4d' /tmp/go-typedef/generated_typedef_test_original.go
+          diff /tmp/go-typedef/generated_typedef_test_original.go /tmp/go-typedef/generated_typedef_test.go
+
+      - name: verify generated files are up-to-date
+        run: |
+          curl -X GET --location --output jtd-codegen.zip https://github.com/jsontypedef/json-typedef-codegen/releases/download/v0.4.1/x86_64-unknown-linux-musl.zip
+          unzip jtd-codegen.zip
+          chmod +x jtd-codegen
+          ls ./python/senzing_typedef
+          mkdir /tmp/typedef
+          ./jtd-codegen --python-out /tmp/typedef --root-name senzingsdk senzingsdk-RFC8927.json
+          ls /tmp/typedef
+          diff ./python/senzing_typedef/__init__.py  /tmp/typedef/__init__.py
+
+  slack-notification:
+    needs: [test-generated-files]
+    if: ${{ always() && contains(fromJSON('["failure", "cancelled"]'), needs.test-generated-files.outputs.status ) && github.ref_name == github.event.repository.default_branch }}
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+    uses: senzing-factory/build-resources/.github/workflows/build-failure-slack-notification.yaml@v3
+    with:
+      job-status: ${{ needs.test-generated-files.outputs.status }}
