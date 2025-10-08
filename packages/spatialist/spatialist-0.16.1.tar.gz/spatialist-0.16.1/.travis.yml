@@ -1,0 +1,41 @@
+dist: jammy
+language: python
+sudo: required
+cache:
+  directories:
+    - ~/.cache/pip
+
+env:
+  global:
+    - PIP_WHEEL_DIR=$HOME/.cache/pip/wheels
+    - PIP_FIND_LINKS=file://$HOME/.cache/pip/wheels
+    - TESTDATA_DIR=$HOME/testdata
+
+addons:
+  apt:
+    sources:
+      - sourceline: 'ppa:ubuntugis/ppa'
+    packages:
+      - libgdal-dev
+      - gdal-bin
+      - libsqlite3-mod-spatialite
+      - libproj-dev
+      - python3-dev
+
+python:
+  - '3.7'
+
+install:
+  - mkdir -p ~/.cache/pip/wheels # remove warning "Url 'file:///home/travis/.cache/pip/wheels' is ignored: it is neither a file nor a directory."
+  - pip install --ignore-installed setuptools pip six certifi # install packages inside the venv if the system version is too old
+  - pip install numpy
+  - pip install GDAL==$(gdal-config --version) --global-option=build_ext --global-option="$(gdal-config --cflags)"
+  - pip install -r requirements.txt
+  - pip install coveralls coverage
+  - python setup.py install
+
+script:
+  - coverage run --source spatialist/ -m pytest
+
+after_success:
+- coveralls
