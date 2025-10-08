@@ -1,0 +1,60 @@
+#
+# netlab graph command
+#
+# Connect a graph description for Graphviz or D2
+#
+import argparse
+import typing
+
+from ..outputs import _TopologyOutput
+from ..utils import log
+from ..utils import read as _read
+from . import load_snapshot, parser_lab_location
+
+
+#
+# CLI parser for 'netlab graph' command
+#
+def graph_parse(args: typing.List[str]) -> argparse.Namespace:
+  parser = argparse.ArgumentParser(
+    prog="netlab graph",
+    description='Create a graph description in Graphviz or D2 format')
+  parser.add_argument(
+    '-t','--type',
+    dest='g_type', action='store',
+    choices=['topology','bgp','isis'],
+    help='Graph type')
+  parser.add_argument(
+    '-f','--format',
+    dest='g_format', action='store',
+    help='Graph formatting parameters separated by commas')
+  parser.add_argument(
+    '-e','--engine',
+    dest='engine', action='store',
+    default='graphviz',
+    choices=['graphviz','d2'],
+    help='Graphing engine')
+  parser.add_argument(
+    dest='output', action='store',
+    nargs='?',
+    help='Optional: Output file name')
+
+  parser_lab_location(parser,instance=True,snapshot=True,action='create a graph from')
+  return parser.parse_args(args)
+
+def run(cli_args: typing.List[str]) -> None:
+  args = graph_parse(cli_args)
+  topology = load_snapshot(args)
+  _read.include_environment_defaults(topology)
+  o_module = 'graph' if args.engine == 'graphviz' else 'd2'
+  o_param  = f'{o_module}:{args.g_type or "topology"}'
+  if args.g_format:
+    o_param += ':'+args.g_format.replace(',',':')
+  if args.output:
+    o_param += f'={args.output}'
+
+  graph_module = _TopologyOutput.load(o_param,topology.defaults.outputs[o_module])
+  if graph_module:
+    graph_module.write(topology)
+  else:
+    log.fatal('Cannot load the graphing output module, aborting')

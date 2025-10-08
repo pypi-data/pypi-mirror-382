@@ -1,0 +1,94 @@
+#!/usr/bin/env ansible-playbook
+---
+- name: Create initial device configurations
+  hosts: all
+  gather_facts: false
+  vars:
+    config_dir: "{{ lookup('env','PWD') }}/config"
+    node_provider: "{{ provider|default(netlab_provider) }}"
+  tasks:
+  - block:
+    - name: Set variables that cannot be set with vars
+      set_fact:
+        netlab_device_type: "{{ netlab_device_type|default(ansible_network_os) }}"
+        netlab_interfaces: "{{ ([ loopback ] if loopback is defined else []) + interfaces|default([]) }}"
+
+    - name: Create config directory in {{ config_dir }}
+      file:
+        path: "{{ config_dir }}"
+        state: directory
+      run_once: true
+
+    delegate_to: localhost
+
+  - name: Create initial device configuration
+    include_tasks: "tasks/create-config.yml"
+    args:
+      apply:
+        vars:
+          config_item: initial
+          paths: "{{ paths_templates.dirs }}"
+
+- name: Create module-specific configurations
+  hosts: modules
+  vars:
+    node_provider: "{{ provider|default(netlab_provider) }}"
+  tasks:
+  - block:
+    - name: Set variables that cannot be set with vars
+      set_fact:
+        mod_select: "{{ modlist.split(',') if modlist is defined else netlab_module }}"
+
+    - name: Create device configurations for {{ mod_select }}
+      include_tasks: "tasks/create-config.yml"
+      loop: "{{ netlab_module }}"
+      when: >-
+        config_item in mod_select and
+        config_item in module|default([]) and
+        config_item not in _daemon_config|default([])
+      loop_control:
+        loop_var: config_item
+      args:
+        apply:
+          vars:
+            paths: "{{ paths_templates.dirs }}"
+
+    delegate_to: localhost
+
+- name: Create custom deployment templates
+  hosts: custom_configs
+  vars:
+    node_provider: "{{ provider|default(netlab_provider) }}"
+  tasks:
+  - name: Create {{ config }} custom device configuration
+    include_tasks: "tasks/create-custom-config.yml"
+    when: custom_config in config
+    loop: "{{ netlab_custom_config }}"
+    loop_control:
+      loop_var: custom_config
+    args:
+      apply:
+        vars:
+          paths: "{{ paths_custom.dirs }}"
+
+- name: Create daemon configuration files
+  hosts: daemons
+  serial: 1
+  vars:
+    node_provider: "{{ provider|default(netlab_provider) }}"
+    extra_config: >
+      {{ _daemon_config|default({})
+            |list
+            |difference(modules|default([]))
+            |difference(config|default([])) }}
+  tasks:
+  - name: Create daemon configurations
+    include_tasks: "tasks/create-config.yml"
+    loop: "{{ extra_config }}"
+    when: "'@' not in config_item"
+    loop_control:
+      loop_var: config_item
+    args:
+      apply:
+        vars:
+          paths: "{{ paths_templates.dirs }}"
