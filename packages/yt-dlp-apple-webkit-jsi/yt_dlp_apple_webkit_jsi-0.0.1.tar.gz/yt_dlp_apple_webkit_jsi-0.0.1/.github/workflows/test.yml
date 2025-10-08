@@ -1,0 +1,94 @@
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testpy:
+    strategy:
+      matrix:
+        pyvsn:
+          - '3.9'
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+          - '3.14.0-rc.3'
+          - 'pypy3.10'
+          - 'pypy3.11'
+        os:
+          - 'macos-13'  # x86_64
+          - 'macos-14'  # arm64
+          - 'macos-15'  # arm64
+          - 'macos-15-intel'  # x86_64
+          - 'macos-26'  # arm64 beta
+      # fail-fast: false
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.pyvsn }}
+    - name: run easy API
+      run: |
+        cd yt_dlp_plugins/webkit_jsi
+        ulimit -c unlimited
+        sudo chmod a+rw /cores
+        python -m examples.run_easy || {
+          r=$?
+          echo "::warning::Failure with $r, rerunning with logs"
+          python -m examples.run
+          test -L "${{ github.workspace }}/core"
+          exit $r
+        }
+    - if: failure()
+      run: >
+        lldb -c core --batch
+        -o 'settings set target.x86-disassembly-flavor intel'
+        -o 'thread backtrace all'
+        -o 'register read'
+        -o 'disassemble --pc --count 50'
+        | tee st.txt
+    - if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.os }}-${{ matrix.pyvsn }}-bt
+        path: st.txt
+        compression-level: 9
+    - name: test yt-dlp works
+      run: |
+        python -m venv .ve
+        . .ve/bin/activate
+        pip install \
+          . \
+          "yt-dlp @ git+https://github.com/Grub4K/yt-dlp@feat/jsc-deno"
+        # TODO: fail the CI when challenge solving fails
+        yt-dlp -vF --extractor-args "youtubejsc-ejs:dev=true;script_version=0.1.4;repo=coletdjnz/ejs-dev" --remote-components ejs:github \
+           dQw4w9WgXcQ dQw4w9WgXcQ
+  c:
+    strategy:
+      matrix:
+        os:
+          - 'macos-13'  # x86_64
+          - 'macos-14'  # arm64
+          - 'macos-15'  # arm64
+          - 'macos-15-intel'  # x86_64
+          - 'macos-26'  # arm64 beta
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 1
+    steps:
+    - uses: actions/checkout@v4
+    # - name: dump asm
+    #   run: |
+    #     cd misc
+    #     clang -O2 -S -masm=intel --std=c99 -Wall -Wextra -pedantic -Wno-unused-but-set-variable -Wno-cast-function-type -Wno-unused-parameter -fblocks -fno-objc-arc super.m
+    #     cat super.s
+    - run: |
+        cd misc
+        make hello && ./hello
