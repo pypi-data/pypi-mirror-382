@@ -1,0 +1,54 @@
+from pathlib import Path
+from typing import BinaryIO
+
+import boto3 as boto3
+import botocore.config
+
+from ingestify.domain import Dataset
+from ingestify.domain.models import FileRepository
+from ingestify.utils import get_concurrency
+
+
+class S3FileRepository(FileRepository):
+    _s3 = None
+
+    @property
+    def s3(self):
+        if not self._s3:
+            client_config = botocore.config.Config(
+                max_pool_connections=get_concurrency(),
+            )
+            self._s3 = boto3.resource("s3", config=client_config)
+        return self._s3
+
+    def __getstate__(self):
+        return {
+            "base_dir": self.base_dir,
+            "_s3": None,
+            "identifier_transformer": self.identifier_transformer,
+        }
+
+    def save_content(
+        self,
+        bucket: str,
+        dataset: Dataset,
+        revision_id: int,
+        filename: str,
+        stream: BinaryIO,
+    ) -> Path:
+        key = self.get_write_path(bucket, dataset, revision_id, filename)
+        s3_bucket = Path(key.parts[0])
+
+        self.s3.Object(str(s3_bucket), str(key.relative_to(s3_bucket))).put(Body=stream)
+        return key
+
+    def load_content(self, storage_path: str) -> BinaryIO:
+        key = self.get_read_path(storage_path)
+        s3_bucket = Path(key.parts[0])
+        return self.s3.Object(str(s3_bucket), str(key.relative_to(s3_bucket))).get()[
+            "Body"
+        ]
+
+    @classmethod
+    def supports(cls, url: str) -> bool:
+        return url.startswith("s3://")
