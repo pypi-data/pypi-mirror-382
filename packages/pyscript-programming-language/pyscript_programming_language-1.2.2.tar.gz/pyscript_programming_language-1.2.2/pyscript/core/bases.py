@@ -1,0 +1,2 @@
+class Pys:
+    pass

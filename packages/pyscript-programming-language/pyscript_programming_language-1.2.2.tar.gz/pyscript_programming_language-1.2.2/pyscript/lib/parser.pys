@@ -1,0 +1,81 @@
+import _pyscript  # get module pyscript/core
+
+# tokens offset
+DOUBLE = _pyscript.constants.DOUBLE
+TRIPLE = _pyscript.constants.TRIPLE
+WITH_EQ = _pyscript.constants.WITH_EQ
+SPECIAL = _pyscript.constants.SPECIAL
+
+# constants
+TOKENS = _pyscript.constants.TOKENS.copy()
+KEYWORDS = _pyscript.constants.KEYWORDS.copy()
+
+# flags
+DEFAULT = _pyscript.constants.DEFAULT
+OPTIMIZE = _pyscript.constants.OPTIMIZE
+REVERSE_POW_XOR = _pyscript.constants.REVERSE_POW_XOR
+
+# highlight formatter
+HLFMT_HTML = _pyscript.highlight.HLFMT_HTML
+HLFMT_ANSI = _pyscript.highlight.HLFMT_ANSI
+
+class Parser {
+
+    func __init__(self, source) {
+        self.file = _pyscript.buffer.PysFileBuffer(source)
+    }
+
+    func tokenize(self, allowed_comment_token=False) {
+        lexer = _pyscript.lexer.PysLexer(self.file, allowed_comment_token=allowed_comment_token)
+        [tokens, error] = lexer.make_tokens()
+
+        if error
+            throw error.exception
+
+        return tokens
+    }
+
+    func ast(self, mode='exec') {
+        if (mode not in {'exec', 'eval'})
+            throw ValueError("ast() mode must be 'exec' or 'eval'")
+
+        parser = _pyscript.parser.PysParser(self.file, self.tokenize())
+        ast = parser.parse(mode == 'exec' ? None : parser.expr)
+
+        if (ast.error)
+            throw ast.error.exception
+
+        return ast.node
+    }
+
+    func check(self, mode='exec') {
+        validator = _pyscript.validator.PysValidator(self.file)
+        error = validator.visit(self.ast(mode=mode))
+
+        if error
+            throw error.exception
+    }
+
+    func highlight(self, format=None, max_parenthesis_level=3) {
+        return _pyscript.highlight.pys_highlight(
+            self.file,
+            format=format,
+            max_parenthesis_level=max_parenthesis_level
+        )
+    }
+
+}
+
+# wrap functions
+
+func tokenize(source, allowed_comment_token=False)
+    return Parser(source).tokenize(allowed_comment_token=allowed_comment_token)
+
+func ast(source, mode='exec')
+    return Parser(source).ast(mode=mode)
+
+func check(source, mode='exec')
+    return Parser(source).check(mode=mode)
+
+func highlight(source, format=None, max_parenthesis_level=3)
+    return Parser(source).highlight(format=format, max_parenthesis_level=max_parenthesis_level)
