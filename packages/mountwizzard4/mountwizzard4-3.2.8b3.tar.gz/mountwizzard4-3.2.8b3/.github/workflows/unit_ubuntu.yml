@@ -1,0 +1,145 @@
+#
+# v1.0, Michael Wuertenberger
+#
+name: unit_ubuntu
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  branch: '3.2.0'
+
+on:
+  push:
+    # Run this action on the trigger event when specific files are touched
+    paths:
+      - 'mw4/**'
+      - 'tests/unit_tests/**'
+      - 'setup.py'
+      - '.github/workflows/unit_ubuntu.yml'
+      - '.github/actions/install_ubuntu_head/action.yml'
+      - '.github/actions/build_package/action.yml'
+      - '.github/actions/setup_test/action.yml'
+
+jobs:
+  build_package:
+    #
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{env.branch}}
+          
+      - name: build package
+        uses: ./.github/actions/build_package
+        
+  run_tests_ubuntu_1:
+    #
+    needs: build_package
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{env.branch}}
+    
+      - name: install head
+        uses: ./.github/actions/install_ubuntu_head
+    
+      - name: install package
+        uses: ./.github/actions/setup_test
+
+      - name: running_unit_tests
+        run: |
+          xvfb-run pytest tests/unit_tests/base
+          xvfb-run pytest tests/unit_tests/logic
+          xvfb-run pytest tests/unit_tests/mountcontrol
+          xvfb-run pytest tests/unit_tests/indibase
+          xvfb-run pytest tests/unit_tests/gui/utilities
+          xvfb-run pytest -k 'not simulatorW' tests/unit_tests/gui/extWindows
+        
+  run_tests_ubuntu_2:
+    #
+    needs: build_package
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{env.branch}}
+    
+      - name: install package
+        uses: ./.github/actions/setup_test
+    
+      - name: install head
+        uses: ./.github/actions/install_ubuntu_head
+  
+      - name: running_unit_tests
+        run: |
+          xvfb-run pytest tests/unit_tests/zLoader
+          xvfb-run pytest tests/unit_tests/zUpdate
+          xvfb-run pytest tests/unit_tests/zMainApp
+          xvfb-run pytest tests/unit_tests/gui/mainWindow
+
+
+  run_tests_ubuntu_3:
+    #
+    needs: build_package
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{env.branch}}
+    
+      - name: install package
+        uses: ./.github/actions/setup_test
+    
+      - name: install head
+        uses: ./.github/actions/install_ubuntu_head
+  
+      - name: running_unit_tests
+        run: |
+          xvfb-run pytest tests/unit_tests/gui/mainWmixin1
+
+
+  run_tests_ubuntu_4:
+    #
+    needs: build_package
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{env.branch}}
+    
+      - name: install package
+        uses: ./.github/actions/setup_test
+    
+      - name: install head
+        uses: ./.github/actions/install_ubuntu_head
+  
+      - name: running_unit_tests
+        run: |
+          xvfb-run pytest tests/unit_tests/gui/mainWmixin2
+
+
+  run_tests_ubuntu_5:
+    #
+    needs: build_package
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{env.branch}}
+    
+      - name: install package
+        uses: ./.github/actions/setup_test
+    
+      - name: install head
+        uses: ./.github/actions/install_ubuntu_head
+  
+      - name: running_unit_tests
+        run: |
+          xvfb-run pytest tests/unit_tests/gui/mainWmixin3
