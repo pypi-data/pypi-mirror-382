@@ -1,0 +1,54 @@
+[build-system]
+requires = [ "setuptools",
+             "setuptools_scm",
+             "wheel",
+             "Cython",
+             "numpy",
+             "scipy",
+             "dendropy",
+             "pandas" ]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "SuchTree"
+description = "A python library for doing fast, thread-safe computations on phylogenetic trees"
+readme = "README.md"
+#readme-content-type = "text/markdown"
+authors = [ { name = "Russell Neches", email = "science@vort.org" } ]
+license = "BSD-3-Clause"
+keywords = [ "biology", "bio", "phylogenetics", "phylogeny", "tree" ]
+urls = { "Homepage" = "https://github.com/ryneches/SuchTree" }
+classifiers = [ "Programming Language :: Python :: 3" ]
+dependencies = [
+    "cython",
+    "numpy",
+    "scipy",
+    "pandas",
+    "dendropy"
+]
+dynamic = ["version"]
+
+[tool.setuptools.package-data]
+SuchTree = [ "*.so", "*.pyd" ]
+
+# Use the __version__ attribute from the package
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
+version_scheme = "only-version"
+write_to = "SuchTree/__version__.py"
+
+# build wheels for amd64 x86_64
+[tool.cibuildwheel.linux]
+before-all = "yum -y install lapack-devel blas-devel atlas-devel"
+archs = "aarch64 x86_64"
+skip = "*musllinux*"
+
+# build wheels for Intel and Apple silicon
+[tool.cibuildwheel.macos]
+archs = "arm64 x86_64"
+
+# pytest config for testing in place
+[tool.pytest.ini_options]
+addopts = "-ra -p no:warnings --pdbcls=IPython.terminal.debugger:TerminalPdb"
+testpaths = ["SuchTree/tests"]
+pythonpath = ["SuchTree"]
