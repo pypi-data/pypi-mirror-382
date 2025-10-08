@@ -1,0 +1,67 @@
+name: Run tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+        include:
+          - os: macos-latest
+            python-version: "3.12"
+
+    env:
+      DEBUG_TEST_PYFLYBY: 1
+      ENVNAME: ${{matrix.os}}-${{matrix.python-version}}
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install pyflyby
+      run: |
+        # Include build dependencies for run time; see
+        # https://mesonbuild.com/meson-python/how-to-guides/editable-installs.html#build-dependencies
+        # for details.
+        pip install meson-python meson ninja pybind11>=2.10.4
+        pip install setuptools wheel # needed for epydoc
+        pip install --no-build-isolation -ve .[test]
+    - name: test release build
+      run: |
+        python -m build
+    - name: compileall
+      run: |
+        python -We:invalid -m compileall -f -q lib/ etc/;
+
+    - name: pytest Mac OS
+      if: ${{ matrix.os == 'macos-latest'}}
+      # json report can't be installed on Py2, and make macos super slow.
+      run: |
+        python -m pytest -v --cov=pyflyby --cov-report=xml --doctest-modules --maxfail=3 lib tests
+    - name: pytest (not MacOS)
+      if: ${{ matrix.os != 'macos-latest'  }}
+      run: |
+        python -m pytest -v --cov=pyflyby --cov-report=xml\
+               --doctest-modules\
+               --maxfail=3\
+               --json-report\
+               --json-report-file=report-${ENVNAME}.json\
+               lib tests
+    - uses: actions/upload-artifact@v4
+      name: upload pytest timing reports as json
+      with:
+        name: pytest-timing-${{ matrix.os }}-${{ matrix.python-version }}
+        path: ./report-*.json
+    - uses: codecov/codecov-action@v5

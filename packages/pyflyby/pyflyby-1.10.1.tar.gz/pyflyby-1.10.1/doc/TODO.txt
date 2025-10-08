@@ -1,0 +1,115 @@
+
+- Support removing imports at any level, not just top-level.
+- Support adding imports inside functions.  Guess that an import should be
+  local if there were any other local imports from the same module.
+- Allow options in .pyflyby files such as __options__ = '--uniform'
+- Allow an option in .pyflyby files that means "stop processing further
+  database files"
+- Heuristically guess alignment style from existing code
+- Grouping: Teach tidy-imports to canonicalize import groups.  3 possiblities:
+  (1) Follow PEP8 standard library imports, then third-party imports, then
+  local app imports. http://legacy.python.org/dev/peps/pep-0008/#imports. Best
+  default. (2) The Eclipse way: for each top-level package, if there is more
+  than one import statement, then make those a group.  (3) User-configured
+  grouping.
+- Use rope?
+- Allow comments in a file to specify imports that shouldn't be removed,
+  including "*" to mean don't-remove-any.
+- Allow a comment in the file to specify alignment options.
+- Guess the module name for relative imports.
+- Preserve comments on import lines (as much as possible anyway - may need to
+  make them standalone comments).
+- Preserve line ending style (\r\n).
+- Merge share/pyflyby/*.py into a single file.
+- Make sure etc/pyflyby works for both systemwide installation and virtualenv
+  installation
+- Consider making the default database file more like a sample file that the
+  user is instructed to cp to ~/.pyflyby.  What about existing users of older
+  versions?  Perhaps have an auto-upgrade feature
+- Refactor autoimport.py to share more with rest of pyflyby, esp AST parsing.
+- Consider __mandatory_imports -= [...] instead of __forget_imports__=[...].
+- Packaging:
+    - Make 'install' put etc in /etc outside egg (but inside virtualenv is
+      ok).  Or think about the right way to do config files otherwise.
+    - Avoid compiling etc files to .pyc.
+    - Make bin/tidy-imports work out of the box after sdist+unpack.  Currently
+      sdist doesn't include the bin/pyflyby symlink.
+    - Make zip-safe/PEP308 compliant; use pkg_resources (if possible) instead
+      of __file__.
+- If fail to import something, remove it (and children) from known imports.
+- Autopython script
+- Make naming consistent: auto_importer vs autoimporter
+
+
+- Add pretty-printing parameter --groupimports=manual|pep8|java, new default
+  pep8.
+- Pep8 grouping:
+    - stdlib, then third-party libs, then first-party libs
+    - guess whether the current file is in the same package as an
+      import by checking if imported_pkg.split(".")[0] in filename.split("/").
+    - But how do we distinguish some random local module from third-party
+      libraries?  Import it and check if path is in sys.path excluding current
+      dir?  Not satisfying but can't think of anything better.
+    - stdlib before third-party libs.  Need a list of stdlibs.
+      I guess we should include e.g. argparse regardless of the python version,
+      since we don't want the grouping to change depending on python version.
+      Maybe just use a (cogged) hardcoded list of modules.
+
+- pyflyby_path importdb: require that components start with "/" or "./" or
+  ".../"; i.e. don't allow "foo/bar"; tell user to use "./foo/bar" if that's
+  what he wants.  Test case.
+- Pyflyby_path: make sure that empty strings are ignored, not treated as ".".
+  Test case.
+- py --safe: pyflyby_path=":" (not empty string, because that means "use
+  default")
+
+- Allow non-imports in import db?  Warn or allow silently?  Indicate mode
+  somehow? We want to allow setting pyflyby_path to the directory of code and
+  use it without having to maintain an importdb.  But don't make regular
+  .pyflyby databases sloppy.
+
+- collect-exports: new mode that parses file and enumerates "stores", instead
+  of executing code.
+
+- Unify collect-imports/collect-exports/collect-exports-from-stores into a
+  single script with a mode argument.  Also parameters for whether to include
+  things imported from submodules (default on) and whether to include things
+  imported from other packages (default off).
+
+- Add tidy-imports, etc to py
+
+- Merge contents of all scripts into modules, and use setup.py entry_points.
+  Keep stub scripts in bin directory only for non-installed usage.
+
+- Support pypy.  It seems to already work fine in casual tests, but tox and
+  maybe setup.py need tweaking
+
+- Transforms: support 'from a import b' => 'from c import d' (plus global
+  replace b=>d) in addition to 'from a import b' => 'from c import d as b'
+
+- Make tidy-imports support detecting that print_function is necessary but
+  missing, and add it.
+
+- Tidy-imports for notebooks: add all necessary imports to cells (either at
+  the top or per cell)
+
+- Fix issue where properties get evaluated by pyflyby and then again by
+  ipython.  E.g. repeated print output in test_complete_symbol_nonmodule_1.
+  We can't avoid pyflyby evaluating the property.  But is there some way to
+  intercept ipython's subsequent evaluation and reuse the same result?
+
+- Spyder: Fix pyflyby output coming during tab completion messing up the
+  display.  May need to fix in Spyder itself.
+
+- Handle comments between concatenate strings, e.g.: 'myvar =
+  ("xx"\n#blah\n"yy")', e.g. in test_interactive.py.
+
+- Function & interactive command to automatically add interactively-typed
+  imports to ~/.pyflyby.
+
+- Store all interactively-typed imports to an area that can be consulted to
+  print out but don't automatically use
+
+- Integration with search pydoc index for where to get import - but don't use
+  it automatically, just print it out and ask user if he wants to add it to
+  database

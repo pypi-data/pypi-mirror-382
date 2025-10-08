@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+
+# DEPRECATED.
+#   - to run once from command-line: py
+#   - to load once from IPython: '%load_ext pyflyby'
+#   - to configure to load every time:
+#       $ echo 'c.InteractiveShellApp.extensions.append("pyflyby")' >> ~/.ipython/profile_default/ipython_config.py
+#
+
+"""
+autoipython -- run IPython with automatic importing enabled.
+
+This is useful if you prefer to not modify your startup config files, or if
+you want to try it before modifying your startup config files.
+
+  $ autoipython
+
+  In [1]: re.search("[a-z]+", "....hello...").group(0)
+  [PYFLYBY] import re
+  Out[1]: 'hello'
+
+  In [2]: chisqprob(arange(5), 2)
+  [PYFLYBY] from numpy import arange
+  [PYFLYBY] from scipy.stats import chisqprob
+  Out[2]: [ 1.      0.6065  0.3679  0.2231  0.1353]
+
+Once you are satisfied that this is useful, you run the following to install
+the autoimporter in your IPython startup file:
+
+  $ autoipython --install
+  [PYFLYBY] Writing to ~/.ipython/profile_default/startup/50-pyflyby.py:
+  import pyflyby
+  pyflyby.enable_auto_importer()
+
+Or, you can manually add 'pyflyby.enable_auto_importer()' wherever you prefer.
+
+"""
+
+# pyflyby/autoipython
+# Copyright (C) 2014 Karl Chen.
+# License: MIT http://opensource.org/licenses/MIT
+
+
+import sys
+
+from   pyflyby._cmdline         import maindoc, print_version_and_exit
+from   pyflyby._interactive     import (install_in_ipython_config_file,
+                                        start_ipython_with_autoimporter)
+
+
+def main(args):
+    if any(a in ["--help", "-help", "-h"] for a in args):
+        print(maindoc())
+        print()
+        print("----------------------------------------------------------------------")
+        print()
+        start_ipython_with_autoimporter(["--help"])
+        return
+    if args and args[0] in ["--install", "-install", "install"]:
+        args.pop(0)
+        if args:
+            raise ValueError("--install: unexpected args %s" % (' '.join(args)))
+        install_in_ipython_config_file()
+        return
+    if args and args[0] in ["--version", "-version"]:
+        import IPython
+        print_version_and_exit("IPython %s" % (IPython.__version__))
+        raise AssertionError("unreachable")
+    # *** Start IPython with autoimporter enabled. ***
+    start_ipython_with_autoimporter(args)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

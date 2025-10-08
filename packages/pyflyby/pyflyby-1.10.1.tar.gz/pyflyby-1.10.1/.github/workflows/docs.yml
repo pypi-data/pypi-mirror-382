@@ -1,0 +1,28 @@
+name: Docs
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+    contents: write
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+      - name: Install dependencies
+        run: |
+          pip install -U pip
+          pip install -v --group docs
+      - name: Build docs
+        run: |
+          make html
+        working-directory: doc
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        with:
+          publish_branch: gh-pages
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: doc/_build/html
+          force_orphan: true
