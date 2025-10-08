@@ -1,0 +1,19 @@
+from typing import Optional, Union, Callable, Dict
+import uuid
+from qtpy.QtCore import Property, Slot, Signal, Qt
+from qtpy.QtWidgets import QWidget, QHBoxLayout, QLabel, QSizePolicy, QFrame, QVBoxLayout
+from qtmui.hooks.use_state import State
+from ..controller import Controller
+from ..form_control_label import FormControlLabel
+from ..box import Box
+from ..switch import Switch
+from qtmui.material.styles import store, useTheme
+from qtmui.hooks import useState
+from ..qss_name import *
+class RHFSwitch:
+    def __init__(self, name: str, key: Optional[str], defaultChecked: Optional[bool], value: bool, hightLight: bool, row: bool, checked: bool, label: Optional[Union[str, State, Callable]], fullWidth: bool, labelPlacement: str, options: object, spacing: int, helperText: str, sx: Optional[Union[Callable, str, Dict]]): ...
+    def set_value(self, value): ...
+    def _on_change(self, value): ...
+    def stateSignal(self): ...
+    def stateSignal(self, value): ...
+    def state(self, state): ...

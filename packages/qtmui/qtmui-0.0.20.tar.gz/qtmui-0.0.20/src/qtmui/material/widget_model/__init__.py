@@ -1,0 +1,1 @@
+from .widget_model import WidgetModel

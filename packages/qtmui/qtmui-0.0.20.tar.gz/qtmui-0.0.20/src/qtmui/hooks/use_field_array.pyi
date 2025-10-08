@@ -1,0 +1,16 @@
+from typing import Callable, List, Dict, Any
+from dataclasses import dataclass
+from qtpy.QtCore import QObject, Signal
+from .use_state import useState, State
+from .use_form import UseForm
+class FieldArrayType:
+    fields: List[Dict[str, Any]]
+    append: Callable[Any, Any]
+    remove: Callable[Any, Any]
+    update: Callable[Any, Any]
+class FieldArray:
+    def __init__(self, control: UseForm, name: str): ...
+    def append(self, item: Dict[str, Any]): ...
+    def remove(self, index: int): ...
+    def update(self, index: int, item: Dict[str, Any]): ...
+def useFieldArray(control: UseForm, name: str): ...
