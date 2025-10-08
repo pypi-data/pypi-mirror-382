@@ -1,0 +1,86 @@
+# nydus-snapshotter Helm Chart Values
+#
+
+rbac:
+  # -- Enable RBAC
+  enabled: true
+
+global:
+  # -- Global Docker image registry.
+  imageRegistry: ""
+  # -- Global Docker registry secret names as an array.
+  imagePullSecrets: []
+  # -- Global node labels for pod assignment.
+  nodeSelector: {}
+
+# -- nydus-snapshotter name
+name: nydus-snapshotter
+image:
+  # -- Image registry.
+  registry: docker.io
+  # -- Image repository.
+  repository: tensorfuse/nydus-snapshotter
+  # -- Image tag.
+  tag: v0.15.0
+  # -- Image pull policy.
+  pullPolicy: Always
+  # -- Image pull secrets.
+  # @default -- `[]` (defaults to global.imagePullSecrets).
+  pullSecrets: []
+# -- Let nydus-snapshotter run in host network
+hostNetwork: true
+# -- Let nydus-snapshotter use the host's pid namespace
+hostPid: true
+# -- Host Aliases
+hostAliases: []
+# -- Args to overwrite default nydus-snapshotter startup command
+args: []
+# -- Pod resource requests and limits
+resources:
+  requests:
+    cpu: "0"
+    memory: "0"
+  limits:
+    cpu: "2"
+    memory: "2Gi"
+# -- Pod priorityClassName
+priorityClassName: ""
+# -- Node labels for pod assignment
+nodeSelector: {}
+# -- Pod terminationGracePeriodSeconds
+terminationGracePeriodSeconds:
+# -- List of node taints to tolerate
+tolerations: []
+# -- Pod annotations
+podAnnotations: {}
+# -- Pod labels
+podLabels: {}
+# -- Daemonset annotations
+daemonsetAnnotations: {}
+
+
+# -- [Experimental] Container runtime support
+# Choose special container runtime in Kubernetes.
+# Support: Containerd, Docker, CRI-O
+containerRuntime:
+  initContainer:
+    image:
+      # -- Image registry.
+      registry: ghcr.io
+      # -- Image repository.
+      repository: liubin/toml-cli
+      # -- Image tag.
+      tag: v0.0.7
+      # -- Image pull policy.
+      pullPolicy: Always
+
+  # -- [Experimental] Containerd support
+  containerd:
+    # -- Enable containerd support
+    # Inject nydus-snapshotter config into ${containerRuntime.containerd.configFile},
+    enable: true
+    # -- Custom config path directory, default is /etc/containerd/config.toml
+    configFile: "/etc/containerd/config.toml"
+    configDir: "/etc/containerd"
+
+    pauseImage: 602401143452.dkr.ecr.us-east-1.amazonaws.com/eks/pause:3.5

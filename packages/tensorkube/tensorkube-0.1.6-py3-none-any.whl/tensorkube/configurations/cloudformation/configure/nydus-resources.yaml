@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an IAM role connected to a Kubernetes service account.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: The name of the EKS cluster
+  OIDCProviderURL:
+    Type: String
+    Description: OIDC issuer URL for the EKS cluster
+  Namespace:
+    Type: String
+    Description: The Kubernetes namespace for the service account
+  ServiceAccountName:
+    Type: String
+    Description: The Kubernetes service account name
+  ClusterLambdaFunctionArn:
+    Type: String
+    Description: The ARN of the Lambda function
+
+Resources:
+  NydusIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-nydus-ecr-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                Fn::Join:
+                  - ''
+                  - - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/'
+                    - Fn::Select:
+                        - 1
+                        - Fn::Split:
+                            - '//'
+                            - Ref: 'OIDCProviderURL'
+            Action: "sts:AssumeRoleWithWebIdentity"
+            Condition:
+              StringEquals: |
+                #!TensorkubePyPlate
+                output = {}
+                oidc_provider_url = params["OIDCProviderURL"]
+                oidc_issuer = oidc_provider_url.split('//')[1]
+                namespace = params["Namespace"]
+                service_account_name = params["ServiceAccountName"]
+                output = {
+                    f"{oidc_issuer}:aud": "sts.amazonaws.com",
+                    f"{oidc_issuer}:sub": f"system:serviceaccount:{namespace}:{service_account_name}"
+                }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+  PatchNydusServiceAccount:
+    Type: Custom::InvokeLambdaFunction
+    Properties:
+      Region: !Sub "${AWS::Region}"
+      ClusterName: !Ref ClusterName
+      Operation: "patch-service-account"
+      Parameters:
+        ServiceAccountName: !Ref ServiceAccountName
+        Namespace: !Ref Namespace
+        RoleArn: !GetAtt NydusIAMRole.Arn
+      AWSAccountId: !Sub "${AWS::AccountId}"
+      ServiceToken: !Ref ClusterLambdaFunctionArn
+    DependsOn: NydusIAMRole
+
+
+Transform: [TensorkubePyPlate]
+
+Outputs:
+  NydusIAMRoleARN:
+    Description: ARN of the IAM role
+    Value: !GetAtt NydusIAMRole.Arn

@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "EKS Managed Nodes (SSH access: false) [created by eksctl]"
+Mappings:
+  ServicePrincipalPartitionMap:
+    aws:
+      EC2: ec2.amazonaws.com
+      EKS: eks.amazonaws.com
+      EKSFargatePods: eks-fargate-pods.amazonaws.com
+      IRA: rolesanywhere.amazonaws.com
+      SSM: ssm.amazonaws.com
+    aws-cn:
+      EC2: ec2.amazonaws.com.cn
+      EKS: eks.amazonaws.com
+      EKSFargatePods: eks-fargate-pods.amazonaws.com
+    aws-iso:
+      EC2: ec2.c2s.ic.gov
+      EKS: eks.amazonaws.com
+      EKSFargatePods: eks-fargate-pods.amazonaws.com
+    aws-iso-b:
+      EC2: ec2.sc2s.sgov.gov
+      EKS: eks.amazonaws.com
+      EKSFargatePods: eks-fargate-pods.amazonaws.com
+    aws-us-gov:
+      EC2: ec2.amazonaws.com
+      EKS: eks.amazonaws.com
+      EKSFargatePods: eks-fargate-pods.amazonaws.com
+      IRA: rolesanywhere.amazonaws.com
+      SSM: ssm.amazonaws.com
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  ClusterSecurityGroupId:
+    Type: String
+    Description: "Security Group ID of the cluster"
+  PublicClusterSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "Public Subnets of the cluster"
+  ManagedNodeGroupName:
+    Type: String
+    Description: "Name of the Node Group"
+Resources:
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: "/dev/xvdb"
+            Ebs:
+              Iops: 3000
+              Throughput: 125
+              VolumeSize: 80
+              VolumeType: "gp3"
+        MetadataOptions:
+          HttpPutResponseHopLimit: 2
+          HttpTokens: "required"
+        SecurityGroupIds:
+          - !Sub "${ClusterSecurityGroupId}"
+        TagSpecifications:
+          - ResourceType: "instance"
+            Tags:
+              - Key: "Name"
+                Value: !Sub "${ClusterName}-${ManagedNodeGroupName}-Node"
+              - Key: "karpenter.sh/discovery"
+                Value: !Sub "${ClusterName}"
+              - Key: "alpha.eksctl.io/nodegroup-name"
+                Value: !Ref ManagedNodeGroupName
+              - Key: "alpha.eksctl.io/nodegroup-type"
+                Value: "managed"
+              - Key: CreatedBy
+                Value: Tensorfuse
+              - Key: ClusterName
+                Value: !Ref ClusterName
+          - ResourceType: "volume"
+            Tags:
+              - Key: "Name"
+                Value: !Sub "${ClusterName}-${ManagedNodeGroupName}-Node"
+              - Key: "karpenter.sh/discovery"
+                Value: !Sub "${ClusterName}"
+              - Key: "alpha.eksctl.io/nodegroup-name"
+                Value: !Ref ManagedNodeGroupName
+              - Key: "alpha.eksctl.io/nodegroup-type"
+                Value: "managed"
+              - Key: CreatedBy
+                Value: Tensorfuse
+              - Key: ClusterName
+                Value: !Ref ClusterName
+          - ResourceType: "network-interface"
+            Tags:
+              - Key: "Name"
+                Value: !Sub "${ClusterName}-${ManagedNodeGroupName}-Node"
+              - Key: "karpenter.sh/discovery"
+                Value: !Sub "${ClusterName}"
+              - Key: "alpha.eksctl.io/nodegroup-name"
+                Value: !Ref ManagedNodeGroupName
+              - Key: "alpha.eksctl.io/nodegroup-type"
+                Value: "managed"
+              - Key: CreatedBy
+                Value: Tensorfuse
+              - Key: ClusterName
+                Value: !Ref ClusterName
+#        UserData: "CltzZXR0aW5nc10KCiAgW3NldHRpbmdzLmt1YmVybmV0ZXNdCg=="
+        UserData: TUlNRS1WZXJzaW9uOiAxLjANCkNvbnRlbnQtVHlwZTogbXVsdGlwYXJ0L21peGVkOyBib3VuZGFyeT03ZjA5ZGI5ZDY3MmY4Njg4NzhmMWU0NGMxZDVmZDFmMjEwYTVmODRhZTBlMDRhMjJmMGI5ODNlMzY2M2UNCg0KLS03ZjA5ZGI5ZDY3MmY4Njg4NzhmMWU0NGMxZDVmZDFmMjEwYTVmODRhZTBlMDRhMjJmMGI5ODNlMzY2M2UNCkNvbnRlbnQtVHlwZTogdGV4dC94LXNoZWxsc2NyaXB0DQpDb250ZW50LVR5cGU6IGNoYXJzZXQ9InVzLWFzY2lpIg0KDQojIS9iaW4vYmFzaAoKc2V0IC1vIGVycmV4aXQKc2V0IC1vIHBpcGVmYWlsCnNldCAtbyBub3Vuc2V0Cgp0b3VjaCAvcnVuL3h0YWJsZXMubG9jawoNCi0tN2YwOWRiOWQ2NzJmODY4ODc4ZjFlNDRjMWQ1ZmQxZjIxMGE1Zjg0YWUwZTA0YTIyZjBiOTgzZTM2NjNlLS0NCg==
+      LaunchTemplateName:
+        Fn::Sub: "${AWS::StackName}"
+  ManagedNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      AmiType: AL2023_x86_64_STANDARD
+      ClusterName: !Ref ClusterName
+      InstanceTypes:
+        - "m5.xlarge"
+      Labels:
+        "alpha.eksctl.io/cluster-name": !Sub "${ClusterName}"
+        "alpha.eksctl.io/nodegroup-name": !Ref ManagedNodeGroupName
+      LaunchTemplate:
+          Id: !Ref "LaunchTemplate"
+      NodeRole:
+        Fn::GetAtt:
+          - "NodeInstanceRole"
+          - "Arn"
+      NodegroupName: !Ref ManagedNodeGroupName
+      ScalingConfig:
+        DesiredSize: 2
+        MaxSize: 10
+        MinSize: 1
+      Subnets: !Ref PublicClusterSubnets
+      Tags:
+        "alpha.eksctl.io/nodegroup-name": !Ref ManagedNodeGroupName
+        "alpha.eksctl.io/nodegroup-type": "managed"
+        "karpenter.sh/discovery": !Sub "${ClusterName}"
+        "CreatedBy": "Tensorfuse"
+        "Cluster": !Ref ClusterName
+
+  NodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+            - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - Fn::FindInMap:
+                  - "ServicePrincipalPartitionMap"
+                  - Ref: "AWS::Partition"
+                  - "EC2"
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      Path: "/"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}/NodeInstanceRole"
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+Outputs:
+  NodeInstanceRole:
+    Description: "NodeInstanceRole"
+    Value: !Ref NodeInstanceRole

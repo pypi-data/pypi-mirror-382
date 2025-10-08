@@ -1,0 +1,962 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  EKS cluster (dedicated VPC: true, dedicated IAM: true) [created and managed by
+  eksctl]
+Mappings:
+  ServicePrincipalPartitionMap:
+    aws:
+      EC2: ec2.amazonaws.com
+      EKS: eks.amazonaws.com
+      EKSFargatePods: eks-fargate-pods.amazonaws.com
+      IRA: rolesanywhere.amazonaws.com
+      SSM: ssm.amazonaws.com
+    aws-cn:
+      EC2: ec2.amazonaws.com.cn
+      EKS: eks.amazonaws.com
+      EKSFargatePods: eks-fargate-pods.amazonaws.com
+    aws-iso:
+      EC2: ec2.c2s.ic.gov
+      EKS: eks.amazonaws.com
+      EKSFargatePods: eks-fargate-pods.amazonaws.com
+    aws-iso-b:
+      EC2: ec2.sc2s.sgov.gov
+      EKS: eks.amazonaws.com
+      EKSFargatePods: eks-fargate-pods.amazonaws.com
+    aws-us-gov:
+      EC2: ec2.amazonaws.com
+      EKS: eks.amazonaws.com
+      EKSFargatePods: eks-fargate-pods.amazonaws.com
+      IRA: rolesanywhere.amazonaws.com
+      SSM: ssm.amazonaws.com
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: 'Cluster name'
+  Region:
+    Type: String
+    Description: 'Region'
+    Default: 'us-east-1'
+  ZONEA:
+    Type: String
+    Default: "false"
+  ZONEB:
+    Type: String
+    Default: "false"
+  ZONEC:
+    Type: String
+    Default: "false"
+  ZONED:
+    Type: String
+    Default: "false"
+  ZONEE:
+    Type: String
+    Default: "false"
+  ZONEF:
+    Type: String
+    Default: "false"
+Conditions:
+  CreateInZONEA: !Equals [!Ref ZONEA, 'true']
+  CreateInZONEB: !Equals [!Ref ZONEB, 'true']
+  CreateInZONEC: !Equals [!Ref ZONEC, 'true']
+  CreateInZONED: !Equals [!Ref ZONED, 'true']
+  CreateInZONEE: !Equals [!Ref ZONEE, 'true']
+  CreateInZONEF: !Equals [!Ref ZONEF, 'true']
+
+
+Resources:
+  ClusterSharedNodeSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Communication between all nodes in the cluster
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/ClusterSharedNodeSecurityGroup'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  ControlPlane:
+    Type: 'AWS::EKS::Cluster'
+    Properties:
+      AccessConfig:
+        AuthenticationMode: API_AND_CONFIG_MAP
+        BootstrapClusterCreatorAdminPermissions: true
+      BootstrapSelfManagedAddons: false
+      KubernetesNetworkConfig: {}
+      Name:
+        Ref: ClusterName
+      ResourcesVpcConfig:
+        EndpointPrivateAccess: false
+        EndpointPublicAccess: true
+        SecurityGroupIds:
+          - Ref: ControlPlaneSecurityGroup
+        SubnetIds:
+          - !If [CreateInZONEA, !Ref SubnetPublicZONEA, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEB, !Ref SubnetPublicZONEB, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEC, !Ref SubnetPublicZONEC, !Ref "AWS::NoValue"]
+          - !If [CreateInZONED, !Ref SubnetPublicZONED, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEE, !Ref SubnetPublicZONEE, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEF, !Ref SubnetPublicZONEF, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEA, !Ref SubnetPrivateZONEA, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEB, !Ref SubnetPrivateZONEB, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEC, !Ref SubnetPrivateZONEC, !Ref "AWS::NoValue"]
+          - !If [CreateInZONED, !Ref SubnetPrivateZONED, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEE, !Ref SubnetPrivateZONEE, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEF, !Ref SubnetPrivateZONEF, !Ref "AWS::NoValue"]
+      RoleArn:
+        'Fn::GetAtt':
+          - ServiceRole
+          - Arn
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/ControlPlane'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      Version: '1.32'
+  ControlPlaneSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Communication between the control plane and worker nodegroups
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/ControlPlaneSecurityGroup'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  IngressDefaultClusterToNodeSG:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      Description: >-
+        Allow managed and unmanaged nodes to communicate with each other (all
+        ports)
+      FromPort: 0
+      GroupId:
+        Ref: ClusterSharedNodeSecurityGroup
+      IpProtocol: '-1'
+      SourceSecurityGroupId:
+        'Fn::GetAtt':
+          - ControlPlane
+          - ClusterSecurityGroupId
+      ToPort: 65535
+  IngressInterNodeGroupSG:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      Description: Allow nodes to communicate with each other (all ports)
+      FromPort: 0
+      GroupId:
+        Ref: ClusterSharedNodeSecurityGroup
+      IpProtocol: '-1'
+      SourceSecurityGroupId:
+        Ref: ClusterSharedNodeSecurityGroup
+      ToPort: 65535
+  IngressNodeToDefaultClusterSG:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      Description: Allow unmanaged nodes to communicate with control plane (all ports)
+      FromPort: 0
+      GroupId:
+        'Fn::GetAtt':
+          - ControlPlane
+          - ClusterSecurityGroupId
+      IpProtocol: '-1'
+      SourceSecurityGroupId:
+        Ref: ClusterSharedNodeSecurityGroup
+      ToPort: 65535
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/InternetGateway'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+  NATGateway:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      AllocationId:
+        'Fn::GetAtt':
+          - NATIP
+          - AllocationId
+      SubnetId: !If
+        - CreateInZONEA
+        - !Ref SubnetPublicZONEA
+        - !If
+          - CreateInZONEB
+          - !Ref SubnetPublicZONEB
+          - !If
+            - CreateInZONEC
+            - !Ref SubnetPublicZONEC
+            - !If
+              - CreateInZONED
+              - !Ref SubnetPublicZONED
+              - !If
+                - CreateInZONEE
+                - !Ref SubnetPublicZONEE
+                - !If
+                  - CreateInZONEF
+                  - !Ref SubnetPublicZONEF
+                  - !Ref "AWS::NoValue"
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/NATGateway'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+  NATIP:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/NATIP'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+  NATPrivateSubnetRouteZONEA:
+    Condition: CreateInZONEA
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NATGateway
+      RouteTableId:
+        Ref: PrivateRouteTableZONEA
+  NATPrivateSubnetRouteZONEB:
+    Condition: CreateInZONEB
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NATGateway
+      RouteTableId:
+        Ref: PrivateRouteTableZONEB
+  NATPrivateSubnetRouteZONEC:
+    Condition: CreateInZONEC
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NATGateway
+      RouteTableId:
+        Ref: PrivateRouteTableZONEC
+  NATPrivateSubnetRouteZONED:
+    Condition: CreateInZONED
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NATGateway
+      RouteTableId:
+        Ref: PrivateRouteTableZONED
+  NATPrivateSubnetRouteZONEE:
+    Condition: CreateInZONEE
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NATGateway
+      RouteTableId:
+        Ref: PrivateRouteTableZONEE
+  NATPrivateSubnetRouteZONEF:
+    Condition: CreateInZONEF
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NATGateway
+      RouteTableId:
+        Ref: PrivateRouteTableZONEF
+  PrivateRouteTableZONEA:
+    Condition: CreateInZONEA
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/PrivateRouteTableZONEA'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  PrivateRouteTableZONEB:
+    Condition: CreateInZONEB
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/PrivateRouteTableZONEB'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  PrivateRouteTableZONEC:
+    Condition: CreateInZONEC
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/PrivateRouteTableZONEC'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  PrivateRouteTableZONED:
+    Condition: CreateInZONED
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/PrivateRouteTableZONED'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  PrivateRouteTableZONEE:
+    Condition: CreateInZONEE
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/PrivateRouteTableZONEE'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  PrivateRouteTableZONEF:
+    Condition: CreateInZONEF
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/PrivateRouteTableZONEF'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/PublicRouteTable'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  PublicSubnetRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+      RouteTableId:
+        Ref: PublicRouteTable
+    DependsOn:
+      - VPCGatewayAttachment
+  RouteTableAssociationPrivateZONEA:
+    Condition: CreateInZONEA
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTableZONEA
+      SubnetId:
+        Ref: SubnetPrivateZONEA
+  RouteTableAssociationPrivateZONEB:
+    Condition: CreateInZONEB
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTableZONEB
+      SubnetId:
+        Ref: SubnetPrivateZONEB
+  RouteTableAssociationPrivateZONEC:
+    Condition: CreateInZONEC
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTableZONEC
+      SubnetId:
+        Ref: SubnetPrivateZONEC
+  RouteTableAssociationPrivateZONED:
+    Condition: CreateInZONED
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTableZONED
+      SubnetId:
+        Ref: SubnetPrivateZONED
+  RouteTableAssociationPrivateZONEE:
+    Condition: CreateInZONEE
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTableZONEE
+      SubnetId:
+        Ref: SubnetPrivateZONEE
+  RouteTableAssociationPrivateZONEF:
+    Condition: CreateInZONEF
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTableZONEF
+      SubnetId:
+        Ref: SubnetPrivateZONEF
+  RouteTableAssociationPublicZONEA:
+    Condition: CreateInZONEA
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: SubnetPublicZONEA
+  RouteTableAssociationPublicZONEB:
+    Condition: CreateInZONEB
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: SubnetPublicZONEB
+  RouteTableAssociationPublicZONEC:
+    Condition: CreateInZONEC
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: SubnetPublicZONEC
+  RouteTableAssociationPublicZONED:
+    Condition: CreateInZONED
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: SubnetPublicZONED
+  RouteTableAssociationPublicZONEE:
+    Condition: CreateInZONEE
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: SubnetPublicZONEE
+  RouteTableAssociationPublicZONEF:
+    Condition: CreateInZONEF
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: SubnetPublicZONEF
+  ServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - 'Fn::FindInMap':
+                    - ServicePrincipalPartitionMap
+                    - Ref: 'AWS::Partition'
+                    - EKS
+        Version: '2012-10-17'
+      ManagedPolicyArns:
+        - 'Fn::Sub': 'arn:${AWS::Partition}:iam::aws:policy/AmazonEKSClusterPolicy'
+        - 'Fn::Sub': 'arn:${AWS::Partition}:iam::aws:policy/AmazonEKSVPCResourceController'
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/ServiceRole'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+  SubnetPrivateZONEA:
+    Condition: CreateInZONEA
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}a"
+      CidrBlock: 192.168.96.0/20
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/internal-elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPrivateZONEA'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPrivateZONEB:
+    Condition: CreateInZONEB
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}b"
+      CidrBlock: 192.168.112.0/20
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/internal-elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPrivateZONEB'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPrivateZONEC:
+    Condition: CreateInZONEC
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}c"
+      CidrBlock: 192.168.128.0/20
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/internal-elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPrivateZONEC'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPrivateZONED:
+    Condition: CreateInZONED
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}d"
+      CidrBlock: 192.168.144.0/20
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/internal-elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPrivateZONED'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPrivateZONEE:
+    Condition: CreateInZONEE
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}e"
+      CidrBlock: 192.168.160.0/20
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/internal-elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPrivateZONEE'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPrivateZONEF:
+    Condition: CreateInZONEF
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}f"
+      CidrBlock: 192.168.176.0/20
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/internal-elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPrivateZONEF'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPublicZONEA:
+    Condition: CreateInZONEA
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}a"
+      CidrBlock: 192.168.0.0/20
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPublicZONEA'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPublicZONEB:
+    Condition: CreateInZONEB
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}b"
+      CidrBlock: 192.168.16.0/20
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPublicZONEB'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPublicZONEC:
+    Condition: CreateInZONEC
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}c"
+      CidrBlock: 192.168.32.0/20
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPublicZONEC'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPublicZONED:
+    Condition: CreateInZONED
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}d"
+      CidrBlock: 192.168.48.0/20
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPublicZONED'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPublicZONEE:
+    Condition: CreateInZONEE
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}e"
+      CidrBlock: 192.168.64.0/20
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPublicZONEE'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  SubnetPublicZONEF:
+    Condition: CreateInZONEF
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Sub "${Region}f"
+      CidrBlock: 192.168.80.0/20
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: kubernetes.io/role/elb
+          Value: '1'
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/SubnetPublicZONEF'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+      VpcId:
+        Ref: VPC
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 192.168.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: karpenter.sh/discovery
+          Value:
+            Ref: ClusterName
+        - Key: Name
+          Value:
+            'Fn::Sub': '${AWS::StackName}/VPC'
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value:
+            Ref: ClusterName
+  VPCGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      InternetGatewayId:
+        Ref: InternetGateway
+      VpcId:
+        Ref: VPC
+Outputs:
+  ARN:
+    Value:
+      'Fn::GetAtt':
+        - ControlPlane
+        - Arn
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}::ARN'
+  CertificateAuthorityData:
+    Value:
+      'Fn::GetAtt':
+        - ControlPlane
+        - CertificateAuthorityData
+  ClusterSecurityGroupId:
+    Value:
+      'Fn::GetAtt':
+        - ControlPlane
+        - ClusterSecurityGroupId
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}::ClusterSecurityGroupId'
+  ClusterStackName:
+    Value:
+      Ref: 'AWS::StackName'
+  Endpoint:
+    Value:
+      'Fn::GetAtt':
+        - ControlPlane
+        - Endpoint
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}::Endpoint'
+  FeatureNATMode:
+    Value: Single
+  SecurityGroup:
+    Value:
+      Ref: ControlPlaneSecurityGroup
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}::SecurityGroup'
+  ServiceRoleARN:
+    Value:
+      'Fn::GetAtt':
+        - ServiceRole
+        - Arn
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}::ServiceRoleARN'
+  SharedNodeSecurityGroup:
+    Value:
+      Ref: ClusterSharedNodeSecurityGroup
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}::SharedNodeSecurityGroup'
+  SubnetsPrivate:
+    Value:
+      'Fn::Join':
+        - ','
+        - - !If [CreateInZONEA, !Ref SubnetPrivateZONEA, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEB, !Ref SubnetPrivateZONEB, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEC, !Ref SubnetPrivateZONEC, !Ref "AWS::NoValue"]
+          - !If [CreateInZONED, !Ref SubnetPrivateZONED, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEE, !Ref SubnetPrivateZONEE, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEF, !Ref SubnetPrivateZONEF, !Ref "AWS::NoValue"]
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}::SubnetsPrivate'
+  SubnetsPublic:
+    Value:
+      'Fn::Join':
+        - ','
+        - - !If [CreateInZONEA, !Ref SubnetPublicZONEA, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEB, !Ref SubnetPublicZONEB, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEC, !Ref SubnetPublicZONEC, !Ref "AWS::NoValue"]
+          - !If [CreateInZONED, !Ref SubnetPublicZONED, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEE, !Ref SubnetPublicZONEE, !Ref "AWS::NoValue"]
+          - !If [CreateInZONEF, !Ref SubnetPublicZONEF, !Ref "AWS::NoValue"]
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}::SubnetsPublic'
+  VPC:
+    Value:
+      Ref: VPC
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}::VPC'
+  OIDCProviderURL:
+    Description: The OIDC provider URL for the EKS cluster
+    Value:
+      'Fn::GetAtt':
+        - ControlPlane
+        - OpenIdConnectIssuerUrl
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}::OIDCProviderURL'

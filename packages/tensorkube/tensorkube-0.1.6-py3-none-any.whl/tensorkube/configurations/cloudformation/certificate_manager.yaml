@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ACM Certificate Management for TensorKube'
+
+Parameters:
+  DomainName:
+    Type: String
+    Description: Domain name for the certificate
+  ClusterName:
+    Type: String
+    Description: Name of the EKS cluster
+
+Resources:
+  WildcardCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub "*.${DomainName}"
+      ValidationMethod: DNS
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+Outputs:
+  CertificateArn:
+    Description: ARN of the created certificate
+    Value: !Ref WildcardCertificate

@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: All resources created for EFS Volume Support
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  OIDCProviderURL:
+    Type: String
+    Description: "OIDC Provider URL"
+
+
+Resources:
+  EFSDriverIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "AmazonEKS_EFS_CSI_DriverRole_${ClusterName}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                Fn::Join:
+                  - ''
+                  - - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/'
+                    - Fn::Select:
+                        - 1
+                        - Fn::Split:
+                            - '//'
+                            - Ref: 'OIDCProviderURL'
+            Action: "sts:AssumeRoleWithWebIdentity"
+            Condition:
+              StringEquals: |
+                #!TensorkubePyPlate
+                output = {}
+                oidc_provider_url = params["OIDCProviderURL"]
+                oidc_issuer = oidc_provider_url.split('//')[1]
+                namespace = "kube-system"
+                service_account_name = "efs-csi-controller-sa"
+                output = {
+                    f"{oidc_issuer}:aud": "sts.amazonaws.com",
+                    f"{oidc_issuer}:sub": f"system:serviceaccount:{namespace}:{service_account_name}"
+                }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+
+  EFSDriverAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref ClusterName
+      AddonName: "aws-efs-csi-driver"
+      ServiceAccountRoleArn: !GetAtt EFSDriverIAMRole.Arn
+      AddonVersion: v2.1.9-eksbuild.1 # get using: aws eks describe-addon-versions --addon-name aws-efs-csi-driver --kubernetes-version X.XX
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+Transform: [TensorkubePyPlate]
+
+Outputs:
+  EFSDriverIAMRoleArn:
+    Value: !GetAtt EFSDriverIAMRole.Arn
+

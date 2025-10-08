@@ -1,0 +1,143 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: All resources created for an EFS Volume
+Parameters:
+  VolumeName:
+    Type: String
+    Description: "Volume Name"
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  VpcId:
+    Type: String
+    Description: "VPC Id"
+  CidrRange:
+    Type: String
+    Description: "Cidr Range"
+  ZONEAPrivateSubnetId:
+    Type: String
+    Default: "None"
+  ZONEBPrivateSubnetId:
+    Type: String
+    Default: "None"
+  ZONECPrivateSubnetId:
+    Type: String
+    Default: "None"
+  ZONEDPrivateSubnetId:
+    Type: String
+    Default: "None"
+  ZONEEPrivateSubnetId:
+    Type: String
+    Default: "None"
+  ZONEFPrivateSubnetId:
+    Type: String
+    Default: "None"
+
+
+Conditions:
+  CreateMountTargetInZONEAPrivate: !Not [ !Equals [ !Ref ZONEAPrivateSubnetId, "None" ] ]
+  CreateMountTargetInZONEBPrivate: !Not [ !Equals [ !Ref ZONEBPrivateSubnetId, "None" ] ]
+  CreateMountTargetInZONECPrivate: !Not [ !Equals [ !Ref ZONECPrivateSubnetId, "None" ] ]
+  CreateMountTargetInZONEDPrivate: !Not [ !Equals [ !Ref ZONEDPrivateSubnetId, "None" ] ]
+  CreateMountTargetInZONEEPrivate: !Not [ !Equals [ !Ref ZONEEPrivateSubnetId, "None" ] ]
+  CreateMountTargetInZONEFPrivate: !Not [ !Equals [ !Ref ZONEFPrivateSubnetId, "None" ] ]
+
+
+Resources:
+  FileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: 'generalPurpose'
+      ThroughputMode: 'elastic'
+      Encrypted: True
+      FileSystemTags:
+        - Key: Name
+          Value: !Ref VolumeName
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: ResourceType
+          Value: EFSVolume
+        - Key: StackName
+          Value: !Ref "AWS::StackName"
+
+
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${ClusterName}-efs-sg-${VolumeName}"
+      GroupDescription: "EFS Security Group"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref CidrRange
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: ResourceType
+          Value: EFSVolume
+
+  EFSSubnetMountTargetInZONEAPrivate:
+    Type: AWS::EFS::MountTarget
+    Condition: CreateMountTargetInZONEAPrivate
+    Properties:
+      FileSystemId: !Ref FileSystem
+      SubnetId: !Ref ZONEAPrivateSubnetId
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  EFSSubnetMountTargetInZONEBPrivate:
+    Type: AWS::EFS::MountTarget
+    Condition: CreateMountTargetInZONEBPrivate
+    Properties:
+      FileSystemId: !Ref FileSystem
+      SubnetId: !Ref ZONEBPrivateSubnetId
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  EFSSubnetMountTargetInZONECPrivate:
+    Type: AWS::EFS::MountTarget
+    Condition: CreateMountTargetInZONECPrivate
+    Properties:
+      FileSystemId: !Ref FileSystem
+      SubnetId: !Ref ZONECPrivateSubnetId
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  EFSSubnetMountTargetInZONEDPrivate:
+    Type: AWS::EFS::MountTarget
+    Condition: CreateMountTargetInZONEDPrivate
+    Properties:
+      FileSystemId: !Ref FileSystem
+      SubnetId: !Ref ZONEDPrivateSubnetId
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  EFSSubnetMountTargetInZONEEPrivate:
+    Type: AWS::EFS::MountTarget
+    Condition: CreateMountTargetInZONEEPrivate
+    Properties:
+      FileSystemId: !Ref FileSystem
+      SubnetId: !Ref ZONEEPrivateSubnetId
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  EFSSubnetMountTargetInZONEFPrivate:
+    Type: AWS::EFS::MountTarget
+    Condition: CreateMountTargetInZONEFPrivate
+    Properties:
+      FileSystemId: !Ref FileSystem
+      SubnetId: !Ref ZONEFPrivateSubnetId
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+Outputs:
+  EFSFileSystemId:
+    Value: !Ref FileSystem
+    Export:
+      Name: !Sub "${ClusterName}-EFSFileSystemId-${VolumeName}"
+

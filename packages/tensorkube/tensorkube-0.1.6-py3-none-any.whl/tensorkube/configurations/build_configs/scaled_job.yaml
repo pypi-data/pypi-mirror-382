@@ -1,0 +1,82 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: JOB_NAME
+  namespace: keda
+spec:
+  jobTargetRef:
+    backoffLimit: 0
+    template:
+      spec:
+        serviceAccountName: job-sa
+        restartPolicy: Never
+        backoffLimit: 0
+        initContainers:
+          - name: message-fetch-init
+            image: richarvey/awscli:2.20.0
+            command: ["COMMAND", "ARGS"]
+            volumeMounts:
+              - name: shared-data
+                mountPath: /mnt/shared
+            env:
+              - name: AWS_REGION
+                value: <REGION>
+        containers:
+          - name: sqs-job-1
+            image: JOB_IMAGE
+            command: ["COMMAND", "ARGS"]
+            env:
+              - name: AWS_REGION
+                value: <REGION>
+              - name: QUEUE_URL
+                value: <QUEUE_URL>
+              - name: JOB_NAME
+                value: <JOB_NAME>
+            volumeMounts:
+#              - name: efs-storage
+#                mountPath: /mnt/efs
+              - name: shared-data
+                mountPath: /mnt/shared
+            securityContext:
+              runAsUser: 0
+              capabilities:
+                add:
+                  - SYS_ADMIN
+          - name: sidecar
+            image: tensorfuse/job-sidecar:v1
+            command: ["COMMAND", "ARGS"]
+            volumeMounts:
+                - name: shared-data
+                  mountPath: /mnt/shared
+            env:
+              - name: AWS_REGION
+                value: <REGION>
+        volumes:
+#          - name: efs-storage
+#            persistentVolumeClaim:
+#              claimName: efs-pvc
+          - name: shared-data
+            emptyDir: {}
+  pollingInterval: 10        # Check the queue every 10 seconds
+  maxReplicaCount: 2        # Max number of concurrent jobs
+  successfulJobsHistoryLimit: 3   # Optional. Default: 100. How many completed jobs should be kept.
+  failedJobsHistoryLimit: 2
+  rollout:
+    strategy: "gradual"
+  scalingStrategy:
+    strategy: "accurate"  # Scaling strategy to use
+#    pendingPodConditons:
+#      - PodScheduled
+#      - PodReadyToStartContainers
+#      - ContainersReady
+#      - Initialized
+#      - Ready
+  triggers:
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: QUEUE_URL
+        queueLength: "1"        # Scale up when there are 1 messages in the queue
+        awsRegion: <REGION>
+        scaleOnInFlight: "false"
+      authenticationRef:
+        name: aws-sqs-auth

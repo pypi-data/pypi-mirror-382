@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Invoke the Lambda function"
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  KarpenterNodeRoleArn:
+    Type: String
+    Description: "Karpenter Role ARN"
+  ClusterLambdaFunctionArn:
+    Type: String
+    Description: "Lambda Function ARN"
+  SQSAccessRoleArn:
+    Type: String
+    Description: "SQS Access Role ARN"
+  JobQueueSidecarIAMRoleArn:
+    Type: String
+    Description: "Job Queue Sidecar IAM Role ARN"
+  DefaultEnvBuildBucketName:
+    Type: String
+    Description: "Default Environment Build Bucket Name"
+  BuildkitISRARoleArn:
+    Type: String
+    Description: "Buildkit ISRA Role ARN"
+  ImageRegistryId:
+    Type: String
+    Description: "Image Registry ID"
+Resources:
+  UpdateAuthConfigmap:
+    Type: Custom::InvokeLambdaFunction
+    Properties:
+      Region: !Sub "${AWS::Region}"
+      ClusterName: !Ref ClusterName
+      Operation: "update-authmap"
+      Parameters:
+        KarpenterRoleArn: !Ref KarpenterNodeRoleArn
+      AWSAccountId: !Sub "${AWS::AccountId}"
+      ServiceToken: !Ref ClusterLambdaFunctionArn
+
+  HelmfileSync:
+    Type: Custom::InvokeLambdaFunction
+    UpdateReplacePolicy: Retain
+    Properties:
+      Region: !Sub "${AWS::Region}"
+      ClusterName: !Ref ClusterName
+      Operation: "helmfile-sync"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        SQSAccessRoleArn: !Ref SQSAccessRoleArn
+        Region: !Sub "${AWS::Region}"
+        DefaultEnvBuildBucketName: !Ref DefaultEnvBuildBucketName
+        BuildkitISRARoleArn: !Ref BuildkitISRARoleArn
+        JobQueueSidecarIAMRoleArn: !Ref JobQueueSidecarIAMRoleArn
+        ImageRegistryId: !Ref ImageRegistryId
+      AWSAccountId: !Sub "${AWS::AccountId}"
+      ServiceToken: !Ref ClusterLambdaFunctionArn
+    DependsOn: UpdateAuthConfigmap

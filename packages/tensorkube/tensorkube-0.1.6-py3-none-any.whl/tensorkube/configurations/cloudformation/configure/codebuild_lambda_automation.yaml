@@ -1,0 +1,308 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Mirrors a public ECR image into a private ECR repository and then deploys two Lambdas:
+  1) A "TriggerCodeBuildLambda" for the custom resource,
+  2) A "Connector" Lambda which uses the newly mirrored image.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Name of the cluster"
+  AWSAccessLambdaFunctionImageVersion:
+    Type: String
+    Description: "Version of the AWS access Lambda function image"
+  EksAccessLambdaFunctionImageVersion:
+    Type: String
+    Description: "Version of the EKS access Lambda function image"
+  MonitoringLambdaFunctionImageVersion:
+    Type: String
+    Description: "Version of the Monitoring Lambda function image"
+  ImageRegistryId:
+    Type: String
+    Description: "ID of the image registry"
+
+Resources:
+  AWSAccessLambdaRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "tensorfuse/${ClusterName}-aws-access-lambda"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+  EKSAccessLambdaRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "tensorfuse/${ClusterName}-eks-access-lambda"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+  MonitoringLambdaRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "tensorfuse/${ClusterName}-monitoring-lambda"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-CodeBuildRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+
+  MirrorImageCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name:
+        |
+        #!TensorkubePyPlate
+        output = ""
+        aws_access_lambda_image_version = params["AWSAccessLambdaFunctionImageVersion"]
+        cluster_access_lambda_image_version = params["EksAccessLambdaFunctionImageVersion"]
+        monitoring_lambda_image_version = params["MonitoringLambdaFunctionImageVersion"]
+        cluster_name = params["ClusterName"]
+        sanitized_aws_access_lambda_image_version = aws_access_lambda_image_version.replace(".", "-")
+        sanitized_cluster_access_lambda_image_version = cluster_access_lambda_image_version.replace(".", "-")
+        sanitized_monitoring_lambda_image_version = monitoring_lambda_image_version.replace(".", "-")
+        output = f"{cluster_name}-LambdaImagesMirrorProject-{sanitized_aws_access_lambda_image_version}-{sanitized_cluster_access_lambda_image_version}-{sanitized_monitoring_lambda_image_version}"
+
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        ImagePullCredentialsType: CODEBUILD
+        PrivilegedMode: true
+        Type: LINUX_CONTAINER
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            install:
+              commands:
+                - echo "Starting install phase..."
+                - echo "No installation commands required."
+            pre_build:
+              commands:
+                - echo "Authenticating to private ECR"
+                - aws sts get-caller-identity
+                - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+            build:
+              commands:
+                - export AWSAccessLambdaImageVersion=${AWSAccessLambdaFunctionImageVersion}
+                - export EKSAccessLambdaImageVersion=${EksAccessLambdaFunctionImageVersion}
+                - export MonitoringLambdaImageVersion=${MonitoringLambdaFunctionImageVersion}
+                - export ImageRegistryId=${ImageRegistryId}
+                - echo "Pulling images from public ECR"
+                - docker pull "public.ecr.aws/$ImageRegistryId/tensorfuse/tensorkube-aws-access-lambda:$AWSAccessLambdaImageVersion"
+                - docker pull "public.ecr.aws/$ImageRegistryId/tensorfuse/tensorkube-cluster-access-lambda:$EKSAccessLambdaImageVersion"
+                - docker pull "public.ecr.aws/$ImageRegistryId/tensorfuse/tensorkube-monitoring-lambda:$MonitoringLambdaImageVersion"
+                - echo "Tagging images for private ECR"
+                - docker tag "public.ecr.aws/$ImageRegistryId/tensorfuse/tensorkube-aws-access-lambda:$AWSAccessLambdaImageVersion" "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWSAccessLambdaRepo}:$AWSAccessLambdaImageVersion"
+                - docker tag "public.ecr.aws/$ImageRegistryId/tensorfuse/tensorkube-cluster-access-lambda:$EKSAccessLambdaImageVersion" "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EKSAccessLambdaRepo}:$EKSAccessLambdaImageVersion"
+                - docker tag "public.ecr.aws/$ImageRegistryId/tensorfuse/tensorkube-monitoring-lambda:$MonitoringLambdaImageVersion" "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${MonitoringLambdaRepo}:$MonitoringLambdaImageVersion"
+                - echo "Pushing images to private ECR"
+                - docker push "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWSAccessLambdaRepo}:$AWSAccessLambdaImageVersion"
+                - docker push "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EKSAccessLambdaRepo}:$EKSAccessLambdaImageVersion"
+                - docker push "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${MonitoringLambdaRepo}:$MonitoringLambdaImageVersion"
+            post_build:
+              commands:
+                - echo "Image successfully pushed to private ECR"
+      TimeoutInMinutes: 60
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+
+
+  TriggerCodeBuildLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-TriggerCodeBuildLambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${ClusterName}-TriggerCodeBuildLambdaPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource: !GetAtt MirrorImageCodeBuild.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+
+  TriggerCodeBuildLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ClusterName}-TriggerCodeBuildLambda"
+      Description: !Sub "${ClusterName} - Trigger CodeBuild Lambda"
+      Handler: "index.lambda_handler"
+      Runtime: "python3.11"
+      Role: !GetAtt TriggerCodeBuildLambdaRole.Arn
+      Timeout: 900
+      MemorySize: 128
+      Environment:
+        Variables:
+          CODEBUILD_PROJECT_NAME: !Ref MirrorImageCodeBuild
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import time
+          import cfnresponse
+          
+          codebuild = boto3.client("codebuild")
+          
+          
+          def lambda_handler(event, context):
+              project_name = os.getenv("CODEBUILD_PROJECT_NAME")
+          
+              if event["RequestType"] == "Delete":
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {"Message": "No action needed for Delete event"})
+          
+              try:
+                  # Start the CodeBuild project
+                  response = codebuild.start_build(projectName=project_name)
+                  build_id = response["build"]["id"]
+                  print(f"CodeBuild started with build ID: {build_id}")
+          
+                  # Poll CodeBuild until completion
+                  while True:
+                      build_status = get_build_status(build_id)
+                      if build_status in ["SUCCEEDED", "FAILED", "STOPPED"]:
+                          print(f"CodeBuild finished with status: {build_status}")
+                          if build_status == "SUCCEEDED":
+                              cfnresponse.send(event, context, cfnresponse.SUCCESS, {"BuildId": build_id})
+                          else:
+                              cfnresponse.send(event, context, cfnresponse.FAILED, {"BuildId": build_id})          
+                      time.sleep(10)
+          
+              except Exception as e:
+                  print(f"Error during CodeBuild execution: {str(e)}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+          
+          
+          def get_build_status(build_id):
+              response = codebuild.batch_get_builds(ids=[build_id])
+              build_info = response["builds"][0]
+              return build_info["buildStatus"]
+
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+
+  TriggerCodeBuildLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt TriggerCodeBuildLambda.Arn
+      Action: "lambda:InvokeFunction"
+      Principal: "cloudformation.amazonaws.com"
+
+
+  TriggerCodeBuildCustomResource:
+    Type: "AWS::CloudFormation::CustomResource"
+    Properties:
+      ServiceToken: !GetAtt TriggerCodeBuildLambda.Arn
+      ForceInvoke:
+        - !Ref "ClusterName"
+        - !Ref "AWSAccessLambdaFunctionImageVersion"
+        - !Ref "EksAccessLambdaFunctionImageVersion"
+        - !Ref "MonitoringLambdaFunctionImageVersion"
+    DependsOn:
+      - TriggerCodeBuildLambdaPermission
+
+  ConnectorLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-ConnectorLambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+Transform: [TensorkubePyPlate]
+
+Outputs:
+  AWSAccessLambdaRepoURI:
+    Description: "URI of the private ECR repository"
+    Value: !GetAtt AWSAccessLambdaRepo.RepositoryUri
+
+  EKSAccessLambdaRepoURI:
+    Description: "URI of the private ECR repository"
+    Value: !GetAtt EKSAccessLambdaRepo.RepositoryUri
+
+  MonitoringLambdaRepoURI:
+    Description: "URI of the private ECR repository"
+    Value: !GetAtt MonitoringLambdaRepo.RepositoryUri
+
+  AWSAccessLambdaRepoName:
+    Description: "Name of the private ECR repository"
+    Value: !Ref AWSAccessLambdaRepo
+
+  EKSAccessLambdaRepoName:
+    Description: "Name of the private ECR repository"
+    Value: !Ref EKSAccessLambdaRepo
+
+  MonitoringLambdaRepoName:
+    Description: "Name of the private ECR repo for monitoring lambda"
+    Value: !Ref MonitoringLambdaRepo

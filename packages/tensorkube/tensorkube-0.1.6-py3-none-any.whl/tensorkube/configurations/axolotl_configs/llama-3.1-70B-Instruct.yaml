@@ -1,0 +1,98 @@
+base_model: meta-llama/Llama-3.1-70B-Instruct
+model_type: LlamaForCausalLM
+tokenizer_type: AutoTokenizer
+chat_template: tokenizer_default
+
+special_tokens:
+  pad_token: "<|finetune_right_pad_id|>"
+tokenizer_add_special_tokens: true
+tokenizer_padding_side: right
+
+
+datasets:
+  - path: s3://{bucket-name}/path
+    type: chat_template
+    field_messages: messages
+    message_field_role: role
+    message_field_content: content
+    field_system: system
+    field_human: user
+    field_model: assistant
+load_in_8bit: false
+load_in_4bit: true
+strict: false
+val_set_size: 0 # TO BE OVERRIDEN VIA THE PYTHON PACKAGE
+output_dir: ./outputs/out/qlora-llama3-70b
+
+adapter: qlora
+lora_model_dir:
+
+sequence_len: 4096
+sample_packing: false
+pad_to_sequence_len: false # was originally true
+
+lora_r: 4
+lora_alpha: 16
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - v_proj
+  - gate_proj
+  - up_proj
+  - k_proj
+  - down_proj
+  - o_proj
+
+peft_use_rslora: false
+lora_target_linear: false
+lora_fan_in_fan_out:
+
+wandb_mode: online
+wandb_project:
+wandb_entity:
+wandb_watch: none
+wandb_name:
+
+gradient_accumulation_steps: 2
+micro_batch_size: 8
+num_epochs: 10
+optimizer: adamw_torch
+lr_scheduler: linear
+learning_rate: 0.00002
+
+train_on_inputs: false
+group_by_length: false
+bf16: true
+fp16: false
+tf32: false
+
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: true
+early_stopping_patience:
+resume_from_checkpoint:
+local_rank:
+logging_steps: 1
+xformers_attention:
+flash_attention: true
+
+warmup_steps: 5
+evals_per_epoch: 0 # THIS IS TO BE OVERRIDEN VIA THE PYTHON PACKAGE IF val size is more than one let's eval per epoch
+eval_table_size:
+saves_per_epoch: 1
+debug: false
+deepspeed:
+weight_decay: 0.1
+fsdp:
+  - full_shard
+  - auto_wrap
+fsdp_config:
+  fsdp_limit_all_gathers: true
+  fsdp_sync_module_states: true
+  fsdp_offload_params: false # was originally true as this can cause GPU OOM
+  fsdp_use_orig_params: false
+  fsdp_cpu_ram_efficient_loading: true
+  fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
+  fsdp_transformer_layer_cls_to_wrap: LlamaDecoderLayer
+  fsdp_state_dict_type: FULL_STATE_DICT
+  fsdp_sharding_strategy: FULL_SHARD

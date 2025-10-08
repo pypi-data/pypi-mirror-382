@@ -1,0 +1,506 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: All resources used by tensorkube
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  CliVersion:
+    Type: String
+    Description: "CLI Version"
+  KedaBuildBucketName:
+    Type: String
+    Description: "Keda Build Bucket Name"
+  KedaTrainBucketName:
+    Type: String
+    Description: "Keda Train Bucket Name"
+  KedaBuildkitISRAServiceAccountName:
+    Type: String
+    Description: "Keda Buildkit ISRA Service Account Name"
+  DefaultEnv:
+    Type: String
+    Description: "Default Environment"
+  DefaultEnvBuildBucketName:
+    Type: String
+    Description: "Default Environment Build Bucket Name"
+  DefaultEnvBuildkitISRAServiceAccountName:
+    Type: String
+    Description: "Default Environment Service Account Name"
+  NydusNamespace:
+    Type: String
+    Description: "Nydus Namespace"
+  ManagedNodeGroupName:
+    Type: String
+    Description: "Node Group Name"
+  NydusServiceAccountName:
+    Type: String
+    Description: "Nydus Service Account Name"
+  CreateMacro:
+    Type: String
+    Description: "Create Macro"
+  TemplateBucketName:
+    Type: String
+    Description: "Template Bucket Name"
+  TemplatesVersion:
+    Type: String
+    Description: "Templates Version"
+  AWSAccessLambdaFunctionImageVersion:
+    Type: String
+    Description: "AWS Lambda Function Image Version"
+  EksAccessLambdaFunctionImageVersion:
+    Type: String
+    Description: "EKS Lambda Function Image Version"
+  MonitoringLambdaFunctionImageVersion:
+    Type: String
+    Description: "Monitoring Function Image Version"
+  ImageRegistryId:
+    Type: String
+    Description: "Image Registry ID"
+  UserAlertEmail:
+    Type: String
+    Description: "Email to send alerts to the users"
+  EvaluationPeriods:
+    Type: Number
+    Description: "Number of evaluation periods for the CloudWatch alarm"
+    Default: 45
+  RepeatedNotificationPeriod:
+    Type: Number
+    Default: 900
+    Description: The time in seconds between each repeated notification for an alarm.
+  TagForRepeatedNotification:
+    Type: String
+    Default: TensorkubeRepeatedAlarm:true
+    Description: The tag used to enable repeated notification. Input must be in key:value format
+    AllowedPattern: "^[a-zA-Z0-9]+:[a-zA-Z0-9]+$"
+  Region:
+    Type: String
+    Description: 'Region'
+    Default: 'us-east-1'
+  ZONEA:
+    Type: String
+    Description: "ZONEA"
+    Default: "false"
+  ZONEB:
+    Type: String
+    Description: "ZONEB"
+    Default: "false"
+  ZONEC:
+    Type: String
+    Description: "ZONEC"
+    Default: "false"
+  ZONED:
+    Type: String
+    Description: "ZONED"
+    Default: "false"
+  ZONEE:
+    Type: String
+    Description: "ZONEE"
+    Default: "false"
+  ZONEF:
+    Type: String
+    Description: "ZONEF"
+    Default: "false"
+
+
+Conditions:
+  CreateMacroCondition: !Equals [!Ref CreateMacro, "True"]
+
+
+
+#TODO: make constants for lambda operations
+# https://github.com/aws-cloudformation/cloudformation-coverage-roadmap/issues/205
+Resources:
+  CfnPythonMacroStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !If
+        - CreateMacroCondition
+        - !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/bootstrap.yaml"
+        - !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/empty_stack.yaml"
+      Parameters:
+        AdditionalExecutionPolicy: ""
+        LambdaTimeout: 30
+        ClusterName: !Ref ClusterName
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+  CodebuildLambdaAutomation:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/codebuild_lambda_automation.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        AWSAccessLambdaFunctionImageVersion: !Ref AWSAccessLambdaFunctionImageVersion
+        EksAccessLambdaFunctionImageVersion: !Ref EksAccessLambdaFunctionImageVersion
+        MonitoringLambdaFunctionImageVersion: !Ref MonitoringLambdaFunctionImageVersion
+        ImageRegistryId: !Ref ImageRegistryId
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: CfnPythonMacroStack
+
+  AWSAccessLambda:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/lambda-aws-access.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        AWSAccessLambdaRepoURI: !GetAtt CodebuildLambdaAutomation.Outputs.AWSAccessLambdaRepoURI
+        AWSAccessLambdaFunctionImageVersion: !Ref AWSAccessLambdaFunctionImageVersion
+        EksAccessLambdaFunctionRepoName: !GetAtt CodebuildLambdaAutomation.Outputs.EKSAccessLambdaRepoName
+        AwsAccessLambdaFunctionRepoName: !GetAtt CodebuildLambdaAutomation.Outputs.AWSAccessLambdaRepoName
+        MonitoringLambdaFunctionRepoName: !GetAtt CodebuildLambdaAutomation.Outputs.MonitoringLambdaRepoName
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: CodebuildLambdaAutomation
+
+  KarpenterResourceStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/karpenter_cloudformation.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        AWSLambdaFunctionArn: !GetAtt AWSAccessLambda.Outputs.LambdaFunctionArn
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: AWSAccessLambda
+
+  EksctlBaseStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/eksctl_base_cluster.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        Region: !Ref Region
+        ZONEA: !Ref ZONEA
+        ZONEB: !Ref ZONEB
+        ZONEC: !Ref ZONEC
+        ZONED: !Ref ZONED
+        ZONEE: !Ref ZONEE
+        ZONEF: !Ref ZONEF
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: KarpenterResourceStack
+
+
+  OIDCProviderStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/cluster-oidc.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        OIDCProviderURL: !GetAtt EksctlBaseStack.Outputs.OIDCProviderURL
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: EksctlBaseStack
+
+
+  EksctlClusterAddonVpcCniRole:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/eksctl-cluster-addon-vpc-cni-role.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        OIDCProviderURL: !GetAtt EksctlBaseStack.Outputs.OIDCProviderURL
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn:
+      - OIDCProviderStack
+      - CfnPythonMacroStack
+
+
+  EksctlClusterAddons:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/eksctl-cluster-addons.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        VpcCniRoleArn: !GetAtt EksctlClusterAddonVpcCniRole.Outputs.Role1
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: EksctlClusterAddonVpcCniRole
+
+
+  EksctlClusterNodeGroup:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/eksctl-cluster-nodegroup.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        ManagedNodeGroupName: !Ref ManagedNodeGroupName
+        ClusterSecurityGroupId: !GetAtt EksctlBaseStack.Outputs.ClusterSecurityGroupId
+        PublicClusterSubnets: !GetAtt EksctlBaseStack.Outputs.SubnetsPublic
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: EksctlClusterAddons
+
+
+  EksctlClusterPodIdentityRole:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/eksctl-cluster-podidentityrole-iamrole.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: EksctlClusterNodeGroup
+
+
+  KarpenterPodIdentityAssociation:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/pod-identity-association.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        RoleArn: !GetAtt EksctlClusterPodIdentityRole.Outputs.Role1
+        Namespace: kube-system
+        ServiceAccountName: karpenter
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: EksctlClusterPodIdentityRole
+
+
+  EksAccessLambda:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/lambda-eks-access.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        EksAccessLambdaRepoURI: !GetAtt CodebuildLambdaAutomation.Outputs.EKSAccessLambdaRepoURI
+        EksAccessLambdaFunctionImageVersion: !Ref EksAccessLambdaFunctionImageVersion
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn:
+      - KarpenterPodIdentityAssociation
+      - CodebuildLambdaAutomation
+
+
+  MonitoringLambda:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/monitoring-stack.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        MonitoringLambdaRepoURI: !GetAtt CodebuildLambdaAutomation.Outputs.MonitoringLambdaRepoURI
+        MonitoringLambdaFunctionImageVersion: !Ref MonitoringLambdaFunctionImageVersion
+        UserAlertEmail: !Ref UserAlertEmail
+        RepeatedNotificationPeriod: !Ref RepeatedNotificationPeriod
+        TagForRepeatedNotification: !Ref TagForRepeatedNotification
+        EvaluationPeriods: !Ref EvaluationPeriods
+        Region: !Ref Region
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn:
+      - KarpenterPodIdentityAssociation
+      - CodebuildLambdaAutomation
+
+
+  Cloudwatch:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/cloudwatch.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        OIDCProviderURL: !GetAtt EksctlBaseStack.Outputs.OIDCProviderURL
+        Namespace: amazon-cloudwatch
+        ServiceAccountName: cloudwatch-agent
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn:
+     - OIDCProviderStack
+     - CfnPythonMacroStack
+
+  S3AccessResources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/s3_access.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        OIDCProviderURL: !GetAtt EksctlBaseStack.Outputs.OIDCProviderURL
+        Namespace: kube-system
+        ServiceAccountName: s3-csi-driver-sa
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn:
+      - EksAccessLambda
+      - CfnPythonMacroStack
+
+
+  DefaultEnvironmentResources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/environment.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        Environment: !Ref DefaultEnv
+        BuildBucketName: !Ref DefaultEnvBuildBucketName
+        AWSLambdaFunctionArn: !GetAtt AWSAccessLambda.Outputs.LambdaFunctionArn
+        OIDCProviderURL: !GetAtt EksctlBaseStack.Outputs.OIDCProviderURL
+        S3AccessRole: !GetAtt S3AccessResources.Outputs.MountpointRole
+        ServiceAccountName: !Ref DefaultEnvBuildkitISRAServiceAccountName
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn:
+      - EksAccessLambda
+      - CfnPythonMacroStack
+
+
+  QueuedJobCloudResources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/job_queue_cloud_resources.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        KarpenterNodeRole: !GetAtt KarpenterResourceStack.Outputs.KarpenterNodeRole
+        EksctlNodegroupRole: !GetAtt EksctlClusterNodeGroup.Outputs.NodeInstanceRole
+        KedaTrainBucketName: !Ref KedaTrainBucketName
+        TemplateBucketName: !Ref TemplateBucketName
+        TemplatesVersion: !Ref TemplatesVersion
+        KedaBuildBucketName: !Ref KedaBuildBucketName
+        AWSLambdaFunctionArn: !GetAtt AWSAccessLambda.Outputs.LambdaFunctionArn
+        ClusterLambdaFunctionArn: !GetAtt EksAccessLambda.Outputs.LambdaFunctionArn
+        S3AccessRole: !GetAtt S3AccessResources.Outputs.MountpointRole
+        KedaBuildkitISRAServiceAccountName: !Ref KedaBuildkitISRAServiceAccountName
+        OIDCProviderURL: !GetAtt EksctlBaseStack.Outputs.OIDCProviderURL
+        BuildkitISRARoleArn: !GetAtt DefaultEnvironmentResources.Outputs.BuildkitISRARoleArn
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn:
+      - EksAccessLambda
+      - CfnPythonMacroStack
+      - DefaultEnvironmentResources
+
+
+  AuthConfigMapUpdateAndHelmfileApply:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/update_awsauth_configmap_and_helmfile_apply.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        KarpenterNodeRoleArn: !GetAtt KarpenterResourceStack.Outputs.KarpenterNodeRoleArn
+        ClusterLambdaFunctionArn: !GetAtt EksAccessLambda.Outputs.LambdaFunctionArn
+        SQSAccessRoleArn: !GetAtt QueuedJobCloudResources.Outputs.SqsDynamodbAccessRoleArn
+        DefaultEnvBuildBucketName: !Ref DefaultEnvBuildBucketName
+        BuildkitISRARoleArn: !GetAtt DefaultEnvironmentResources.Outputs.BuildkitISRARoleArn
+        JobQueueSidecarIAMRoleArn: !GetAtt QueuedJobCloudResources.Outputs.JobQueueSidecarIAMRoleArn
+        ImageRegistryId: !Ref ImageRegistryId
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: EksAccessLambda
+
+
+  NydusResources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/nydus-resources.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        OIDCProviderURL: !GetAtt EksctlBaseStack.Outputs.OIDCProviderURL
+        Namespace: !Ref NydusNamespace
+        ServiceAccountName: !Ref NydusServiceAccountName
+        ClusterLambdaFunctionArn: !GetAtt EksAccessLambda.Outputs.LambdaFunctionArn
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn:
+      - AuthConfigMapUpdateAndHelmfileApply
+      - CfnPythonMacroStack
+
+
+  SyncCliVersionToCluster:
+    Type: Custom::InvokeLambdaFunction
+    Properties:
+      Region: !Sub "${AWS::Region}"
+      ClusterName: !Ref ClusterName
+      Operation: "sync-cli-version-to-cluster"
+      Parameters:
+        CliVersion: !Ref CliVersion
+      AWSAccountId: !Sub "${AWS::AccountId}"
+      ServiceToken: !GetAtt EksAccessLambda.Outputs.LambdaFunctionArn
+    DependsOn:
+        - KarpenterResourceStack
+        - EksctlBaseStack
+        - OIDCProviderStack
+        - EksctlClusterAddonVpcCniRole
+        - EksctlClusterAddons
+        - EksctlClusterNodeGroup
+        - EksctlClusterPodIdentityRole
+        - KarpenterPodIdentityAssociation
+        - EksAccessLambda
+        - Cloudwatch
+        - QueuedJobCloudResources
+        - S3AccessResources
+        - DefaultEnvironmentResources
+        - AuthConfigMapUpdateAndHelmfileApply
+        - NydusResources
+
+  TeardownActionsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/teardown_actions_stack.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        EksAccessLambdaFunctionArn: !GetAtt EksAccessLambda.Outputs.LambdaFunctionArn
+        AwsAccessLambdaFunctionArn: !GetAtt AWSAccessLambda.Outputs.LambdaFunctionArn
+    DependsOn:
+      - SyncCliVersionToCluster
+
+Outputs:
+  S3AccessRoleArn:
+    Value: !GetAtt S3AccessResources.Outputs.MountpointRoleArn
+  S3AccessRole:
+    Value: !GetAtt S3AccessResources.Outputs.MountpointRole

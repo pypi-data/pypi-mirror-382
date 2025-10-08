@@ -1,0 +1,220 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Resources to configure AWS Lambda with access to the cluster"
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  AWSAccessLambdaRepoURI:
+    Type: String
+    Description: "URI of the AWS access Lambda repository"
+  AWSAccessLambdaFunctionImageVersion:
+    Type: String
+    Description: "Version of the AWS access Lambda function image"
+  EksAccessLambdaFunctionRepoName:
+    Type: String
+    Description: "EKS Access Lambda Function ECR Repository Name"
+  AwsAccessLambdaFunctionRepoName:
+    Type: String
+    Description: "AWS Access Lambda Function ECR Repository Name"
+  MonitoringLambdaFunctionRepoName:
+    Type: String
+    Description: "AWS Access Lambda Function ECR Repository Name"
+
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: describe-tensorkube-cluster
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - eks:DescribeCluster
+                Resource: !Sub "arn:aws:eks:${AWS::Region}:${AWS::AccountId}:cluster/${ClusterName}"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+        - PolicyName: RoleTrustPolicyUpdateAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:GetRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${ClusterName}-*"
+        - PolicyName: EmptyS3BucketsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - s3:ListBucket
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+              Resource: !Sub "arn:aws:s3:::${ClusterName}-*"
+        - PolicyName: DeleteRoleAndInstanceProfile
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - iam:ListAttachedRolePolicies
+              - iam:DetachRolePolicy
+              - iam:DeletePolicy
+              - iam:DeleteRole
+              - iam:ListInstanceProfiles
+              - iam:RemoveRoleFromInstanceProfile
+              - iam:DeleteInstanceProfile
+              Resource: "*"
+        - PolicyName: DeleteLambdaFunctionRepoImages
+          PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+              - Effect: Allow
+                Action:
+                - ecr:ListImages
+                - ecr:BatchDeleteImage
+                - ecr:DescribeRepositories
+                Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*${ClusterName}*"
+        - PolicyName: DeleteAllVolumes
+          PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Sid: EFSPermissions
+                  Effect: Allow
+                  Action:
+                    - elasticfilesystem:DescribeFileSystems
+                    - elasticfilesystem:DescribeTags
+                    - elasticfilesystem:DescribeMountTargets
+                    - elasticfilesystem:DeleteMountTarget
+                    - elasticfilesystem:DeleteFileSystem
+                  Resource: !Sub "arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*"
+                - Sid: CloudformationPermissions
+                  Effect: Allow
+                  Action:
+                    - cloudformation:DescribeStacks
+                    - cloudformation:DeleteStack
+                    - cloudformation:ListStackResources
+                  Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ClusterName}-*/*"
+                - Sid: EKSPermissions
+                  Effect: Allow
+                  Action:
+                    - eks:DescribeAddon
+                    - eks:ListAddons
+                    - eks:DeleteAddon
+                  Resource: "*"
+                - Sid: EC2Permissions
+                  Effect: Allow
+                  Action:
+                    - ec2:DeleteSecurityGroup
+                    - ec2:DescribeSecurityGroups
+                  Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+  AWSAccessFunction:
+      Type: AWS::Lambda::Function
+      Properties:
+        PackageType: Image
+        Code:
+          ImageUri: !Sub "${AWSAccessLambdaRepoURI}:${AWSAccessLambdaFunctionImageVersion}"
+        Role: !GetAtt LambdaExecutionRole.Arn
+        Timeout: 600
+        MemorySize: 1024
+        EphemeralStorage:
+          Size: 2048
+        Environment:
+          Variables:
+            CLUSTER_NAME: !Ref ClusterName
+        Description: "Lambda function to access the cluster"
+        Tags:
+          - Key: CreatedBy
+            Value: Tensorfuse
+          - Key: ClusterName
+            Value: !Ref ClusterName
+
+
+
+ # Teardown actions added here instead of teardown stack so that if creation fails at some point, and teardown stack
+ # is not created, the repos are still emptied.
+ # Since it's an AWS action, this is the first place where this could be placed
+  DeleteAWSAccessLambdaRepoImages:
+    Type: Custom::InvokeLambdaFunction
+    Properties:
+      Region: !Sub "${AWS::Region}"
+      ClusterName: !Ref ClusterName
+      Operation: "delete-ecr-repo-images"
+      AWSAccountId: !Sub "${AWS::AccountId}"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        RepositoryName: !Ref AwsAccessLambdaFunctionRepoName
+      ServiceToken: !GetAtt AWSAccessFunction.Arn
+    DependsOn:
+      - AWSAccessFunction
+      - LambdaExecutionRole
+
+
+  DeleteEksAccessLambdaRepoImages:
+    Type: Custom::InvokeLambdaFunction
+    Properties:
+      Region: !Sub "${AWS::Region}"
+      ClusterName: !Ref ClusterName
+      Operation: "delete-ecr-repo-images"
+      AWSAccountId: !Sub "${AWS::AccountId}"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        RepositoryName: !Ref EksAccessLambdaFunctionRepoName
+      ServiceToken: !GetAtt AWSAccessFunction.Arn
+    DependsOn:
+      - AWSAccessFunction
+      - LambdaExecutionRole
+
+  DeleteMonitoringLambdaRepoImages:
+    Type: Custom::InvokeLambdaFunction
+    Properties:
+      Region: !Sub "${AWS::Region}"
+      ClusterName: !Ref ClusterName
+      Operation: "delete-ecr-repo-images"
+      AWSAccountId: !Sub "${AWS::AccountId}"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        RepositoryName: !Ref MonitoringLambdaFunctionRepoName
+      ServiceToken: !GetAtt AWSAccessFunction.Arn
+    DependsOn:
+      - AWSAccessFunction
+      - LambdaExecutionRole
+
+Outputs:
+  LambdaFunction:
+    Value: !Ref AWSAccessFunction
+    Description: "Lambda function to access the cluster"
+  LambdaFunctionArn:
+    Value: !GetAtt AWSAccessFunction.Arn
+    Description: "ARN of the Lambda function"

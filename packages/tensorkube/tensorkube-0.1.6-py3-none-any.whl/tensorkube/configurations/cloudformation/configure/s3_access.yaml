@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Resources for S3 access for the cluster
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  OIDCProviderURL:
+    Type: String
+    Description: "OIDC Provider URL"
+  Namespace:
+    Type: String
+    Description: "Namespace"
+  ServiceAccountName:
+    Type: String
+    Description: "Service Account Name"
+Resources:
+  MountpointRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:  !Sub "${ClusterName}-mountpoint-driver-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                Fn::Join:
+                  - ''
+                  - - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/'
+                    - Fn::Select:
+                        - 1
+                        - Fn::Split:
+                            - '//'
+                            - Ref: 'OIDCProviderURL'
+            Action: "sts:AssumeRoleWithWebIdentity"
+            Condition:
+              StringEquals: |
+                #!TensorkubePyPlate
+                output = {}
+                oidc_provider_url = params["OIDCProviderURL"]
+                oidc_issuer = oidc_provider_url.split('//')[1]
+                namespace = params["Namespace"]
+                service_account_name = params["ServiceAccountName"]
+                output = {
+                    f"{oidc_issuer}:aud": "sts.amazonaws.com",
+                    f"{oidc_issuer}:sub": f"system:serviceaccount:{namespace}:{service_account_name}"
+                }
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+  MountpointEKSAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref ClusterName
+      AddonName: aws-mountpoint-s3-csi-driver
+      ServiceAccountRoleArn: !GetAtt MountpointRole.Arn
+      AddonVersion: v1.15.0-eksbuild.1 # get using: aws eks describe-addon-versions --addon-name aws-mountpoint-s3-csi-driver --kubernetes-version X.XX
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+Transform: [TensorkubePyPlate]
+
+
+Outputs:
+  MountpointRole:
+    Value: !Ref MountpointRole
+  MountpointRoleArn:
+    Value: !GetAtt MountpointRole.Arn

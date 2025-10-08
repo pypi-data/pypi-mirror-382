@@ -1,0 +1,477 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Resources to configure AWS Lambda with access to the cluster"
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+    Default: tensorkube
+  MonitoringLambdaRepoURI:
+    Type: String
+    Description: "URI of the Monitoring Lambda repository"
+  MonitoringLambdaFunctionImageVersion:
+    Type: String
+    Description: "Version of the Monitoring Lambda function image"
+  UserAlertEmail:
+    Type: String
+    Description: "User's email address for SNS subscription"
+  EvaluationPeriods:
+    Type: Number
+    Description: "Number of evaluation periods for the CloudWatch alarm"
+    Default: 45
+  Region:
+    Type: String
+    Description: 'Region'
+    Default: 'us-east-1'
+
+  RepeatedNotificationPeriod:
+    Type: Number
+    Default: 900
+    Description: The time in seconds between each repeated notification for an alarm.
+  TagForRepeatedNotification:
+    Type: String
+    Default: TensorkubeRepeatedAlarm:true
+    Description: The tag used to enable repeated notification. Input must be in key:value format
+    AllowedPattern: "^[a-zA-Z0-9]+:[a-zA-Z0-9]+$"
+
+Resources:
+  NodeAlertSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: "Tensorkube Node Alert Topic"
+      TopicName: !Sub "${ClusterName}-node-alert-topic"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+
+  UserSNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !GetAtt NodeAlertSNSTopic.TopicArn
+      Endpoint: !Ref UserAlertEmail
+
+  TensorfuseSNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !GetAtt NodeAlertSNSTopic.TopicArn
+      Endpoint: "test@tensorfuse.io"
+
+  CloudwatchNodeAlertAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ClusterName}-node-alert-alarm"
+      Namespace: "ContainerInsights"
+      AlarmDescription: !Sub "Fires on node failures in cluster: ${ClusterName} in region: ${Region}"
+      MetricName: "cluster_failed_node_count"
+      Dimensions:
+        - Name: "ClusterName"
+          Value: !Ref ClusterName
+      Statistic: "Maximum"
+      Period: 60
+      EvaluationPeriods: !Ref EvaluationPeriods
+      Threshold: 0
+      ComparisonOperator: "GreaterThanThreshold"
+      AlarmActions:
+        - !GetAtt NodeAlertSNSTopic.TopicArn
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: !Select [ 0,  !Split [ ":", !Ref TagForRepeatedNotification ]]
+          Value: !Select [ 1,  !Split [ ":", !Ref TagForRepeatedNotification ]]
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: describe-tensorkube-cluster
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - eks:DescribeCluster
+                Resource: !Sub "arn:aws:eks:${Region}:${AWS::AccountId}:cluster/${ClusterName}"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+        - PolicyName: RoleTrustPolicyUpdateAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:GetRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${ClusterName}-*"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+
+  ClusterAccessEntry:
+    Type: AWS::EKS::AccessEntry
+    Properties:
+      ClusterName: !Ref ClusterName
+      PrincipalArn: !GetAtt LambdaExecutionRole.Arn
+      AccessPolicies:
+        - AccessScope:
+            Type: cluster
+          PolicyArn: "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: LambdaExecutionRole
+
+  MonitoringFunction:
+      Type: AWS::Lambda::Function
+      Properties:
+        PackageType: Image
+        Code:
+          ImageUri: !Sub "${MonitoringLambdaRepoURI}:${MonitoringLambdaFunctionImageVersion}"
+        Role: !GetAtt LambdaExecutionRole.Arn
+        Timeout: 30
+        MemorySize: 1024
+        EphemeralStorage:
+          Size: 2048
+        Environment:
+          Variables:
+            CLUSTER_NAME: !Ref ClusterName
+        Description: "Lambda function to access the cluster"
+        Tags:
+          - Key: CreatedBy
+            Value: Tensorfuse
+          - Key: ClusterName
+            Value: !Ref ClusterName
+      DependsOn:
+        - ClusterAccessEntry
+
+  ## SNS Subscription
+  LambdaSNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !GetAtt NodeAlertSNSTopic.TopicArn
+      Endpoint: !GetAtt MonitoringFunction.Arn
+
+  ## SNS Permission to invoke Lambda
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MonitoringFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !GetAtt NodeAlertSNSTopic.TopicArn
+
+  CheckAlarmStatusLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CheckAlarmStatusPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:ListTagsForResource
+                  - sns:Publish
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  CheckAlarmStatusLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.lambda_handler
+      Role: !GetAtt CheckAlarmStatusLambdaExecutionRole.Arn
+      Runtime: python3.13
+      Code:
+        ZipFile: |
+          import json
+          import os
+          from typing import List
+          import datetime
+          import logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          import boto3
+
+          session = boto3.session.Session()
+          CW_CLIENT = session.client('cloudwatch')
+          SNS_CLIENT = session.client('sns')
+          
+          SNS_SUBJECT_LIMIT = 100
+
+          def lambda_handler(event, context):
+              """ Lambda entrypoint for the CheckAlarmStatus Lambda Function """
+              logger.info(event)
+              print(event)
+
+              # Set the default alarm status response as null
+              event.update({"currState": "null"})
+
+              try:
+                  # Retrieve the CloudWatch Alarm Name from the incoming event
+                  alarm_arn = event["resources"][0]
+                  alarm_name = event["detail"].get("alarmName")
+
+                  # Describe and check the tags on the CloudWatch Alarm
+                  # And See if the tag key used for repeated notification exists,
+                  # and has the correct value as defined in environment variable
+                  alarm_tags = CW_CLIENT.list_tags_for_resource(ResourceARN=alarm_arn)
+                  logger.info(alarm_tags)
+                  if check_if_repeated_alarm_enabled(alarm_tags.get("Tags")):
+                      alarm_response = CW_CLIENT.describe_alarms(
+                          AlarmNames=[alarm_name],
+                          AlarmTypes=["CompositeAlarm", "MetricAlarm"]
+                      )
+                      logger.info(alarm_response)
+
+                      if len(alarm_response.get("MetricAlarms")) >0:
+                          alarm_details = alarm_response.get("MetricAlarms")[0]
+                      elif len(alarm_response.get("CompositeAlarms")) > 0:
+                          alarm_details = alarm_response.get("CompositeAlarms")[0]
+
+                      alarm_details = json.loads(
+                          json.dumps(
+                              alarm_details, default=datetime_converter
+                          )
+                      )
+
+                      if alarm_details.get("StateValue") == "ALARM":
+                          associated_alarm_actions = alarm_details.get("AlarmActions")
+                          for action in associated_alarm_actions:
+                              if action.startswith(os.getenv("ARN_PREFIX")+":sns"):
+                                  # compose SNS notification subject and truncate if the subject is longer than 100 char limit
+                                  notification_subject = "ALARM: \""+alarm_name+"\" remains in ALARM state in "+session.region_name
+                                  if len(notification_subject) >= SNS_SUBJECT_LIMIT:
+                                      # If truncation is required, remove 4 additional char to allow use of "..."
+                                      number_of_char_to_remove = len(notification_subject) - SNS_SUBJECT_LIMIT + 4
+                                      # Recompose notification subject with a truncated alarm name
+                                      notification_subject = "ALARM: \""+alarm_name[:-number_of_char_to_remove]+"...\" remains in ALARM state in "+session.region_name
+                                  alarm_details["AWSAccountId"] = event.get("account")
+                                  alarm_details["Trigger"] = {
+                                      "Dimensions": [{
+                                              "name": "ClusterName", 
+                                              "value": event["detail"]["configuration"]["metrics"][0]["metricStat"]["metric"]["dimensions"]["ClusterName"]
+                                          }]
+                                  }
+                                  SNS_CLIENT.publish(
+                                      TopicArn = action,
+                                      Subject = notification_subject,
+                                      Message = json.dumps(alarm_details)
+                                  )
+                                  logger.info("Publish to %s" % action)
+                      event["currState"] = alarm_details.get("StateValue")
+              except Exception as e:
+                  logger.error(f"Error: {repr(e)}")
+                  raise
+
+              return event
+
+          def datetime_converter(field):
+              if isinstance(field, datetime.datetime):
+                  return field.__str__()
+
+          def check_if_repeated_alarm_enabled(tags: List[dict], expected_tag="TagForRepeatedNotification"):
+              tag_to_check = os.getenv(expected_tag).split(":")
+              key = tag_to_check[0]
+              value = tag_to_check[1]
+              for tag in tags:
+                  if tag.get("Key") == key and tag.get("Value") == value:
+                      return True
+              return False
+
+          class CheckAlarmFailed(Exception):
+              pass
+      Environment:
+        Variables:
+          ARN_PREFIX: !Sub arn:${AWS::Partition}
+          TagForRepeatedNotification: !Ref TagForRepeatedNotification
+
+  CheckAlarmStatusLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${CheckAlarmStatusLambda}"
+      RetentionInDays: 7
+
+  AlarmCheckStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeCheckAlarmStatusLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt CheckAlarmStatusLambda.Arn
+        - PolicyName: XRayAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource: "*"
+
+  AlarmCheckStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub "${ClusterName}-RepeatedAlarmCheckStateMachine"
+      RoleArn: !GetAtt AlarmCheckStateMachineRole.Arn
+      DefinitionString:
+        !Sub |
+        {
+          "Comment": "A description of my state machine",
+          "StartAt": "Wait",
+          "States": {
+            "Wait": {
+              "Type": "Wait",
+              "Seconds": ${RepeatedNotificationPeriod},
+              "Next": "Lambda Invoke - Check alarm tag and status"
+            },
+            "Lambda Invoke - Check alarm tag and status": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Output": "{% $states.result.Payload %}",
+              "Arguments": {
+                "FunctionName": "${CheckAlarmStatusLambda}",
+                "Payload": "{% $states.input %}"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2,
+                  "JitterStrategy": "FULL"
+                }
+              ],
+              "Next": "Choice - Is alarm still in ALARM state?"
+            },
+            "Choice - Is alarm still in ALARM state?": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Next": "Wait",
+                  "Condition": "{% $states.input.currState = 'ALARM' %}"
+                }
+              ],
+              "Default": "Success"
+            },
+            "Success": {
+              "Type": "Succeed"
+            }
+          },
+          "QueryLanguage": "JSONata"
+        }
+
+
+  EventBridgeInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowStepFunctionInvocation
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: "states:StartExecution"
+                Resource: !GetAtt AlarmCheckStateMachine.Arn
+
+  AlarmStateChangeEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Triggers the alarm process step function on alarm state change
+      EventPattern:
+        source:
+          - "aws.cloudwatch"
+        detail-type:
+          - "CloudWatch Alarm State Change"
+        detail:
+          state:
+            value:
+              - "ALARM"
+          alarmName:
+            - !Ref CloudwatchNodeAlertAlarm
+      Targets:
+        - Arn: !GetAtt AlarmCheckStateMachine.Arn
+          Id: StepFunctionTarget
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+
+Outputs:
+  NodeAlertSNSTopicArn:
+    Value: !GetAtt NodeAlertSNSTopic.TopicArn
+    Description: "Arn of the SNS topic for node alerts"
+  LambdaFunction:
+    Value: !Ref MonitoringFunction
+    Description: "Lambda function to access the cluster"
+  LambdaFunctionArn:
+    Value: !GetAtt MonitoringFunction.Arn
+    Description: "ARN of the Lambda function"

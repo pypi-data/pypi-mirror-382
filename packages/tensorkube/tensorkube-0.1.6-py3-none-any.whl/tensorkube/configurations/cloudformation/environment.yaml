@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: All resources created in an environment
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  Environment:
+    Type: String
+    Description: "Environment"
+  S3AccessRole:
+    Type: String
+    Description: "S3 Access Role"
+  BuildBucketName:
+    Type: String
+    Description: "Build Bucket Name"
+  OIDCProviderURL:
+    Type: String
+    Description: "OIDC Provider URL"
+  AWSLambdaFunctionArn:
+    Type: String
+    Description: "Lambda Function Arn"
+  ServiceAccountName:
+    Type: String
+    Description: "Service Account Name"
+
+Conditions:
+  IsDefaultEnv: !Equals [!Ref Environment, "default"]
+  IsNotDefaultEnv: !Not [ !Equals [ !Ref Environment, "default" ] ]
+
+Resources:
+  EnvBuildBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BuildBucketName
+      AccessControl: Private
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: EnvironmentName
+          Value: !Ref Environment
+        - Key: ResourceType
+          Value: Environment
+
+
+  EmptyBuildBucketAction:
+    Type: Custom::InvokeLambdaFunction
+    Properties:
+      Region: !Sub "${AWS::Region}"
+      ClusterName: !Ref ClusterName
+      Operation: "empty-s3-bucket"
+      Parameters:
+        BucketName: !Ref BuildBucketName
+      AWSAccountId: !Sub "${AWS::AccountId}"
+      ServiceToken: !Ref AWSLambdaFunctionArn
+    DependsOn: EnvBuildBucket
+
+
+  BucketAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName:
+        !If [IsDefaultEnv, !Sub "${ClusterName}-mountpoint-policy", !Sub "${ClusterName}-mountpoint-policy-env-${Environment}"]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource: !Sub "arn:aws:s3:::${BuildBucketName}"
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:AbortMultipartUpload
+              - s3:DeleteObject
+            Resource: !Sub "arn:aws:s3:::${BuildBucketName}/*"
+      Roles:
+        - !Ref S3AccessRole
+
+
+  BuildkitISRARole:
+    Type: AWS::IAM::Role
+    Condition: IsDefaultEnv
+    Properties:
+      RoleName: !Sub "${ClusterName}-buildkit-ecr-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                Fn::Join:
+                  - ''
+                  - - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/'
+                    - Fn::Select:
+                        - 1
+                        - Fn::Split:
+                            - '//'
+                            - Ref: 'OIDCProviderURL'
+            Action: "sts:AssumeRoleWithWebIdentity"
+            Condition:
+              StringEquals: |
+                #!TensorkubePyPlate
+                output = {}
+                oidc_provider_url = params["OIDCProviderURL"]
+                oidc_issuer = oidc_provider_url.split('//')[1]
+                namespace = params["Environment"]
+                service_account_name = params["ServiceAccountName"]
+                output = {
+                    f"{oidc_issuer}:aud": "sts.amazonaws.com",
+                    f"{oidc_issuer}:sub": f"system:serviceaccount:{namespace}:{service_account_name}"
+                }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: EnvironmentName
+          Value: !Ref Environment
+        - Key: ResourceType
+          Value: Environment
+
+  UpdateBuildkitISRARole:
+    Type: Custom::InvokeLambdaFunction
+    Condition: IsNotDefaultEnv
+    Properties:
+      Region: !Sub "${AWS::Region}"
+      ClusterName: !Ref ClusterName
+      Operation: "update-buildkit-isra-role"
+      Parameters:
+        Namespace: !Ref Environment
+        ServiceAccountName: !Ref ServiceAccountName
+        ClusterName: !Ref ClusterName
+        OIDCProviderUrl: !Ref OIDCProviderURL
+        AWSAccountId: !Ref AWS::AccountId
+      AWSAccountId: !Sub "${AWS::AccountId}"
+      ServiceToken: !Ref AWSLambdaFunctionArn
+
+Transform: [TensorkubePyPlate]
+
+Outputs:
+  BuildkitISRARoleArn:
+    Value: !If [IsDefaultEnv, !GetAtt BuildkitISRARole.Arn, "-"]
+
