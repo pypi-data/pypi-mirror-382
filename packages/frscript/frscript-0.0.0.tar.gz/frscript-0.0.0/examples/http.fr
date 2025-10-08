@@ -1,0 +1,41 @@
+// Simple HTTP server
+
+void main(str argv) {
+    int sock = socket("inet", "stream")
+    setsockopt(sock, "SOL_SOCKET", "SO_REUSEADDR", 1)
+    bind(sock, "127.0.0.1", 8080)
+    listen(sock, 5)
+
+    while (true) {
+        int cs = accept(sock)
+
+        // Read the entire HTTP request at once
+        str request = recv(cs, 4096)
+
+        // Extract just the first line (method + path)
+        list lines = split(request, "\r\n")
+        list header = split(lines[0], " ")
+        str type = header[0]
+        str path = "./static" + header[1] + ".html"
+
+        println(f"Serving {path}..")
+
+        // Response header
+        str response = "HTTP/1.1 200 OK\r\n\r\n"
+
+        if (not exists(path)) {
+            response += "404 Not Found"
+        } else {
+            int fd_page = fopen(path)
+            str content = fread(fd_page, -1)
+
+            response += content
+        }
+
+        // Send HTTP response
+        send(cs, response + "\r\n\r\n")
+        sclose(cs)
+    }
+
+    sclose(sock)
+}
