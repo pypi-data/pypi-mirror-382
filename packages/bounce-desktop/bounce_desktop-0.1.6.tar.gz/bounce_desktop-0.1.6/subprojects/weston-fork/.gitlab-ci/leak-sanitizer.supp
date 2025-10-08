@@ -1,0 +1,22 @@
+# AddressSanitizer memory leak suppressions
+
+# This leaks in Debian's fontconfig/Xwayland setup.  We add the entire
+# fontconfig library because turning off fast unwind -- required to catch other
+# originating leaks from fontconfig; would stall our tests timing them out.
+leak:libfontconfig
+
+# Workarounds for the LeakSanitizer use_tls=0 workaround,
+# see tests/meson.build
+leak:wl_shm_buffer_begin_access
+leak:g_malloc0
+leak:sysprof_collector_get
+leak:/ld-*.so*
+
+# Add all of perfetto, since it's not easy to clean up after it
+leak:perfetto
+
+# lavapipe inexplicably leaks when Vulkan physical devices are enumerated,
+# despite us a) not using that device and b) freeing the instance. This is
+# apparently a known issue. (Also when ASan creates threads ...)
+leak:vkEnumeratePhysicalDevices
+leak:asan_thread_start
