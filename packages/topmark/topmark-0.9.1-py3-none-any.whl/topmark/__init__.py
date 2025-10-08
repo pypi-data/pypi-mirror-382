@@ -1,0 +1,16 @@
+# topmark:header:start
+#
+#   project      : TopMark
+#   file         : __init__.py
+#   file_relpath : src/topmark/__init__.py
+#   license      : MIT
+#   copyright    : (c) 2025 Olivier Biot
+#
+# topmark:header:end
+
+"""TopMark package.
+
+Provides tools and utilities for evaluating and benchmarking models and algorithms.
+"""
+
+from __future__ import annotations
