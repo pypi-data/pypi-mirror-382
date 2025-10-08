@@ -1,0 +1,3 @@
+from qtpy.QtWidgets import QFrame, QHBoxLayout, QTableWidgetItem
+class TableWidgetItem:
+    def __init__(self, selected: bool, text: str): ...

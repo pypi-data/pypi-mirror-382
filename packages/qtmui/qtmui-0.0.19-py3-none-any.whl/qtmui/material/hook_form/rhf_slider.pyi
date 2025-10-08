@@ -1,0 +1,16 @@
+from typing import TYPE_CHECKING, Union, Callable
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
+from qtpy.QtCore import Qt, Property, Slot, Signal
+from ..controller import Controller
+from ..slider import Slider
+from ..box import Box
+from ..form_helper_text import FormHelperText
+from qtmui.material.styles import useTheme
+from ..qss_name import *
+class RHFSlider:
+    def __init__(self, name: str, control: QWidget, onChange: Callable, helperText: str): ...
+    def _set_value(self, value): ...
+    def stateSignal(self): ...
+    def stateSignal(self, value): ...
+    def state(self, state): ...

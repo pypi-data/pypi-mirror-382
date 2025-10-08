@@ -1,0 +1,16 @@
+import threading
+import time
+from typing import Callable, Optional
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QLineEdit
+from qtpy.QtCore import Signal, QTimer
+from qtmui.material.styles import useTheme
+from qtmui.material.styles.create_theme.theme_reducer import ThemeState
+from ..system.color_manipulator import alpha
+from qtmui.hooks.use_state import State
+from ..textfield import TextField
+class Select:
+    def __init__(self, options, renderInput, autoComplete, autoHighlight, autoSelect, blurOnSelect, ChipProps, classes, clearIcon, clearOnBlur, clearOnEscape, clearText, closeText, children: Optional[list], componentsProps, defaultValue, disableClearable, disableCloseOnSelect, disabled, disabledItemsFocusable, disableListWrap, disablePortal, filterOptions, filterSelectedOptions, forcePopupIcon, freeSolo, fullWidth, getLimitTagsText, getOptionDisabled, getOptionKey, getOptionLabel: Callable, groupBy, handleHomeEndKeys, id, includeInputInList, inputValue, isOptionEqualToValue, label: str, limitTags, ListboxComponent, ListboxProps, loading, loadingText, multiple, name: str, noOptionsText, open, onChange: Callable, openOnFocus, openText, PaperComponent, PopperComponent, popupIcon, readOnly, renderOption, renderTags, renderValue, selectOnFocus, selected: bool, size, slotProps, slots, sx, value, treeView: bool, **kwargs): ...
+    def _init_ui(self): ...
+    def _check_input_field(self): ...
+    def _setup_ui(self): ...
+    def _set_selected(self): ...
