@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install uv
+        run: pip install --upgrade pipx && pipx install uv
+
+      - name: Install dependencies (including dev)
+        run: uv sync --dev
+
+      - id: test
+        run: uv run pytest
+
+      - id: check_version
+        run: |
+          pyproject_version=$(grep '^version' pyproject.toml | head -1 | cut -d '"' -f2)
+          repo_name="${GITHUB_REPOSITORY#*/}"
+          latest_release=$(gh api repos/$GITHUB_REPOSITORY/releases/latest --jq .tag_name)
+
+          if [ "$(printf '%s\n' "$latest_release" "$pyproject_version" | sort -V | tail -n1)" = "$pyproject_version" ] && [ "$pyproject_version" != "$latest_release" ]; then
+            echo "new_version=$pyproject_version" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: build
+        if: steps.check_version.outputs.new_version != ''
+        run: uv build
+
+      - id: pump
+        if: steps.build.conclusion == 'success'
+        run: |
+          git config --global user.email "hoishing@gmail.com"
+          git config --global user.name "Kelvin Ng"
+          git tag ${{ steps.check_version.outputs.new_version }}
+          git push --tag -f
+
+      - id: release
+        if: steps.pump.conclusion == 'success'
+        run: |
+          latest_tag=${{ steps.check_version.outputs.new_version }}
+          gh release create "$latest_tag" --generate-notes ./dist/*
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: publish
+        if: steps.release.conclusion == 'success'
+        run: |
+          uv publish --token=${{ secrets.PYPI_API_TOKEN }}
