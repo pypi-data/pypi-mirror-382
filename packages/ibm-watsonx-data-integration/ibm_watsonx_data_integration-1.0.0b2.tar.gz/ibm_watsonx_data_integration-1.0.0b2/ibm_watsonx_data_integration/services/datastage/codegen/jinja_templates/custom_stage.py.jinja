@@ -1,0 +1,49 @@
+{% if asset -%}
+{% if imported -%}
+{% if offline -%}
+{{ asset_var_name }} = CustomStage(asset_id = "{{ asset_id }}")
+{%- else -%}
+{{ asset_var_name }} = sdk.get_wrapped_stage(id = "{{ asset_id }}")
+{%- endif %}
+{%- else -%}
+{{ asset_var_name }} = (
+    CustomStage()
+    {% if props -%}
+    {% for prop, val in props.items()-%}
+    .with_{{ prop }}({{ val }})
+    {%- endfor %}
+    {%- endif %}
+    {% if properties -%}
+    .with_properties([
+    {% for property in properties -%}
+        CUSTOMSTAGE.Property.{{ property["type"] }}(
+            {% for key, value in property["props"].items() -%}
+            {{ key }} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+    {% if mapping_additions -%}
+    .with_mapping_additions([
+    {% for mapping_addition in mapping_additions -%}
+        CUSTOMSTAGE.MappingAddition(
+            {% for key, value in mapping_addition.items() -%}
+            {{key}} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+)
+{%- endif %}
+{%- endif %}
+{% if stage -%}
+{{ stage_var_name }} = {{ parent_composer }}.add_custom_stage({{ asset_var_name }}, {{ label }})
+{% for key, prop in stage_properties.items() -%}
+{{ stage_var_name }}.set_property({{key}}, {{prop}}){{ "\n" }}
+{%- endfor %}
+{% for key, prop in config_properties.items() -%}
+{{ stage_var_name }}.configuration.{{key}} = {{prop}}{{ "\n" }}
+{%- endfor %}
+{%- endif %}

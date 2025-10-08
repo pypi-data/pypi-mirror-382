@@ -1,0 +1,98 @@
+[build-system]
+requires = ["setuptools >= 75.0", "wheel ~= 0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ibm-watsonx-data-integration"
+description = "A Python SDK for watsonx.data integration."
+authors = [
+    {name = "IBM"}
+]
+readme = {file = "README.rst", content-type = "text/x-rst"}
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+classifiers=[
+    'License :: OSI Approved :: Apache Software License',
+    'Development Status :: 5 - Production/Stable',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+]
+dependencies = [
+    "inflection ~=0.5.1",
+    "requests >= 2.32.3",
+    "pydantic ~=2.11.7",
+    "jsondiff >= 2.2.1",
+    "jinja2>=3.1.6,<4.0.0",
+    "responses>=0.25.7",
+    "ruff==0.12.9",
+]
+dynamic = ["version"]
+
+[project.urls]
+Documentation = "https://ibm.github.io/ibm-watsonx-data-integration-sdk/"
+
+[tool.setuptools.packages.find]
+include = ["ibm_watsonx_data_integration*"]
+
+[tool.setuptools.package-data]
+"ibm_watsonx_data_integration" = ["**/*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ibm_watsonx_data_integration.__version__.__version__"}
+
+[tool.pytest.ini_options]
+addopts = "-vrs"
+
+[tool.coverage.run]
+source = ['ibm_watsonx_data_integration']
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+# temporarily ignore datastage from linting and formatting WSDK-416
+exclude = ["ibm_watsonx_data_integration/services/datastage"]
+extend-exclude = ["tools/datastage/**"]
+
+[tool.ruff.lint]
+select = [
+    "ANN", # pyflakes-annotation
+    "D",   # pydoctstyle
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "G",   # pyflakes-logging-format
+    "I",   # isort
+    "W",   # warnings
+    "Q",   # pyflakes-quotes
+    "UP",  # pyupgrade
+]
+ignore = [
+    "B",
+    "UP028"  # yield-in-for-loop
+]
+unfixable = ["B"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# ignore type hint and docstring messages for test files
+"**/{tests,docs,tools}/*" = ["ANN", "D"]
+# datastage-specific warnings to ignore
+"**/datastage/models/standarize_data.py" = ["E501"]
+"tools/datastage/**" = ["E501"]
+"**/datastage/**" = ["ANN", "D"]
+
+[tool.ruff.lint.isort]
+no-sections = false
+sections = {"project-model" = ["ibm_watsonx_data_integration.cpd_models.project_model"]}
+no-lines-before = ["project-model"]
+section-order = [
+    "future",
+    "third-party", # all not listed sections will be assigned to the third-party
+    "project-model",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

@@ -1,0 +1,167 @@
+{{ var_name }} = {{ composer }}.add_stage("Rest", {{ stage_name }})
+{% for prop, value in properties.items() -%}
+{{ var_name }}.configuration.{{ prop }} = {{ value }}
+{% endfor %}
+{% if requests -%}
+{{ var_name }}.configuration.requests = [
+{% for request in requests -%}
+    rest.Request(
+        {% if request["properties"] -%}
+        {% for key, value in request["properties"].items() -%}
+        {{ key }} = {{ value }},
+        {%- endfor %}
+        {%- endif %}
+        {% if request["authentication"] -%}
+        authentication = rest.Authentication(
+            {% for key, value in request["authentication"].items() -%}
+            {{ key }} = {{ value }},
+            {%- endfor %}
+        ),
+        {%- endif %}
+        {% if request["request"] -%}
+        request = rest.RequestInfo(
+            {% for key, value in request["request"].items() -%}
+            {% if key == "properties" -%}
+            {% for prop_key, prop_val in value.items() -%}
+            {{ prop_key }} = {{ prop_val }},
+            {%- endfor %}
+            {%- endif %}
+
+            {% if key == "query_parameters" -%}
+            {{ key }} = [
+            {% for parameter in value-%}
+            rest.Parameter(
+                {% for key2, value2 in parameter.items() -%}
+                {{ key2 }} = {{ value2 }},
+                {%- endfor %}
+            ),
+            {%- endfor %}
+            ],
+            {%- endif %}
+            {% if key == "custom_headers" -%}
+            {{ key }} = [
+            {% for header in value-%}
+            rest.Header(
+                {% for key2, value2 in header.items() -%}
+                {{ key2 }} = {{ value2 }},
+                {%- endfor %}
+            ),
+            {%- endfor %}
+            ],
+            {%- endif %}
+            {% if key == "custom_cookies" -%}
+            {{ key }} = [
+            {% for cookie in value-%}
+            rest.Cookie(
+                {% for key2, value2 in cookie.items() -%}
+                {{ key2 }} = {{ value2 }},
+                {%- endfor %}
+            ),
+            {%- endfor %}
+            ],
+            {%- endif %}
+            {% if key == "body" -%}
+            {{ key }} = rest.Body(
+            {% for body_key, body_val in value.items() -%}
+
+                {% if body_key == "form_data" -%}
+                form_data = [
+                {% for form_data in body_val -%}
+                    rest.FormData(
+                        {% for data_key, data_val in form_data.items() -%}
+                        {{ data_key }} = {{ data_val }},
+                        {%- endfor %}
+                    ),
+                {%- endfor %}
+                ],
+                {%- endif %}
+
+                {% if body_key == "form_urlencoded_data" -%}
+                form_urlencoded_data = [
+                {% for form_data in body_val -%}
+                    rest.FormURLEncodedData(
+                        {% for data_key, data_val in form_data.items() -%}
+                        {{ data_key }} = {{ data_val }},
+                        {%- endfor %}
+                    ),
+                {%- endfor %}
+                ],
+                {%- endif %}
+
+                {% if body_key == "properties" -%}
+                {% for prop_key, prop_val in body_val.items() -%}
+                {{ prop_key }} = {{ prop_val }},
+                {%- endfor %}
+                {%- endif %}
+
+            {%- endfor %}
+            ),
+            {%- endif %}
+            {%- endfor %}
+        ),
+        {%- endif %}
+        {% if request["response"] -%}
+        response = rest.Response(
+            {% for key, value in request["response"].items() -%}
+            {{ key }} = {{ value }},
+            {%- endfor %}
+        ),
+        {%- endif %}
+        {% if request["settings"] -%}
+        settings = rest.Settings(
+            {% for key, value in request["settings"].items() -%}
+            {% if key == "properties" -%}
+            {% for prop_key, prop_val in value.items() -%}
+            {{ prop_key }} = {{ prop_val }},
+            {%- endfor %}
+            {%- endif %}
+
+            {% if key == "server_certificate" -%}
+            server_certificate = rest.ServerCertificate(
+            {% for prop_key, prop_val in value.items() -%}
+                {{ prop_key }} = {{ prop_val }},
+            {%- endfor %}
+            ),
+            {%- endif %}
+
+            {% if key == "client_certificate" -%}
+            client_certificate = rest.ClientCertificate(
+            {% for prop_key, prop_val in value.items() -%}
+                {{ prop_key }} = {{ prop_val }},
+            {%- endfor %}
+            ),
+            {%- endif %}
+
+            {% if key == "proxy" -%}
+            proxy = rest.Proxy(
+            {% for prop_key, prop_val in value.items() -%}
+                {{ prop_key }} = {{ prop_val }},
+            {%- endfor %}
+            ),
+            {%- endif %}
+
+            {%- endfor %}
+        ),
+        {%- endif %}
+        {% if request["control"] -%}
+        control = rest.Control(
+            {% for key, value in request["control"].items() -%}
+            {{ key }} = {{ value }},
+            {%- endfor %}
+        )
+        {%- endif %}
+    ),
+{%- endfor %}
+]
+{%- endif %}
+{% if variables -%}
+{{ var_name }}.configuration.variables = [
+{% for variable in variables -%}
+    rest.Variable(
+        {% for key, val in variable.items() -%}
+        {{ key }} = {{ val }},
+        {%- endfor %}
+    ),
+{%- endfor %}
+]
+{%- endif %}

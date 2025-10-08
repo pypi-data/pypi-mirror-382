@@ -1,0 +1,23 @@
+def get_{{ var_name }}():
+    {{ composer }} = {{ parent_composer }}.new_subflow_builder("{{ name }}")
+
+    {% if local_params -%}
+    {{ local_params }}
+    {%- endif %}
+
+{{ nodes_code }}
+
+    {% for paramset in parameter_sets %}
+    {{ composer }}.use_paramset({{ paramset }})
+    {% endfor %}
+
+    return {{ composer }}
+{% if zip_structure -%}
+{{ var_name }} = get_{{ var_name }}()
+{%- else -%}
+{% if rcp -%}
+{{ var_name }} = {{ parent_composer }}.add_subflow(get_{{ var_name }}(), "{{ label }}").with_runtime_column_propagation({{rcp}})
+{%- else -%}
+{{ var_name }} = {{ parent_composer }}.add_subflow(get_{{ var_name }}(), "{{ label }}")
+{%- endif %}
+{%- endif %}

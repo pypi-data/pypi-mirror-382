@@ -1,0 +1,104 @@
+{% if data_definitions -%}
+{% for data_def in data_definitions -%}
+{{ data_def["var_name"] }} = DataDefinition(name = {{data_def["name"] }})
+{% for field in data_def["fields"] %}
+{{ data_def["var_name"] }}.add_field("{{ field["type"] }}", "{{ field["name"] }}"){{ field["properties"] }}
+{% endfor %}
+
+{{ parent_composer }}.use_data_definition({{ data_def["var_name"] }}){{"\n"}}
+{%- endfor %}
+{%- endif %}
+
+{% if asset -%}
+{% if imported -%}
+{% if offline -%}
+{{ asset_var_name }} = WrappedStage(asset_id = "{{ asset_id }}")
+{%- else -%}
+{{ asset_var_name }} = sdk.get_wrapped_stage(id = "{{ asset_id }}")
+{%- endif %}
+{%- else -%}
+{{ asset_var_name }} = (
+    WrappedStage()
+    {% if props -%}
+    {% for prop, val in props.items()-%}
+    .with_{{ prop }}({{ val }})
+    {%- endfor %}
+    {%- endif %}
+    {% if properties -%}
+    .with_properties([
+    {% for property in properties -%}
+        WRAPPEDSTAGE.Property.{{ property["type"] }}(
+            {% for key, value in property["props"].items() -%}
+            {{ key }} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+    {% if inputs -%}
+    .with_inputs([
+    {% for input in inputs -%}
+        WRAPPEDSTAGE.Input(
+            {% for key, value in input.items() -%}
+            {{key}} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+    {% if outputs -%}
+    .with_outputs([
+    {% for output in outputs -%}
+        WRAPPEDSTAGE.Output(
+            {% for key, value in output.items() -%}
+            {{ key }} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+    {% if environment_variables -%}
+    .with_environment_variables([
+    {% for env_var in environment_variables -%}
+        WRAPPEDSTAGE.EnvironmentVariable(
+            {% for key, value in env_var.items() -%}
+            {{key}} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+    {% if success_codes -%}
+    .with_success_codes([
+    {% for success_code in success_codes -%}
+        WRAPPEDSTAGE.SuccessCode(
+            {% for key, value in success_code.items() -%}
+            {{key}} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+    {% if failure_codes -%}
+    .with_failure_codes([
+    {% for failure_code in failure_codes -%}
+        WRAPPEDSTAGE.FailureCode(
+            {% for key, value in failure_code.items() -%}
+            {{key}} = {{value}},
+            {%- endfor %}
+        ),
+    {%- endfor %}
+    ])
+    {%- endif %}
+)
+{%- endif %}
+{%- endif %}
+{% if stage -%}
+{{ stage_var_name }} = {{ parent_composer }}.add_wrapped_stage({{ asset_var_name }}, {{ label }})
+{% for key, prop in stage_properties.items() -%}
+{{ stage_var_name }}.set_property({{key}}, {{prop}}){{ "\n" }}
+{%- endfor %}
+{% for key, prop in config_properties.items() -%}
+{{ stage_var_name }}.configuration.{{key}} = {{prop}}{{ "\n" }}
+{%- endfor %}
+{%- endif %}
