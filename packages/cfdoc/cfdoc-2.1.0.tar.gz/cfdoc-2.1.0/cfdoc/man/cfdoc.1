@@ -1,0 +1,113 @@
+.\" generated with Ronn-NG/v0.9.1
+.\" http://github.com/apjanke/ronn-ng/tree/0.9.1
+.TH "CFDOC" "1" "May 2025" "MA" "AWStools"
+.SH "NAME"
+\fBCFdoc\fR \- Extract documentation from an AWS CloudFormation Template
+.SH "SYNOPSIS"
+\fBcfdoc\fR [options] [\fItemplate\fR]
+.SH "DESCRIPTION"
+AWS CloudFormation templates are not easy to read at the best of times and the inability to properly describe them with embedded documentation makes them difficult to analyse and maintain\.
+.P
+\fBCFdoc\fR exploits the ability to embed \fIMetadata\fR keys containing whatever you want into the CloudFormation JSON/YAML\. \fIMetadata\fR keys can be placed in:
+.IP "\[ci]" 4
+the top level of the CloudFormation template
+.IP "\[ci]" 4
+within each resource specification in the template\.
+.IP "" 0
+.P
+\fBCFdoc\fR uses decriptive information placed in \fICFdoc\fR keys within the \fIMetadata\fR, together with other information derived from the template to automatically generate documentation\.
+.P
+Even where no special information has been embedded in the CloudFormation template, \fBCFdoc\fR can generate basic documentation for the template that can be easier to comprehend than the template itself\.
+.SH "OPTIONS"
+.IP "\[ci]" 4
+\fItemplate\fR: File name of the CloudFormation template\. If not specified, read from \fIstdin\fR\.
+.IP "\[ci]" 4
+\fB\-h\fR, \fB\-\-help\fR: Show help message and exit\.
+.IP "\[ci]" 4
+\fB\-c\fR, \fB\-\-no\-colour\fR, \fB\-\-no\-color\fR: Don't use colour in information messages\.
+.IP "\[ci]" 4
+\fB\-d\fR \fIplugin\.param=value\fR, \fB\-\-define\fR \fIplugin\.param=value\fR: Define parameters for plugins\. See \fIPLUGINS\fR below for more information\.
+.IP "\[ci]" 4
+\fB\-f\fR \fIFORMAT\fR, \fB\-\-format\fR \fIFORMAT\fR: Output format\. Must correspond to a \fBJinja2\fR template named \fIFORMAT\.jinja2\fR\. See \fIDOCUMENT TEMPLATES\fR below\.
+.IP "\[ci]" 4
+\fB\-l\fR \fILEVEL\fR, \fB\-\-level\fR \fILEVEL\fR: Print messages of a given severity level or above\. The standard logging level names are available but \fIinfo\fR, \fIwarning\fR and \fIerror\fR are most useful\. The Default is \fIwarning\fR\.
+.IP "\[ci]" 4
+\fB\-\-list\-plugins\fR: List available plugins and exit\.
+.IP "\[ci]" 4
+\fB\-n\fR \fINAME\fR, \fB\-\-name\fR \fINAME\fR: CloudFormation template name (not file name)\. This may be used in the generated output document, depending on the output template\. If not specified, the name of the input file is used\.
+.IP "\[ci]" 4
+\fB\-v\fR, \fB\-\-version\fR: Show version and exit\.
+.IP "\[ci]" 4
+\fB\-y\fR, \fB\-\-yaml\fR: The CloudFormation template is in YAML format\. This is required when the format cannot be guessed from the file suffix\. JSON format is assumed by default\. See \fILIMITATIONS\fR below\.
+.IP "" 0
+.SH "DOCUMENT TEMPLATES"
+\fBCFdoc\fR uses Jinja2 \fIhttp://jinja\.pocoo\.org\fR templates to render the documentation\.
+.P
+The template is selected using the \fB\-f\fR, \fB\-\-format\fR option\. For a format \fIxxx\fR, \fBCFdoc\fR will look for a file \fIxxx\.jinja2\fR in a fixed set of locations, unless the \fICFDOCPATH\fR environment variable specifies an alternative search path\. See \fIENVIRONMENT\fR below\.
+.P
+The following templates are provided:
+.TP
+\fBhtml\fR
+HTML format\. This is the default if no format is specified\.
+.TP
+\fBmd\fR
+Markdown format using standard conventions for cross\-references within the file\.
+.TP
+\fBmdbb\fR
+Markdown format using BitBucket \fIhttps://bitbucket\.org\fR conventions for cross\-references within the file\.
+.TP
+\fBmdpd\fR
+Markdown format using Pandoc \fIhttp://pandoc\.org\fR conventions for cross\-references within the file\.
+.SH "ENVIRONMENT"
+By default, \fICFdoc\fR will search for templates in the following locations, unless the \fICFDOCPATH\fR environment variable specifies an alternative search path:
+.IP "\[ci]" 4
+current directory
+.IP "\[ci]" 4
+\fItemplates\fR directory in the current directory
+.IP "\[ci]" 4
+templates directory included in the \fBcfdoc\fR distribution\.
+.IP "" 0
+.P
+This is equivalent to a \fICFDOCPATH\fR setting of:
+.P
+\fI:templates:/usr/local/lib/cfdoc/templates\fR
+.SH "PLUGINS"
+\fBCFdoc\fR supports plugins to manipulate and extend the extracted documentation\.
+.P
+Some plugins accept arguments of their own\. These are passed to the plugin using \fB\-d\fR, \fB\-\-define\fR command line options\.
+.P
+The following plugins are included with the distribution\.
+.SS "autogroup"
+Automatically assign resources that don't have a manually assigned resource group to a group based on AWS resource types\. For example, a resource of type \fIAWS::S3::Bucket\fR will be added to the \fIS3\fR group\.
+.P
+This plugin has no arguments\.
+.SS "awsdoc"
+Add links to AWS documentation for CloudFormation resources\.
+.P
+By default, \fBCFdoc\fR will attempt to point directly to AWS CloudFormation documentation by dead\-reckoning\. If this is producing useless links (e\.g\. because AWS has changed the URL yet again), use the \fBsearch\fR option to generate indirect links via either Google of Duck Duck Go for locating documentation\.
+.P
+The following arguments are accepted:
+.TP
+\fBsearch\fR
+The search engine to use\. Allowed values are \fBgoogle\fR or \fBduckduckgo\fR\.
+.SS "resdesc"
+Use \fIDescription\fR/\fIGroupDescription\fR CloudFormation resource properties where available\. This will be used to populate the \fIDescription\fR key for the resource documentation where no other value has been specified in a \fIMetadata\.CFdoc\fR key\.
+.P
+This plugin has no arguments\.
+.SS "resjson"
+Extract the resource definition from the CloudFormation template and format it as JSON (even if the source template was YAML)\.
+.P
+The following arguments are accepted:
+.TP
+\fBindent\fR
+Indent level for the JSON\. Must be between 1 and 8 Default 4\.
+.SH "FILES"
+Plugins may store information in the filesystem in a directory named \fI~/\.cfdoc/plugin\fR\.
+.SH "LIMITATIONS"
+Support for YAML formatted CloudFormation templates is limited\. The \fB!\fR prefixed short\-form syntax is not currently supported\.
+.SH "MORE INFORMATION"
+Details on how to embed \fBCFdoc\fR metadata in a CloudFormation template can be found here\.  \fIhttps://bitbucket\.org/murrayandrews/cfdoc\fR
+.SH "AUTHOR"
+Murray Andrews
+.SH "LICENCE"
+BSD 3\-clause licence \fIhttp://opensource\.org/licenses/BSD\-3\-Clause\fR\.
