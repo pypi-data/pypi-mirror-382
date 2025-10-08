@@ -1,0 +1,23 @@
+import uuid
+from typing import Callable, Optional, Sequence, Union
+from qtpy.QtCore import Property, Signal, Slot
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QLabel
+from qtmui.hooks import useState
+from qtmui.material.styles import useTheme
+from qtmui.hooks.use_state import State
+from ..controller import Controller
+from ..textfield import TextField
+from ..form_control import FormControl
+from ..select import Select
+from ..box import Box
+from ..chip import Chip
+from ..qss_name import *
+class RHFSelect:
+    def __init__(self, name: str, label: Optional[Union[str, State, Callable]], native: bool, maxHeight: int, onChange: Optional[Callable], PaperPropsSx: object, helperText: str, children: object, selected: bool, **kwargs): ...
+    def set_value(self, value): ...
+    def stateSignal(self): ...
+    def stateSignal(self, value): ...
+    def state(self, state): ...
+class RHFMultiSelect:
+    def __init__(self, name: str, chip: object, label: str, options: object, checkbox: object, placeholder: str, helperText: str, sx: dict): ...
+    def render_values(self, selected_ids, options, placeholder, chip): ...

@@ -1,0 +1,13 @@
+from typing import Optional, Union, Callable
+from qtpy.QtWidgets import QSizePolicy, QHBoxLayout, QFrame
+from qtpy.QtCore import Signal
+from qtmui.hooks.use_state import State
+from qtmui.common.ui_functions import clear_layout
+from ..button.button import Button
+from ..button.loading_button import LoadingButton
+from ..qss_name import *
+class SubmitButton:
+    def __init__(self, type: str, loading: Optional[State], **kwargs): ...
+    def _initUi(self): ...
+    def _updateLoading(self, value): ...
+    def __onClick(self): ...

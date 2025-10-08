@@ -1,0 +1,3 @@
+from qtpy.QtWidgets import QSlider
+class PySlider:
+    def __init__(self, margin, bg_size, bg_radius, bg_color, bg_color_hover, handle_margin, handle_size, handle_radius, handle_color, handle_color_hover, handle_color_pressed): ...

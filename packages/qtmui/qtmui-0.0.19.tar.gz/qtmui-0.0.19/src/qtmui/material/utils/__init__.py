@@ -1,0 +1,1 @@
+from .icon import icon_base64_to_pixmap

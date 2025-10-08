@@ -1,0 +1,6 @@
+from qtpy.QtWidgets import QMainWindow
+from qtpy.QtCore import QSize
+from .page import Page
+class MainWindow:
+    def __init__(self, page: Page): ...
+    def closeEvent(self, event): ...

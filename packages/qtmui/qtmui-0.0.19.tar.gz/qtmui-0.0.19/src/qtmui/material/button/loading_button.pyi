@@ -1,0 +1,19 @@
+import uuid
+from typing import Optional, Union, Callable, Dict
+from qtpy.QtCore import Qt, QTimer, QSize
+from qtpy.QtWidgets import QHBoxLayout, QFrame
+from .button import Button
+from qtmui.hooks.use_state import State
+from functools import lru_cache
+from qtmui.material.styles.create_theme.components.get_qss_styles import get_qss_style
+from qtmui.material.styles import useTheme
+from qtmui.i18n.use_translation import translate, i18n
+from ..py_svg_widget import PySvgWidget
+from ..typography import Typography
+class LoadingButton:
+    def __init__(self, loading: Optional[State], loadingPosition: str, loadingIndicator: Optional[Union[str, State, Callable]], color: str, variant: str, size: str, sx: Optional[Union[State, Callable, str, Dict]], **kwargs): ...
+    def _init_ui(self): ...
+    def connectSignalSlot(self): ...
+    def _update_loading(self, value): ...
+    def _get_stylesheet(cls, _variant: str, _size: str, _color: str, _theme_mode: str): ...
+    def _set_stylesheet(self, component_styled): ...

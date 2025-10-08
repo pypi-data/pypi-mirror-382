@@ -1,0 +1,6 @@
+from typing import Optional, Union, Callable, Dict
+from qtpy.QtWidgets import QFrame, QHBoxLayout
+from .linear_progress_variant import LinearProgressIndeterminate, NomalProgress, LinearProgressQuery, LinearProgressBufer, LinearProgressDeterminate, LinearProgressIndeterminateNomal
+class LinearProgress:
+    def __init__(self, key: str, value: int, variant: str, color: str, sx: Optional[Union[Callable, str, Dict]]): ...
+    def _init_ui(self): ...

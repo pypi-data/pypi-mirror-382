@@ -1,0 +1,6 @@
+from typing import Dict, Callable
+class CSSObject:
+    css: str
+class ApplyStyles:
+    def __init__(self, theme: Dict[str, Callable[Any, str]]): ...
+    def __call__(self, key: str, styles: CSSObject): ...
