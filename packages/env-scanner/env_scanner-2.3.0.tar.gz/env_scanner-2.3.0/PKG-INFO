@@ -1,0 +1,589 @@
+Metadata-Version: 2.4
+Name: env-scanner
+Version: 2.3.0
+Summary: Automatically scan Python projects for environment variables and generate .env-example files
+Home-page: https://github.com/ammarmunir4567/env-scanner
+Author: Ammar Munir
+Author-email: Ammar Munir <ammarmunir4567@gmail.com>
+Maintainer-email: Ammar Munir <ammarmunir4567@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/ammarmunir4567/env_scanner
+Project-URL: Documentation, https://github.com/ammarmunir4567/env_scanner#readme
+Project-URL: Repository, https://github.com/ammarmunir4567/env_scanner.git
+Project-URL: Bug Tracker, https://github.com/ammarmunir4567/env_scanner/issues
+Project-URL: Changelog, https://github.com/ammarmunir4567/env_scanner/blob/main/CHANGELOG.md
+Keywords: python,environment,env,dotenv,configuration,environment-variables,scanner,generator
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: black>=22.0; extra == "dev"
+Requires-Dist: flake8>=4.0; extra == "dev"
+Requires-Dist: mypy>=0.900; extra == "dev"
+Requires-Dist: pre-commit>=2.20.0; extra == "dev"
+Requires-Dist: tox>=3.24.0; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=4.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.0; extra == "docs"
+Requires-Dist: sphinxcontrib-napoleon>=0.7; extra == "docs"
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# Env Scanner
+
+🔍 Automatically scan Python projects for environment variables and generate `.env-example` files.
+
+[![Python](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+- 🔎 **Automatic Detection**: Scans your Python codebase to find all environment variable usage
+- 🌐 **Framework Support**: Works with Django, Flask, FastAPI, Pydantic, and vanilla Python
+- 📝 **Smart Generation**: Creates `.env-example` files with intelligent placeholders and comments
+- 🎯 **Multiple Detection Methods**: Uses both AST parsing and regex for comprehensive coverage
+- 📄 **Config File Scanning**: Also scans YAML, JSON, TOML, and INI files for env vars
+- 🗂️ **Smart Grouping**: Organizes variables by common prefixes for better readability
+- 💡 **Contextual Comments**: Adds helpful comments based on variable names and usage locations
+- ⚡ **CLI Interface**: Easy-to-use command-line tool
+- 🐍 **Pure Python**: No external dependencies required
+
+## Installation
+
+### From PyPI (when published)
+
+```bash
+pip install env-scanner
+```
+
+### From Source
+
+```bash
+git clone https://github.com/yourusername/env-scanner.git
+cd env-scanner
+pip install -e .
+```
+
+## Quick Start
+
+### Command Line
+
+The simplest way to use env-scanner:
+
+```bash
+# Scan current directory and generate .env-example
+env-scanner
+
+# Scan a specific project
+env-scanner scan /path/to/your/project
+
+# Just list variables without generating file
+env-scanner list
+
+# Preview before saving
+env-scanner scan --preview
+```
+
+### Python API
+
+```python
+from env_scanner import EnvScanner, EnvExampleGenerator
+
+# Create scanner
+scanner = EnvScanner(project_path='/path/to/your/project')
+
+# Scan for environment variables
+env_vars = scanner.scan_directory()
+
+# Print summary
+scanner.print_summary()
+
+# Generate .env-example file
+generator = EnvExampleGenerator.from_scanner(scanner)
+generator.save()
+```
+
+## Supported Frameworks & Patterns
+
+Env Scanner works with **all major Python frameworks** and patterns. Here's what it detects:
+
+### 🐍 Standard Python
+
+```python
+import os
+from os import environ, getenv
+
+# All these patterns are detected
+DATABASE_URL = os.environ.get('DATABASE_URL')
+API_KEY = os.environ['API_KEY']
+SECRET_KEY = os.getenv('SECRET_KEY')
+PORT = environ.get('PORT', '8000')
+DEBUG = getenv('DEBUG', 'False')
+```
+
+### 🎯 Django
+
+```python
+# django-environ
+import environ
+env = environ.Env()
+
+DATABASE_URL = env('DATABASE_URL')
+DEBUG = env.bool('DEBUG', default=False)
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
+SECRET_KEY = env.str('SECRET_KEY')
+
+# python-decouple
+from decouple import config
+SECRET_KEY = config('SECRET_KEY')
+DEBUG = config('DEBUG', default=False, cast=bool)
+```
+
+### 🌶️ Flask
+
+```python
+from flask import Flask
+app = Flask(__name__)
+
+# Flask config patterns
+app.config['DATABASE_URL'] = os.environ.get('DATABASE_URL')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+
+# Or from current_app
+from flask import current_app
+db_url = current_app.config['DATABASE_URL']
+```
+
+### ⚡ FastAPI / Pydantic
+
+```python
+from pydantic import BaseSettings, Field
+from pydantic_settings import BaseSettings  # Pydantic v2
+
+class Settings(BaseSettings):
+    # Auto-detected from field names
+    database_url: str
+    api_key: str
+    
+    # With explicit env names
+    secret: str = Field(env='SECRET_KEY')
+    port: int = Field(default=8000, env='PORT')
+    
+    class Config:
+        env_file = '.env'
+
+# Usage
+settings = Settings()
+```
+
+### 📦 python-dotenv
+
+```python
+from dotenv import load_dotenv, dotenv_values
+
+# Load variables
+load_dotenv()
+
+# Or get specific values
+config = dotenv_values(".env")
+DATABASE_URL = config.get('DATABASE_URL')
+```
+
+### 📄 Configuration Files
+
+Env Scanner also scans configuration files for environment variable references:
+
+**YAML files:**
+```yaml
+database:
+  url: ${DATABASE_URL}
+  password: ${DB_PASSWORD}
+  
+# Or Symfony-style
+database:
+  url: '%env(DATABASE_URL)%'
+```
+
+**JSON files:**
+```json
+{
+  "database": "${DATABASE_URL}",
+  "api_key": "${API_KEY}"
+}
+```
+
+**TOML files:**
+```toml
+database_url = "${DATABASE_URL}"
+api_key = "${API_KEY}"
+```
+
+### 🔍 Advanced Patterns
+
+```python
+# F-strings
+message = f"Connecting to {os.environ['DATABASE_URL']}"
+
+# String interpolation
+config = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
+
+# Direct from environ
+from os import environ
+API_KEY = environ['API_KEY']
+```
+
+## CLI Usage
+
+### Scan Command
+
+Scan a project and generate `.env-example` file:
+
+```bash
+# Basic usage
+env-scanner scan
+
+# Specify project path
+env-scanner scan /path/to/project
+
+# Custom output location
+env-scanner scan --output .env.template
+
+# Exclude specific directories
+env-scanner scan --exclude venv,build,dist,node_modules
+
+# Preview before saving
+env-scanner scan --preview
+
+# Disable comments
+env-scanner scan --no-comments
+
+# Disable grouping by prefix
+env-scanner scan --no-grouping
+```
+
+### List Command
+
+List all environment variables found without generating a file:
+
+```bash
+# Basic list
+env-scanner list
+
+# Show file locations
+env-scanner list --show-locations
+
+# Specific project
+env-scanner list /path/to/project
+```
+
+### CLI Options
+
+```
+Options:
+  -h, --help            Show help message
+  -v, --version         Show version
+  --verbose             Enable verbose output
+  
+Scan/Generate Options:
+  -o, --output PATH     Output path for .env-example file
+  -e, --exclude DIRS    Comma-separated directories to exclude
+  --no-generate         Only scan, don't generate file
+  --no-comments         Don't add descriptive comments
+  --no-grouping         Don't group variables by prefix
+  --no-header           Don't add file header
+  --preview             Preview before saving
+  --regex-only          Use only regex (skip AST parsing)
+  
+List Options:
+  -l, --show-locations  Show where variables are used
+```
+
+## Python API
+
+### EnvScanner
+
+The `EnvScanner` class scans Python files to detect environment variables:
+
+```python
+from env_scanner import EnvScanner
+
+# Initialize scanner
+scanner = EnvScanner(
+    project_path='/path/to/project',
+    exclude_dirs=['venv', 'build', 'dist'],  # Optional
+)
+
+# Scan the project
+env_vars = scanner.scan_directory()
+
+# Get detailed results
+results = scanner.get_results()
+print(results['variables'])  # List of variable names
+print(results['count'])      # Number of variables
+print(results['locations'])  # Dict of variable locations
+
+# Print summary
+scanner.print_summary()
+```
+
+### EnvExampleGenerator
+
+The `EnvExampleGenerator` class creates `.env-example` files:
+
+```python
+from env_scanner import EnvExampleGenerator
+
+# From a set of variable names
+generator = EnvExampleGenerator(
+    env_vars={'DATABASE_URL', 'API_KEY', 'SECRET_KEY'},
+    output_path='.env-example',
+    add_comments=True,
+    group_by_prefix=True,
+    include_header=True
+)
+
+# Generate and save
+generator.save()
+
+# Or preview first
+generator.preview()
+
+# Create from scanner
+from env_scanner import EnvScanner
+
+scanner = EnvScanner('.')
+scanner.scan_directory()
+
+generator = EnvExampleGenerator.from_scanner(
+    scanner,
+    output_path='.env-example'
+)
+generator.save()
+```
+
+## Example Output
+
+For a project using these environment variables:
+
+```python
+DATABASE_URL = os.environ.get('DATABASE_URL')
+DATABASE_NAME = os.getenv('DATABASE_NAME')
+API_KEY = os.environ['API_KEY']
+API_SECRET = os.environ.get('API_SECRET')
+DEBUG = os.getenv('DEBUG', 'False')
+PORT = os.environ.get('PORT', '8000')
+```
+
+Env Scanner generates this `.env-example` file:
+
+```bash
+# Environment Variables Configuration
+# This file was automatically generated by env-scanner
+# Generated on: 2025-10-01 12:00:00
+#
+# Copy this file to .env and fill in the actual values
+# DO NOT commit .env file to version control
+
+# API Configuration
+#==================================================
+
+# API key for external service
+API_KEY=your_secret_key_here
+
+# API secret for external service
+API_SECRET=your_secret_key_here
+
+# DATABASE Configuration
+#==================================================
+
+# Database configuration
+DATABASE_NAME=your_database_name
+
+# Database configuration
+DATABASE_URL=https://example.com
+
+# Other Configuration
+#==================================================
+
+# Debug mode (true/false)
+DEBUG=false
+
+# Port number
+PORT=8000
+```
+
+## Configuration
+
+### Excluding Directories
+
+By default, these directories are excluded from scanning:
+
+- `venv`, `env`, `.venv`, `.env`
+- `node_modules`
+- `__pycache__`, `.git`
+- `dist`, `build`, `*.egg-info`
+- `.tox`, `.pytest_cache`, `.mypy_cache`
+
+Add custom exclusions:
+
+```python
+scanner = EnvScanner(
+    project_path='.',
+    exclude_dirs=['custom_dir', 'another_dir']
+)
+```
+
+Or via CLI:
+
+```bash
+env-scanner scan --exclude venv,build,custom_dir
+```
+
+## Advanced Usage
+
+### Custom Variable Detection
+
+Add custom regex patterns for variable detection:
+
+```python
+scanner = EnvScanner(
+    project_path='.',
+    include_patterns=[
+        r'config\.get\(["\']([A-Z_]+)["\']',  # Custom config pattern
+    ]
+)
+```
+
+### Programmatic Generation
+
+```python
+from env_scanner import EnvScanner, EnvExampleGenerator
+
+# Scan project
+scanner = EnvScanner('/path/to/project')
+variables = scanner.scan_directory()
+
+# Custom generation
+generator = EnvExampleGenerator(
+    env_vars=variables,
+    output_path='custom-env-template.txt',
+    add_comments=True,
+    group_by_prefix=True
+)
+
+# Get content without saving
+content = generator.generate_content()
+print(content)
+
+# Or save to file
+generator.save()
+```
+
+## Development
+
+### Setup Development Environment
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/env-scanner.git
+cd env-scanner
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install in development mode
+pip install -e ".[dev]"
+```
+
+### Run Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=env_scanner --cov-report=html
+
+# Run specific test file
+pytest tests/test_scanner.py
+```
+
+### Code Quality
+
+```bash
+# Format code
+black env_scanner tests
+
+# Lint code
+flake8 env_scanner tests
+
+# Type checking
+mypy env_scanner
+```
+
+## How It Works
+
+1. **Scanning**: The scanner walks through your Python project files
+2. **Detection**: Uses both AST (Abstract Syntax Tree) parsing and regex to find environment variable access patterns
+3. **Analysis**: Identifies variable names and their usage locations
+4. **Generation**: Creates a `.env-example` file with:
+   - Intelligent placeholder values based on variable names
+   - Descriptive comments for common patterns
+   - Grouped organization by variable prefixes
+   - Usage location context
+
+## Use Cases
+
+- 🚀 **Project Setup**: Help new developers understand required environment variables
+- 📦 **CI/CD**: Automatically generate environment templates in deployment pipelines
+- 📚 **Documentation**: Keep environment variable documentation in sync with code
+- 🔒 **Security**: Ensure all required environment variables are documented without exposing secrets
+- ♻️ **Refactoring**: Track environment variable usage across large codebases
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+- 📧 Email: your.email@example.com
+- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/env-scanner/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/yourusername/env-scanner/discussions)
+
+## Acknowledgments
+
+- Inspired by the need for better environment variable management in Python projects
+- Built with Python's `ast` module for accurate code parsing
+- Thanks to all contributors and users!
+
+---
+
+Made with ❤️ by Your Name
+# env_scanner
+# env_scanner
