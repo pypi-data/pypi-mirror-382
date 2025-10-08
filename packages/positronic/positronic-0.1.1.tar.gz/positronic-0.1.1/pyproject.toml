@@ -1,0 +1,146 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "positronic"
+version = "0.1.1"
+description = "Positronic robotics project"
+requires-python = ">=3.11"
+readme = { file = "README.md", content-type = "text/markdown" }
+license = { file = "LICENSE" }
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+    "av",
+    "configuronic>=0.2",
+    "cvxopt",
+    "dearpygui",
+    "dm_control",
+    "fastapi",
+    "fire",
+    "imageio[ffmpeg]",
+    "mujoco",
+    "numpy",
+    "opencv-python-headless",
+    "pyarrow",
+    "pyturbojpeg",
+    "robosuite",
+    "numba>=0.57",
+    "ruckig",
+    "scipy",
+    "torch",
+    "uvicorn[standard]",
+    "lerobot>=0.3.3",  # TODO: Get rid of this, move all usages to standalone scripts
+    "rerun-sdk~=0.22",
+]
+
+[project.scripts]
+positronic-server = "positronic.server.positronic_server:main"
+
+[project.optional-dependencies]
+hardware = [
+    "feetech-servo-sdk", # for feetech motors
+    "positronic-franka; sys_platform == 'linux'",
+    "kortex_api; sys_platform == 'linux'",
+    "linuxpy",  # For Linux video capture
+    "pinocchio",  # For Kinova
+    "placo",
+    "pyaudio; sys_platform == 'linux'",  # For SoundSystem
+    "pymodbus",  # For grippers
+    "pyserial", # For grippers
+    "pyzed; sys_platform == 'linux'",  # ZED camera support
+]
+dev = [
+    "ruff",
+    "pre-commit",
+    "ipython",
+    "jupyter",
+    "opencv-python",
+    "coverage",
+    "pytest-cov",
+    "pytest-asyncio",
+    "pytest-timeout",
+    "pytest",
+    "rerun-sdk[notebook]",
+]
+
+[tool.uv.sources.kortex_api]
+url = "https://artifactory.kinovaapps.com/artifactory/generic-local-public/kortex/API/2.7.0/kortex_api-2.7.0.post5-py3-none-any.whl"
+
+[tool.uv.sources.pyzed]
+url = "https://download.stereolabs.com/zedsdk/5.0/whl/linux_x86_64/pyzed-5.0-cp311-cp311-linux_x86_64.whl"
+
+[tool.pytest.ini_options]
+testpaths = [
+    "pimm/tests",
+    "positronic/dataset/tests",
+    "positronic/geom/tests",
+    "positronic/tests",
+    "positronic/policy/tests",
+]
+python_files = ["test_*.py", "*_test.py"]
+addopts = [
+    "--cov=pimm",
+    "--cov=positronic",
+    "--cov-report=term-missing",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["pimm", "positronic"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E203",  # whitespace before ':'
+    "B019",  # Use of functools.lru_cache on methods - intentional for performance
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py files
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+docstring-code-format = true
+preview = true
+skip-magic-trailing-comma = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "positronic*",
+    "pimm*",
+]
+
+[tool.setuptools.package-data]
+# Include static assets and XML files needed at runtime
+positronic = [
+  "assets/**",
+  "drivers/**/*.xml",
+  "server/static/**",
+  "server/templates/**",
+]
