@@ -1,0 +1,3 @@
+from .label_enum import LabelEnum as LabelEnum
+
+def resolve_enum_field(data: dict, field_name: str, enum_cls: type[LabelEnum]) -> None: ...
