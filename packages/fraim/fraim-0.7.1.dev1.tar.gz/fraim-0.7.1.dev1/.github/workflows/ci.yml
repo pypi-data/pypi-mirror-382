@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+    - name: Install ripgrep
+      run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+      with:
+        version: "0.7.14"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        uv sync --group test
+
+    - name: Run tests with pytest
+      run: |
+        make test-cov
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+      with:
+        version: "0.7.14"
+
+    - name: Set up Python
+      run: make init
+
+    - name: Install dependencies
+      run: |
+        make sync
+
+    - name: Run format check
+      run: |
+        make format-check
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+      with:
+        version: "0.7.14"
+
+    - name: Set up Python
+      run: make init
+
+    - name: Install dependencies
+      run: |
+        make sync
+
+    - name: Run lint check (fixable issues only for now)
+      run: |
+        make lint-fix-check
+
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+      with:
+        version: "0.7.14"
+
+    - name: Set up Python
+      run: make init
+
+    - name: Install dependencies
+      run: |
+        make sync
+
+    - name: Run mypy
+      run: |
+        make typecheck
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+      with:
+        version: "0.7.14"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        make sync
+
+    - name: Build package
+      run: |
+        make build
+
+    - name: Test CLI installation
+      run: |
+        uv run fraim --help
