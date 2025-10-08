@@ -1,0 +1,311 @@
+Metadata-Version: 2.4
+Name: flash-storage
+Version: 0.3.0
+Summary: Multi-cloud storage manager with automatic fallback for Git LFS (Cloudinary + Google Drive)
+Author-email: Flash Storage Team <jonazjuan.dev@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/yourusername/flash-storage
+Project-URL: Repository, https://github.com/yourusername/flash-storage
+Keywords: git,lfs,cloudinary,google-drive,media,storage,cloud,backup
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: cloudinary>=1.36.0
+Requires-Dist: requests>=2.28.0
+Requires-Dist: click>=8.1.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: google-auth>=2.16.0
+Requires-Dist: google-auth-oauthlib>=1.0.0
+Requires-Dist: google-auth-httplib2>=0.1.0
+Requires-Dist: google-api-python-client>=2.80.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: black>=22.0.0; extra == "dev"
+Requires-Dist: flake8>=5.0.0; extra == "dev"
+Dynamic: license-file
+
+# Flash Storage
+
+**Multi-cloud storage manager with automatic fallback for Git LFS**
+
+Store your large files in **Cloudinary** or **Google Drive** with intelligent automatic fallback. Perfect for Git LFS workflows, backups, and managing binary assets.
+
+[![PyPI version](https://badge.fury.io/py/flash-storage.svg)](https://badge.fury.io/py/flash-storage)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## ✨ Features
+
+- 🌩️ **Dual Cloud Support**: Cloudinary + Google Drive
+- 🔄 **Automatic Fallback**: Seamlessly switches when storage is full
+- 🎯 **Smart Primary Storage**: Choose your preferred cloud, auto-fallback to the other
+- 🚀 **Simple API**: Clean Python library and CLI
+- 🔒 **Secure**: OAuth 2.0 for Google Drive, secure credential storage
+- 📦 **Git LFS Ready**: Works as a custom transfer agent
+- 🆓 **Free Tiers**: Cloudinary (25GB) + Google Drive (15GB)
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+pip install flash-storage
+```
+
+### Setup
+
+```bash
+# Configure Cloudinary
+flash setup
+
+# Configure Google Drive (optional, for fallback)
+flash setup-gdrive
+
+# Set your primary storage
+flash set-primary cloudinary  # or 'gdrive'
+```
+
+### Basic Usage
+
+```bash
+# Upload a file (automatic fallback if primary is full)
+flash push myfile.psd
+
+# Download it back
+flash pull myfile.psd
+
+# Check status
+flash status
+```
+
+## 📚 Usage
+
+### Command Line
+
+```bash
+# Upload files
+flash push design.sketch
+flash push video.mp4 -m "Add new video"
+
+# Download files
+flash pull design.sketch
+
+# Switch primary storage
+flash set-primary gdrive
+
+# Check configuration
+flash status
+```
+
+### Python Library
+
+```python
+from flash_storage import flash as fs
+
+# Setup (one-time)
+fs.setup("cloud-name", "api-key", "api-secret")
+
+# Upload
+result = fs.push("myfile.psd")
+print(f"Uploaded to: {result['storage']}")  # 'cloudinary' or 'gdrive'
+print(f"URL: {result['url']}")
+
+# Download
+fs.pull("myfile.psd")
+
+# Check if exists
+if fs.exists("myfile.psd"):
+    print("File is in cloud storage!")
+
+# Get file info
+info = fs.info("myfile.psd")
+print(f"Storage: {info['storage_location']}")
+print(f"Size: {info['size']} bytes")
+```
+
+## 🎯 How It Works
+
+**Smart Storage Selection:**
+1. Tries **primary storage** first (Cloudinary or Google Drive)
+2. If full → **automatically** uploads to secondary storage
+3. On next upload → tries primary again (in case you freed up space)
+
+**Example Flow:**
+```
+Primary: Cloudinary, Fallback: Google Drive
+
+Upload 1 → Cloudinary ✓
+Upload 2 → Cloudinary ✓
+Upload 3 → Cloudinary FULL → Google Drive ✓ (automatic)
+Upload 4 → Tries Cloudinary again → Still full → Google Drive ✓
+[You delete files from Cloudinary]
+Upload 5 → Cloudinary ✓ (back to primary automatically)
+```
+
+## 🔧 Configuration
+
+### Cloudinary Setup
+
+1. Sign up at [cloudinary.com](https://cloudinary.com/) (free tier: 25GB)
+2. Get your credentials from the dashboard
+3. Run: `flash setup`
+
+### Google Drive Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project and enable **Google Drive API**
+3. Create **OAuth 2.0 Client ID** (Desktop app)
+4. Run: `flash setup-gdrive`
+5. First upload will open browser for OAuth authorization
+
+### Storage Priority
+
+```bash
+# Set Cloudinary as primary (default)
+flash set-primary cloudinary
+
+# Set Google Drive as primary
+flash set-primary gdrive
+```
+
+Configuration is stored in `~/.flash-storage/`
+
+## 📖 Advanced Usage
+
+### Batch Upload Script
+
+```python
+from pathlib import Path
+from flash_storage import flash as fs
+
+# Upload all PSD files
+for file in Path("designs").glob("*.psd"):
+    result = fs.push(str(file))
+    print(f"✓ {file.name} → {result['storage']}")
+```
+
+### Conditional Storage
+
+```python
+from flash_storage.config import CloudinaryConfig
+
+config = CloudinaryConfig()
+
+# Large files → Google Drive
+file_size = Path("video.mp4").stat().st_size
+if file_size > 100 * 1024 * 1024:  # > 100MB
+    config.set_primary_storage('gdrive')
+
+# Upload (will use Google Drive as primary)
+fs.upload("video.mp4")
+```
+
+### Web API Integration
+
+```python
+from flask import Flask, request
+from flash_storage import flash as fs
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    file = request.files['file']
+    file.save('/tmp/upload')
+
+    result = fs.upload('/tmp/upload')
+    return {
+        'storage': result['storage'],
+        'oid': result['oid'],
+        'size': result['size']
+    }
+```
+
+## 🔄 Git LFS Integration
+
+Flash Storage can act as a Git LFS custom transfer agent:
+
+```bash
+# Initialize in your repo
+flash init
+
+# Track files with Git LFS
+git lfs track "*.psd"
+git lfs track "*.mp4"
+
+# Files automatically upload to your configured storage
+git add design.psd
+git commit -m "Add design"
+git push
+```
+
+## 💡 Use Cases
+
+- **Design Teams**: Store large Photoshop/Sketch files
+- **Video Projects**: Manage video files with Git
+- **Data Science**: Version control datasets and models
+- **Game Development**: Store game assets and builds
+- **Backup Solution**: Automatic cloud backup with fallback
+- **Build Artifacts**: Store compilation outputs
+
+## 🆓 Free Storage Limits
+
+| Service | Free Storage | Free Bandwidth | Notes |
+|---------|-------------|----------------|-------|
+| **Cloudinary** | 25GB | 25GB/month | Plus image transformations |
+| **Google Drive** | 15GB | Unlimited | Shared with Gmail/Photos |
+| **Combined** | **40GB** | Great for small-medium projects |
+
+## 📋 Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `flash setup` | Configure Cloudinary credentials |
+| `flash setup-gdrive` | Configure Google Drive OAuth |
+| `flash set-primary <storage>` | Set primary storage (cloudinary/gdrive) |
+| `flash push <file>` | Upload file to cloud storage |
+| `flash pull <file>` | Download file from cloud storage |
+| `flash upload <file>` | Upload without replacing local file |
+| `flash status` | Show configuration and storage status |
+| `flash init` | Initialize Git LFS integration |
+
+## 🛠️ Requirements
+
+- Python 3.8+
+- Git LFS (optional, for Git integration)
+- Cloudinary account (free tier available)
+- Google Cloud project (optional, for Google Drive)
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 🔗 Links
+
+- [PyPI Package](https://pypi.org/project/flash-storage/)
+- [Cloudinary](https://cloudinary.com/)
+- [Google Drive API](https://developers.google.com/drive)
+- [Git LFS](https://git-lfs.github.com/)
+
+## 🙏 Credits
+
+Built with:
+- [Cloudinary Python SDK](https://github.com/cloudinary/pycloudinary)
+- [Google Drive API](https://developers.google.com/drive/api/v3/about-sdk)
+- [Click](https://click.palletsprojects.com/)
+
+---
+
+**Made with ⚡ by the Flash Storage team**
