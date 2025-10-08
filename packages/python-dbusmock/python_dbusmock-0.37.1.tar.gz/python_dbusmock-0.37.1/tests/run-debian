@@ -1,0 +1,45 @@
+#!/bin/sh
+set -eux
+
+# go-faster apt
+echo  'Acquire::Languages "none";' > /etc/apt/apt.conf.d/90nolanguages
+
+# upgrade
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y eatmydata
+eatmydata apt-get -y --purge dist-upgrade
+
+# install build dependencies
+eatmydata apt-get install --no-install-recommends -y git \
+    python3-all python3-setuptools python3-setuptools-scm python3-build python3-venv \
+    python3-dbus python3-pytest python3-gi gir1.2-glib-2.0 \
+    dbus libnotify-bin upower network-manager bluez ofono ofono-scripts power-profiles-daemon
+
+# systemd's tools otherwise fail on "not been booted with systemd"
+mkdir -p /run/systemd/system
+
+# run build and test as user
+useradd build
+su -s /bin/sh - build << EOF || { [ -z "$DEBUG" ] || sleep infinity; exit 1; }
+set -ex
+export SKIP_STATIC_CHECKS="$SKIP_STATIC_CHECKS"
+cp -r $(pwd) /tmp/source
+cd /tmp/source
+python3 -m unittest -v
+python3 -m pytest -vv -k 'test_pytest or TestAPI'
+# massively parallel test to check for races
+for i in \$(seq 100); do
+    ( PYTHONPATH=. python3 tests/test_api.py TestTemplates || touch /tmp/fail ) &
+done
+wait
+[ ! -e /tmp/fail ]
+
+my_version=\$(git describe --abbrev=0)
+
+# test sdist with PyPA build
+python3 -m build --sdist
+tar --wildcards --strip-components=1 -xvf dist/python_dbusmock-\${my_version}*.tar.gz '*/PKG-INFO'
+grep "^Version: \${my_version}" PKG-INFO
+grep "^## Purpose" PKG-INFO
+EOF
