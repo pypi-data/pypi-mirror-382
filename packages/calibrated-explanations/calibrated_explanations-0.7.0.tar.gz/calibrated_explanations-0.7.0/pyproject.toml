@@ -1,0 +1,156 @@
+[build-system]
+requires = ["setuptools>=61.0,<75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "calibrated_explanations"
+version = "0.7.0"
+authors = [
+  { name="Helena Löfström", email="helena.lofstrom@ju.se" },
+  { name="Tuwe Löfström", email="tuwe.lofstrom@ju.se" },
+]
+description = "Extract calibrated explanations from machine learning models."
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+  'crepes',
+  'venn-abers',
+  'ipython',
+  'lime',
+  'matplotlib',
+  'numpy',
+  'pandas',
+  'scikit-learn',
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Documentation" = "https://calibrated-explanations.readthedocs.io/en/latest/?badge=latest"
+"Changelog" = "https://github.com/Moffran/calibrated_explanations/blob/main/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/Moffran/calibrated_explanations/issues"
+"Repository" = "https://github.com/Moffran/calibrated_explanations"
+
+[project.optional-dependencies]
+# Phase 2S: Optional extras (kept additive; core deps unchanged for compatibility)
+viz = [
+  "matplotlib",
+]
+lime = [
+  "lime",
+]
+notebooks = [
+  "ipython",
+  "jupyter",
+  "nbconvert",
+  "matplotlib",
+]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "mypy",
+  "jsonschema",
+  "pydocstyle",
+]
+eval = [
+  "shap",
+  "seaborn",
+]
+
+[project.scripts]
+"ce.plugins" = "calibrated_explanations.plugins.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+markers = [
+  "viz: tests that require visualization extras (matplotlib)",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+calibrated_explanations = ["py.typed", "schemas/*.json"]
+
+# ----------------------------
+# Tooling / Quality Gates (Phase 0)
+# ----------------------------
+[tool.ruff]
+target-version = "py38"
+line-length = 100
+extend-exclude = ["build", "dist", "benchmarks", "docs/_build", "notebooks", "scripts", "evaluation"]
+
+[tool.ruff.lint]
+select = [
+  "E",  # pycodestyle errors
+  "F",  # pyflakes
+  "I",  # isort
+  "B",  # bugbear
+  "C4", # comprehensions
+  "SIM",# simplify
+  "NPY",# NumPy
+  "S",  # security (bandit-like)
+  "N",  # pep8-naming
+]
+ignore = [
+  "E501",    # line length (managed by formatter)
+  "S101",    # use of assert (allowed in tests)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B", "I001"]
+"src/calibrated_explanations/core/calibrated_explainer.py" = ["I001", "UP006"]
+"src/calibrated_explanations/core/prediction_helpers.py" = ["I001", "UP006"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.pydocstyle]
+convention = "numpy"
+add-ignore = [
+  "D104",  # public package docstrings handled by module summaries
+]
+match-dir = "(?!tests|docs|benchmarks|notebooks|scripts|evaluation).*"
+match = "(?!test_).*\\.py"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+show_error_codes = true
+exclude = ["build", "benchmarks", "docs", "notebooks", "scripts", "evaluation"]
+# Keep mypy focused on explicitly provided files in CI and avoid following imports.
+follow_imports = "skip"
+check_untyped_defs = false
+
+# Phase 1B typing: keep permissive defaults; enable stricter checks per-module below.
+[[tool.mypy.overrides]]
+module = [
+  "calibrated_explanations.core.exceptions",
+  "calibrated_explanations.core.validation",
+  "calibrated_explanations.api.params",
+  "calibrated_explanations.core.prediction_helpers",
+]
+disallow_untyped_defs = true
+warn_return_any = true
+no_implicit_optional = true
+strict_equality = true
+check_untyped_defs = true
+
+[tool.bandit]
+skips = ["B101"]
+exclude = ["tests", "build", "benchmarks", "notebooks", "scripts", "docs", "dist", "evaluation"]
+
+[tool.codespell]
+ignore-words-list = "dataframe,nd"
+skip = "notebooks,scripts,evaluation,benchmarks,build,dist,*.lock,*.csv,*.json,*.png,*.jpg,*.gif,*.zip"
