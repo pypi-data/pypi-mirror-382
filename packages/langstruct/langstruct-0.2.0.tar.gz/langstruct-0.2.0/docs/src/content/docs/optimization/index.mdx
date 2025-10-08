@@ -1,0 +1,187 @@
+---
+title: Optimization
+description: Automatically improve extraction accuracy with simple optimization
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+Make your extraction more accurate with automatic optimization. LangStruct learns from your data to improve results without any manual prompt engineering.
+
+## The Easy Way
+
+**Create an extractor and call `optimize()` when you're ready:**
+
+```python
+from langstruct import LangStruct
+
+extractor = LangStruct(
+  example={
+    "name": "Dr. Sarah Johnson",
+    "age": 34,
+    "occupation": "data scientist"
+  }
+)
+
+# Later, once you have training data ready:
+# extractor.optimize(texts=training_texts, expected_results=good_results)
+```
+
+**Quick experiments (skip optimization entirely):**
+
+```python
+extractor = LangStruct(example={"name": "John", "age": 30})
+```
+
+## Optimizing with Training Data
+
+If you have examples of what good extraction looks like, run optimization explicitly:
+
+```python
+# Your training examples
+training_texts = [
+    "Dr. Sarah Johnson, 34, is a data scientist",
+    "Prof. Michael Chen, 45, teaches at MIT",
+    "Emma Wilson, 28, software engineer"
+]
+
+# What the results should look like
+good_results = [
+    {"name": "Dr. Sarah Johnson", "age": 34, "occupation": "data scientist"},
+    {"name": "Prof. Michael Chen", "age": 45, "occupation": "professor"},
+    {"name": "Emma Wilson", "age": 28, "occupation": "software engineer"}
+]
+
+# Train it to be better
+extractor.optimize(texts=training_texts, expected_results=good_results)
+
+# Now it's optimized for your specific use case
+result = extractor.extract("Jane Smith, 29, works as a designer")
+```
+
+## Optimizing with Confidence Scores
+
+Don't have labeled training data? No problem! You can optimize using just the texts and let LangStruct use the model's confidence scores:
+
+```python
+# Just provide the texts - no need for expected results
+training_texts = [
+    "Dr. Sarah Johnson, 34, is a data scientist",
+    "Prof. Michael Chen, 45, teaches at MIT",
+    "Emma Wilson, 28, software engineer",
+    "Dr. Lisa Park, 39, works in research",
+    "John Davis, 31, is a consultant"
+]
+
+# Optimize using confidence scores
+extractor.optimize(texts=training_texts)
+
+# The extractor learns from the patterns in your data
+result = extractor.extract("Jane Smith, 29, works as a designer")
+```
+
+**When to use this approach:**
+- You have lots of example texts but no labeled outputs
+- You want to improve extraction without manual annotation
+- You're exploring a new domain and need quick improvements
+
+**Note:** While confidence-based optimization works well, providing `expected_results` will give you better accuracy if you have the time to create them.
+
+## Reflective Optimization with GEPA
+
+When the baseline extractor completely fails—invalid JSON, missing fields, or 0 % accuracy—switch to the GEPA optimizer. GEPA pairs your fast extraction model with a stronger reflection model that studies the failures, rewrites instructions, and re-compiles the pipeline.
+
+- Start with Gemini 2.5 Flash Lite (fast) and use Gemini 2.5 Flash for reflections.
+- Even the `auto="light"` budget can move accuracy from 0 / 3 to 3 / 3, as shown in [`examples/07b_optimization_gepa.py`](https://github.com/langstruct-ai/langstruct/blob/main/examples/07b_optimization_gepa.py).
+- Learn the full reflective workflow in the [GEPA Optimization guide](/examples/gepa/).
+
+## How Much Better?
+
+Optimization can significantly improve accuracy on real-world tasks:
+
+<CardGrid>
+	<Card title="Before Optimization" icon="warning">
+		Baseline performance - may miss details or have inconsistent format
+	</Card>
+	<Card title="After Optimization" icon="approve-check">
+		Improved performance - better information capture and consistent formatting
+	</Card>
+</CardGrid>
+
+## Persisting Results
+
+Save and load optimized extractors to reuse them without re-running optimization:
+
+```python
+# Save after optimization
+extractor.save("./my_extractor")
+
+# Load later
+from langstruct import LangStruct
+loaded = LangStruct.load("./my_extractor")
+
+# Use immediately - optimization is preserved
+result = loaded.extract("new text")
+```
+
+> **Pay the optimization cost once.** GEPA (or MIPROv2) only runs when you call `optimize()`. After saving the compiled extractor, subsequent processes can load it instantly and skip the expensive optimization loop entirely.
+
+## Advanced (If You Need It)
+
+Most users don't need this, but if you want more control:
+
+```python
+# Fine-tune the optimization process
+extractor.optimize(
+    texts=training_texts,
+    expected_results=good_results,
+    validation_split=0.3  # Use 30% for testing improvements
+)
+```
+
+## Best Practices
+
+<CardGrid>
+	<Card title="Start Simple" icon="rocket">
+		Start without optimization for quick experiments, enable when you need accuracy
+	</Card>
+	<Card title="Quality Over Quantity" icon="star">
+		10 good training examples beats 100 poor ones
+	</Card>
+	<Card title="Test on Real Data" icon="approve-check">
+		Optimize with data similar to what you'll use in production
+	</Card>
+	<Card title="Save Your Work" icon="document">
+		Always save optimized extractors so you don't lose progress
+	</Card>
+</CardGrid>
+
+## Common Questions
+
+**Q: Do I always need training data?**
+A: You need example texts, but not necessarily expected outputs. If you don't provide `expected_results`, LangStruct uses the LLM's confidence ratings to optimize. Providing expected outputs significantly improves accuracy.
+
+**Q: How long does optimization take?**
+A: Usually 1-5 minutes for typical datasets (10-100 examples).
+
+**Q: Can I optimize an already optimized extractor?**
+A: Yes, you can continue optimizing with new data as you collect it.
+
+**Q: Will this make my extractions slower?**
+A: No - optimization happens once during training. Production extraction speed is unchanged.
+
+**Q: What happens when I switch models?**
+A: Change the model and re-optimize with the same training data. No prompt rewriting needed.
+
+## Next Steps
+
+<CardGrid>
+	<Card title="Try It Now" icon="laptop">
+		Create a LangStruct extractor and enable optimization when you need accuracy.
+	</Card>
+	<Card title="Source Grounding" icon="document">
+		[Track where information comes from](/source-grounding/)
+	</Card>
+	<Card title="Examples" icon="open-book">
+		[See optimization in real examples](/examples/)
+	</Card>
+</CardGrid>
