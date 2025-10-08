@@ -1,0 +1,74 @@
+{% extends "bank_transaction_bridge/base.html" %}
+{% load static %}
+{% block title %}
+    {% if selected_to_delete %}
+        Confirm deletion
+    {% else %}
+        List of transactions
+    {% endif %}
+{% endblock %}
+{% block body %}
+    {% include "bank_transaction_bridge/snippets/show_messages.html" %}
+    {% if items %}
+        <form method="post">
+            {% csrf_token %}
+            {% include "bank_transaction_bridge/snippets/delete_selected.html" with list_url="bank_transaction_bridge:transaction_list" %}
+            <div class="grid grid-cols-10 gap-4 font-semibold border-b pb-2 {% if selected_to_delete %}text-red-300{% endif %}">
+                <div class="col-span-2">Bank</div>
+                <div class="col-span-2">Date</div>
+                <div class="col-span-2">Participant</div>
+                <div class="col-span-2">Amount</div>
+                {% if not selected_to_delete %}
+                    <div></div>
+                    <div></div>
+                {% endif %}
+            </div>
+            {% for item in items %}
+                <div class="grid grid-cols-10 gap-4 py-2 border-b {% if selected_to_delete %}text-red-300{% endif %}">
+                    {% if selected_to_delete %}<input type="hidden" name="selected_item_ids" value={{ item.pk }}>{% endif %}
+                    <div class="col-span-2 overflow-auto whitespace-nowrap">
+                        {% if item.bank_account.alias %}
+                            {{ item.bank_account.alias }}
+                        {% else %}
+                            {{ item.bank_account.bank_name }}
+                        {% endif %}
+                    </div>
+                    <div class="col-span-2 overflow-auto whitespace-nowrap">{{ item.booking_date|date:"Y-m-d" }}</div>
+                    <div class="col-span-2 overflow-auto whitespace-nowrap">{{ item.payment_participant }}</div>
+                    <div class="col-span-2 overflow-auto whitespace-nowrap">{{ item.amount }} {{ item.currency }}</div>
+                    {% if not selected_to_delete %}
+                        <div>
+                            <input type="checkbox" name="items" value="{{ item.pk }}">
+                        </div>
+                        {% if item.connected_item %}
+                            <a class="btn btn-sm btn-circle"
+                               href="{{ item.connected_item.get_absolute_url }}">
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                     class="h-8 w-8 shrink-0 stroke-current"
+                                     fill="none"
+                                     viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </a>
+                        {% elif connected_item_class %}
+                            <button class="btn btn-sm btn-circle"
+                                    type="submit"
+                                    name="action"
+                                    value="create_connected_item_{{ item.pk }}">
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                     fill="none"
+                                     viewBox="0 0 24 24"
+                                     stroke-width="1"
+                                     class="h-8 w-8 shrink-0 stroke-current">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                </svg>
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </form>
+    {% else %}
+        <div>No transactions yet.</div>
+    {% endif %}
+{% endblock %}
