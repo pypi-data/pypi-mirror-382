@@ -1,0 +1,2 @@
+class TabbySetDiffFail(Exception):
+    pass
