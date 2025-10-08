@@ -1,0 +1,575 @@
+Metadata-Version: 2.4
+Name: dsf-aml-sdk
+Version: 1.0.21
+Summary: SDK for DSF Adaptive ML with Knowledge Distillation
+Home-page: https://github.com/jaimeajl/dsf-aml-sdk
+Author: api-dsfuptech
+Author-email: contacto@softwarefinanzas.com.co
+Keywords: dsf aml ml machine-learning distillation adaptive sdk
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.25.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# DSF AML SDK
+
+**Reduce ML training data requirements by 70-90% through adaptive evaluation and knowledge distillation. Train surrogate models 10-100x faster than traditional approaches.**
+
+## Why DSF AML?
+
+Traditional ML requires thousands of labeled examples and hours of training. DSF AML uses **adaptive formula evaluation** combined with **knowledge distillation** to create fast, lightweight models from domain expertise with minimal data requirements.
+
+---
+
+## Core Concepts
+
+Define weighted evaluation rules based on domain knowledge. The system learns from your data patterns (Enterprise) and can distill this knowledge into ultra-fast surrogate models (Professional+). Ideal for scenarios requiring real-time predictions or resource-constrained environments.
+
+**Note:** For non-linear adjustments, the backend expects `data['adjustments_values']` with format: `{field_name: {adj_name: value}}`
+
+---
+
+## Installation
+
+```bash
+pip install dsf-aml-sdk
+```
+
+**Custom Backend URL:**
+```python
+sdk = AMLSDK(base_url="https://your-app.vercel.app/", tier="community")
+```
+
+---
+
+## Configuration (Environment Variables)
+
+Professional and Enterprise tiers require license validation:
+
+```bash
+# Required for license validation
+export SUPABASE_URL="your_provided_url"
+export SUPABASE_ANON_KEY="your_provided_key"
+
+# Optional: Redis hot store (improves performance)
+export UPSTASH_REDIS_REST_URL="your_redis_url"
+export UPSTASH_REDIS_REST_TOKEN="your_redis_token"
+
+# Optional: Environment namespacing
+export REDIS_ENV_PREFIX="prod"  # Default: "prod"
+export API_VERSION="v1"          # Default: "v1"
+
+# Optional: Advanced configuration
+export ENABLE_LICENSE_FALLBACK="false"  # Allow fallback license parsing
+export REDIS_TTL_THRESHOLD_SECS="3600"  # TTL for threshold cache
+export REDIS_TTL_STATS_SECS="86400"     # TTL for statistics
+export REDIS_STATS_FLUSH_EVERY="10"     # Flush frequency
+```
+
+**Note:** Pipeline seeds are cached for 3600 seconds (1 hour) in Redis.
+
+**Local Development**: Create `.env` file:
+```
+SUPABASE_URL="your_provided_url"
+SUPABASE_ANON_KEY="your_provided_key"
+UPSTASH_REDIS_REST_URL="optional_redis_url"
+UPSTASH_REDIS_REST_TOKEN="optional_redis_token"
+```
+
+Load with `python-dotenv`:
+```python
+from dotenv import load_dotenv
+load_dotenv()
+
+from dsf_aml_sdk import AMLSDK
+```
+
+---
+
+## Quick Start
+
+### Community Edition
+
+```python
+from dsf_aml_sdk import AMLSDK
+
+sdk = AMLSDK()
+
+# Define domain rules
+config = (sdk.create_config()
+    .add_field('model_accuracy', default=0.95, weight=2.5, criticality=2.0)
+    .add_field('training_epochs', default=100, weight=1.8, criticality=1.5)
+    .add_field('validation_loss', default=0.05, weight=2.2, criticality=2.5)
+    .add_field('model_name', default='baseline', weight=1.0, string_floor=0.1)  # string_floor for strings
+)
+
+# Evaluate ML experiment
+experiment_data = {
+    'model_accuracy': 0.96,
+    'training_epochs': 105,
+    'validation_loss': 0.048
+}
+
+result = sdk.evaluate(experiment_data, config)
+print(f"Score: {result.score:.3f}")
+```
+
+### Professional Edition
+
+```python
+sdk = AMLSDK(license_key='PRO-2026-12-31-XXXX', tier='professional')
+
+# Batch evaluation with consistent keys
+experiments = [
+    {'model_accuracy': 0.92, 'training_epochs': 50, 'validation_loss': 0.08},
+    {'model_accuracy': 0.95, 'training_epochs': 100, 'validation_loss': 0.05},
+    {'model_accuracy': 0.97, 'training_epochs': 150, 'validation_loss': 0.03}
+]
+
+results = sdk.batch_evaluate(experiments, config)
+metrics = sdk.get_metrics()  # Works because evaluate was called with config
+```
+
+### Knowledge Distillation (Professional/Enterprise)
+
+**Currently Available:** Basic distillation with synthetic data generation.
+
+```python
+# Basic distillation is operational
+sdk = AMLSDK(license_key='PRO-2026-12-31-XXXX', tier='professional')
+
+config = {
+    'feature_importance': {'default': 0.8, 'weight': 2.0, 'criticality': 1.5},
+    'correlation_score': {'default': 0.7, 'weight': 1.8, 'criticality': 1.3}
+}
+
+# Coming Soon: translate_train, translate_export, translate_predict endpoints (v2.0+)
+# Current implementation uses synthetic generation for MVP
+
+# For now, use pipeline methods for data generation:
+seeds = sdk.pipeline_identify_seeds(dataset, config)
+variants = sdk.pipeline_generate_critical(config=config, original_dataset=dataset)
+```
+
+---
+
+## Pipeline 2-en-1: Data Reduction at Decision Boundaries
+
+Reduce dataset size by 70-90% while preserving critical information at decision boundaries:
+
+```python
+# Available for all tiers (identify_seeds) and Professional/Enterprise (full pipeline)
+sdk = AMLSDK(license_key='PRO-...', tier='professional')  # Optional for identify_seeds
+
+config = {
+    'accuracy': {'default': 0.9, 'weight': 2.5, 'criticality': 2.0},
+    'loss': {'default': 0.1, 'weight': 2.0, 'criticality': 1.5}
+}
+
+# 1. Identify informative seeds (Community/Professional/Enterprise)
+# Cached in Redis for 1 hour
+seeds_result = sdk.pipeline_identify_seeds(
+    dataset=training_data,
+    config=config,
+    top_k_percent=0.1,  # Top 10% most uncertain
+    max_seeds_preview=10  # Preview limit
+)
+print(f"Found {seeds_result['seeds_count']} informative samples")
+
+# 2. Generate critical variants (Professional/Enterprise only)
+# Seeds retrieved from cache automatically if not provided
+# Vectors for deduplication generated automatically if not provided
+variants_result = sdk.pipeline_generate_critical(
+    config=config,
+    original_dataset=training_data,  # REQUIRED for non-critical mixing
+    # seeds=custom_seeds,  # Optional: uses cache if not provided
+    # vectors_for_dedup=None,  # Optional: auto-generated if not provided
+    k_variants=5,          # Variants per seed
+    epsilon=0.05,          # Critical band width (auto-tuned based on acceptance rate)
+    non_critical_ratio=0.15,  # Mix ratio
+    diversity_threshold=0.95,  # De-dup threshold
+    max_seeds_to_process=100   # Processing limit
+)
+print(f"Generated {variants_result['total_generated']} samples")
+print(f"Balance ratio: {variants_result['balance_ratio']:.2f}")
+print(f"Acceptance rate: {variants_result['avg_acceptance_rate']:.2%}")
+
+# 3. Full automatic cycle (Professional/Enterprise) - COMING SOON
+# Note: Requires backend v2.0+ with pipeline_full_cycle endpoint
+result = sdk.pipeline_full_cycle(
+    dataset=training_data,
+    config=config,
+    max_iterations=5,
+    top_k_percent=0.1,
+    epsilon=0.05
+)
+# Implementation pending - check release notes
+```
+
+**Auto-tuning (Professional/Enterprise):** The system automatically adjusts `epsilon` based on previous acceptance rate:
+- If rate < 1%: increases epsilon by +0.02 (max 0.25)
+- If rate > 30%: decreases epsilon by -0.02 (min 0.02)
+- History stored in Redis for 1 hour at key `acc_rate:{license}` with format: `{'rate': float, 'timestamp': int}`
+
+---
+
+## Curriculum Learning (Professional/Enterprise) - COMING SOON
+
+**Note:** Requires backend v2.0+ with curriculum endpoints. Current implementation pending.
+
+```python
+# Feature preview - not yet available
+sdk = AMLSDK(license_key='PRO-...', tier='professional')
+
+# Initialize curriculum session
+init_result = sdk.curriculum_init(
+    dataset=training_data,
+    config=config,
+    top_k_percent=0.1
+)
+
+# Execute curriculum steps
+step_result = sdk.curriculum_step(
+    dataset=current_data,
+    config=config,
+    save_dataset=True
+)
+
+# Check curriculum status
+status = sdk.curriculum_status()
+```
+
+Check release notes for availability.
+
+---
+
+## Non-Linear Evaluation Mode
+
+Apply context-aware adjustments to evaluation (available in all tiers with `formula_mode='nonlinear'`):
+
+```python
+# Define base config and adjustment weights
+config = {
+    'performance': {'default': 0.85, 'weight': 2.0},
+    'latency': {'default': 100, 'weight': 1.5}
+}
+
+# Define adjustments (λ weights)
+adjustments = {
+    'new_customer_bonus': 0.5,
+    'peak_hours_penalty': 0.3
+}
+
+# Context-specific values per field
+# Backend expects 'adjustments_values' in data
+adjustment_values = {
+    'performance': {
+        'new_customer_bonus': 0.1,  # +10% bonus
+        'peak_hours_penalty': -0.05  # -5% penalty
+    }
+}
+
+result = sdk.evaluate_nonlinear(
+    data={'performance': 0.87, 'latency': 95},
+    config=config,
+    adjustments=adjustments,
+    adjustment_values=adjustment_values  # SDK packages as data['adjustments_values']
+)
+print(f"Adjusted score: {result.score:.3f}")
+```
+
+---
+
+## Context Manager Pattern
+
+```python
+with AMLSDK(license_key='...', tier='enterprise') as sdk:
+    result = sdk.evaluate(data, config)
+    distill_result = sdk.distill_train(config, samples=1000)
+    # Automatic cleanup
+```
+
+---
+
+## Error Handling
+
+```python
+from dsf_aml_sdk import AMLSDK, LicenseError, ValidationError
+
+try:
+    sdk = AMLSDK(license_key='invalid', tier='enterprise')
+    result = sdk.distill_train(config, samples=1000)
+    
+except LicenseError:
+    print("Invalid license - falling back to community")
+    sdk = AMLSDK()  # Fallback to community
+    
+except ValidationError as e:
+    print(f"Invalid config: {e}")
+
+# get_metrics requires prior evaluation
+try:
+    metrics = sdk.get_metrics()
+except ValidationError:
+    # Must evaluate first with valid config
+    sdk.evaluate(data, config)
+    metrics = sdk.get_metrics()  # Now works
+```
+
+---
+
+## Tier Comparison
+
+| Feature                       | Community | Professional | Enterprise |
+|-------------------------------|-----------|--------------|------------|
+| **Single evaluation**         | ✅        | ✅          | ✅         |
+| **Batch evaluation**          | ❌        | ✅          | ✅         |
+| **Adaptive thresholds**       | ❌        | ✅          | ✅         |
+| **Performance metrics**       | ❌        | ✅          | ✅ Enhanced|
+| **Weight adjustment**         | ❌        | ✅ Light    | ✅ Full Auto|
+| **pipeline_identify_seeds**   | ✅        | ✅          | ✅         |
+| **pipeline_generate_critical**| ❌        | ✅          | ✅         |
+| **pipeline_full_cycle**       | ❌        | ✅          | ✅         |
+| **Curriculum Learning**       | ❌        | ✅          | ✅         |
+| **Non-linear evaluation**     | ✅ Basic  | ✅          | ✅ Advanced|
+| **Knowledge distillation**    | ❌        | ✅          | ✅         |
+| **Surrogate models**          | ❌        | ✅          | ✅         |
+| **Model export**              | ❌        | ✅          | ✅         |
+| **Redis hot store**           | ❌        | ✅          | ✅         |
+| **Auto-tuning**               | ❌        | ✅          | ✅         |
+| **Support**                   | Community  | Email       | Priority SLA|
+
+---
+
+## Enterprise Features
+
+### Full Weight Auto-Calibration
+
+```python
+sdk = AMLSDK(tier='enterprise', mode='temporal_forgetting')
+
+# Enterprise: Full magnitude-based weight calibration with Redis persistence
+# Professional: Light weight adjustments (±10% based on similarity)
+
+for batch in data_batches:
+    results = sdk.batch_evaluate(batch, config)
+    
+# View adaptations
+metrics = sdk.get_metrics()
+print(f"Weight changes: {metrics['weight_changes']}")  # Enterprise only
+print(f"Adjusted fields: {metrics['adjusted_fields']}")  # Enterprise only
+```
+
+### Knowledge Distillation Performance
+
+```python
+# Available for Professional AND Enterprise tiers
+sdk = AMLSDK(license_key='PRO-...', tier='professional')
+
+# Performance comparison
+import time
+
+# Full evaluation
+start = time.time()
+score_full = sdk.evaluate(data, config)
+full_time = time.time() - start
+
+# Surrogate prediction (after training)
+sdk.distill_train(config, samples=1000)
+start = time.time()
+score_surrogate = sdk.distill_predict(data, config)
+surrogate_time = time.time() - start
+
+print(f"Full: {full_time:.4f}s, Surrogate: {surrogate_time:.6f}s")
+print(f"Speedup: {full_time/surrogate_time:.1f}x")
+```
+
+---
+
+## API Reference
+
+### AMLSDK
+
+**Initialization:**
+```python
+AMLSDK(tier='community', license_key=None, mode='standard')
+```
+
+**Evaluation Methods:**
+- `evaluate(data, config)` - Single evaluation (saves config internally)
+- `batch_evaluate(data_points, config)` - Batch processing (Pro/Enterprise)
+- `evaluate_nonlinear(data, config, adjustments, adjustment_values)` - Non-linear mode
+- `get_metrics()` - Performance stats (Pro/Enterprise, requires prior evaluation)
+
+**Pipeline Methods:**
+- `pipeline_identify_seeds(dataset, config, top_k_percent=0.1, max_seeds_preview=10)` - Find informative samples (All tiers)
+- `pipeline_generate_critical(config, original_dataset, seeds=None, **kwargs)` - Generate variants (Pro/Enterprise)
+  - Parameters: `k_variants`, `epsilon`, `non_critical_ratio`, `diversity_threshold`, `max_seeds_to_process`
+  - Auto-generates vectors if not provided
+  - Auto-retrieves seeds from cache if not provided
+- `pipeline_full_cycle(dataset, config, max_iterations=5, **kwargs)` - **COMING SOON v2.0+**
+
+**Curriculum Methods (Pro/Enterprise) - COMING SOON v2.0+:**
+- `curriculum_init(dataset, config, **params)` - Initialize session
+- `curriculum_step(dataset, config, save_dataset=False, precomputed_metrics=None)` - Execute iteration
+- `curriculum_status()` - Check progress
+
+**Distillation Methods (Professional/Enterprise) - COMING SOON v2.0+:**
+- `distill_train(config, samples=1000, seed=42)` - Train surrogate model
+- `distill_export(config=None)` - Export model artifact
+- `distill_predict(data, config)` - Fast inference with surrogate
+
+### Configuration Parameters
+
+**Field configuration:**
+- `default`: Reference value for similarity calculation
+- `weight`: Importance of field (0.0-5.0)
+- `criticality`: Sensitivity factor (0.0-5.0)
+- `string_floor`: Minimum similarity for string mismatch (0.0-1.0, default 0.1)
+
+### Pipeline Parameters
+
+**Critical generation parameters:**
+- `top_k_percent` (0.0-1.0): Fraction of most uncertain samples to use as seeds
+- `k_variants` (int): Number of variant pairs per seed
+- `epsilon` (float): Width of critical band around threshold (auto-tuned)
+- `non_critical_ratio` (0.0-0.5): Fraction of non-critical samples to mix
+- `diversity_threshold` (0.0-1.0): Cosine similarity threshold for de-duplication
+- `max_seeds_to_process` (int): Maximum seeds to process per iteration
+- `vectors_for_dedup` (optional): Pre-computed vectors (auto-generated if not provided)
+
+---
+
+## Use Cases
+
+### ML Experiment Tracking
+
+```python
+config = {
+    'train_accuracy': {'default': 0.92, 'weight': 2.0},
+    'val_accuracy': {'default': 0.88, 'weight': 2.5},
+    'train_loss': {'default': 0.1, 'weight': 1.8},
+    'overfitting_gap': {'default': 0.04, 'weight': 2.2}
+}
+
+# Score experiment quality
+result = sdk.evaluate(experiment_metrics, config)
+```
+
+### Model Selection with Data Reduction
+
+```python
+config = {
+    'accuracy': {'default': 0.90, 'weight': 2.5},
+    'inference_time_ms': {'default': 100, 'weight': 2.0},
+    'model_size_mb': {'default': 50, 'weight': 1.5}
+}
+
+# Reduce dataset focusing on decision boundaries
+result = sdk.pipeline_full_cycle(
+    dataset=full_training_data,
+    config=config,
+    max_iterations=3
+)
+
+# Use metrics to validate reduction quality
+print(f"Achieved {result['reduction_ratio']:.1%} reduction")
+print(f"{result['avg_in_band']:.1%} samples in critical band")
+```
+
+---
+
+## Performance Benefits
+
+### Data Efficiency
+- Traditional ML: Requires 10,000+ labeled examples
+- DSF AML: Effective with 100-1,000 examples + domain rules
+- Pipeline 2-en-1: 70-90% data reduction maintaining accuracy
+
+### Training Speed
+- Full evaluation: ~10-50ms per sample
+- Surrogate model: ~0.1-0.5ms per sample (10-100x faster)
+- Pipeline processing: Focuses compute on critical regions only
+
+### Deployment Size
+- Traditional models: 100MB-10GB
+- Surrogate models: <1KB (weights + bias)
+- Reduced datasets: 10-30% of original size
+
+---
+
+## FAQ
+
+**Q: How accurate are surrogate models?**  
+A: Typical MAE of 0.01-0.05 on normalized scores. Quality improves with more training samples.
+
+**Q: What is Pipeline 2-en-1?**  
+A: Combines filtering (identifying decision boundaries) with generation (creating synthetic samples at boundaries) to reduce dataset size while preserving critical information.
+
+**Q: Why does get_metrics() fail with "Config is required"?**  
+A: You must first call `evaluate()` or `batch_evaluate()` with a valid config. The SDK saves the last used config internally.
+
+**Q: How does epsilon auto-tuning work?**  
+A: Professional/Enterprise tiers automatically adjust epsilon based on the acceptance rate from the previous generation (stored 1h in Redis).
+
+**Q: Do I need to generate vectors for deduplication?**  
+A: No, if you don't provide `vectors_for_dedup`, the system generates them automatically using field similarities.
+
+**Q: Why doesn't pipeline_full_cycle return the dataset?**  
+A: To avoid large response sizes. Use `curriculum_step` with `save_dataset=True` to persist datasets in Redis for retrieval.
+
+**Q: How long are pipeline seeds cached?**  
+A: Seeds from `pipeline_identify_seeds` are cached for 3600 seconds (1 hour) in Redis.
+
+**Q: Can Community tier use pipeline_identify_seeds?**  
+A: Yes, `pipeline_identify_seeds` is available for all tiers. Only `pipeline_generate_critical` and `pipeline_full_cycle` require Professional/Enterprise.
+
+**Q: Does Professional tier have access to distillation?**  
+A: Yes, both Professional and Enterprise tiers have full access to knowledge distillation features.
+
+---
+
+## Support
+
+- **Documentation:** https://docs.dsf-aml.ai
+- **Issues:** https://github.com/dsf-aml/sdk/issues
+- **Enterprise Support:** contacto@softwarefinanzas.com.co
+
+---
+
+## Licensing
+
+**Professional:** $299/month or $2,999/year  
+**Enterprise:** Custom pricing (includes full auto-calibration)
+
+Contact: contacto@softwarefinanzas.com.co
+
+**License format:**
+- `PRO-YYYY-MM-DD-XXXX-XXXX`
+- `ENT-YYYY-MM-DD-XXXX-XXXX`
+
+---
+
+## License
+
+MIT for Community Edition. Professional/Enterprise subject to commercial terms.
+
+© 2025 DSF AML SDK. Adaptive ML powered by Knowledge Distillation.
