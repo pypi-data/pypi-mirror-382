@@ -1,0 +1,216 @@
+networks:
+  {{ stack_name }}_network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
+    name: ${CONTAINER_NETWORK_NAME}
+    ipam:
+      driver: default
+      config:
+        - subnet: ${CONTAINER_NETWORK_SUBNET}
+
+services:
+
+  {{ stack_name }}-proxy:
+    command: ["supervisord"]
+    container_name: {{ stack_name }}-proxy
+    build:
+      context: ./mounts/proxy/
+      args:
+        ARCH: {{ arch }}
+    restart: on-failure
+    environment:
+        COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
+    volumes:
+      - ./mounts/proxy/certs/self/:/etc/nginx/ssl
+      - ./mounts/proxy/scripts/nginx.sh:/scripts/nginx.sh
+      - ./mounts/proxy/templates/:/templates
+      - ./mounts/proxy/files/supervisord.conf:/etc/supervisord.conf
+      - {{ project_manifests_dir }}:/projects
+      - ./.env:/.env
+    ports:
+      - '80:80'
+      - '443:443'
+    networks:
+      {{ stack_name }}_network:
+  {% if mysql %}
+  {{ stack_name }}-mysql:
+    container_name: {{ stack_name }}-mysql
+    image: mysql:8
+    command: --max_allowed_packet=67108864
+    environment:
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ALLOW_EMPTY_PASSWORD: true
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - ./src/mysql/local-data:/var/lib/mysql:delegated
+      - ./mounts/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - '13306:3306'
+    networks:
+      {{ stack_name }}_network:
+  {% endif %}
+  {% if postgres %}
+  {{ stack_name }}-postgres:
+    container_name: {{ stack_name }}-postgres
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./src/postgres/local-data:/var/lib/postgresql/data
+      - ./mounts/postgres/:/docker-entrypoint-initdb.d
+    ports:
+      - '15432:5432'
+    networks:
+      {{ stack_name }}_network:
+  {% endif %}
+  {% if redis %}
+  {{ stack_name }}-redis:
+    container_name: {{ stack_name }}-redis
+    image: redis:7-alpine
+    volumes:
+      - ./src/redis/local-data:/data
+    ports:
+      - 16379:6379
+    networks:
+      {{ stack_name }}_network:
+  {% endif %}
+  {% if memcached %}
+  {{ stack_name }}-memcached:
+    container_name: {{ stack_name }}-memcached
+    image: memcached:1.6
+    volumes:
+      - ./src/memcached/local-data:/data
+    ports:
+      - 21211:11211
+    networks:
+      {{ stack_name }}_network:
+  {% endif %}
+  {% if chroma %}
+  {{ stack_name }}-chroma:
+    container_name: {{ stack_name }}-chroma
+    image: chromadb/chroma
+    volumes:
+      - ./src/chroma/local-data:/chroma/chroma
+    ports:
+      - 18000:8000
+    networks:
+      {{ stack_name }}_network:
+  {% endif %}
+  {% if opensearch %}
+  {{ stack_name }}-opensearch:
+    container_name: {{ stack_name }}-opensearch
+    image: opensearchproject/opensearch:2.18.0
+    volumes:
+        - ./src/opensearch/local-data:/usr/share/opensearch/data
+    environment:
+        - node.name={{ stack_name }}-opensearch
+        - discovery.type=single-node
+        - bootstrap.memory_lock=true
+        - plugins.security.disabled=true
+        - "OPENSEARCH_JAVA_OPTS=-Xms128m -Xmx512m"
+        - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${DB_ROOT_PASSWORD}
+        - DISABLE_INSTALL_DEMO_CONFIG=true
+        - plugins.security.ssl.http.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+        - 19200:9200
+    networks:
+        {{ stack_name }}_network:
+  {% endif %}
+  {% if mongodb %}
+  {{ stack_name }}-mongo:
+    image: mongo:8
+    container_name: {{ stack_name }}-mongo
+    restart: always
+    ports:
+      - "37017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./src/mongodb/local-data:/data/db
+    networks:
+      {{ stack_name }}_network:
+
+  {{ stack_name }}mongo-express:
+    image: mongo-express
+    container_name: {{ stack_name }}-mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${DB_PASSWORD}
+      ME_CONFIG_MONGODB_URL: mongodb://${DB_USERNAME}:${DB_PASSWORD}@{{ stack_name }}-mongo:27017/
+      ME_CONFIG_BASICAUTH: false
+    networks:
+      {{ stack_name }}_network:
+  {% endif %}
+  {% if kafka %}
+  {{ stack_name }}-kafka:
+    container_name: {{ stack_name }}-kafka
+    image: apache/kafka:3.9.0
+    ports:
+      - "29092:9092"
+      - "29093:9093"
+    environment:
+      # Listeners
+      KAFKA_LISTENERS: BROKER://{{ stack_name }}-kafka:9092,CONTROLLER://{{ stack_name }}-kafka:9093,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: BROKER://{{ stack_name }}-kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+
+      # KRaft configuration
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@{{ stack_name }}-kafka:9093'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+
+      # Other settings
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: {{ stack_name }}-kafka
+    volumes:
+      - ./src/kafka/local-data:/var/lib/kafka/data
+    networks:
+      {{ stack_name }}_network:
+  {% endif %}
+  {% if rabbitmq %}
+  {{ stack_name }}-rabbitmq:
+    container_name: {{ stack_name }}-rabbitmq
+    image: rabbitmq:3.8-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${DB_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${DB_PASSWORD}
+    ports:
+      - "25672:5672"
+      - "15672:15672"
+    volumes:
+      - ./src/rabbitmq/local-data:/var/lib/rabbitmq
+    networks:
+      {{ stack_name }}_network:
+  {% endif %}
+  {% if localstack %}
+  {{ stack_name }}-localstack:
+    image: localstack/localstack
+    container_name: {{ stack_name }}-localstack
+    restart: always
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3,sqs,ses
+    volumes:
+      - ./src/localstack/local-data:/var/lib/localstack
+    networks:
+      {{ stack_name }}_network:
+  {% endif %}
