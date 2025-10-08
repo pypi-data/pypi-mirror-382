@@ -1,0 +1,49 @@
+name: Pages
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  actions: write
+  contents: write
+  pages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for mike to work properly
+      - name: Configure Git Credentials
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+      - uses: actions/cache@v4
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+      - name: Install dependencies
+        run: pip install mike mkdocs-material mkdocstrings[python]
+      - name: Deploy documentation
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Deploy versioned docs for tags
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"  # Remove 'v' prefix
+            mike deploy --push --update-aliases $VERSION latest
+            mike set-default --push latest
+          else
+            # Deploy dev docs for main branch
+            mike deploy --push dev
+          fi
