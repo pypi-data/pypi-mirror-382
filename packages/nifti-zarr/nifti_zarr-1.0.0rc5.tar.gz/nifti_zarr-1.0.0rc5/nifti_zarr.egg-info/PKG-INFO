@@ -1,0 +1,165 @@
+Metadata-Version: 2.4
+Name: nifti-zarr
+Version: 1.0.0rc5
+Summary: Nifti-Zarr conversion tools in Python
+Author-email: Yael Balbastre <y.balbastre@ucl.ac.uk>
+Maintainer-email: Kaidong Chai <kchai1@mgh.harvard.edu>
+License: MIT License
+        
+        Copyright (c) 2024-2025 Yael Balbastre, Kaidong Chai
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/neuroscales/nifti-zarr-py
+Project-URL: Issues, https://github.com/neuroscales/nifti-zarr-py/issues
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Intended Audience :: Science/Research
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: zarr>=2
+Requires-Dist: nibabel>=3
+Requires-Dist: dask[array]>=2020
+Requires-Dist: numpy>=1.18
+Requires-Dist: numcodecs>=0.10.0
+Requires-Dist: scikit-image>=0.19.2
+Requires-Dist: packaging>=19.0
+Provides-Extra: http
+Requires-Dist: nibabel>=5; extra == "http"
+Requires-Dist: fsspec[http]; extra == "http"
+Provides-Extra: s3
+Requires-Dist: nibabel>=5; extra == "s3"
+Requires-Dist: fsspec[s3]; extra == "s3"
+Provides-Extra: test
+Requires-Dist: pooch; extra == "test"
+Requires-Dist: jsonschema; extra == "test"
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: jsondiff; extra == "test"
+Dynamic: license-file
+
+# Example implementation of the nifti-zarr specification in Python
+
+## Installation
+
+```shell
+pip install nifti-zarr
+```
+
+## Python API
+
+Convert a nifti file to a nifti-zarr storage.
+
+```python
+from niizarr import nii2zarr
+nii2zarr("path/to/nifti.nii.gz", "s3://path/to/bucket")
+```
+
+Convert a nifti-zarr storage to a nifti file.
+The pyramid level can be selected with `level=L`, where 0 is the base/finest level.
+
+```python
+from niizarr import zarr2nii
+zarr2nii("s3://path/to/bucket", "path/to/nifti.nii.gz", level=0)
+```
+
+Load a nifti-zarr into a `nibabel.Nifti1Image` object.
+
+```python
+from niizarr import zarr2nii
+nivol = zarr2nii("s3://path/to/bucket", level=0)
+```
+
+## Command Line Interface
+
+### NIfTI to NIfTI-Zarr
+
+```text
+usage: nii2zarr [-h]
+                [--chunk CHUNK]
+                [--unchunk-channels]
+                [--unchunk-time]
+                [--levels LEVELS]
+                [--method {gaussian,laplacian}]
+                [--fill FILL]
+                [--compressor {blosc,zlib}]
+                [--label]
+                [--no-label]
+                [--no-time]
+                [--no-pyramid-axis {x,y,z}]
+                [--zarr-version {2,3}]
+                [--ome-version {0.4,0.5}]
+                input [output]
+
+Convert nifti to nifti-zarr.
+
+positional arguments:
+  input                         Input nifti file.
+  output                        Output zarr directory.
+                                When not specified, write to input directory.
+
+optional arguments:
+  -h, --help                    Show this help message and exit.
+  --chunk CHUNK                 Spatial chunk size.
+  --unchunk-channels            Save all chanels in a single chunk.
+                                Unchunk if you want to display all channels
+                                as a single RGB layer in neuroglancer.
+                                Chunked by default, unless datatype is RGB.
+  --unchunk-time                Save all timepoints in a single chunk.
+                                Unchunk if you want to display all timepoints
+                                as a single RGB layer in neuroglancer.
+                                Chunked by default.
+  --levels LEVELS               Number of levels in the pyramid.
+                                If -1 (default), use as many levels as possible.
+  --method {gaussian,laplacian} Pyramid method.
+  --fill FILL                   Missing value.
+  --compressor {blosc,zlib}     Compressor.
+  --label                       Segmentation volume.
+  --no-label                    Not a segmentation volume.
+  --no-time                     No time dimension.
+  --no-pyramid-axis {x,y,z}     Thick slice axis that should not be downsampled.
+  --zarr-version {2,3}          Zarr format version.
+  --ome-version {0.4,0.5}       OME-Zarr specification version.
+```
+
+### NIfTI-Zarr to NIfTI
+
+```text
+usage: zarr2nii [-h] [--level LEVEL] input [output]
+
+Convert nifti-zarr to nifti.
+
+positional arguments:
+  input          Input zarr directory
+  output         Output nifti file.
+                 When not provided, write to the same directory as input
+
+optional arguments:
+  -h, --help     Show this help message and exit.
+  --level LEVEL  Pyramid level to extract (default: 0 = finest).
+```
+
+## Citation
+
+If your project utilizes the `nifti-zarr-py` package, please cite the following DOI:
+
+<a href="https://doi.org/10.5281/zenodo.16575942">
+  <img src="https://zenodo.org/badge/DOI/10.5281/zenodo.16575942.svg" alt="zenodo">
+</a>
