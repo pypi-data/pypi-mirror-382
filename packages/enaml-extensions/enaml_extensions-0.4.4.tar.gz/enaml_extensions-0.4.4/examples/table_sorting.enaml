@@ -1,0 +1,53 @@
+import random
+
+from enaml.widgets.api import *
+from enaml.layout.api import *
+from enamlext.widgets import Table
+from enamlext.qt.table.column import Column
+
+from enamlext.qt.qt_table import QtTable
+from enaml.qt.qt_factories import QT_FACTORIES
+QT_FACTORIES["Table"] = lambda: QtTable
+
+from itertools import cycle
+
+import numpy as np
+
+items = [
+    [{'word': 'bb', 'num': 1.0}, {'word': 'aaaaa', 'num': 8.0}, {'word': 'ccccccccc', 'num': np.nan}, {'word': 'd', 'num': np.nan}, {'word': 'e', 'num': 0.5}],
+    [{'word': 'mmmmmmm', 'num': np.nan}, {'word': 'nn', 'num': np.nan}, {'word': 'o', 'num': np.nan}, {'word': 'pppppppppp', 'num': 10.0}, {'word': 'qq', 'num': np.nan}],
+]
+
+infinite_items = cycle(items)
+
+
+enamldef Main(MainWindow):
+    title = 'Table Sorting'
+
+    Container:
+        Container:
+            padding = 0
+
+            constraints = [hbox(btn_set, chk_sort, spacer, btn_debug)]
+
+            PushButton: btn_set:
+                text = 'Set Data'
+                clicked ::
+                    tab.items = next(infinite_items)
+
+            CheckBox: chk_sort:
+                text = 'Sorting Enabled'
+                checked := tab.sortable
+
+            PushButton: btn_debug:
+                text = 'Debug'
+                clicked ::
+                    import pdb; pdb.set_trace()
+                    print('...')
+
+        Table: tab:
+            columns = [
+                Column('word', 'Word', use_getitem=True),
+                Column(lambda x: len(x['word']), 'Length'),
+                Column('num', 'Num', use_getitem=True),
+            ]
