@@ -1,0 +1,95 @@
+[
+    {   
+        "tags": ["astradb"],
+        "type": "tool",
+        "name": "collections",
+        "description": "List all collections in the Astra DB database",
+        "parameters": [],
+        "method": "list_collections"
+    },
+    {
+        "tags": ["products"],
+        "type": "tool",
+        "name": "search_products",
+        "description": "Search for products",
+        "projection" : {"product_name": 1, "brand": 1, "price": 1, "color": 1, "category": 1, "sub_category": 1, "description": 1, "out_of_stock": 1},
+        "parameters": [
+            {  
+                "param": "search_query",
+                "description": "Query to search for products",
+                "attribute": "$vector",
+                "type": "string",
+                "required": 1,
+                "embedding_model": "text-embedding-3-small"
+            },
+            {  
+                "param": "min_price",
+                "description": "Minimum price of the products",
+                "attribute": "price",
+                "type": "number",
+                "operator": "$gte"
+            },
+            {  
+                "param": "max_price",
+                "description": "Maximum price of the products",
+                "attribute": "price",
+                "type": "number",
+                "operator": "$lte"
+            },
+            {  
+                "param": "out_of_stock",
+                "value": false,
+                "attribute": "out_of_stock",
+                "type": "boolean",
+                "operator": "$eq"
+            }
+        ],
+        "method": "find_documents",
+        "collection_name": "products",
+        "limit": 10
+    },
+    {
+        "tags": ["latam", "faq"],
+        "type": "tool",
+        "name": "rag_latam_airlines",
+        "method": "find_documents",
+        "collection_name": "latam_faq",
+        "description": "Search the LATAM FAQ for a question and return relevant context",
+        "limit": 10,
+        "projection" : {"$vectorize": 1, "metadata": 0},
+        "parameters": [
+            {  
+                "param": "search_query",
+                "description": "Query to search for products",
+                "attribute": "$vectorize",
+                "type": "string"
+            },
+            {
+                "param": "topic",
+                "description": "Topic of the question",
+                "attribute": "metadata.topic",
+                "type": "string",
+                "enum": ["baggage", "boarding", "check-in", "flight-status", "other"],
+                "operator": "$eq"
+            }
+        ]
+    },
+    {
+        "tags": ["united", "faq"],
+        "name": "rag_united",
+        "type": "tool",
+        "method": "find_documents",
+        "collection_name": "united_faq",
+        "description": "Search the UNITED Airlines FAQ for a question and return relevant context",
+        "limit": 10,
+        "projection" : {"$vectorize": 1, "metadata": 0},
+        "parameters": [
+            {  
+                "param": "search_query",
+                "description": "Query to search for products",
+                "attribute": "$vectorize",
+                "type": "string"
+            }
+        ]
+    }
+]
