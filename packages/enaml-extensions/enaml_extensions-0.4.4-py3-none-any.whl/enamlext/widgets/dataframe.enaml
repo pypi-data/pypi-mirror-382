@@ -1,0 +1,90 @@
+from enaml.core.declarative import d_
+from atom.api import Value, Bool, Typed
+
+from enamlext.widgets import Table
+from enamlext.qt.qt_dataframe import DataFrameProxy
+from enamlext.qt.table.column import generate_columns
+
+import pandas as pd
+
+
+enamldef DataFrame(Table):
+    attr df = None  # d_(Value(factory=pd.DataFrame))
+    attr include = None   # d_(Typed(list))
+    attr exclude = None   # d_(Typed(list))
+    attr instrumentation_enabled = False
+    attr _auto_refresh_columns = False
+
+    attr tick_interval_ms = 0  # by default it is not ticking
+
+    # TODO: FIX! for now, it cannot sort on ticking frames
+    sortable << tick_interval_ms == 0
+
+    attr _df_index_to_view_index = {}
+
+    func _refresh_cells(row_indexes, col_indexes):
+        if self.proxy is None:
+            return
+
+        for row, col in zip(row_indexes, col_indexes):
+            col_view_index = self._df_index_to_view_index.get(col, col)
+            self.proxy.widget.refresh_one_cell(row, col_view_index)
+
+
+    func convert_item(item):
+        # TODO: should we return a pandas Series instead of a dict?
+        return dict(zip(df.columns.values, item))
+
+
+    func _refresh_internals():
+        _df = df if self.df is not None else pd.DataFrame()
+
+        if isinstance(self.items, DataFrameProxy):
+            self.items.deactivate()
+
+        kwargs = {}
+        if self.tick_interval_ms:
+            kwargs.update(
+                tick_interval_ms=self.tick_interval_ms,
+                refresh_cells_callback=self._refresh_cells,
+            )
+
+        self.items = DataFrameProxy(df=_df, instrumentation_enabled=self.instrumentation_enabled, **kwargs)
+
+        if self.items.is_ticking or not self.columns and self._auto_refresh_columns:
+            proposed_new_columns = {(c.key, c.title): c
+                                    for c in generate_columns(self.items, hints=hints,
+                                                              include=self.include, exclude=self.exclude)}
+            if self.proxy.widget is not None:
+                filters = self.proxy.widget.model().filters
+                for column in filters.filters.copy():
+                    filter_key = (column.key, column.title)
+                    filter = filters.filters.pop(column)
+
+                    if filter_key in proposed_new_columns:
+                        filter.column = proposed_new_columns[filter_key]
+                        filters.filters[filter.column] = filter
+
+            self.columns = list(proposed_new_columns.values())
+
+            for view_index, column in enumerate(self.columns):
+                self._df_index_to_view_index[column.df_index] = view_index
+
+    activated ::
+        self.proxy.widget.adjust_column_sizes()  # TODO: why we need to call this here?
+
+    initialized ::
+        self._auto_refresh_columns = not bool(self.columns)
+        self._refresh_internals()
+
+    df ::
+        self._refresh_internals()
+
+    include ::
+        self._refresh_internals()
+
+    exclude ::
+        self._refresh_internals()
+
+    hints ::
+        self._refresh_internals()
