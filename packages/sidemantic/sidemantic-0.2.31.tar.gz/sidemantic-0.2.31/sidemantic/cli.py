@@ -1,0 +1,410 @@
+"""CLI for sidemantic semantic layer operations."""
+
+from pathlib import Path
+
+import typer
+
+from sidemantic import SemanticLayer, __version__, load_from_directory
+
+
+def version_callback(value: bool):
+    """Print version and exit."""
+    if value:
+        typer.echo(f"sidemantic {__version__}")
+        raise typer.Exit()
+
+
+app = typer.Typer(help="Sidemantic: SQL-first semantic layer")
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(
+        None, "--version", "-v", callback=version_callback, is_eager=True, help="Show version"
+    ),
+):
+    """Sidemantic CLI."""
+    pass
+
+
+@app.command()
+def workbench(
+    directory: Path = typer.Argument(None, help="Directory containing semantic layer files"),
+    demo: bool = typer.Option(False, "--demo", help="Launch with demo data (multi-format example)"),
+):
+    """
+    Interactive semantic layer workbench with SQL editor and charting.
+
+    Explore models, write SQL queries, and visualize results with interactive charts.
+
+    Examples:
+      sidemantic workbench semantic_models/    # Your own models
+      sidemantic workbench --demo              # Try the demo
+      uvx sidemantic workbench --demo          # Run demo without installing
+    """
+    from sidemantic.workbench import run_workbench
+
+    if demo:
+        import sidemantic
+
+        # Try packaged location first
+        package_dir = Path(sidemantic.__file__).parent
+        demo_dir = package_dir / "examples" / "multi_format_demo"
+
+        # Fall back to dev environment location
+        if not demo_dir.exists():
+            dev_demo_dir = package_dir.parent / "examples" / "multi_format_demo"
+            if dev_demo_dir.exists():
+                demo_dir = dev_demo_dir
+            else:
+                typer.echo("Error: Demo models not found", err=True)
+                typer.echo(f"Tried: {demo_dir}", err=True)
+                typer.echo(f"Tried: {dev_demo_dir}", err=True)
+                raise typer.Exit(1)
+
+        directory = demo_dir
+        run_workbench(directory, demo_mode=True)
+    elif directory is None:
+        typer.echo("Error: Either provide a directory or use --demo flag", err=True)
+        raise typer.Exit(1)
+    elif not directory.exists():
+        typer.echo(f"Error: Directory {directory} does not exist", err=True)
+        raise typer.Exit(1)
+    else:
+        run_workbench(directory)
+
+
+@app.command()
+def tree(
+    directory: Path = typer.Argument(..., help="Directory containing semantic layer files"),
+):
+    """
+    Alias for 'workbench' command (deprecated).
+    """
+    from sidemantic.workbench import run_workbench
+
+    if not directory.exists():
+        typer.echo(f"Error: Directory {directory} does not exist", err=True)
+        raise typer.Exit(1)
+
+    run_workbench(directory)
+
+
+@app.command()
+def validate(
+    directory: Path = typer.Argument(..., help="Directory containing semantic layer files"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed validation results"),
+):
+    """
+    Validate semantic layer definitions.
+
+    Shows errors, warnings, and optionally detailed info in an interactive view.
+    """
+    from sidemantic.workbench import run_validation
+
+    if not directory.exists():
+        typer.echo(f"Error: Directory {directory} does not exist", err=True)
+        raise typer.Exit(1)
+
+    run_validation(directory, verbose=verbose)
+
+
+@app.command()
+def query(
+    directory: Path = typer.Argument(..., help="Directory containing semantic layer files"),
+    sql: str = typer.Option(..., "--sql", "-q", help="SQL query to execute"),
+    output: Path = typer.Option(None, "--output", "-o", help="Output file (default: stdout)"),
+):
+    """
+    Execute a SQL query and output results as CSV.
+
+    Example: sidemantic query /path/to/models --sql "SELECT orders.revenue FROM orders"
+    """
+    if not directory.exists():
+        typer.echo(f"Error: Directory {directory} does not exist", err=True)
+        raise typer.Exit(1)
+
+    try:
+        # Try to find database file
+        db_path = None
+        data_dir = directory / "data"
+        if data_dir.exists():
+            db_files = list(data_dir.glob("*.db"))
+            if db_files:
+                db_path = f"duckdb:///{db_files[0].absolute()}"
+
+        # Load semantic layer
+        layer = SemanticLayer(connection=db_path)
+        load_from_directory(layer, str(directory))
+
+        if not layer.graph.models:
+            typer.echo("Error: No models found", err=True)
+            raise typer.Exit(1)
+
+        # Execute query
+        result = layer.sql(sql)
+
+        # Get results
+        columns = [desc[0] for desc in result.description]
+        rows = result.fetchall()
+
+        # Output as CSV
+        import csv
+        import sys
+
+        if output:
+            with open(output, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(columns)
+                writer.writerows(rows)
+            typer.echo(f"Results written to {output}", err=True)
+        else:
+            writer = csv.writer(sys.stdout)
+            writer.writerow(columns)
+            writer.writerows(rows)
+
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command()
+def info(
+    directory: Path = typer.Argument(..., help="Directory containing semantic layer files"),
+):
+    """
+    Show quick info about the semantic layer.
+    """
+    if not directory.exists():
+        typer.echo(f"Error: Directory {directory} does not exist", err=True)
+        raise typer.Exit(1)
+
+    try:
+        layer = SemanticLayer()
+        load_from_directory(layer, str(directory))
+
+        if not layer.graph.models:
+            typer.echo("No models found")
+            raise typer.Exit(0)
+
+        typer.echo(f"\nSemantic Layer: {directory}\n")
+
+        for model_name, model in sorted(layer.graph.models.items()):
+            typer.echo(f"● {model_name}")
+            typer.echo(f"  Table: {model.table or 'N/A'}")
+            typer.echo(f"  Dimensions: {len(model.dimensions)}")
+            typer.echo(f"  Metrics: {len(model.metrics)}")
+            typer.echo(f"  Relationships: {len(model.relationships)}")
+            if model.relationships:
+                rel_names = [r.name for r in model.relationships]
+                typer.echo(f"  Connected to: {', '.join(rel_names)}")
+            typer.echo()
+
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command()
+def mcp_serve(
+    directory: Path = typer.Argument(..., help="Directory containing semantic layer files"),
+    db: Path = typer.Option(None, "--db", help="Path to DuckDB database file (optional)"),
+    demo: bool = typer.Option(False, "--demo", help="Use demo data instead of a directory"),
+):
+    """
+    Start an MCP server for the semantic layer.
+
+    Provides tools for listing models, getting model details, and running queries
+    through the Model Context Protocol.
+
+    Examples:
+      sidemantic mcp-serve ./models
+      sidemantic mcp-serve ./models --db data/warehouse.db
+      sidemantic mcp-serve --demo
+    """
+    from sidemantic.mcp_server import initialize_layer, mcp
+
+    if demo:
+        # Use packaged demo models
+        import sidemantic
+
+        package_dir = Path(sidemantic.__file__).parent
+        demo_dir = package_dir / "examples" / "multi_format_demo"
+
+        # Fall back to dev environment location
+        if not demo_dir.exists():
+            dev_demo_dir = package_dir.parent / "examples" / "multi_format_demo"
+            if dev_demo_dir.exists():
+                demo_dir = dev_demo_dir
+            else:
+                typer.echo("Error: Demo models not found", err=True)
+                typer.echo(f"Tried: {demo_dir}", err=True)
+                typer.echo(f"Tried: {dev_demo_dir}", err=True)
+                raise typer.Exit(1)
+
+        directory = demo_dir
+        # For demo mode, use in-memory database
+        db_path = ":memory:"
+    elif directory is None:
+        typer.echo("Error: Either provide a directory or use --demo flag", err=True)
+        raise typer.Exit(1)
+    elif not directory.exists():
+        typer.echo(f"Error: Directory {directory} does not exist", err=True)
+        raise typer.Exit(1)
+    else:
+        db_path = str(db) if db else None
+
+    try:
+        # Initialize the semantic layer
+        initialize_layer(str(directory), db_path)
+
+        # If demo mode, populate with demo data
+        if demo:
+            try:
+                # Try packaged import first
+                from sidemantic.examples.multi_format_demo.demo_data import create_demo_database
+            except ModuleNotFoundError:
+                # Fall back to dev environment import
+                import importlib.util
+                import sys
+
+                demo_data_path = directory / "demo_data.py"
+                if demo_data_path.exists():
+                    spec = importlib.util.spec_from_file_location("demo_data", demo_data_path)
+                    demo_data_module = importlib.util.module_from_spec(spec)
+                    sys.modules["demo_data"] = demo_data_module
+                    spec.loader.exec_module(demo_data_module)
+                    create_demo_database = demo_data_module.create_demo_database
+                else:
+                    raise ImportError(f"Could not find demo_data.py at {demo_data_path}")
+
+            from sidemantic.mcp_server import get_layer
+
+            layer = get_layer()
+            demo_conn = create_demo_database()
+            # Copy data from demo connection to layer's connection
+            for table in ["customers", "products", "orders"]:
+                # Get table data as regular Python objects (no pandas)
+                rows = demo_conn.execute(f"SELECT * FROM {table}").fetchall()
+                columns = [desc[0] for desc in demo_conn.execute(f"SELECT * FROM {table} LIMIT 0").description]
+
+                # Create table in target connection
+                create_sql = demo_conn.execute(
+                    f"SELECT sql FROM duckdb_tables() WHERE table_name = '{table}'"
+                ).fetchone()[0]
+                layer.conn.execute(create_sql)
+
+                # Insert data if there are rows
+                if rows:
+                    placeholders = ", ".join(["?" for _ in columns])
+                    layer.conn.executemany(f"INSERT INTO {table} VALUES ({placeholders})", rows)
+
+        typer.echo(f"Starting MCP server for: {directory}", err=True)
+        if db_path and db_path != ":memory:":
+            typer.echo(f"Using database: {db_path}", err=True)
+        typer.echo("Server running on stdio...", err=True)
+
+        # Run the MCP server
+        mcp.run(transport="stdio")
+
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command()
+def serve(
+    directory: Path = typer.Argument(None, help="Directory containing semantic layer files"),
+    demo: bool = typer.Option(False, "--demo", help="Use demo data"),
+    port: int = typer.Option(5433, "--port", "-p", help="Port to listen on"),
+    username: str = typer.Option(None, "--username", "-u", help="Username for authentication (optional)"),
+    password: str = typer.Option(None, "--password", help="Password for authentication (optional)"),
+):
+    """
+    Start a PostgreSQL-compatible server for the semantic layer.
+
+    Exposes your semantic layer over the PostgreSQL wire protocol, allowing
+    you to connect with any PostgreSQL client (psql, DBeaver, Tableau, etc.).
+
+    Examples:
+      sidemantic serve ./models --port 5433
+      sidemantic serve --demo
+      sidemantic serve ./models --username user --password secret
+    """
+    import logging
+
+    from sidemantic.server.server import start_server
+
+    logging.basicConfig(level=logging.INFO)
+
+    # Resolve directory
+    if demo:
+        import sidemantic
+
+        package_dir = Path(sidemantic.__file__).parent
+        demo_dir = package_dir / "examples" / "multi_format_demo"
+
+        if not demo_dir.exists():
+            dev_demo_dir = package_dir.parent / "examples" / "multi_format_demo"
+            if dev_demo_dir.exists():
+                demo_dir = dev_demo_dir
+            else:
+                typer.echo("Error: Demo models not found", err=True)
+                raise typer.Exit(1)
+
+        directory = demo_dir
+    elif directory is None:
+        typer.echo("Error: Either provide a directory or use --demo flag", err=True)
+        raise typer.Exit(1)
+    elif not directory.exists():
+        typer.echo(f"Error: Directory {directory} does not exist", err=True)
+        raise typer.Exit(1)
+
+    # Create semantic layer
+    layer = SemanticLayer(connection="duckdb:///:memory:")
+
+    # Load models
+    load_from_directory(layer, str(directory))
+
+    if not layer.graph.models:
+        typer.echo("Error: No models found", err=True)
+        raise typer.Exit(1)
+
+    # Populate demo data if needed
+    if demo:
+        try:
+            from sidemantic.examples.multi_format_demo.demo_data import create_demo_database
+        except ModuleNotFoundError:
+            import importlib.util
+            import sys
+
+            demo_data_path = directory / "demo_data.py"
+            if demo_data_path.exists():
+                spec = importlib.util.spec_from_file_location("demo_data", demo_data_path)
+                demo_data_module = importlib.util.module_from_spec(spec)
+                sys.modules["demo_data"] = demo_data_module
+                spec.loader.exec_module(demo_data_module)
+                create_demo_database = demo_data_module.create_demo_database
+            else:
+                raise ImportError(f"Could not find demo_data.py at {demo_data_path}")
+
+        demo_conn = create_demo_database()
+        for table in ["customers", "products", "orders"]:
+            rows = demo_conn.execute(f"SELECT * FROM {table}").fetchall()
+            columns = [desc[0] for desc in demo_conn.execute(f"SELECT * FROM {table} LIMIT 0").description]
+
+            create_sql = demo_conn.execute(f"SELECT sql FROM duckdb_tables() WHERE table_name = '{table}'").fetchone()[
+                0
+            ]
+            layer.conn.execute(create_sql)
+
+            if rows:
+                placeholders = ", ".join(["?" for _ in columns])
+                layer.conn.executemany(f"INSERT INTO {table} VALUES ({placeholders})", rows)
+
+    # Start the server
+    start_server(layer, port=port, username=username, password=password)
+
+
+if __name__ == "__main__":
+    app()
