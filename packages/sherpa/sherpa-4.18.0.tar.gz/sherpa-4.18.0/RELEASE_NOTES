@@ -1,0 +1,4104 @@
+Release Notes
+
+Sherpa 4.18.0
+=============
+This release of Sherpa includes various enhancements, documentation updates,  bug fixes, and infrastructure changes. Key changes for this release include:
+
+* new features
+    * Added support for using optimizers from SciPy and Optimagic (#2303)
+    * Add a version of the CStat statistic (“cstatnegativepenalty”) that can be used if a model can predict negative values (#2294)
+    * Allow multiple datasets to be plotted with a single call (#1712, #2328)
+
+* enhancements
+    * Provide easy access to the parameter values tried during a fit (#2315)
+    * Add support for XSPEC 12.14.1 and 12.15.0 (#2116, #2252)
+    * The interface to the XSPEC models has been simplified to make it more 
+      closely resemble XSPEC for additive models (#2275)
+
+* bug fixes
+    * Always calculate the covariance matrix when using get_draws and eqwidth,
+      and ensure the correct dataset identifiers are used (#2374)
+    * Improve the output of save_all for PHA data, in particular when using PHA2
+      data (#2377, #2382)
+    * Ensure backend-specific (e.g. matplotlib or bokeh) plotting options can 
+      be used (#2371)
+    * The sampling routines has seen updates related to the choice of the Random
+      Number Generator (#2331), handling of linked parameters (#2333), the
+      clipping of parameters (#2336)
+
+* deprecations
+    * The sigma parameter has been renamed to scale for normal_sample (#2211)
+    * XSPEC table models must now be loaded via load_xstable_model and not 
+      load_table_model (#2352)
+    * Remove support for XSPEC 12.12.0 and 12.12.1 (#2329)
+
+
+Details
+
+#1712 - UI: plot multiple datasets at once
+    Allow multiple datasets to be plotted in a single call. Fix #1654.
+
+#2211 - Rename the normal sample sigma parameter to scale
+    Rename the normal_sample sigma parameter to scale, to avoid confusion, and
+    ensure that it works. Fix #2210. Fix #1736.
+
+#2232 - TESTS: mark more that require the group module #2232
+    Mark several recently-added tests with the requires_group decorator. There
+    is no functional change.
+
+#2237 - BUILD: tweak conda installation environment
+    Change the installation location of parts of the build environment in the
+    conda GitHub runs. There is no functional change.
+
+#2259 - Add typing statements to the optimization code
+    Add typing statements to the optimization code. As part of this some of the
+    classes and routines have seen changes in behaviour: use of keyword-only
+    arguments, dropping the incomplete support for statargs and statkwargs, and
+    removal of some optimization code not used by Sherpa. This is only visible
+    to users calling the optimization routines directly.
+
+#2271 - improve test coverage of the optimization code 
+    Improve test coverage for the optimization code. There is no functional 
+    change to Sherpa.
+
+#2275 - Internal change to additive XSPEC models
+    Internal changes to how Sherpa handles the normalization parameter for XSPEC
+    additive models. Users of XSPEC user models will have to regenerate the code
+    needed to build the Python interface code, but general use of Sherpa should\    not be impacted.
+
+#2278 - Use `modelCacher1D` (now aliased to `modelCacher`) for 2D models
+    Set up caching for 2D models
+
+#2283 - Improve the typing of plot and contour preferences
+    Be more-explicit about the preferences from plots and contours in typing
+    statements and add or update some typing statements to use Python 3.10 
+    syntax. There is no functional change to the code.
+
+#2292 - Docs for Cash and CStat are wrong about truncate_value
+    Updated incorrect text to reflect that truncate_value is applied to model
+
+#2293 - Improve docs for hard and soft limits
+    Hard and soft limits are already explained in the docs, but some details 
+    that might be useful for developers extending or building on Sherpa have 
+    been added. Since the audience of the added information are developers, and
+    this is not typically an area that users need ot care about, the information
+    has been added to a module docstring
+
+#2294 - Add penalty for negative models to cstat
+    Add a version of the CStat statistic that provides a variable penalty if 
+    the model prediction is negative, rather than use a constant term. Fix #836.
+
+#2298 - Allow building Sherpa without the region or wcssubs libraries
+    Allow Sherpa to be built without support for the region or wcssubs libraries
+
+#2302 - update zenodo DOI link for Sherpa 4.17.1
+    Update Release History entry for new Zenodo DOI number for 4.17.1 release
+
+#2303 - Adding optimizers, options, and docs
+    Add optional dependencies to Scipy and optimagic and warp those as 
+    optimizers. Also adding docs on how to solve common fitting problems.
+
+#2305 - Update `pyproject.toml` for PEP 639
+    Update license specification in pyproject.toml for PEP 639
+
+#2306 - Allow restoring of BinaryOpModels
+    Fix #2301 (can't read saved sessions which contain composite models)
+
+#2307 - Fix GCC version to 14.* for conda recipes
+    Explicitly sets the version of compiler used. closes #2304
+
+#2308 -Remove pyds9
+    Remove pyds9 module.
+
+#2309 - Support non-fork methods for multiprocessing
+    Allow the setting of the multiprocessing_start_method to spawn or 
+    forkserver. Note that this can degrade the performance of the code enough
+    that it is then not worth using multiprocessing. Fix #2007
+
+#2315 - Allow fit to be called with the record_steps argument
+    Allow the record_steps argument, added in #2280, to be used in the 
+    sherpa.astro.ui fit call. Fix #2318
+
+#2316 - TESTS: add a test used by the Chandra Source Catalog
+    Add a test from the CSC code to exercise #2201. There are no functional
+    changes.
+
+#2319 - Allow Sherpa to be built with lib64 or free-threading
+    Allow Sherpa to be built with the free-threading build or on a platform 
+    that uses the lib64 rather than lib as a directory name (e.g. Fedora 42).
+    There is no promise at this time that the free-threaded build is correct.
+
+#2321 - Minor simplification of the extension code
+    Minor clean up of the extension code. There should be no functional changes.
+
+#2325 - Update docstring for get_xsabundances
+    Correct the docstring for get_xsabundances so that it uses the term 
+    "Parameters" rather than "Parameter".
+
+#2326 - CI: improve the test coverage (handle multiprocessing and add a ncores=1 run)
+    Update the coverage tests to better-handle the multiprocessing code. Add an
+    explicit test with the ncores=1 option for the sherpa.rc file (rather than
+    the default "ncores: None") for the pip CI runs (this changes an existing
+    run rather than adding a new test). The coverage test reports should now
+    include more lines covered. There is no functional change to Sherpa.
+
+#2328 - Allow plot_fit_xxx to be sent multiple values for an argument to match plot
+    Allow the plot_fit_xxx and plot_bkg_fit_xxx calls to behave the same as
+    plot("fit", xxx) and plot_model/source_components when sent a plot option
+    as a sequence.
+
+#2329 - XSPEC: drop support for XSPEC 12.12.0 and 12.12.1
+    Drop support for XSPEC 12.12.0 and 12.12.1.
+
+#2330 - Ensure `Fit.method` gives the same answer as `Fit._iterfit.method`
+    Ensure Fit.method gives the same answer as Fit._iterfit.method. FIxes #2296
+
+#2331 - Ensure the sample/normal/t_sample ui routines use the local RNG if set
+    Ensure that local generators sent to set_rng are used in the normal_sample,
+    uniform_sample, and t_sample routines. Fix #2314.
+
+#2333 - Ensure that sampling routines work when the model contains linked parameters
+    Ensure sampling routines will work with models with one or more linked
+    parameters. Fix #2332. Fix #2337.
+
+#2336 - Clip the samples returned by normal/uniform/t_sample. Fix #2335.
+    The normal_sample, uniform_sample, and t_sample routines did not clip the
+    parameter selections to the hard limits of the model (the returned values;
+    the statistic value is calculated with the clipped values). Add a clip
+    argument to allow this option to be selected. The return array has gained
+    an extra column, which indicates whether any parameter in the row was
+    clipped. Fix #2335.
+
+#2342 - Improve documentation on parallel and thread support
+    Add minimal documentation about parallel and thread support.
+
+#2345 - Make doctests pass again
+    work on docs for readthedocs
+
+#2347 - Install sherpa-test-data in pip if requested
+    Fix bug in pip workflow on CI
+
+#2348 - Address documentation errors in normal/uniform/t_sample
+    Fix up a typo in the docstrings for the normal_sample, uniform_sample, and
+    t_sample routines.
+
+#2350 - Add simple typing statements for plot-related commands
+    Add typing-related statements to the ui code for plot-related code.
+    Simplify the internal code slightly.
+
+#2352 - UI: remove XSPEC table support from load_table_model
+    Remove support for XSPEC table models from load_table_model as this has
+    long been deprecated. Users must use load_xstable_model with XSPEC table
+    models. Fix #902.
+
+#2353 - Remove unwanted additions from #2347
+    Remove files accidentally added in #2347
+
+#2354 - Fix annotation typo
+    Fix a typo in an annotation introduced in #2350.
+
+#2355 - Simple DataIMG(Int) creation from 2D arrays
+    Add convenience methods to generalt DataIMG and DataIMGInt from 2d arrays
+    with or without WCS information.
+
+#2358 - No longer use bin_lo/hi values from PHA or ARF. Fix #1564
+    Do not use the BIN_LO/HI columns from Chandra grating PHA/ARF files. A
+    response must now be added before changing the analysis setting of PHA type
+    2 data. Fix #1564.
+
+#2361 - Ensure that save_all output is consistent with NumPy 1 and 2
+    Ensure that the string serialization (e.g. from save_all) is not affected
+    by changes to numeric output in NumPy 2. Fix #1373.
+
+#2362 - Move caching tests into dedicated file
+    The test_model.py simply had gotten so big that it was hard to read in an
+    editor, so moved some files over. Fixes #2277
+
+#2363 - conftest: ensure data path is absolute not relative
+    Ensure that the path for the Sherpa test data is an absolute and not
+    relative path to improve testing. Fix #2163.
+
+#2364 - BUILD: remove commented line from xspec_libraries. Fix #2253.
+    Internal tweak to the setup.cfg file to support building with clang. Fix
+    #2253.
+
+#2365 - SERIALIZE: use textwrap module. Fix #1910
+    Use the textwrap when creating the save_all output. There should be no
+    change in behaviour. Fix #1910.
+
+#2366 - Add a  convenience method to set the IO backend and a context manager to set the IO backend temporarily
+    Add a convenience method to set the IO backend and a context manager to set
+    the IO backend temporarily.
+
+#2368 - TEST: upate test to run with crates backend
+    Update a test to run correctly with the crates backend (thanks to changes
+    in #2352). There is no functional change in Sherpa.
+
+#2369 - Allow "dummy" as an alias for BasicBackend in plotting
+    Allow "dummy" as an alias for BasicBackend in plotting
+
+#2370 - Update docs still claiming there is only one plotting backend
+    Doc updates to note plotting backend options- matplotlib and bokeh
+
+#2371 - Pass backend-specific options through to pylab and bokeh
+    Pass backend-specific options through to pylab and bokeh
+
+#2372 - DOCS: note that Python 3.13 support is no-longer experimental
+    Note that Python 3.13 is supported (but not the free-threaded build)
+
+#2373 - Set requirements for doctests in `sherpa.astro.io.__init__.py`
+    cleanup rebasing issue caused issues in CI tests
+
+#2374 - Always re-calculate covariance matrix when needed (get_draws/eqwidth)
+    Catch cases where the covariance information was out of date (get_draws and
+    eqwidth). Improve the handling of the otherids argument for eqwidth. Fix
+    #556. Fix #1788. Fix #2379.
+
+#2377 - UI: save_all improvements for PHA2 files. Fix #1882
+    Improve the save_all output when using PHA2 files. Fix #1882.
+
+#2378 - DOCTEST: change some examples to pass with NumPy 2 rules
+    Update the documentation so that the doctests pass with NumPy 2 string
+    output rules
+
+#2380 - Update out-dated comments in utils.py
+    Remove an outdated comment. There is no functional change.
+
+#2382 - Improve save_all for certain PHA situations
+    The save_all output for PHA data now avoids loading in files it does not
+    need to do (e.g. a background file set in the BACKFILE keyword), which
+    fixes handling of grating data with BACKGROUND_UP and BACKGROUND_DOWN
+    columns. The use_errors flag is now correctly recorded for load_pha calls.
+    The auto_load flag has been added to save_all to allow the output to
+    include these files, to match the output from previous versions. Fix #320.
+    Fix #2383.
+
+#2384 - stack, region, and group extern changes from CIAO 4.18beta
+    folds in recent changes to the CIAO region, group, and stack library
+    including changes that were released in CIAO 4.17 as well as changes in the
+    CIAO 4.18 beta such as numpy 2 support changes. Changes were primarily made
+    to support issues reported in other tools are included to keep the baseline
+    consistent.
+
+#2385 - Better documentation for eqwidth
+    Change the documentation for eqwidth to point out this calculates the
+    definition from George & Fabian (1991) and not that from the wikipedia page
+    (the only difference is the sign of the result).
+
+
+Sherpa 4.17.1
+=============
+
+This release of Sherpa includes various enhancements, documentation updates, 
+bug fixes, and infrastructure changes.
+
+* enhancements:
+    * improved handling of OGIP products not following the standards (#2235)
+    * Models can now be combined using arbitrary ufuncs (#2248)
+    * various updates to XSpec interface (#2281) and support for XSpec 12.15.0 
+      including the additional of 17 new models (#2252)
+    * added interface to support ArviZ for analysis of Baysian models (#2286) 
+* documentation changes:
+    * provided option to install python packages needed to build sherpa 
+      documentation 
+* infrastructure and testing:
+    * updated tests to work with python 3.13 (#2174)
+* bug fixes: 
+    * fixed a bug in the caching code that limited the cache size to 1 (#2166)
+    * update to use fake_pha for missions which don't use 1 as the first
+      channel (#2214)
+
+Details
+-------
+
+#2039 - Add a security reporting policy
+    Added Statement defining plans to deal with security issues and where users
+    should report them
+
+#2047 - Opt Clean up
+    Improve the typing coverage of the sherpa.optmethods code and internal code
+    clean up.
+
+#2116- Add explicit support for XSPEC 12.14.1
+    Add models from XSPEC 12.14.1 and change the parameter settings to match
+    those from 12.14.1, where necessary.
+
+#2143 - Improve pre-commit script for ranges of years
+    Improve pre-commit script for ranges of years
+
+#2156 - Add macOS ARM Conda Package Builds
+    Add macOS ARM Conda builds
+
+#2164 - XSPEC: fix up error message
+    Correct the information provided in the unlikely case than an XSPEC model
+    fails.
+
+#2166 -Fix bug in cache code that limited cache size to 1.
+    Fix bug that limited cache size to 1.
+
+#2170 - DOC: Example changes to Examples
+    Change the docstring for calc_source and calc_model to use Examples rather 
+    than Example.
+
+#2171 - specify DS9 region format used in pytest
+    Explicitly set region format to use ds9 format for ds9 region pytests
+
+#2174: Allow tests to pass with Python 3.13.0
+    Allow the tests to pass with Python 3.13.0.
+
+#2178 - Post 4.17.0 update to add DOI info to the README.md
+    Adding the DOI for the 4.17.0 Release.
+
+#2179 - add build doc option
+    Provide the doc installation option which will install the python packages
+    needed to build the documentation along with Sherpa.
+
+#2181 - Fix typo in return value
+    Correctly identify the return value of get_source_components_plot. This 
+    does not change the behaviour of the code.
+
+#2182 - DOC: Use "Examples" rather than "Example"
+    Consistent use of "Examples" to indicate one or more examples in the
+    documentation.
+
+#2188 - TEST: address numpy 2 changes to output for docstring tests
+    Allow the documentation tests to pass when using NumPy 2.0. There is no
+    change to the actual code.
+
+#2191: TEST: fix test related to issue #800
+    Clean up a test. There is no functional change to the code.
+
+#2195 - Update ci-conda-workflow to use Miniforge
+    Install Miniforge for use with ci-conda workflow.
+
+#2198 - Allow both Intel and ARM macOS GitHub runners for the conda builds
+    Add a macOS ARM build, and update the macOS Intel build to use the macOS-13
+    runner.
+
+#2201: Change how invalid limits are checked for within the MCMC code
+    Simplify a safety check within the MCMC proposed-parameter code.
+
+#2203 - Allow pytest 8.3.4 to be used
+    Allow the tests to pass with pytest version 8.3.4 by changing the test code.
+    The GitHub macOS conda action is updated to macos-13 (for the Intel build).
+    There is no functional change here.
+
+#2204 - Update the GitHub Actions badge for Conda and Pip workflows
+    Update the GitHub Actions badge in the README.md for the Conda and Pip 
+    workflows.
+
+#2207- TESTS: avoid matplotlib version differences (fix #2206)
+    Allow tests to pass when using matplotlib 3.10.0. This only changes the 
+    tests. Fix #2206.
+
+#2208: BUILD: update ds9 from 8.5 to 8.6
+    Bump to DS9 version 8.6 for testing on GitHub actions (Linux). There is no
+    functional change.
+
+#2209: update to change .bz2 references to .conda to account for changes
+    Modify workflows to use .conda instead of .bz2
+
+#2213 - Better handle dataspace1d for DataPHA use cases when offset is not 1
+    The sherpa.astro.ui.utils.dataspace1d call can now be used to generate a 
+    channel grid that does not start at 1 for DataPHA data. The arguments are 
+    now checked to ensure they are sensible in this case (consecutive integer 
+    values).
+
+#2214: Better handle fake_pha when offset is not 1
+    Allow fake_pha to work with missions where the first channel is not 1. 
+    Fix #2212.
+
+#2215 - Minor xspec additions
+    Minor changes to the XSPEC module, including added documentation to the 
+    set_xsabund routine to note the availability of the "felc" table, and
+    set_xsstate no-longer requires all fields to be present.
+
+#2226 - Allow user-statistics to be referenced by name to match the documentation.
+    Allow user-statistics to be set by name. The get_stat_name routine now 
+    returns the actual name of the user statistic, rather than the generic 
+    value "userstat". Fix #2225.
+
+#2227 - Tests: compare Response1D and MultipleResponse1D behavior
+    Improve testing of the multi-response code. There is no change in behaviour
+    here.
+
+#2229 - Error out if model names are not strings
+    Raise an error if a model name is not a string
+
+#2230 - Note that we need the file program to build Sherpa
+    Note that the file command is needed to build Sherpa (it is used by 
+    extern/configure).
+
+#2231 - Two small astropy-related doc changes
+    Update linke to astropy dev docs (that we link to in lieu of writing our
+    own dev docs); 
+    Recommend to install astropy via pip, not conda
+
+#2232 - TESTS: mark more that require the group module
+    Mark several recently-added tests with the requires_group decorator. There
+    is no functional change.
+
+#2233 - BUILD: pin conda-build (and therefore liblief) to last known working version
+    There's a bug between conda-build and lief that's causing a package build 
+    failure. This pins to "conda-build==25.1.2=*_0", which we've also pinned to
+    in CIAO for this same issue.
+    related Conda-build issue: conda/conda-build#5626
+
+#2235 - Deal with OGIP products that do not follow the standards
+    Some OGIP products from missions occasionally do not follow the OGIP and 
+    FITS standards. Provide workarounds for two recent cases from NuSTAR and
+    NICER (TLMIN/MAX values were recorded as a string, and a QUALITY array was
+    stored as a boolean array). Fix #2185.
+
+#2239 - REGION: test CXCDM region parser, when available
+    Allow the region module to know how it was built (whether reading FITS
+    binary region files is supported). This allows for improvements to the 
+    tests.
+
+#2240 - Minor typing updates
+    Minor internal changes to tests and code to improve typing statements and
+    improve test coverage.
+
+#2241 - drop "iterative fit method" in error-estimation screen output when not set
+    The screen output when calling an error-estimation routine like conf will
+    no-longer return the iterative-fit method name when it is set to None.
+
+#2243 - Internal improvements to stats, fit, optimization, and error estimation
+    Add typing statements and apply minor code cleanup for the statistics, fit,
+    optimization, and error estimation code. There is not expected to be any 
+    functional change unless code in interacting with low-level details of the
+    Sherpa code base.
+
+#2248 - Allow combinations of models with arbitrary ufuncs
+    Models can now be combined using arbitrary ufuncs. Before, it was possible
+    to say model1 + model2 to create a combined model, now any numpy ufunc will
+    work, e.g. np.greater(model1, model2).
+
+#2249 - Update project.toml for PEP 639
+    Address setuptools deprecation of lower-kebab-case for names of options
+
+#2252- Allow Sherpa to build against XSPEC 12.15.0
+    Allow building against XSPEC 12.15.0. Adds the following 17 models:
+    additive: XSfeklor, XSvlorentz, XSvvoigt, XSzfeklor, XSzlorentz,
+    XSzvlorentz, XSzvoigt, XSzvvoigt
+    convolution: XSrgsext
+    multiplicative: XSlorabs, XSvlorabs, XSvoigtabs, XSvvoigtabs, XSzlorabs, 
+    XSzvorlabs, XSzvoigtabs, XSzvvoigtabs
+    The XSPEC initialization file (~/.xspec/Xspec.init) may need to be removed
+    or the AtomDB version in it updated before using XSPEC models.
+
+#2255 - Add missed pep 639 config update
+    #2249 had a few stragglers in the update I missed when reviewing. This  
+    should get all the needed renames.
+
+#2256 - Faster hash for modelCacher1D
+    Select a faster hashing algorithm for the model cache by default
+
+#2261 - Add tests related to analysis setting
+    Add or enhance tests for several cases.
+
+#2265 - Add new public methods to access the components of a model
+    Add new methods to select the components of a model.
+
+#2268 - Treat norm special in XSPEC additive models
+    These code changes increase the speed of fitting data with XSPEC additive
+    models by making the cache more effective.
+
+#2273 - Make sure all datastack-wrapped functions are added to namespace
+    Complete the datastack namespace for functions wrapped to operate on 
+    datastacks
+
+#2274 - Set cache=0 by default for models that are fast to calculate
+    Based on benchmarking for typical Sherpa use cases, some models are faster
+    to recalculate than to cache. For those models, the default cache size it
+    now set to 0 to save runtime and memory.
+
+#2279 - Note support for Python 3.13
+    Note that Sherpa can be used with Python 3.13.
+
+#2280 - Add option `record_steps` to `Fit.fit()` calls
+    Add option record_steps to Fit.fit() calls, which will add a field
+    record_steps to the FitResults object that the fitter returns. This can
+    help to understand why a fit does not converge.
+
+#2281 - Provide access to XSPEC abundances
+    Minor improvements to the XSPEC interface: get_xsabundances now takes an
+    optional table name, get_xsxset can be called with no argument, and
+    clear_xsxset will clear the XSET database. Fix #2282.
+
+#2286 - Add an interface to ArviZ
+    Add an interface to ArviZ
+
+#2287 - Use python 3.10 syntax for typing for the ui modules
+    Use Python 3.10 syntax for typing statements in the ui modules. There are
+    no functional changes in these commits.
+
+#2288 - ui: add more examples of using SherpaVerbosity
+    Point out the use of the sherpa.utils.logging.SherpaVerbosity context 
+    manager in the documentation of the fit and error-analysis UI routines.
+
+#2289 - Update http -> https
+    Update links in docs and source code from http -> https where possible
+
+#2290 - Minor clean up of utility code
+    Ensure a deprecated routine can still be used and remove a routine that
+    has never worked.
+
+
+Sherpa 4.17.0
+=============
+
+This release of Sherpa includes various enhancements, documentation updates, bug fixes, and infrastructure changes.
+
+* enhancements:
+    * add calc_model and calc_source functions to return an evaluated model/source array
+    * added wstat to plot_pvalue for the likelihood ratio test
+    * changed XSpec interface to use FunctionUtility C++ API instead of XSFortran API
+    * improved support for PHA data starting at channel  0 and handling of STAT_ERR and SYS_ERR PHA columns which are set to 0
+    * improved guess for complex models
+    * improved filtering handling
+    * several updates to enhance plotting capabilities and layout
+* documentation changes:
+    * added paper citations to front page of Sherpa Read the Docs documentation
+    * cleaned up various typos and URL references
+    * added examples such as use of set_x/y_label
+* infrastructure and testing:
+    * improved test coverage
+    * many updates to CI 
+    * drop support for Python 3.9 and numpy <1.24
+    * initial/experimental support for Python 3.12
+* bug fixes: 
+    * fixed an issue with plotting 1D data with asymmetric errs after filter
+    * include the default identifier in save_all output if it has been changed
+
+Details
+-------
+
+#1757 - Allow the wstat statistic to be used in the likelihood-ratio test
+    Allow the Likelihood Ratio Test (as used by plot_value) to be run when 
+    using the WStat statistic. Fix #1745.
+
+#1793 - XSPEC move from the xsFortran API to the FunctionUtility API (where possible)
+    Internal change to the XSPEC interface to use the FunctionUtility C++ API 
+    rather than the XSFortran API. Fix #1225.
+
+#1921 - Clean up of the IO code
+    Rework the astro data input and output code so that they take advantage of
+    the new data representation in sherpa.astro.io.types
+
+#1949 - Initial support for Python 3.12
+    Initial support for building with Python 3.12
+
+#1997 - Add support for XSPEC 12.14.0
+    Allow building with XSPEC 12.14.0 and include the 50 new models in it.
+
+#2017 - IO: separate pack and set commands
+    Replace the logic of the packup argument to the set I/O commands
+
+#2033 - utils: add typing rules to random and parallel
+    Add typing statements to the sherpa.utils.parallel and sherpa.utils.random
+    modules
+
+#2035 - stats: add typing rules
+    Add typing rules to sherpa.stats and minor internal clean up to the module.
+
+#2036 - Update sherpa citations
+    Add Sherpa 4.16.1 to the citation data.
+
+#2045 - Mark code as deprecated in sherpa.utils
+    Rework sherpa.utils and mark some symbols as deprecated - func_counter, 
+    is_in, and mysgn - along with suggested replacements.
+
+#2046- Post 4.16.1 update to add DOI info 
+    Adds the Sherpa 4.16.1 DOI info to the README.md.
+
+#2048 - CI: update the weekly arch run to add ppc64le and to use a supported python version
+    Support the weekly test builds using aarch64 and ppc46le architectures. 
+    This support is considered experimental.
+
+#2052 - XSPEC: do not test bvvnei unless 12.14.0i or later is used
+    Avoid testing the XSbvvnei model if XSPEC <= 12.14.0i is in use, as the 
+    model can cause a crash in this case.
+
+#2054 - Allow a file handle or Path object to be sent to the outfile parameter of fit
+    The fit call can now be sent a Path object or a file handle, as well as a
+    string. Fix issue #2063 
+
+#2056 - tests: fix fake_pha test failure on crates
+    Address test failures when using crates after merging #1684 and to address
+    a numerical tolerance issue on macOS ARM.
+
+#2057 - Improve the guess routine for PHA data
+    Allow guess to work for composite models, including those with responses,
+    and improve the guess routine used for the norm parameter of XSPEC additive
+    models.
+
+#2058 - Address an error introduced in PR 2025
+    Fix an error made when addressing NumPy 2.0 changes in issue #2025.
+
+#2059 - Copy over typing annotations to the sherpa.ui and sherpa.astro.ui routines
+    Ensure that annotations are added to the sherpa.ui and sherpa.astro.ui 
+    routines. Fix #2053
+
+#2060 - Simple typing support for sherpa.data
+    Add some basic typing rules to the sherpa.data module.
+
+#2061 - Avoid warning messages from AstroPy about unclosed files
+    Initial cleanup of the astro IO code in preparation for future changes.
+    This fixes an issue when using the AstroPy IO backend (pyfits) which could
+    cause Python to report an unclosed file on exit
+
+#2065 - CI: enforce NumPy does not use version 2.0 for the builds
+    Ensure the CI builds use numpy<2
+
+#2068 - CM-887: Updating macos gitlab runner images to version 12 and update the MacOS SDK to version 11.0
+    This ups the actions macOS Intel version to 12, and updates the macOS SDK
+    to version 11.0, which is consistent with CIAO.
+
+#2069 - Allow the tests to pass with NumPy 2.0
+    Allow the tests to pass when using NumPy 2.0, as long as pytest-doctestplus
+    is not installed.
+
+#2070 - Migrate to cxc xspec conda test channel
+    Use the cxc xspec test channel for Sherpa test workflows.
+
+#2072 - Use the correct case for the symbol name in the parameter warning message
+    Change how the warning message for deprecated parameter names for models
+    is displayed
+
+#2078 - Include the default identifier in save_all output if it has been changed
+    Record the default identifier in save_all output if the user has changed 
+    it. Fix #2077
+
+#2079 - minor cleanup of sherpa.optmethods
+    Internal clean up of the sherpa.optmethods code.
+
+#2081 - minor plot cleanup 
+    Clean up some plot code to make better use of modern Python idioms.
+
+#2086 - data: allow axis labels to be changed
+    Allow the independent and dependent axis labels to be changed. Addresses
+    #2083
+
+#2089 - minor cleanup of sherpa.optmethods
+    Internal change to handling of the optional output file option when calling
+    fit. There is no functional change.
+
+#2091 - Asymmetric filter plot
+    Allow 1D data with asymmetric errors to be plotted after a filter. Fixes
+    #2090.
+
+#2092 - Add a name field to the IO backends
+    Add a name field to the I/O backends. This is mainly useful for testing
+    and debugging.
+
+#2094 - Improve messages about invalid file types (PHA)
+    Tweak the warning messages when files can not be read to better indicate
+    the type of file being loaded (for PHA related files).
+
+#2102 - Change the URL for XPA
+    Change the URL used for XPA. Fix #2100.
+
+#2103 - Ensure crates file reads are read-only
+    Ensure that we read in table data as read-only when using the crates I/O
+    backend.
+
+#2105 - docs: typo fixes and remove some references.
+    Fix a typo in a docstring and change how two references are included in
+    the text.
+
+#2107 - XSPEC: add show_xsabund command
+    Add the show_xsabund command to the sherpa.astro.ui module and 
+    get_xsabundances to sherpa.astro.xspec.
+
+#2108 - Asymmetric settings
+    Allow the statistic and optimizer to be changed when re-sampling data with
+    asymmetric errors. Fixes #2093.
+
+#2109 - Add a set_xsabundances call for XSPEC users
+    Add a set_xsabundances call to make it easier to change one or more 
+    elemental abundances for the XSPEC models and ensure that both the get 
+    and set calls are available from the sherpa.astro.ui module.
+
+#2111 - IO: ensure NUMELT/GRP are written out as integers for RMF header
+    Ensure the NUMELT and NUMGRP keywords for RMF files are written out as 
+    integers.
+
+#2112 - Minor typing cleanup
+    Clean up some of the recently-added typing rules.
+
+#2115 - doc: add examples of using set_xlabel/ylabel
+    Add documentation showing the new set_xlabel/ylabel functionality from
+    #2086
+
+#2118 - Improve support for PHA data starting at channel 0
+    Improve the handling of PHA files that start at channel 0. PHA data that 
+    are read in from such a file no longer renumber the CHANNEL column to start
+    at 0 rather than 1, which will mean that notice and ignore filter ranges 
+    that are given in channel units will need to be reduced by 1.
+
+#2120 - Improve handling of STAT/SYS_ERR PHA columns
+    Improve handling of STAT_ERR and SYS_ERR PHA columns which are set to 0.
+
+#2121 - UI: add calc_model/source commands
+    Add calc_model and calc_source routines to return the model expression 
+    evaluated per bin.
+
+#2123 - Data cleanups
+    Internal clean up of some of the data code.
+
+#2125 - Allow per plot kwargs for plot_xxx_components calls
+    Allow per-plot keyword arguments for plot_model_components and 
+    plot_source_components.
+
+#2126 - Allow plot and contour to change the plot layout and have per-plot settings.
+    Expand the plot and contour commands to allow per-plot options to be given,
+    matching the plot_model_components/plot_source_components commands.
+
+#2129 - Fix plot overplot
+    Improve the behaviour of plot() and contour() when called with 
+    overplot=True or overcontour=True respectively. Fix #2128.
+
+#2130 - data: fixup numpy import
+    Fix up several typing annotations from a recent refactoring.
+
+#2133 - UI: add format and delim arguments to get_filter. 
+    Allow the get_filter call to override the format and delim arguments. Fix
+    #1277
+
+#2135 - Tests: tweak tolerances for macOS ARM #2135
+    Updated macOS ARM test tolerances
+
+#2137 - Fix doctests in `sherpa.plot.__init__`
+    Changed documentation to match backends as objects instead of modules
+
+#2138 - UI: add documentation for table to show_xsabund
+    The show_xsabund command now includes a description of the abundance table.
+
+#2139 - Update helpdesk URL
+    Changed helpdesk link - fixes issue #1931
+
+#2140 - Updated docs for asymmetric errors
+    Expanded documentation for load_ascii_with_errors to clarify assumptions for elo and ehi settings.
+
+#2141 - Update LaTeX labels and docs for bokeh
+    Correctly render LaTeX labels in bokeh
+
+#2144 - Fix xspec missing doc
+    Add get_xsabund_doc to the list of functions in the documentation. There 
+    is no functional change.
+
+#2147 - Improve corner-case handling of filtering and empty data handling
+    A clean-up pass for the data classes, in particular DataPHA, to normalize
+    the filtering and handling of an empty object
+
+#2151 - updating Sherpa citations
+    Added a citation to the most recent sherpa paper 
+
+#2152 - DATA: clean up DataPHA.get_x
+    Internal clean up of the DataPHA.get_x method.
+
+#2153 - updated the front page of Sherpa RTD with references
+    Added references to three sherpa papers in the sherpa docs
+
+#2154 - Update README
+    Added additional text regarding acknowledging/citing sherpa
+
+#2155 - Drop support for Python 3.9 and add 3.12
+    Drop support for Python 3.9 and numpy < 1.24 and note Python 3.12 
+    experimental support.
+
+#2157 - Improve test coverage of ignore_bad
+    Add more corner-case of quality channel handling for PHA data. There is no
+    functional change here.
+
+#2160 - Fixup test failures from #2118
+    Fix up a test case when writing out the range of a FITS column.
+
+#2161 - UI: note when a 1D filter command has failed
+    Provide more information for the UI user if a filter command has failed.
+
+#2162 - TEST: ignore fork deprecation warnings
+    Ignore the deprecation warnings about the use of the fork method for 
+    multiprocessing.
+
+#2177 - Read the Docs build failures with newer sphinx versions and sphinx_rtd_theme deprecation warning
+    Specify sphinx < 8 for the read the doc environment and remove the call
+    to get_html_theme_path no longer needed.
+
+
+Sherpa 4.16.1
+=============
+
+This release of Sherpa includes various enhancements, documentation updates, bug fixes, and infrastructure changes.
+
+* enhancements:
+    * minor plotting changes; add support for splitting model expression into
+      additive components and plot the results; support of log scale axes for
+      confidence plots; improved error messages for unavailable plot backends
+    * improved RMF plot display to allow choice of energy units
+* documentation changes:
+    * updates to fake_pha documentation
+    * updates to install.rst to fix incorrect links and outdated version references
+    * updated read the docs documentation to match current code
+* bug fixes:
+    * fixed multi-panel plot issue with Bokeh backend
+
+Details
+-------
+
+#1608 - Remove the test setup.py option
+    Add the test configuration so that we can ensure the necessary testing
+    packages can be installed when the code is built. Support for running the
+    tests with 'python setup.py test' has been removed to match changes in the
+    Python packaging ecosystem.
+
+#1679 - Automatically split a model expression into additive components and plot the results
+    Add plot_source_components and plot_model_components calls that will split
+    up a model like gal * (pl + line) into two lines: one for gal * pl and one
+    for gal * line. There are also corresponding get_source_components_plot and
+    get_model_components_plot calls, and the "source_components" and
+    "model_components" arguments can be used with the plot call.
+
+#1684 -Fix fake_pha docs
+    Fix the documentation and some corner cases of sherpa.astro.fake.fake_pha.
+    There are several times when the simulated PHA output would not be correct
+    if the PHA contains at least one background component or a pileup model
+    was used.
+
+#1926 - Let users know they should use load_xstable_model not load_table_model
+    Support for XSPEC table models in load_table_model was deprecated in the
+    4.9 release. Ensure users know that they should be using load_xstable_model
+    instead by adding a warning message whenever it is used.
+
+#1934 - Zenodo broke the API we were using to request citation details.
+    Ensure that the sherpa.citation() command can query Zenodo for the release
+    information. Fix #1933.
+
+#1938 - CI: temporarily remove ds9 tests on macOS
+    Avoid the DS9 tests on the macOS build to avoid the failure case we
+    currently often, but not always, trigger.
+
+#1941 - Fix various typos
+    Updates from running codespell on source distribution
+
+#1945 - Better error checks for table loads
+    Ensure that table models are sent numeric columns, to catch cases like #1943.
+
+#1946 - versioneer: update to version 0.29
+    Update the vendored copy of versioneer from 0.28 to 0.29.
+
+#1947 - Ensure tests can be run when the group library does not exist
+    Annotate several tests with the requires_group decorator.
+
+#1952 - Tests: better support of optional region/wcs dependencies
+    Ensure that the tests can pass if the region or WCS code is not available.
+
+#1954 - CI: avoid failures due to missing pyarrow installation
+    Allow the CI runs to pass with new changes to pandas warning messages
+    (completely unrelated to Sherpa but caused the tests to fail).
+
+#1957 - CI: support pytest 8.0.0
+    Allow the tests to pass when run with pytest 8.0.0.
+
+#1959 - Support logarithmic axes for 1D and 2D confidence plots
+    The projection and uncertainty plots, for both interval (1D) and region (2D),
+    now correctly create a logarithmic scale when requested. Fix #1561.
+
+#1962 - Pick up latest Python micro version in conda workflow
+    This resolves the missing crypt.h issue being seen in the conda test workflow
+    by picking up the latest micro version of the python packages for the conda
+    test build workflows.
+
+#1965 - Improve the error message when a plot backend is not available.
+    Improve the error message when a plot backend is not available. Fix #1964
+
+#1968 - Remove Conda build 3.25 pin from deployments
+    Removes the conda version specification (3.25) to avoid compatibility issues
+
+#1969 - Tests: group the DS9 tests so they can be run with one worker process
+    Ensure those tests that use the requires_ds9 decorator all have the same
+    group marker, so that they will be run within a single worker process when
+    using pytest-xdist to run tests in parallel. There is no change if
+    pytest-xdist is not installed.
+
+#1970 - Bump the minimum pytest version
+    Pytest occasionally changes behavior and it does not seem worth our time to
+    maintain backwards compatibility with old versions of pytest - see #1960
+
+#1972 - Remove excess brackets in model names
+    Remove excess brackets from model and parameter expressions. This is purely
+    a cosmetic change, but hopefully makes complicated model expressions easier
+    to read. Fix #780.
+
+#1973 - Fix the requires_pylab decorator
+    Change the testing code to better-handle those tests that want to check
+    plotting when using the pylab backend. Fix #1971.
+
+#1974 - Allow linked parameters to be fit without including them in the model expression
+    Treat linked parameters as part of the model expression (via the new lpars
+    attribute and get_thawed_pars routine) so that they can be included in a
+    fit without including the linked model as part of the model expression.
+    Fix #777
+
+#1976 - Fix bug in multi-panel plotting in bokeh
+    Fix bug in multi-panel plotting in bokeh
+
+#1977 - model: improve examples in docstrings
+    Allow model.py, parameter.py, and regrid.py to be included in the
+    docstring pytest run.
+
+#1984 - Rework x errorbar support to better-match community expectations
+    Improve the "x errorbar" handling for histogram-style data (including PHA),
+    including support for the wavelength setting (fix #1985), to better match
+    community expectations (e.g. #1817).
+
+#1994 - Tests: improve coverage of parameter module
+    Improve the test coverage of the parameter module.
+
+#1996 - docs: update examples to match current behavior
+    Update the ReadTheDocs documentation to match the current code.
+
+#1998 - Cleanup XSPEC interface
+    A small number of XSPEC model parameter values have been changed to match
+    the default frozen state of XSPEC version 12.13.1.
+
+#2000 - CM-481: update codecov action to v4, add upload token
+    Updates version of codecov being used
+
+#2003 - Minor plot work
+    Internal clean up of the plotting code in preparation for future changes.
+    The ARFPlot class will now generate an IOErr rather than PlotErr if sent
+    a non-PHA dataset (to better match other calls). The DataHistogramPlot
+    class now treats xerr as a property that can not be changed, and is fixed
+    to be the half-width of the X bins, although note that this field is not
+    really used and may be removed at some point in the future.
+
+#2004 - Minor improvements to the RMF plot capability
+    Improve the RMF plot display so that it recognizes the current units
+    setting and allows the choice of energies to be over-ridden by the user.
+
+#2006 - Use a separate context when handling multiprocessing calls
+    Ensure that Sherpa does not change the global multiprocessing state but
+    instead uses the (new) sherpa.utils.parallel.context attribute. Fix #1015.
+
+#2011 - Specialize the residual-style plots for histogram data
+    Improve the display of residual-style plots for integrated datasets.
+    Fix #1817.
+
+#2012 - [CI] Update ci-conda-workflow.yml to pin back to macos-12
+    Pin back to macos-12. This version is specific to macOS-intel. 13 doesn't
+    work as conda is removed from it.
+
+#2019 - update clone link and versions and DOI
+    This is a documentation update to fix the incorrect link in the source
+    install example. I also updated the version and DOI link in the description
+    of the source installation.
+
+#2020 - CI: bump the checkout actions versions
+    Internal change to how the GitHub actions are run for CI.
+
+#2021 - Update Conda Deployment Workflow Action Versions
+    Updates internal actions in the deployment workflow
+
+#2025 - Improve support for NumPy 2.0
+    Improvements for running Sherpa with NumPy 2.0.
+
+#2029 - Swap oldest-supported-numpy with numpy in requirements
+
+Sherpa 4.16.0
+=============
+
+This release of Sherpa includes various enhancements, documentation updates, bug fixes, and infrastructure changes.
+
+* enhancements:
+    * the grouping commands like group_counts and group_snr now default to only grouping within the noticed range of channels, which is a change in behaviour
+    * new plotting backend: Users can now choose between matplotlib and bokeh (experimental) support use of arbitrary python functions when linking model parameters
+    * updates to fake_pha, save_all, allowing to write out RMF/ARF files
+    * get_plot_prefs and get_contour_prefs call to simplify access to the plot and contour preferences
+    * implementation of RMFPlot and DataIMGPlot classes and associated UI functions (plot_rmf, get_rmf_plot)
+    * update support for XSPEC to include version 12.13.1, allow XSPEC table models which include the ESCALE parameter, and provide experimental support for writing out XSPEC table models.
+* documentation changes:
+    * added doc strings for sherpa data classes
+    * several updates to in code and RTD documentation
+* Infrastructure changes:
+    * revamp of plotting backends from modules to classes and adding support for multiple backends
+    * changes to use the NumPy random generator API 
+* bug fixes:
+    * PHA source plot Y axis scaling (#1825)
+    * fix model display for grouped data (#1779, #1784)
+    * Change in the ordering of operations when grouping background PHA datasets. (#1881)
+
+Details
+-------
+
+#1382 -  Plot changes: Step 1 A- Draft API for backend classes
+    Plotting infrastructure changes that make the plotting backends classes 
+    instead of modules.
+
+#1617 - Pass keyword arguments to models
+    Allow keyword arguments to be passed to models and ensure these arguments 
+    are respected by the model cache.
+
+#1629 - Note when a XSPEC model is changed to F77 form (double precision)    
+    Update a script used when updating the XSPEC support to point out models 
+    that use the double-precision FORTRAN support. There is no functional 
+    change to the code.
+
+#1653 - Allow arbitrary functions for linking parameters
+    Provide a way to use any Python function to be used for linking 
+    parameters. Fix #1652
+
+#1730 - Update xspec model creation
+    Update the code created by the sherpa.astro.utils.xspec routines to 
+    account for changes in the XSPEC interface in Sherpa. This only affects 
+    users who call these routines directly.
+
+#1734 - Unify the fake and fake_pha calls
+    The fake_pha call now accepts a method argument to match the fake call.
+
+#1735  - Allow use of the NumPy random generator API 
+    Take advantage of the NumPy random-number generator classes to provide 
+    random numbers, and move away from using the global state provided by 
+    numpy.random.seed and random.seed routines.
+
+#1738 - Return more-useful information when an XSPEC model fails
+    Include the model name and parameter values in the error message of a failed XSPEC model.
+
+#1750 - Replace pkg_resources as it is deprecated
+    Remove the use of the deprecated pkg_resources module and replace with use 
+    of importlib.resources. Fix #1723
+
+#1763 - Allow load_image to change the coordinate system
+    Ensure that the coordinate setting used in load_image calls is properly 
+    handled (when not set to the default value of "logical"). Fix #1762
+
+#1770 - Drop python2 ism in the fit code
+    Internal clean up of the fit code to replace a Python 2 method with a 
+    Python 3 version and to use f-strings.
+
+#1771 - utils: make sure OutOfBoundErr is an actual exception
+    Ensure that OutOfBoundErr is an exception (this is an internal feature).
+
+#1772 - Tweak resample data code
+    Internal changes to the ReSampleData class to better handle invalid input.
+
+#1773 - Internal clean up of estmethods
+    Code clean up of sherpa.estmethods.
+
+#1775 - Change a single test to use explicit rather than implicit random state
+from NumPy
+    Simplify a single test. There is no functional change.
+
+#1776 - Move the parallel code into a separate module
+    Move the parallal_map code from sherpa.utils to the new sherpa.utils.
+    parallel module (the symbols are still accessible from the original 
+    location but code should be updated to use the new location, including the 
+    renames of _ncpus and _multi to ncpus and multi).#1777 - Change get_sample 
+    to require named arguments
+
+#1778 - Optmethods cleanup
+    Move testing code out of the optmethods modules and into a separate test, 
+    along with a number of code clean ups. There is no functional change.
+
+#1780 - Fix model plot display when factor is set for grouped PHA data (issue 
+#1779)
+    Ensure that model plots can be created for PHA data when set_analysis 
+    routine is used to set factor > 0 and the data is grouped. Fixes #1779 and 
+    #1784
+
+#1781 - utils: remove the numpy_convolve routine
+    Remove the sherpa.utils.numpy_convolve routine.
+
+#1785 - Add docs to Sherpa data classes
+    Add docstring to most Sherpa dataclasses.
+
+#1791 - Tests: ensure repeatable test of get_draws
+    Ensure tests of get_draws use a fixed seed to make the results 
+    reproducible. There are no functional changes in this commit.
+
+#1794 - docs: note requirement on ar for building Sherpa
+    Add ar to the list of requirements for building Sherpa. Fix #1792
+
+#1795 - Add docs to describe the inputs for the ``calc`` function of a user 
+model
+    Add docs that describe the arguments of the calc function for user models.
+
+#1797 - model: explicitly send parameter argument to calc
+    Ensure that the calc method for models begins with the parameter array 
+    (explicitly given) rather than extracting it from the named arguments sent 
+    to the routine. This should not change any user code.
+
+#1800 - utils: minor code clean up
+    Internal clean up of the sherpa.ui.utils module.
+
+#1805 - Clean up display of dataset ids during fits
+    Ensure dataset ids are listed without leading brackets in the fit and 
+    staterror string outputs (remove an accidental change made in #1770). Fix 
+    #1804
+
+#1806 - Activate sphinx directive to make plots
+    Use the Sphinx plot directive to generate (some of) the plots in the docs.
+
+#1807 - NumPy 1.25 support
+    Remove deprecation warnings seen when using NumPy 1.25.0.
+
+#1808 - Use Sherpa install instead of code only to build docs
+    Switches from building the documentations from the source directory, to 
+    building it from an installed version of Sherpa.
+
+#1809 - Update the hardcoded Zenodo releases to include the 4.14/4.15 releases
+    Update the stored Zenodo releases to include the 4.14.* and 4.15.* Sherpa 
+    releases. Users should see no difference (other than avoiding the need for 
+    an http call to retrieve this information) when calling sherpa.citation().
+
+#1810 - RTD: fix script name for XSPEC updates
+    Improve the documentation on how to update to a new XSPEC version by 
+    ensuring the correct helper script is run in an example.
+
+#1811 - ui: use the default pickle version when dumping the state
+    Use the default version when pickling data (used by the UI save call) 
+    rather than an old version. Fix #1243
+
+#1812 - Autoupdate copyright year in sphinx docs
+    Autoupdate copyright year in sphinx docs.
+
+#1813 - Fix ReadTheDocs warnings and then make RTD fail on warnings in CI
+    Fix ReadTheDocs warnings and then make RTD fail on warnings in CI.
+
+#1819 - CI: hide NumPy 1.25 array ndim>0 deprecation warnings
+    Allow the tests to run with NumPy 1.25 and with Crates (from CIAO 4.15) as 
+    the I/O backend. There are no functional changes.
+
+#1821 - parallel: tweak ordering of checks for parallelization
+    Internal change to the decision of whether to use the multiprocessing 
+    module to run code or not.
+
+#1823 - sherpa_test: tweak how pytest/plugins are installed
+    Internal changes to how we check for test requirements used by the 
+    sherpa_test script.
+
+#1824 - remove non-existent datastack plotting backend initialization attribute
+    Clean up error condition by removing the sherpa.plot.backend.
+    initialize_backend attribute as no longer exists.
+
+#1828 - Improve PHA source plots: support type=counts and factor above 1 
+    Source plots for PHA data now follow the rate and factor analysis 
+    settings. Prior to this the rate setting was ignored and the factor 
+    setting produced incorrect values for factor=1 and factor=2). Fix #1825
+
+#1829 - Limit precision in the comparison of string outputs
+    Update the tests to support running on ARM/AARCH64 platforms where numeric 
+    differences can complicate string comparisons. Fix #1815.
+
+#1832 - astropy: rework RMF input (fix #1344)
+    Allow the AstroPy backend to read in HRC-I RMF data. Fixes #1344.
+
+#1835 - Note compatibility with XSPEC 12.13.1
+    Note that Sherpa can be built against XSPEC 12.13.1 and update some 
+    parameter ranges or defaults to match the new values from this release.
+
+#1836 - Allow ARF and RMF to be written out
+    Support writing out ARF and RMF data to FITS files (and, for ARF, ASCII 
+    files). Fix #1699, #1695, and #203.
+
+#1839 - ui: add get_plot_prefs/get_contour_prefs calls
+    Add the get_plot_prefs and get_contour_prefs calls to simplify access to 
+    the plot and contour preferences.
+
+#1840 - Fix #1828 - histogram plot issue
+    Fix up the histogram display for the unlikely case when the bin edges have 
+    at least one gap, the low edges are integer values, and the high edges are 
+    floating-point values.
+
+#1841 - Minor refresh of AstroPy I/O code for better FITS and ASCII output
+    Minor rework of the sherpa.astro.io.pyfits_backend module to improve on 
+    the output (both FITS and ASCII), such as a closer mapping of the data 
+    type used on disk and written out to file, and some changes to the header 
+    lines of ASCII files.
+
+#1844 - XSPEC: allow table model redshift parameter range to change (fix #1814)
+    Allow the redshift range of XSPEC table models to be changed outside the 
+    default 0 to 5 range. This restores a feature that was lost in the 4.15 
+    release. Fix #1814
+
+#1848 - Tests: add regrid corner case tests
+    Add tests for corner-cases for the regrid method. Many of these tests are 
+    currently regression tests, and check that the code behavior has not 
+    changed, rather than that it works correctly. There is no functional 
+    change to the code.
+
+#1851 - XSPEC: table model improvements
+    Address issues with the XSPEC table model support: models that set an 
+    Escale parameter (feature added December 2020) are now supported 
+    (previously they could cause a segmentation fault) and ensure that 
+    parameters with a negative delta value are marked as frozen. Fix #1850 and 
+    #1852.
+
+#1853 - XSPEC: update model parameters to match XSPEC 12.13.1 / HEASOFT 6.32
+    Update the XSPEC parameter names and ranges to match those from XSPEC 
+    12.13.1 / HEASOFT 6.32.
+
+#1854 - models: change defaults for Box1D parameters
+    The xlow parameter of Box1D now defaults to 1 and the ampl parameter has a 
+    greatly-increased range (from the previous version of -1 to 1).
+
+#1855 - group_counts et al now default to using the existing mask as the 
+tabstops, unless explicitly given
+    When calling group_counts, group_width, ..., use the current mask as the 
+    tabStops argument by default (actually, the inverse of the mask), that is, 
+    when the tabStops argument is set to None (the default). This means that 
+    the grouping is only applied to the selected channels, and means that the 
+    filter range is less likely to change when filtered data is grouped.
+
+    This is a change in behaviour. To get the previous behaviour users need to 
+    set tabStops to an array of zeros (length being the number of channels): 
+    e.g. for Chandra ACIS imaging-mode data, group_counts(20, tabStops=[0] * 
+    1024) or group_counts(20, tabStops=np.zeros(1024)). Fix #417 #956 #1081
+
+#1856 - XSPEC: fix link for XSPEC gauss/zgauss models
+    Fix the link to the XSPEC documentation for the gauss and zgauss models.
+
+#1858 - Correctly handle XSPEC table models with both ESCALE and Z parameters
+    Update XSPEC table model support for models with both ESCALE and REDSHIFT 
+    keywords set to work correctly. Fix #1857
+
+#1861 - Allow XSPEC table models to be created and written out
+    Provide experimental support for creating XSPEC table models (additive or 
+    multiplicative). The output routines can be found in the sherpa.astro.ui.
+    xstable module. Note that XSPEC support is not required to write out an 
+    XSPEC table (but it is to be able to read it back in and use it). Fix #1859
+
+#1866 - Switch to conda-forge and use new Conda channel
+    Removes use of defaults channel and replaces it with conda-forge; removes 
+    references to anaconda
+
+#1867 - First fixes for NumPy 2.0
+    Internal code changes to improve support for NumPy 2.0.
+
+#1874 - save_all improvements for set_psf and load_xstable_model
+    Ensure that save_all includes set_psf calls, supports XSPEC table models, 
+    and improve the support for data sets created with load_arrays or 
+    dataspace1d/dataspace2d. Fixes #1873.
+
+#1877 - un-whitelist deprecation warnings
+    Cleaned up deprecation warning exceptions from test white list
+
+#1878 - Tests: better handle case where both astropy and crates are available
+    Fix up tests that would fail when both astropy and crates packages were 
+    installed and the pyfits backend was chosen (the tested functionality was 
+    not wrong, just they were testing the wrong things).
+
+#1883 - Update setup_ds9.sh for DS9 8.5
+    Update to use newer ds9 version
+
+#1888 - UI: set_analysis reports the filter change - fix #1590
+    The sherpa.astro.ui.set_analysis call now reports the new filter. It will 
+    also now error out if no data has been loaded. Fix #1590 and #1368.
+
+#1890 - Convert a RMF to an image
+    Add the sherpa.astro.instrument.rmf_to_image and sherpa.astro.instrument.
+    rmf_to_matrix routines for converting a RMF to DataIMG or a 2D matrix 
+    respectively. Fix #1619. The create_non_delta_rmf routine in the same 
+    module no-longer assumes the matrix is square. Fix #1889.
+
+#1891 - ui: add calc_bkg_stat - fix #333
+    Adds the calc_bkg_stat, calc_bkg_stat_info, and get_bkg_stat_info 
+    routines. Fix #333.
+
+#1892 - data: group backgrounds before source - fix #1881
+    Change the ordering of operations when grouping background PHA datasets. 
+    Fix #1881
+
+#1899 - Bokeh class
+    Provides a new backend plotting class which utilizes the Bokeh 
+    visualization package.
+
+#1906 - Remove hardcoded matplotlib for _repr_html_ of RMF and DataImage2D
+    Implement RMFPlot and DataIMGPlot classes and associated UI functions 
+    (plot_rmf, get_rmf_plot). Fix #1385
+
+#1908 - Add versionadded note to set_plot_backend
+    Added note that the set_plot_backend command is new in 4.16
+
+#1909 - Add security warnings to restore functions
+    Added documentation warning of inherent risks of importing binary files 
+    when using restore functions.
+
+#1911 - IO: add missing import for pyfits backend
+    Ensure a corner-case error condition when writing out responses fails with 
+    the correct error.
+
+#1912 - Warn when reading in a multi-matrix rmf
+    Ensure that attempts to read in a multi-matrix RMF will warn the user that 
+    they are not yet supported.
+
+Sherpa 4.15.1
+=============
+
+This release of Sherpa includes various enhancements, documentation updates, bug fixes, and infrastructure changes.
+
+* enhancements:
+    * further improvements to filtering/grouping including reporting a filter change in the UI
+    * fake_pha can be called with a list of ARF/RMF names
+    * added linewidth option for line and histogram plots
+* documentation changes:
+    * fixed broken URLs
+    * improved documentation for templates, plot_pvalue
+    * added documentation testing with doctestplus
+* Infrastructure changes:
+    * dropped support for Python 3.8
+    * experimental support of Python 3.11
+    * supported versions of Xspec are 12.12.0 - 12.13.0
+* bug fixes:
+    * various updates to notice/ignore and group/ungroup code
+    * fixed issue with show_bkg
+    * fixed issue when binning values into a 1D histogram
+    * fixed cache errors with the TableModel class
+
+Details
+-------
+
+#1396 - XSPEC minimum version is now 12.10.1
+    Bump the minimum-supported version of XSPEC from 12.9.0 to 12.10.1.
+    (superseded by #1609)
+
+#1472 - tests: remove work-around for #1334 from #1336
+    Remove a test work around for our CI tests failing (issue #1334)
+
+#1486 - Improve filtering/grouping behavior
+    Changing the grouping array of a PHA dataset (with set_grouping from the UI layer
+    or by setting the grouping attribute of a DataPHA object) will now re-create the
+    filter, to fix #1160.
+    It is suggested that the filter expression (e.g. as returned by the get_filter
+    routine for uses of the UI layer) is checked to ensure the result is still sensible.
+
+#1502 - Cleanup template code
+    Improve the documentation and testing of the template-model code. There is no
+    significant change in behavior, but some use cases will generate more-appropriate
+    errors than they used to.
+
+#1591 - Document params and return values for root finding functions
+    Add docstrings for root finding functions
+
+#1607 - Fix an issue when binning values into a 1D histogram
+    Fix a problem when binning data into a histogram (issue #1605).
+
+#1609 - XSPEC minimum version is now 12.12.0
+    Bump the minimum supported XSPEC version to version 12.12.0.
+
+#1611 - Post 4.15.0 updates
+    Add the 4.15.0 DOI to the README.md.
+
+#1613 - Allow testing of the documentation
+    Adds the ability to run doctests in py and rst files. Those tests will run
+    automatically, if doctestplus is installed (not on CI in the current setup) and
+    the file is not explicitly blacklisted for doctestplus.
+
+#1621 - Fix a cache error with TableModel
+    Fix cache errors with the TableModel class (#1622), add validation of input
+    values, and minor additions to the documentation.
+
+#1630 - Add support for XSPEC 12.13.0
+    Add explicit support for XSPEC 12.13.0. Sherpa can be built against XSPEC
+    12.13.0 without this PR, but this adds in support for the new cglumin
+    convolution model added in this release.
+
+#1637 - report the filter changes when grouping is changed for the ui
+    Report the filter when data is grouped with UI commands - such as group,
+    group_counts, and set_grouping - to match the notice/ignore behavior added in
+    #1562. The logic for setting the background group flag has been moved from the
+    UI layer to the DataPHA class. Addresses #1632.
+
+#1644 - Deployments via GH Actions
+    Dropped support for RH7 and macOS 10.15
+
+#1656 - CIAOX deployments require force. As they deployed for main already.
+    Based on the current scheme used for the build number, we need to force uploads
+    for CIAOX as they have already been deployed for main. This was already done for
+    the previous GitLab builds.
+
+#1660 - Associated group fixes
+    Clean up of the notice/ignore and group/ungroup code to avoid unnecessary work,
+    move logic from the UI layer into the DataPHA class, and ensure that if the
+    grouping field is set to None that the data is not grouped. Fix #1641, #1657,
+    and #1659
+
+#1662 - Add grouping tests
+    Add a number of tests to check out corner case behavior, primarily for grouping
+    PHA data but there's also a number of routines from the UI code that have missed
+    some tests.
+
+#1664 - Allow save_model/source/resid to work with 2D data (fix #1642)
+    Fix save_model/source/resid calls when used with 2D data sets. Fix #1642
+
+#1665 - Fix an issue with show_bkg (fix #1645)
+    The show_bkg routine could fail when the set of backgrounds is not the same for
+    all datasets (e.g. one has a background and another does not). Fix #1645
+
+#1666 - model-wrapped symbols now reference the actual model (fix #215)
+    Wrapped models, accessible from the UI layer, now reference the wrapped model
+    rather than being devoid of any useful information. Fix #215
+
+#1672 - models: f-string changes
+    Change the models code to use f-strings where appropriate rather than other methods
+    of string interpolation. There is no change in behavior.
+
+#1675 - Bump ds9 to 8.4.1 - Ubuntu 20 and macOS BigSur
+    Bump to the latest DS9 version and update to ubuntu20 version. This resolves #1674
+
+#1676 - update model macro definitions for compiled code
+    Re-work the macro definitions used to build the compiled models and use this to
+    clean up the handling of the XSPEC models, in particular table models. There is
+    no functional change.
+
+#1681 - XSPEC test cleanup
+    Minor clean up to some XSPEC tests to make better use of pytest.
+
+#1689 - Address regression created by #1672
+    Internal change to the Sherpa-specific logging code, to ensure that logged
+    message includes all components. This fixes #1688 which was a regression created
+    when #1672 was recently merged.
+
+#1693 - Test cleanup related to #1334
+    Complete the cleanup related to removing the #1334 workaround which was added in
+    #1336. These two tests were missed from #1472 (which was meant to remove these
+    changes). The two test files have also seen some minor style changes (no change
+    in behavior).
+
+#1696 - Docs: fix #1694
+    Correct a link in the RTD documentation.
+
+#1697 - Ds9 test tweaks
+    Minor cleanup of the DS9 tests (no functional change)
+
+#1698 - Update versioneer to 0.28
+    Update the version of versioneer included in Sherpa from 0.21 to 0.28. Fix #1677.
+
+#1708 -Ensure string id can be used for the background id in the DataPHA notice/ignore call
+    Allow a string identifier to be used for the bkg_id argument to the
+    DataPHA.notice (and ignore) method, fixing #1709 (it does not affect users
+    using the ui layer).
+
+#1711 - plot: add linewidth option
+    Add the linewidth option for line and histogram plots (e.g. plot_data,
+    plot_model, plot_fit) with the matplotlib backend.
+
+#1715 - utils: rework the error-column saving code
+    Internal clean up of the save_*error routines. There is no change in behavior.
+
+#1716 - utils: tweak internal _save_type routine
+    Minor internal change to a routine in the utils code. There is no change in
+    behavior.
+
+#1720 - Fix get_stat_info output for individual components
+    Fix the get_stat_info output for multiple PHA data when the data has a different
+    number of background components (fix #1721). The get_bkg_model routine will now
+    use the source PHA for a response if the background has no response (to match
+    what fit and fit_bkg do, fix #1724).
+
+#1733 - Allow fake_pha to be called with a list of ARF/RMF names of length 1
+    Allow fake_pha to be called with a list of ARF and RMF names that only contains
+    one element. Fix #1722
+
+#1739 - pyfits: be more lenient with FITS files with messed-up headers
+    Allow some FITS files with an invalid header to be used with the AstroPy I/O
+    backend.
+
+#1747 - reduce chance of plot_pvalue getting stuck in a bad parameter space
+    Ensure that each simulation step for the likelihood ratios code, as used by
+    plot_pvalue, starts with the same parameter values to reduce the chance that the
+    results can get stuck in certain areas of parameter space. The ratios field of
+    the LikelihoodRatioResults structure - e.g. the return value of
+    get_pvalue_results() - can be plotted to see if this has happened (e.g. large
+    ranges where the ratio is close to zero.
+
+#1751 - Explicitly require attrs module when testing Sherpa
+    Ensure that the attrs module is available for testing Sherpa.
+
+#1752 - Drop Python 3.8 and Pick up Python 3.11 as a beta
+    move to be NEP-29 compliant with python version
+
+#1753 - Initial support for Python 3.11
+    Basic support of Python 3.11.
+
+#1755 - Tests: replace use of attrs package by dataclass
+    Change a test file to use data classes rather than use the attrs module, which
+    means that attrs is no-longer needed to test Sherpa. There is no functional
+    change in this PR.
+
+#1756 - Fix broken URL in docs
+    Updated URLS which are no longer valid
+
+#1759 - updated plot_pvalue docs
+    Updated docstring for plot_pvalue to include reference to the algorithm
+
+#1760 - Tweak test tolerances mac arm
+    Improve test reliance when running on the macOS ARM platform
+
+
+Sherpa 4.15.0
+=============
+
+This release of Sherpa includes various enhancements, documentation updates,  bug fixes, and infrastructure changes.
+
+* enhancements:
+    * Improved validation of arguments when creating Data objects:
+        * arrays sent to Data objects are now converted to ndarrays
+        * the independent axis is now made read-only
+        * the size of a data object is now fixed.
+    * Filter settings with notice/ignore are reported to the screen for the users of the UI layer.
+    * Increased test coverage for plotting
+* documentation changes:
+    * updated readthedocs to use pip and pytest instead of setup.py
+    * several updates to documentation, including updates to fake_pha, calc_ftest, calc_mlr
+* Infrastructure changes:
+    * Drop support for Python 3.7
+    * Updates to start creating Python 3.10 Conda packages.
+    * Use Numpy 1.20 for Python 3.8/3.9 and Numpy 1.21 for Python 3.10.
+    * Moves toward PEP-517 with some distutils cleanup and more configuration moved from setup.py to setup.cfg
+    * Various improvements to the GitHub Actions and GitLab workflows
+* bug fixes:
+    * Ensure chi2xspecvar errors match XSPEC when 0 counts are present during background subtraction
+    * Remove model instances from the global symbol table when clean is called
+    * Addresses new warnings in the tests for Matplotlib 3.6.0 and AstroPy 5.1
+    * Minor copy and paste error in fake_pha docstring
+    * Test issues in test_fake_pha.py due to randomness
+
+Details
+-------
+
+#1329 - Build updates (move towards PEP-517 support)
+    Move the Sherpa build system towards a more static configuration (PEP 517)
+
+#1412 - XSPEC: initialize XSPEC library at load time
+    Simplify how and when the XSPEC model library is initialized. Fixes #1388
+
+#1477 - Add data validation
+    Improve the validation of arguments when creating Data objects- Arrays sent to
+    Data objects are now converted to ndarrays, the independent axis is now made
+    read-only, the size of a data object is now fixed.
+
+#1504 - CI: rework setup
+    Update the GitHub workflows for Continuous Integration to better take advantage
+    of the workflow language.
+
+#1505 - RTD use pip/pytest rather than setup.py for install/develop/test
+    Change the RTD documentation to use pip and pytest rather than setup.py when
+    building and testing Sherpa
+
+#1507 - tests: ensure DS9 window is closed after the tests
+    Ensure that any DS9 process started by the Sherpa tests is closed when the tests
+    are finished.
+
+#1510 - Tests: improve test coverage of plot code
+    Improve the testing coverage for several plot routines.
+
+#1513 - Minor UI tweaks
+    Added validation to the set_xlog/ylog/xlinear/ylinear and updated save_model,
+    save_source, save_resid, and save_delchi commands from sherpa.ui to not error
+    out if not given an explicit identifier.
+
+#1516 - Consolidate plot and set_xlog handling
+    Use the same labels for the plot and set_xlog/set_ylog/set_xlinear/set_ylinear
+    functions. As a result, a number of names can no-longer be used as an identifier
+    for a dataset (bkg_chisqr, bkg_delchi, bkg_fit, bkg_model, bkg_ratio, bkg_resid,
+    bkg_source).
+
+#1519 - Use direct html links instead of using `[1]` and a reference section
+    This replaces the use of a "References" section with direct URL links in
+    particular in cases where the reference is just a plain old HTML website and
+    not a scholarly publication.
+
+#1523 - Ensure the region-lib code is re-generated when needed
+    Fix a build issue with clang where the region-library code caused an error
+    message
+
+#1529 - Add arguments to -i in sed calls in config script
+    Update sed command in config script for improved portability
+
+#1532 - Add plot related tests
+    Add more tests to cover corner case scenarios (mostly plotting related).
+
+#1534 - docs: fix calc_ftest/mlr documentation
+    Note that calc_ftest and calc_mlr can return an array or scalar value, depending
+    on the input.
+
+#1536 - Tests: add more tests of get_order_plot/plot_order
+    Add a test for multiple orders and plot_order.
+
+#1537 - Remove model instances from the global symbol table when clean is called
+    Ensure that models are removed when clean() is called.
+
+#1538 - Ensure chi2xspecvar errors match XSPEC when 0 counts are present during background subtraction
+    When using the chi2xspecvar statistic for estimating PHA errors, ensure that the
+    errors match those calculated by XSPEC when the background is subtracted and the
+    source or background group contains 0 counts
+
+#1540 - Tests: fix the random seed for a fake_pha test
+    Remove randomness from a test.
+
+#1547 - Fix CI failures from AstroPy 5.1 warning changes
+    Allow the macOS tests to run on CI with AstroPy 5.1.
+
+#1554 - Install New libxcb Dependencies for Qt
+    For Linux GitHub Actions, we now install libxcb dependencies required for
+    Conda's Qt package.
+
+#1555 - Bump the ci-pip-arch workflow to ubuntu-20.04
+    Update to use ubuntu 20 as GutHub Actions is deprecating ubuntu 18.04
+
+#1562 - report the change in the filter because of calls to notice and ignore
+    When a notice or ignore call - including the variants like notice_id and
+    ignore2d - then the change in the filter is reported to the screen (for users
+    of the ui layer).
+
+#1563 - Add Python 3.10 Conda Builds, Drop Python 3.7 and Numpy <1.20, Switch to Pip for Conda Builds
+    Drop official support for Python 3.7 and start creating Python 3.10 Conda
+    packages. Our Conda builds now use Numpy 1.20 for Python 3.8/3.9 and
+    Numpy 1.21 for Python 3.10.
+
+#1566 - GitLab: Add version info to deploy test, update test OS, and allow interrupt.
+    Updates to gitlab to support automated tests, save version info, set default to
+    interruptible to allow canceling pipelines, and switched to source conda instead
+    of adding it to the path
+
+#1567 - Fix minor copy and paste error in fake_pha docstring
+    Make UI layer fake_pha work for XMM/RGS by accepting input of arf=None when an
+    RMF file is given.
+
+#1569 - Minor changes to the fake_pha test added in #1567
+    Internal changes to the test added for fake_pha in #1567
+
+#1572 - Tests: fix a logical test error
+    Fix a logical error in a plotting test.
+
+#1574 - Avoid occasional test errors from Tcl_AsyncDelete
+    Switch the matplotlib tests to use the Agg backend to avoid possible
+    Tcl_AsyncDelete errors (issue #1509)
+
+#1578 - Gitlab: Reduce artifact retention period
+    reduces artifact retention from 2 weeks to 3 days due to new gitlab 5gb
+    restrictions
+
+#1579 - Add back --python removed in #1566
+    reinserts --python flag that was accidentally removed in #1566
+
+#1580 -add a version changed note for the fake_pha command
+    Update the documentation to note the change to fake_pha in #1567
+
+#1585 - Tests: work around matplotlib 3.6.0 warning
+    Allow the tests to pass when run with matplotlib version 3.6.0.
+
+#1589 - Set the language when building the documentation
+    Ensure the language setting is defined for recent versions of Sphinx
+
+#1594 - gitlab-ci: Set build num to 0 if not set
+    Set the default Sherpa build number to 0 in our GitLab workflow to know which
+    package to run deploy tests on for official release builds.
+
+#1600 - Change the histogram1d and 2d routines so that they do not sort the input arguments
+    Address some failures in histogram1d and histogram2d routines by making sure
+    they copy the input arguments before sorting them.
+
+Caveats
+-----------
+
+* There are known issues (#1602, #1605, #1606) in the histogram1d/histogram2d functions
+    leading to failures which were not fully addressed in this release (see the failed
+    case in the second histogram1d example). This is not the Sherpa core functionality
+    and numpy.histogram can be used if needed.
+
+
+Sherpa 4.14.1
+=============
+This release of Sherpa includes various enhancements, documentation updates, bug fixes, and infrastructure changes.
+
+* enhancements:
+    * various plotting backend improvements
+    * various i/o backend improvements
+    * data object class improvements
+    * basic support for Xspec 12.12.1
+    * beta support for python 3.10
+* documentation changes:
+    * updated build with CIAO documentation
+    * Add a missing class (DataOgipResponse) to the documentation
+    * Improves the docstrings for DataPHA
+    * fixed typos in plot docs
+    * clean up readthedocs issues such as missing bullets
+* Infrastructure changes:
+    * updates for compatibility with Clang 12.0
+    * updates to the regression tests
+* bug fixes:
+    * Improve the FITS headers created when writing out a PHA file (to better match OGIP standards)
+    * addresses delete_model_component call failing if a key does not exist
+    * fixed issue with writing a PHA dataset as a table rather than a PHA file
+    * ensure FITS column access is case insensitive 
+    * image handling and image coordinates 
+
+Details
+-------
+
+#1030 - Update lev3fft test to use PHYSICAL not WCS
+    Update a 2D image test to use physical rather than WCS coordinates for the fit.
+
+#1185 - Simplify switching the astro.io backend
+    Add dummy_module, docs, and test case for switching the sherpa.astro.io backend.
+    io backend are now tried in a default order (crates, pyfits, dummy)
+
+#1191 - Make it easier to switch the plotting backend 
+    Make is easier to switch the plotting backend (note that we currently only have on
+    backend implemented anyway)
+
+#1207 - Improve OGIP headers in PHA files
+    Improve the FITS headers created when writing out a PHA file (to better match OGIP
+    standards). Fixes #488 and #1209
+
+#1314 - test: add requires_data decorator
+    Add a needed decorator for a test. There's no functional change to the code.
+
+#1317 - Add requires group test decorators
+    Ensure the tests that require the group library are marked with the requires_group
+    decorator.
+
+#1318 - Adjust a test for python 3.10
+    Adjust a test so that it passes with Python 3.10
+
+#1326 - Write-up that environment variable in setup.cfg need to be expanded
+    Add a detail to developer docs about compiling in a conda ciao environment
+
+#1328 - Versioneer cleanup
+    Update the versioneer module we use from 0.14 to 0.21 (latest).
+
+#1331 - optmethods: remove Deprecation warning about invalid escape string
+    Remove a deprecation warning from sherpa.optmethods.optfcts and update some fake_pha
+    tests to each use a fixed random seed.
+
+#1332 - Add Instrument test
+    improved the psf tests, adding low-level tests of the tcdData class
+
+#1337 - Fix import statements
+    Change from using __import__ to importlib.import_module.
+
+#1338 - clean up some C/C++ code in the _psf.cc file
+    Minor clean up of C/C++ code
+
+#1339 - Add codecov.yml to fix path issue and update codecov uploader
+    Fix path parsing issue on codecov as well as updated for the new codecov uploader
+
+#1340 - Change how the sherpa config file is accessed
+    Support environments where the HOME environment variable is not set when accessing
+    the Sherpa configuration file.
+
+#1347 -  Refactored array classes cause std::vector has non-virtual destructor
+    std::vector has non-virtual destructor so in this PR the refactored Array (1D and 2D)
+    classes no longer inherit from std::vector
+
+#1348 - Minor internal code cleanup tracking errors
+    Minor internal changes to how some errors are raised. There should be no
+    user-visible differences due to this changes.
+
+#1351 - Update the sherpa-test-data repo to the latest from main
+    updates that reference to the latest copy
+
+#1353 - Fix issue with delete_model_component
+    The delete_model_component call could fail in certain circumstances, so fix those
+    cases. Fixes #16
+
+#1355 - Minor cleanup of the I/O code
+    Minor internal clean-up of the I/O code. There should be no user-visible changes.
+
+#1359 - Improve writing out data objects as a table (fix #47)
+    Fix writing out of PHA datasets as a generic table (both ASCII and FITS formats).
+    Fixes #47
+
+#1360 - Add missing export statement to clang 12 note
+    Update documentation to be clearer on how to build on clang 12 and avoid compiler
+    error on implicit function declarations
+
+#1361 - Ensure FITS column access is case insensitive for the pyfits I/O backend (fix #143)
+    Allow FITS column access with the pyfits backend to be case insensitive. Fixes #143.
+
+#1365 - Simplify a test (fix #541)
+    Remove duplicated code in a test (fix #541).
+
+#1370 - Minor tweaks to handling of PHA settings
+    Improve the checking of the factor and rate settings of set_analysis and the
+    plot_fac attribute of the DataPHA class, and add a few tests that exercise some
+    corner cases of the DataPHA class.
+
+#1374 - Address aarch/ppc64le test failures
+    Update tests to that they pass on aarch64. Fixes #1372
+
+#1376 - Very-minor tweaks to docs/tests
+    Fix a minor test issue and an unused reference in the documentation.
+
+#1387 - minimize C++ code duplications (rebase)
+    Remove code duplication in the XSPEC module.
+
+#1399 - Allow conf/covar/proj to be used with XSPEC model parameters (regression)
+    Ensure that conf, covar, and proj can be called with an XSPEC model parameter.
+    Fixes #1397.
+
+#1401 - Modified region code to remove implicit prototype error
+    This change updates the extern region code in sherpa to resolve a missing prototype
+    which causes build issues with clang 12.0.
+
+#1403 - Updates to fix typos in the plot documentation 
+    Update to fix a few typos in the plot documentation
+
+#1410 - Add script and docs for pre-commit hook to update copyright
+    Add example script for a git pre-commit hook that checks the copyright is up to date.
+
+#1411 - Add sphinx_rtd_theme to sphinx extensions and set min version
+    Our readthedocs pages have had some visual issues (in particular, bullets point
+    where missing from output) for a while. This fixes that by ensuring we are using
+    a recent version of the sphinx theme.
+
+#1413 - Add more editor/OS exclusions to .gitignore
+    Add a VSCode workspace summary files and MacOS directory preview files to .gitignore
+
+#1414 - Improve the handling of image coordinates
+    Address an error when converting between different coordinate systems for images.
+    Fixes #1380.
+
+#1415 - RTD fix missing and changed symbols
+    Update the ReadTheDocs build to cope with changes in #1191
+
+#1418 - Fix minor test issues
+    Address several minor test issues.
+
+#1419 - Keep .rc file backwards compatible
+    Default rc files will work in older version of sherpa as well.
+
+#1421 - Address usability issues with Data2DInt and DataIMGInt classes
+    Fix issues using the Data2DInt and DataIMGInt classes (#1379).
+
+#1423 - fix a compiler bug on macOS
+    update to address compiler issue when compiling on macOS
+
+#1424 - rm primini stat method
+    This PR removes the primini iterative statistical method. Please see issue #1392
+    for details
+
+#1425 - Allow users to freeze models
+    Models can now be frozen or thawed, which just calls the requested on all the 
+    parameters of the model (except for "alwaysfrozen" parameters which are skipped).
+    This is only relevant for users who are accessing the objects directly since the ui
+    versions of freeze and thaw already implemented this behavior. Fixes #1080.
+
+#1429 - Tests: fix up test problems shown by pytest 7.0.0
+    Fix up several tests so they can be run with pytest 7.0.0. Fixes #1428
+
+#1434 - Fix aarch64 test failures
+    Allow the tests to pass on aarch64 (numerical precision checks).
+
+#1435 - Minor clean up of the data code
+    Improves the docstrings for DataPHA, adds tests for several corner-cases, and makes
+    some minor code improvements to the code.
+
+#1440 - Minor clean up of the data routines
+    Address several minor code-style changes in the data handling (code and tests).
+
+#1441 - Clean up the data tests
+    Clean up of the data tests which were added as part of the data-class rework in #614.
+
+#1442 - Ensure channel and count fields for PHA are aliases of independent and dependent axes
+    Ensure that channel and the independent axis and counts and the dependent axis are 
+    synonymous for the DataPHA class.#1451 - Tests: ensure sherpa smoke tests are done
+    in a clean environment
+
+#1453 - Tests: mark those that require the group module
+    Note a number of tests that require the group module.
+
+#1454 - RTD: update copyright year and fix WCS library
+    Update the sphinx build instructions so that changes from PR #1414 will be documented
+    correctly on systems where the documentation is being built without first compiling
+    the code (such as read-the-docs).
+
+#1455 - RTD: update the build-from-CIAO documentation
+    Update the "build with CIAO" documentation to match the CIAO 4.14 conda instructions
+    and automate the process.
+
+#1458 - Improve several issues when building and testing Sherpa
+    Minor improvements to the build and test installation. The use of setuptools has
+    been restricted to match the current advice from NumPy (< 60, from 
+    https://numpy.org/devdocs/reference/distutils_status_migration.html).
+
+#1461 - Minor grouping cleanup
+    Minor internal change to how the group routines work for PHA objects.
+
+#1462 - Docs: fix up documentation of ui.set_grouping
+    Fix the documentation for set_grouping to match the code.
+
+#1463 - rm a redundant call to calc_h
+    Removed a redundant call the the calc_h method in the class fdJac
+
+#1464 - RTD: include the DataOgipResponse class in the documentation
+    Add a missing class (DataOgipResponse) to the documentation.
+
+#1473 - Data test minor cleanup
+    Minor test clean-ups.
+
+#1474 - Add basic tests of data validation
+    Ensure we test a number of corner cases related to data validation.
+
+#1484 - Include ciao region patch
+    Allow the CXC Data Model library to be used to parse region files, if available. 
+    This is primarily intended for building Sherpa as part of CIAO.
+
+#1485 - get_header_data is an official method of the astro.io backend
+    An internal change to make sure that the get_header_data routine is part of the 
+    astro I/O backend API.
+
+#1490  - Basic support for XSPEC 12.12.1
+    Allow Sherpa to be built with XSPEC 12.12.1. It does not provide access to the three
+    new models - polconst, pollin, and polpow - added in this release of XSPEC.
+
+#1492 - Make tests pass on 3.10
+    One of the tests fails in Python 3.10 because the error message has been changed.
+
+#1493  - Remove deprecated distutils.version.LooseVersion
+    The distutils.version.LooseVersion class is now marked as deprecated so remove its
+    use when building Sherpa and when importing the Sherpa XSPEC module.
+
+#1494 - Update AX_PYTHON_DEVEL.m4 from serial 17 to 25
+    This update covers the cleanup of distutils in the configure files for grplib (and 
+    stklib in the case of standalone sherpa).
+
+#1495 - Note that we support Python 3.10
+    Note that Sherpa can be built using Python 3.10 and add two Python 3.10 CI test runs.
+
+#1496 -  DS9 update from 8.2.1 to 8.3
+    Update to use ds9 v8.3 since v8.2.1 is no longer available
+
+#1497 - Tests: ensure matplotlib windows are closed after all tests are run
+    Ensure that our tests can run on CI cleanly.
+
+
+Sherpa 4.14.0
+=============
+This release of Sherpa includes various documentation updates,  bug fixes, enhancements, and infrastructure changes.
+
+* enhancements:
+    * filtering and grouping  for binned (1D) spectral data have been improved 
+      with changes to the default behavior and many bug fixes resulting in 
+      differences to the statistics, degrees-of-freedom and energy flux in 
+      comparison to the previous version for the same data with the same filter.
+    * the output of get_filter() for 2D region filter expressions now correctly 
+      describe complicated shapes (e.g. when used with calc_data_sum2d)
+    * updates allowing to change the hard limits of XSPEC model parameters and 
+      also to use XSPEC models that use “out-of-bounds” values to switch certain 
+      behaviour such as for example the fpl parameter of the xsoptxagn model
+    * the sample_flux routine now returns correct information for the clip column
+* documentation changes:
+    * improved PHA simulation documentation 
+    * improved Filtering and grouping of PHA data documentation
+    * added sherpa.image module documentation
+    * added section on running tests to developer docs
+* Infrastructure Changes:
+    * updates to support Apple ARM
+    * update to support Xspec version 12.12 
+    * update fftw from version 3.3.8 to 3.3.9
+    * clean up of compiler and sphinx warnings
+    * changes to support gcc 9.3.0 in conda defaults
+    * updates to support python 3.9 including readline 8.1 upgrade, numpy minimum 1.19 (numpy 1.18 minimum for python 3.7/8)
+    * test infrastructure clean up and updates
+* bug fixes:
+    * updates to fix several 'unable to parse region string: None' errors
+    * fix issue where save_all() of a loaded image with no region filter would fail on reload
+    * fixed issue with plot_model() being called before notice or ignore could lead to filters not getting applied
+    * fix to error out instead of crash when grouping data using an unsupported method 
+
+Details
+-------
+
+#1031 - Update fwhm calculation
+    Update the estimation of FWHM for 1D profiles, and hence the guess method for 
+    Gauss1D and related routines. The 2D models use the same routine so see these 
+    changes.
+
+#1073 - Allow fake_pha to be called with an identifier of None
+    The fake_pha command now treats id=None as the default id. This addresses #1064.
+
+#1106 - The sample_flux routine now returns the correct information for the clip column
+    The sample_flux routine now returns correct information for the clip column
+    (that is, it matches the clipping done by this routine). There may be changes to 
+    the reported error ranges because of this change.
+
+#1107 - Add some grating related keywords for _repr_html_ for ARF, RMF, PHA
+    Add keywords to the default output in the _repr_html_ for some X-ray classes.
+
+#1113 - XSPEC: support etable table models
+    Allow XSPEC ETABLE table model files to be read by load_xstable_model by 
+    setting the etable parameter.
+
+#1118 - Improve test cases for source plots with PHA data
+    Add additional test cases for source plots with PHA data to check out 
+    rarely-used combinations.
+
+#1127 - PHA filtering changes
+    Improve some corner cases for filtering PHA data, including fixing #921 (channel
+    bounds are integers, not half-integers).
+
+#1131 - Test: fix a test failure when XSPEC installed but no fits backend
+    Avoid running a test we know to fail for an uncommon combination of options.
+
+#1134 - This is a doc-string only update for load_multi_XXX
+    The previous example implied that a spectrum may contain both positive and 
+    negative orders in the same spectrum. That can happen only after coadding - 
+    and in that case one would co-add the arfs as well.
+
+#1135 - Added docstring and removed unused no-op class
+    Remove sherpa.astro.models.MultiResponseSumModel which did nothing and seems 
+    to be unused (except in a test that explicitly skip this class).
+
+#1136 - Replace error message "too few columns" with a more generic word
+    Change the wording of an error message. Potentially breaking if someone tests 
+    for the wording of the error message in their code, but certainly more correct.
+
+#1137 - Correct docstring for fake_pha
+    The old docstring claims that the background is just scaled and not simulated, 
+    but there is definitely a call to poisson_noise for the background in the code.
+
+#1138 - Address NumPy 1.20 bool/int/float deprecation warnings
+    NumPy 1.20 notes that numpy.bool, numpy.int, and numpy.float will be removed 
+    and users should just use bool, int, and float instead, so these symbols have 
+    been changed. This is a follow on to #1092
+
+#1140 - Fix some remaining master/main renames
+    clean up references to master with main
+
+#1143 - add basic test and documentation for Integrate1D
+    Add basic testing of the integrate1d model class and improve its documentation.
+
+#1144 - A minor cleanup of estmethods
+    A minor cleanup of the sherpa.estmethods code.
+
+#1147 - Tests: support use of data directory being local, not absolute
+    Allow a test to pass when given a relative path for the test data directory.
+
+#1154 - Update docs on RTD builds
+    Update docs on how the docs are build in CI
+
+#1155 - Remove Meta class for fits hdu headers
+    Remove Meta class for header information that is used only rudimentary and 
+    acts almost, but not quite, like a dict
+
+#1163 - XMM/RGS triggers a notice/ignore bug because channels are in reverse-energy order in RMF
+    Recent work on the ignore / notice logic in #1127 implicitly assumes that the 
+    energy grid in PHA/ARF/RMF files is in increasing order, which does not hold 
+    true for XMM/RGS data
+
+#1164 - Fix plots with wavelength general:visualization type:bug
+    For some data files, plots with a reversed grid (i.e. plots in wavelength) were 
+    drawn with disjoint lines since #906.
+
+#1165 - Add a section on running the tests to the developer docs
+    Add a section on running the tests to the developer docs
+
+#1168 - Logging tweaks
+    Include the sherpa.utils.logging module in the documentation and update a test 
+    to use the caplog feature of pytest (the code had been written to work with 
+    python 2.7 version of unittest).
+
+#1170 - Update Python and particularly number versions in documentation
+    Updates to doc pages that list dangerously old numpy versions
+
+#1171- Improve the grouping/filtering tests
+    Add a number of tests for corner cases of filtering and grouping of PHA data.
+
+#1172 - Improve data pha docs
+    Improve the documentation of the filtering and grouping of PHA data.
+
+#1173 - Improve DataPha documentation
+    Minor improvements to the documentation of the DataPHA class.
+
+#1175 - Store UI contour plots in a dictionary, not directly
+    Change the internal storage handling of contour objects
+
+#1177 - minor rework of image handling for ui layer
+    Change the internal storage handling of image objects and improved testing
+
+#1178 - Define physical constant hc in fewer places
+    hc (as in "Planck constant * speed of light") is a physical constant that does 
+    not depend on the DataPHA and thus it should not be defined as a class attribute.
+
+#1180 - Minor improvements to model/parameter documentation
+    Minor fixes and improvements to the documentation (both docstrings and RTD) 
+    for the model- and parameter-related code.
+
+#1182 - Simulations with multiple responses
+    Enable simulations with multiple ARF/RMF present (e.g. LETG/HRC).
+
+#1183 - Check parameter link behavior
+    Minor tweaks to the parameter tests.
+
+#1184 - Better pha model component plotting (fix #1020)
+    The use of plot_model_component and get_model_component will now automatically 
+    add the response for PHA data sets, if there is one. Model expressions which 
+    contain a response will not be changed. Fixes #1020.
+
+#1187 - Conda GCC 9.3.0 update issue
+    update to support environment changes due to conda defaults updates for 
+    gcc 9.3.0
+
+#1192 - Remove Python 3.6 and add Python 3.9
+    updates to switch python support to python 3.7-3.9
+
+#1194 - datastack: Improve show_stack and add _repr_html_ for stack
+    Improve datastack display (via show_stack and in the notebook) for datastacks.
+
+#1198 - XSPEC test cleanup
+    Very minor improvement to the XSPEC test suite.
+
+#1199 - Move the regrid code out into a separate method
+    Very minor code reorganization for the regrid code.
+
+#1203 - Update GitLab Conda recipe to numpy 1.19
+    updates gitlab conda recipe to python 1.19+ and adds run time pin
+
+#1204 - region lib updates for CIAO 4.14
+    updates to fold in changes to CIAO region lib for CIAO 4.14. Specifically, 
+    fixes for SM-89: bug in pie shape (extent/inside logic), SL-243: region - 
+    deprecate obsoleted Warning.
+
+#1205 - Remove the SherpaTestCase class
+    Remove the SherpaTestCase class from sherpa.utils.testing and switch the tests 
+    that used it to use pytest functionality where appropriate.
+
+#1208 - Fix get_xerr for Data1DInt when all data is filtered
+    The get_xerr method of Data1DInt would fail if all bins had been ignored and 
+    it now returns the empty list.
+
+#1215 - Restrict the values used in PHA notice/filter calls
+    Ensure that the low and high limits for notice and ignore calls for DataPHA 
+    objects are sensible (hi >= lo and that for energy or wavelength filters they 
+    are >= 0). When filtering DataPHA objects in channel units the lo and hi 
+    arguments must be integers otherwise an error is raised.
+
+#1216 - filter improvements for DataPHA and Data1DInt
+    Energy and wavelength filters (with notice and ignore) for PHA data are now 
+    treated as lo <= x < hi in all cases, and channel filters are lo <= x <= hi 
+    (where the channel values must be integers). For Data1DInt cases the notice 
+    and ignore filters are treated as lo <= x < hi. This changes address a number 
+    of corner cases.
+    This can result in slightly different fit results because the data used in the 
+    fit can be changed and hence changing the number of degrees of freedom (by one 
+    or two depending on whether the first and last bins have been removed).
+
+#1218 - Update fftw from version 3.3.8 to 3.3.9
+    This change updates the version of the fftw module in sherpa's external 
+    dependencies (extern) directory to utilize version 3.3.9 (www.fftw.org) instead 
+    of the previous version 3.3.8
+
+#1219 - Fix filter expressions
+    Filter expressions for Data1DInt and DataPHA cases now report the start and end 
+    value of each set of grouped data rather than use the end points. For PHA data 
+    sets users now see the same ranges displayed whether the data is grouped or not. 
+    The actual filter remains the same even if the filter expressions has changed 
+    slightly.
+
+#1223 - XSPEC 12.12.0 support
+    Support the new additive and multiplicative models in XSPEC 12.12.0 - XSgrbjet, 
+    XSwdem, XSvwdem, XSvvwdem are additive and XSzxipab is multiplicative - and 
+    note the additional abundance tables that are available when running with XSPEC 
+    12.12.0 (lpgp and lpgs).
+
+#1227 - Support AstroPy 4.3 for tests
+    The AstroPy FITS reader is less tolerant of invalid FITS files in AstroPy 4.3 
+    which trips one of our tests. The test has been updated with a FITS file that 
+    doesn't trigger the error case. There is no functional change in this commit.
+
+#1228 - Fix three parameter names for XSPEC models
+    Fix three XSPEC models which had some internal confusion over parameter names: 
+    XSzkerrbb should have uses fcol but had instead used hd, and XSzashift and 
+    XSzmshift used Redshift instead of Velocity. The old names have been kept as 
+    aliases.
+
+#1230 - Update submodule to pick up submodule README
+    Updates submodule to pick up the submodule README
+
+#1231 - Remove __init__.py from tests directory
+    Clean up of a test directory. There is no functional change in this commit.
+
+#1236 - Remove compiler warnings
+    Avoid compiler warnings from clang, fixing #1232 and several other warnings.
+
+#1241 - to get sherpa to run Apple M1 (arm)
+    Initial support of sherpa for ARM build 
+
+#1244 - Fix "unable to parse region string: None" errors (issue #1214)
+    In certain circumstances (such as plot_pvalue with an explicit 2D PSF 
+    convolution operator read from a file) the code would fail with the error 
+    unable to parse region string: None (issue #1214). This PR fixes this problem 
+    and several minor related issues.
+
+#1246 - Image region filters are now specified correctly (Fix #1245)
+    Update the image filter code so that the region description matches what the 
+    filter actually is: rather than use & to combine regions we now use | as it 
+    is a logical or rather than logical and. This is mainly going to affect users 
+    who: have used the output of get_filter() as input to calc_data_sum2d, have 
+    very-complex spatial filters, or are restoring Sherpa sessions created by save 
+    or save_all.
+
+#1247 - Allow save_all to work well with images with no filters (Fix #437)
+    Fix a problem with the output of the save_all command if an image had been 
+    loaded but no region filter applied (fix #437): the output file would contain 
+    a notice2d_id call with a filter of "" which would fail if you tried to load 
+    the file back in. It now no-longer creates this line.
+
+#1248 - Docs: note that set_stat can be sent a stats object
+    Update the documentation for set_stat to note you can send in a stats object
+
+#1250 - Stop odd interaction between plot_model and PHA filters (Fix #1024)
+    plot_model(), if done before calling notice or ignore, could lead to strange 
+    filters (e.g. filter not getting applied). This has been fixed. Fixes #1024
+
+#1253 - More numpy 1.20 warning fixes
+    Avoid warnings from NumPy 1.20 about using the deprecated np.int symbol.
+
+#1254 - FIX: #1235 change XSPEC chatter to 10 from 0
+    Change the default X-Spec chatter level from 0 to 10. This may result in screen 
+    output the first time an XSPEC model is evaluated (e.g. from a plot_model or 
+    fit call). There have been a number of cases where APEC models appeared to be 
+    creating no output because of missing data files (due to old ~/.xspec/Xspec.init 
+    settings) which would have been more obvious with this change. To get back to 
+    the previous behavior users can call set_xschatter(0).
+
+#1259 - XSPEC parameter changes - you can change the hard limits of most XSPEC parameters
+    XSPEC model parameters now use the same limits for soft and hard (the hard 
+    limit from the model.dat file). This is handled by the XSBaseParameter class 
+    which is used for XSPEC table models. The XSParameter class, which extends this 
+    and is used by most other parameters, allows the user to change the hard limits 
+    of the model. This follows XSPEC, and allows using some models which are 
+    documented as supporting a value outside the normal parameter range (normally 
+    by setting the value to a negative value). Note that this is potentially 
+    dangerous (it could crash the program) so should be used carefully. It is 
+    strongly suggested that any parameter set to a value outside of the original 
+    limits is also frozen.
+
+#1260 - Add a module to parse XSPEC model.dat and helper scripts #1260
+    Add support for parsing XSPEC model.dat files (useful for updating the XSPEC 
+    module or if you want to use XSPEC local models).
+
+#1261 - update to match recent XSPEC model.dat settings
+    Update the XSPEC models to match the latest model.dat file (from HEASOFT 6.29 / 
+    XSPEC 12.12.0). This primarily changes the hard limits of the models, but there 
+    are some changes to the default parameter values as well, as well as some unit 
+    changes, including adding and removing units.
+
+#1264 - Fix crash from grouping data using an unsupported method
+    It was possible to cause Sherpa to crash by passing an invalid function as the 
+    groupfunc argument to apply_filter and apply_group. The code now errors out 
+    instead. There are improvements to the documentation (docstring and RTD) for 
+    PHA filtering and grouping.
+
+#1268 - Doc: switch default sphinx role
+    Multiply the number of working references on readthedocs, while at the same 
+    time reduce verbosity in the docstrings.
+
+#1270 - Cleanup setup
+    Update the Python supported status in the package metadata (drop 3.5, add 3.8) 
+    and bump the minimum version to 3.6.
+
+#1273 - crates backend strip preceding/trailing whitespace when determining ascii file colnames (Fix #1262)
+    This change modifies the crates backend ascii file handling to resolve issue 
+    #1262 where a test added in PR #1253 causes the tests to fail. This change may 
+    potential result in behavior changes for crates use on ascii data files (see 
+    caveat section for details).
+
+#1276 - Fix Inconsistent behavior in save_arrays when optional parameter ascii = True/False (Fixes issue #1251)
+    Updates the data I/O so that write_arrays behaves consistently whether writing 
+    ascii or fits files via the pyfits backend.
+
+#1279 - rm the platform cause no longer need it
+    rm the platform module since it is not needed for ARM support
+
+#1281 - RTD: include parse_xspec_model_description
+    Fix a link on the Read The Docs pages from PR #1260
+
+#1282 - Add Zenodo details for 4.13.1
+    Include the Zenodo details for the 4.13.1 release into the hard-coded list of 
+    releases.
+
+#1285 - Added an option to reflect minim about the boundary
+    This PR adds the option on how the optimization minim will behave if the free 
+    parameter is beyond the limit. The default parameter reflect is True (will 
+    reflect by an equal amount about the limit). If reflect is set to False then 
+    model function will return DBL_MAX (~1e308) and therefore it will not be 
+    included in the simplex.
+
+#1287 - Remove C++ warning when compiling the pileup code
+    Use unique_ptr rather than auto_ptr in the pileup code to avoid C++ warnings. 
+    Fix #505
+
+#1288 - Improve the PHA simulation documentation
+    Fix up some links in the RTD documentation for simulating PHA data.
+
+#1290 - Fix the string output of CDFPlot
+    Corrected the order of the points, x, and y values when displaying a CDFPlot 
+    object, improve support for a list argument, and made minor additions to the 
+    documentation in the sherpa.plot module.
+
+#1291 - Comment: add link to the OSTI.GOV URL for the optimizing document
+    Add a reference to the OSTI.GOV technical report in the comments in the C++ 
+    code used for testing the optimization functions.
+
+#1292 - Update tests that were changed by #1246
+    Fix tests that started to fail once #1246 was merged.
+
+#1293 -RTD: add a "how to optimize a function" example
+    Add a section to the ReadTheDocs site explaining how to "optimize a function" 
+    as this is something we can do but only really with the low-level code.
+
+#1294 - RTD: Fix some sphinx warnings (sherpa.models.regrid)
+    Fix a minor warning when generating the Read The Docs pages.
+
+#1295 - Update XSkerrconv model for #1275
+    Rename the first two parameters of the XSPEC XSkerrconv convolution model from 
+    Index/Index1 to Index1/Index2. Fixes #1275
+
+#1296 - Document the neldermead reflect flag from #1285
+    Add documentation for the reflect keyword added in #1285 for the neldermead 
+    optimizer
+
+#1303 - Updated Introductory Section of the MCMC page
+    Added additional details regarding sherpa's MCMC implementation to the 
+    documentation 
+
+#1308 - Docs: fix get_filter examples
+    Fix the examples in the get_filter documentation.
+
+#1310 -Update the python check for python setup.py installs to 3.7
+    Updates the minimum supported version of python supported in setup.py to use 
+    python 3.7
+
+Caveats
+-----------
+
+* Crates behavior change - PR #1273 fixes an issue with the crates backend where 
+    supplying a column filter "opt colnames=none" for an ascii file would utilize 
+    default column names 'col1..coln' instead of the column names specified in the 
+    file.  Code which relied on the old behavior may now produce an IO error such 
+    as "IOErr: Required column 'col1' not found in [ <list of valid column names>]"
+
+
+Sherpa 4.13.1
+=============
+This release of Sherpa includes various documentation updates,  bug fixes, and infrastructure changes. The default branch in github has been migrated from master to main.
+
+* documentation changes:
+    * updates to documentation for TableModel, Notice2D, cache support for evaluating models, and low level optimization code
+    * jupyter notebook uopdates 
+* Infrastructure Changes:
+    * the master branch has been migrated from master to main
+    * updates to support numpy 1.20
+    * updates to support astropy 4.2.1
+    * updates to support matplotlib 3.4
+    * test infrastructure clean up and updates
+* bug fixes:
+    * fix an issue with cache evaluation on 1D models using integrated bins
+    * fix for aarch64 build issue
+    * fix to sherpa citation command
+    * fix to honor clearwindow setting for plot_source
+    * fix errors from save_data when the output file exists
+    * fix build issues using gcc 7.3 with -Werror=format-security compilation flag
+    * fix for reg_proj and reg_unc erroring out when the min or max arguments are tuples rather than lists
+
+Details
+-------
+
+#754 - sample_flux now returns statistic values for each row
+    The sample_flux command now returns a statistic value for each iteration, 
+    even if those rows are not used in the reported flux distribution. Fixes #751.
+
+#769 - add basic cache tracking
+    Adds the cache_status and cache_clear methods to models for verifying the 
+    cache behavior (this is only expected to be used in rare cases). The cache 
+    code has seen documentation improvements.
+
+#946 - rework stats tests
+    Update the stats tests to use pytest.
+
+#960 - Fix model evaluation when changing the integrate setting (fix #958)
+    Fixes an issue with cache evaluation on 1D models using integrated bins and 
+    the user has changed the integrate setting of the model.
+
+#978 - Use C99 def for INFINITY, NAN, isfinite and isnan to build on aarch64 (fix issue #970)
+    Use the math constants (IFINITIY, NAN) and funcs (isfinite, isnan, signbit) 
+    from a C99 compliant compiler if the compiler option -std=c99 or greater is 
+    used, otherwise use the quantities as defined by the library.
+
+#991 - lint changes
+    Applies a number of flake8-reported warnings to the code base (e.g. excessive 
+    or missing spaces and new lines).
+
+#1000 - Improve sherpa.citation (fix #994 #987)
+    Fixes the sherpa.citation() command with its default argument (issue #994) and 
+    adds release 4.12.2 to the hard-coded list of releases. A typo in a warning 
+    message was fixed (#987).
+
+#1001 - Allow command-line arguments for sherpa_test
+    Allow command-line arguments to be passed to the sherpa_test script. This allows 
+    running optional tests (e.g. the --runzenodo argument) and to configure the 
+    pytest configuration (e.g. to run coverage checks with --cov sherpa).
+
+#1002 - Fix error with clobber=False for paging - issue #996
+    Fix an error with clobber=False when the output file exists for several paging 
+    commands (e.g. show_data and sherpa.citation). Instead of getting a Sherpa IOErr 
+    being raised a NameError was being raised.
+
+#1003 - Fix serialization of iter method data - issue #997
+    If set_iter_fit_method has been called with a value other than 'none' then the 
+    output of save_all would be incorrect for the options for the iter-fit method.
+
+#1004-  flake8 F811 - fix repeated test names
+    Clean up of several test files to fix repeated test names.
+
+#1005 - Add explicit get/set_datadir routines to sherpa.utils.testing
+    Internal changes to how the test data directory location is set and queried, 
+    including removing direct support from SherpaTestCase. Added tests for some 
+    of this functionality, and updated several test files to remove SherpaTestCase 
+    or use the new datadir functionality.
+
+#1008 - rm warning msgs, fix issue #980
+    Fix the compiler warning messages, by defining kwlist to be static const then 
+    use the C++ const_cast to remove the const to conform to PyArg_ParseTupleAnd
+    Keywords prototype
+
+#1012 - Tests: allow test_ui tests to be run with pytest-xdist
+    Allow the tests to be run with pytest-xdist.
+
+#1016 - Jupyter notebook representation not ideal if model components don't have unique names  - issue: #1013
+    Fix an error in the HTML display of a model (used in the notebook) when two 
+    model components have the same name.
+
+#1017 - reword remark on normalization of Lorentz function
+    Updated the comments pertaining to Lorentz function for clarity
+
+#1018 - Fix ShekelModifiedInit missing init par vals
+    This PR fixes the missing initial fitted parameter values for the 
+    ShekelModifiedInit function. A fix for issue #1011
+
+#1028 - Update region lib code to correct build issues with gcc 7.3.0 compile
+    Corrects issue building with gcc 7.3.0+ compilers with the 
+    -Werror=format-security compilation flag
+
+#1034 - Add contextmanager and docs on how to control the output level of sherpa
+    Sherpa uses logging for much of its output, this adds a docs and a context 
+    manager for controlling the output level for a particular piece of code.
+
+#1039 - Add docs for basic.TableModel
+    Added missing documentation for TableModel class 
+
+#1049 - CI: pip submodule test to report coverage
+    Report the coverage data from the pip CI run. This only changes the GitHub 
+    Actions runs.
+
+#1053 - Release 4.13.0
+    Updates to support the 4.13.0 release
+
+#1054 - Post 4.13.0 updates
+    Updates the Zenodo DOI reference in the README.md to include 4.13.0.
+
+#1057 - Fix plot_source clearwindow setting
+    The plot_source function was ignoring the clearwindow parameter (always using 
+    True) in calls to plot_source for non-PHA data. This was only for 
+    sherpa.astro.ui.plot_source (so sherpa.ui.plot_source did not have this problem).
+
+#1058 - Store the opstr of model combinations (unary and binary)
+    Store the operator string as well as the operator when creating the unary and 
+    binary operator expressions for models.
+
+#1062 - Minor code cleanup of sherpa.astro.ui.utils
+    The sherpa.astro.ui.utils module has seen a number of minor clean-ups, addressing 
+    pylint-reported issues.
+
+#1067 - Improve testing of sherpa.astro.ui.utils
+    Improve coverage of the sherpa.astro.ui.utils and require pytest 3.9.0 or later 
+    for testing Sherpa.
+
+#1068 - clean up typos in sherpa/plot code
+    Fixed several typos noticed while reviewing plot related fix for #1057
+
+#1072 - Update load_data to match load_pha for PHA2 data
+    Ensure that load_data behaves like load_pha when given a PHA2 dataset.
+
+#1076 - sample_flux now uses the id argument
+    The sample_flux routine now uses the id argument rather than always using the 
+    data from the default dataset. Fixes #752
+
+#1078 - Add error checking for exceptional cases for sample_flux
+    Ensure that sample_flux errors out if the Xrays argument is False (as this code 
+    path is currently broken) or if the confidence argument is invalid.
+
+#1082 - Improve documentation for notice2d
+    Minor improvements to the documentation of notice2d and ignore2d set of commands. 
+    Fixes #1059
+
+#1086 - Use the logging infrastructure for sample_flux output
+    The screen output from sample_flux is now generated by the Sherpa logger and 
+    so can be hidden by the user if required.
+
+#1088 - Allow two optimization test to pass
+    Address an issue in the optimization tests that meant two tests were failing. 
+    This only changes the test code and makes no change to the behavior of the 
+    optimizers.
+
+#1092- Numpy 1.20 warnings
+    Avoid test failures due to new warnings added by NumPy 1.20
+
+#1094 - Cleanup multi-plot code
+    Rework the code that handles the plot_fit_xxx and plot_bkg_fit_xxx calls. 
+    There should be no user-visible changes.
+
+#1096 - Reduce direct access to plot objects
+    Changes to the internals of the plot code, to access information via methods 
+    rather than direct access, which improves encapsulation and reduces code 
+    repetition.
+
+#1098 - Bump DS9 version to 8.2 for CI
+    Bump DS9 version used in CI tests from 8.1 to 8.2.
+
+#1100 - Address reg_proj and reg_unc failures (fix #1093)
+    Calls to reg_proj and reg_unc could error out when the min or max arguments 
+    were set to tuples rather than lists. The code now converts these attributes 
+    to lists, which can result in changes to the string output of the objects (use 
+    of '[]' brackets rather than '()'). Fixes #1093
+
+#1101 - Address upper limit issues with sample_flux (fix #457)
+    sample_flux no-longer excludes samples at the parameter bounds (soft) when 
+    calculating the flux distribution. This could lead to an over-estimation of 
+    the flux for upper limits (Fix #457).
+
+#1104 - Add basic documentation for the low-level optimization code
+    Add and update documentation on the interfaces used by the low-level 
+    optimization code. Ensure that the plot classes are fully included in the 
+    documentation.
+
+#1105 - Consolidate and harmonize the validation of dataset identifiers
+    Simplify the code used to validate dataset identifiers. Several names can 
+    no-longer be used as an identifier ('astrocompmodel', 'astrocompsource', 
+    'astrodata', 'astromodel', 'astrosource', 'model_component', and 
+    'source_component') and two can now be used ('energy' and 'photon').
+
+#1108 - Read RMFs where N_CHAN is an array
+    Allow the pyfits backend to read a wider range of RMF files
+
+#1111 - Minor test updates
+    Minor updates to the test code, including a small enhancement to the tests run by 
+    the smoke_test command.
+
+#1112: XSPEC: require model evaluation to be sent low and high grid values
+    XSPEC model classes must now be evaluated with bin edges - that is with 
+    low,high bins. The support for sending in a single grid and treating it a 
+    consecutive set of bins has been marked as deprecated from the model class 
+    interface. This feature is still supported for anyone evaluating the models 
+    directly from the sherpa.astro.xspec._xspec module or via the _calc method.
+
+#1116: Add parameter-based tests for the PSF model
+    Adds several tests of edge-case handling of parameters for PSF convolution models.
+
+#1117 - Docs: improve cache discussion and documentation
+    Improve the discussion of the cache support when evaluating models.
+
+#1120 - Switch default branch to main
+    Change the default branch from master to main. Also  includes minor documentation 
+    updates (CONTRIBUTING.md updates to switch to main, to reference GitHub Actions 
+    instead of Travis, and to remove a note about Python 3.5 support).
+
+#1121- Hide AstroPy 4.2.1 FITS-related warnings
+    astropy.io.fits.open now creates warning messages about invalid FITS structures 
+    when given a non-FITS file. This updated hides those warning messages since 
+    routines such as sherpa.astro.io.load_data attempts to open files (including ascii 
+    files) as FITS. 
+
+#1122 - Update ds9 download
+    Update DS9 tests to use ubuntu18 and darwinhighsierra as ubuntu14 and darwinsierra 
+    are no longer supported. The DS9 version has been bumped from 8.2 to 8.2.1 as this 
+    is the latest version.
+
+#1125: Support Matplotlib 3.4
+    Matplotlib 3.4 changes how the drawstyle argument is handled in some functions. 
+    This change removes the use of this argument for those functions.
+
+#1126 - Tweak plot docs
+  Adds a new notebook that shows off a number of plots created with matplotlib and 
+  exports the ScatterPlot, TracePlot, CDFPlot, PDFPlot, and LRHistogram classes from 
+  sherpa.plot.
+
+#1130: Fix save_data when the output file exists
+    Fix problems when save_data is used with clobber=False but the output file already 
+    exists. Fixes #1071
+
+#1132 - Update XQuartz for GH Actions workflow
+    Updates the xQuartz download location and version for the GitHub Actions Conda tests
+
+#1139 - Fix typo in Zenodo test that made it fail
+    Fixed a typo in the zenodo test which gets only run via the --runzenodo flag 
+
+#1142 - Add instruction for source build on Mac
+    Add instruction for source building on Mac that were previously only part of the 
+    internal release notes.
+
+
+Sherpa 4.13.0
+=============
+
+This release of Sherpa coincides with the CIAO 4.13 release. The release contains a few minor documentation updates, a version number update to coincide with CIAO version 4.13.0, and infrastructure changes to migrate from Travis-CI to GitHub Actions for testing.  No additional functionality has been introduced.
+
+Details
+-------
+
+#1043 - RTD: install more packages via pip
+    Install sphinx-astropy and ipykernel via pip instead of Conda for the Read the Docs 
+    builds to avoid current indirect requirement conflicts.
+
+#1035 - Travis to GitHub Actions
+    Replaces the Travis test infrastructure with two GitHub Actions workflows. 
+
+#1036 - Cleaned up several typos in the RELEASE_NOTES file	
+    Updates the RELEASE_NOTES file to correct several typos. 
+
+#1038 - Docs: note Python version and new build status 	
+    Updates the build status badge to track GitHub Actions rather than Travis-CI and 
+    report the python versions as 3.6, 3.7, and 3.8.
+
+
+Sherpa 4.12.2
+=============
+
+This release contains numerous enhancements and fixes and it is the first Sherpa release to fully support Python version 3.8.
+
+The main areas with the enhancements include
+
+* plotting improvements:
+    * improved support for matplotlib (linestyle changes in matplotlib 3.3, support of alpha channels)
+    * overplot support for plot_fit_* plt_bkg_fit_*
+    * updates to histograms, residual plots
+* data I/O and data handling:
+    * several bug fixes to handling of the PHA, ARF, RMF files
+    * improvements to handling the PHA data filtering to address long-standing issues
+* modeling:
+    * support for regrid models in the binary expressions
+    * improvements and bug fixes to background treatment in spectral models
+    * improvements in the flux calculations and resampling
+    * added the Voigt model
+* documentation changes:
+    * improvements to Sherpa display in IPython/Jupyter notebooks
+    * updates to the content of the docstrings for generation of ahelp files python package. 
+
+Details
+-------
+
+Testing and infrastructure fixes are not shown.
+
+#351 - fix handling of AREASCAL column in PHA files (fix #350)
+    Adds support for handling the AREASCAL value (either scalar of vector) for PHA 
+    data sets. This array is used in XMM RGS data to handle missing chips.
+
+#385 - Properly handle Swift RMF when using Astropy backend
+    Fixes an issue where some low lever xpa calls were returning byte strings rather 
+    than strings in Python 3. This had particular impact on the image_getregion 
+    function.
+
+#483 - An initial release of simultaneous fit on multicores (slower for most…
+    Distributes the evaluations of the multiple independent data sets using the 
+    multi-cores built-in the user's workstation. The current default setting for this 
+    PR is to evaluate the multiple independent data sets sequentially since the 
+    overhead for distributing the workload across multi-cores is high if the evaluation 
+    of the data sets is not time consuming.
+
+#631 - Add HTML representations of common classes for IPython display (fix #345)
+    An initial version of HTML display support for Sherpa objects for users of 
+    IPython/Jupyter notebooks. 
+
+#634 - Added invitation for native software citation
+    Adds a citation method to the sherpa module and updates CITATION to refer to this 
+    new functionality
+
+#693 - Address matplotlib linestyle removal in Matplotlib version 3.3
+    Matplotlib version 3.3 now requires you to split out the drawstyle and linestyle 
+    arguments. This set of PRs changes the code so that the two arguments are now set: 
+    linestyle defaults to solid and drawstyle to default for plots and step-mid for 
+    histograms. This appears to replicate the old version, and should be backwards 
+    compatible (drawstyle is supported in Matplotlib 2.2.5 and 1.5.3)
+
+#709 - Residual-style plots ignore the ylog setting (fi#586)
+    Residual, ratio, and delchi plots always use a linear scale for the y axis, no 
+    matter what the ylog setting is.
+
+#740 - resample_data: when the error range on a bin includes -1 and no-longer restrict 
+       sampling to +/-1 sigma
+    Fixes resample_data/ReSampleData so that it correctly handles bins where the range 
+    of data values (i.e. low to high limit) includes the value -1.
+
+#741 - Fix issue 638, guess needs to update fwhm/sigma bounds
+    Adds support for guessing the fwhm or sigma parameters of the Gauss2D, 
+    NormGauss2D, and SigmaGauss2D models
+
+#750 - Add xspec convolution api
+    Adds support for XSPEC convolution-style models - this link is valid for XSPEC 
+    12.10.1 documentation
+
+#765 - Add docs for setting up all dependencies of the source build with conda
+    Adds documentation on how to use conda to install source build dependencies
+
+#766 - No error for no-ops in `ungroup` and friends
+    Removes DataErrs when ungrouping a dataset that is not grouped or unsubtracting 
+    a dataset that was not subtracted
+
+#770 - Replace EmissionVoigt/AbsorptionVoigt models by Voigt model (fix #597)
+    Replaces the EmissionVoigt and AbsorptionVoigt models with a single model, 
+    Voigt1D. The EmissionVoigt and AbsorptionVoigt models will error out when an 
+    instance is created, pointing users to Voigt1D (as the parameter definitions 
+    have changed).
+
+#772 - Add XSPEC 12.11.0 support (HEAsoft 6.27)
+    Adds support for XSPEC 12.11.0 (released March 31 2020)
+
+#782 - Add a pyproject.toml file
+    Adds a pyproject.toml file to the top level (PEP 518) to document build 
+    requirements
+
+#789 - fix issue #788, fit using moncar with verbose=1 and/or numcores!=1
+    Fixes NameError in moncar when verbose setting >0
+
+#791 - Fix ignore/notice erroring out when all bins have been set bad #790
+    Allow notice and ignore to be called on a dataset which has no "good" bins 
+    after ignore_bad has been called
+
+#793 - Accept masked arrays for Data XXX creation
+    Allows use the mask of numpy arrays when initializing DataXXX
+
+#798 - enable regrid for the BinaryOpModel class
+    Adds the regrid method to the BinaryOpModel. 
+
+#803 - Updates to sampling of energy and photon fluxes: bug fixes and calculate 
+       unabsorbed components
+    Fixes and improvements to the energy_flux and photon_flux set of commands: 
+    sample_energy_flux, sample_photon_flux, plot_energy_flux, plot_photon_flux, 
+    get_energy_flux_hist, and get_photon_flux_hist
+
+#811 - Remove all __future__ imports
+    Removes __future__ imports that were in place when sherpa supported python 2
+
+#812 - Add unsubtract and ungroup to datastack
+    Adds  corresponding unsubtract and ungroup methods to match subtract and group
+
+#815 - fix typo in rst docs
+    Fixes a typo in the rst docs
+
+#821 - Add hyperlink to similarly named SHERPA package
+    Documentation update to include a link to the similarly named package "SHERPA" 
+    for hyperparameter tuning of machine learning models
+
+#842 - Fix scaling of staterror when reading PHA file with rate instead of counts
+    Fixes scaling of STAT_ERR when reading a PHA spectra with a RATES column instead of 
+    COUNTS
+
+#845 - xspec table models: add out-of-bound check to avoid segfault
+    Adds explicit out of bounds checks to avoid segv when calling an Xspec table model
+
+#851 - Updates to the Read-The-Docs build environment
+    Update the Read-The-Docs configuration to the latest version (2), and switch to a 
+    cleaner build (using conda) for the documentation. The minimum Sphinx requirement is 
+    now 1.8 (updated from 1.3).
+
+#856 - Support setting the id value in load_pha with pha2 files (fix #666)
+    Updates load_pha to set the data ids of PHA2 datasets  to: id to id + nfiles - 1 
+    (when id is an integer), or "{}1".format(id) to "{}{}".format(id, nfiles) when id 
+    is a string.
+
+#858 - Minor documentation improvements to ReadTheDocs
+    Adds minor updates to the convolution, regrid, and model evaluation sections of 
+    the ReadTheDocs documentation
+
+#859 - Clean up of the XSPEC interface code
+    Internal changes to the XSPEC interface code, which reduces the amount of similar 
+    (sometimes identical) code. There is no change to the behavior of the XSPEC models.
+
+#865 - Minor documentation fixes
+    Several documentation fixes: XSPEC parameter names, avoiding confusion over links on 
+    references (Sphinx pages), and adding some basic documentation to the 
+    sherpa.astro.background module
+
+#866 - Add parameter-clipping strategy to routines that generate samples (fix #846)
+    The addition of the clip parameter lets users control how parameter values are 
+    clipped before use in sample_energy_flux, sample_photon_flux, plot_energy_flux, 
+    plot_photon_flux, get_energy_flux_hist, and get_photon_flux_hist.
+
+#868 - Add delete_pileup_model (fix #441), list_pileup_model_ids, list_psf_ids functions, 
+       fix list_models (fix #749)
+    Add the delete_pileup_model() function to allow a pileup model to be removed from 
+    a fit (issue #441), and list_psf_ids() and list_pileup_model_ids() routines to list 
+    those datasets with an associated PSF or pileup model. The list_models() routine 
+    no-longer returns an iterator but a list when given an option (issue #749).
+
+#871 - Add MacOS LDFLAGS warning to devdocs
+    Copies the warning about setting PYTHON_LDFLAGS from the install page to the 
+    developer docs
+
+#884 - Move logic from ui layer to DataPHA class: background responses (fix #879, #880)
+    Moves the logic for adding a background response, if one doesn't exist, from the UI 
+    layer to the DataPHA class to clear up several edge cases
+
+#888 - Support vector backscales and bugfix for background modeling
+    Supports fitting backgrounds to PHA datasets which have a variable BACKSCAL array 
+    (rather than a scalar), which can come from combining spectra (e.g. the CIAO contrib 
+    script combine_spectra) or from the data extraction process. In doing so a number of 
+    routines related to the scaling of background-to-source aperture data have seen 
+    adjustments to behavior and some enhanced functionality (such as 
+    sherpa.astro.ui.get_bkg_scale and the sherpa.astro.data.DataPHA.get_background_scale 
+    method).
+
+#897 - Add support for XSPEC 12.11.1
+    Allows Sherpa to be built against XSPEC 12.11.1. There are no new or changed models 
+    in this release compared to XSPEC 12.11.0.
+
+#899 - Update likelihood descriptions
+    Updates likelihood description in several doc-strings and clarifies descriptions 
+    of statistics.
+
+#900 - Ensure that 1D and 2D models are not combined in an expression.
+    Checks that models have the correct dimensionality when combining them, so 
+    expressions like gauss2d.src + const1d.bgnd will now raise a ModelErr.
+
+#906 - Improve and add support for histogram plots
+    Updates to the display of histogram-style plots, in particular for 1D integrated 
+    datasets and some model display for PHA data. The histograms now cover the full 
+    length of each bin (previously they only showed half the bin for the first and 
+    last bins), and gaps in the histogram (where the high edge of a bin is less than 
+    the lower edge of the next bin) are now correctly displayed.
+
+#907 - FEATURE: support alpha transparency for matplotlib plots
+    Supports the 'alpha' preference setting for most plots and contours generated 
+    by Matplotlib
+
+#909 - Refactor: remove _get_model/source methods
+    Removes the _get_source and _get_model methods as they are the same as 
+    get_source and get_model
+
+#910 - Docs: fix several minor issues
+    Documentation clean up - the load_template_interpolator function was named 
+    incorrectly in the example, and the examples for 
+    get_source_component_plot/get_model_component_plot were missing the trailing 
+    _plot for the function names
+
+#911 - Docstring: changes for ahelp
+    Formatting changes to the docstrings for several routines that are useful for 
+    SDS in generating ahelp files
+
+#918 - fix an issue with PHA filtering that affects plot_model
+    Fixes an issue when applying filters to generate the plot_model and 
+    plot_model_component plots for PHA datasets
+
+#919 - enable regrid for the BinaryOpModel class (rebased #798)
+    Enables composite models (created by a binary operation between two models) to 
+    be regridded. The composite model is evaluated at the new grid, and it is only 
+    the combined model expression that is rebinned to the data grid.
+
+#922 - channel settings with grouped PHA data and model plotting
+    Fixes a bug when filtering a grouped PHA dataset using analysis=channel. The 
+    selected bin ranges did not always match the versions you would have received 
+    when doing the same operation with energy or wavelength analysis (the first or 
+    last bin may have been different).
+
+#924 - Updated to ignore the .vscode directory
+    updates system .gitignore to skip over vscode directories
+
+#929 - Support overplot option in plot_fit_xxx (issue #700)
+    The overplot argument can now be used with the plot_fit_xxx and plot_bkg_fit_xxx 
+    routines (e.g. plot_fit_ratio).
+
+#931 - Update Data1DInt / DataPHA data plots to use the histogram plot style
+    Switch the plot_data/plot_bkg plots to draw the data as histograms for Data1DInt 
+    and DataPHA plots.  This will change the behavior of code that accesses the plot 
+    data - e.g. get_data_plot() or the dataplot element of get_fit_plot() - since for 
+    DataPHA and Data1DInt datasets the data will no-longer have an x attribute but 
+    xlo and xhi. To reduce the need for code changes for existing scripts - as many 
+    people use get_model_plot and get_data_plot to get the data - the histogram 
+    plots will return (xlo+xhi)/2 when asked for the x attribute.
+
+#939 - Docs: note XSPEC convolution models are new in 4.12.2
+    Documentation only change noting  that the support for XSPEC convolution models 
+    is new to 4.12.2.
+
+#940 - Minor documentation improvements
+    Fixed several minor issues in the existing documentation
+
+#944 - Improve handling of the default id with PHA background datasets (fix issue #943)
+    The sherpa.astro.ui.set_default_id call no-longer sets the default identifier for 
+    background ids, which are now kept as the value 1. This avoids several issues when 
+    using set_default_id with the background components of PHA datasets
+
+#950 - Documentation fixes
+    Minor documentation updates and adding ReSampleData to the RTD documentation
+
+#953 - docstring fixes
+    Cleans up typos in documentation
+
+#957 - Docs: include the example notebook in the RTD pages
+    Adds the example notebook (SherpaQuickStart.ipynb) to the Sphinx documentation 
+    under the "Notebooks" heading
+
+#961 - Update notebook support for Data1DInt/PHA data
+    Improves the display of Data1DInt and DataPHA objects when displayed directly 
+    by Jupyter notebook and add a new notebook showing off the notebook support
+
+#963 -Docs: note plot_fit_xxx overplot change and add info on notebook support
+    Adds documentation updates including notes on overplot support in plot_fit_xxx 
+    and plot_bkg_fit_xxx functions and RTD notes on adding notebooks 
+
+#964 - Docs: avoid invalid escape sequence warning
+    Very-minor tweak to the Chi2 docstring
+
+#968 - Fix 2d image filtering (fix #965)
+    Fix problems with ignore2d and notice2d when multiple regions are used.
+
+#969 - Support Python 3.8 for MacOSX
+    Add a new multiprocessing_start_method option to sherpa.rc and 
+    sherpa-standalone.rc and init code to set start multiprocessing method 
+    to fork by default.
+
+#971 - Docs: fix sphinx warnings
+    Fix documentation in sherpa.sim.sample on the ReadTheDocs site.
+
+#984 - Address set_xlog/ylog problems with DataPHA/Data1DInt classes (#981)
+    Fix the set_xlog/ylog routines for PHA and 1D integrated datasets.
+
+
+Sherpa 4.12.1
+=============
+
+This release of Sherpa supports a patch for CIAO 4.12. This release is driven by fixes that were deemed necessary to warrant a patch to sherpa in the CIAO 4.12 release. The changes include issues which had the potential of impacting users by either stopping an analysis session or providing incorrect or potentially confusing results, particularly in the area of grating analysis and multiple datasets. Additionally, this patch includes several fixes and improvements such as initial support for Python 3.8.
+
+This version of Sherpa has been tested with Python 3.5, 3.6, and 3.7. There has been limited python 3.8 testing as well. 
+
+Details
+-------
+
+Testing and infrastructure fixes have been omitted
+
+#832 - Support building with NumPy 1.19
+    Compatibility updates for numpy v1.19 with regards to numpy.distutils and tostring deprecation
+
+#781 - Docs: fix typo in docstring for calc_kcorr
+    Fixed a typo in docstring for calc_kcorrFix a typo in the documentation 
+    for calc_kcorr: change "0." to "0.5" in one of the examples.
+
+#759 - revert PR #444 (caching) 
+    Revert the ARF cache added in #444, as well as some of the related code 
+    changes, as they caused problems with Analysis in wavelength space 
+    (e.g. #746)
+
+#756 - calculate_photon_flux/calculate_energy_flux fix and improvement
+    Bug fixes and improvements for calculate_photon_flux and calculate_energy_flux:
+        - address flux and flux-density calculation issues discussed (fix #619)
+        - fix documentation of the lo and hi arguments (fix #308)
+        - add model parameter to calc_photon/energy_flux which allows users to
+          easily calculate "unabsorbed" fluxes
+
+#747 - reworked regrid to eval usr grid, but 0 every where else
+    Modifies the 1D grid implementation to evaluate over the user-supplied 
+    range, anything outside that is set to 0
+
+#745 - ensure that min/max limits are applied to linked parameters before use
+    Enforce parameter restrictions (they must lie within their min/max range) 
+    even when the parameter is linked to another (which has a different range).
+
+#739 - Post 4.12.0 Updates 
+    Update readme to include DOI for 4.12.0
+
+#738 - Release 4.12.0 
+    Merge the 4.12 Release into master
+
+#737 - Update copyright year for the documentation
+    Read-The-Docs: update copyright year
+
+#735 - Remove ChIPS support
+    Remove the ChIPS plotting code and configuration options from the code base
+
+#734 - Change datastack query_by_header_keyword to not error if keyword is missing
+    Change the sherpa.astro.datastack query_by_header_keyword routine so that 
+    it skips data sets which do not have the keyword, rather than raising a 
+    KeyError. This also affects query_by_obsid.
+
+#733 - fix a bug with fit(cache=False) passing the runtime option while fitting 
+#732 - Remove unused Python 2.7 compatibility code
+    Remove unused code from the removal of Python 2.7 support.
+
+#696 - Support python 3.8
+    Updates to the support python 3.8 including
+        - remove syntax warnings from use of is with a literal
+        - remove deprecation warnings about PY_SSIZE_T_CLEAN
+        - fix index error (use scalar indexes)
+        - update the documentation to highlight initial python 3.8 support
+
+
+Sherpa 4.12.0
+=============
+
+This release of Sherpa is based on the CIAO 4.12 release and includes additional
+ bug fixes and improvements.
+
+This version of Sherpa has been tested with Python 3.5, 3.6, and 3.7. 
+
+This release also provides support for XSPEC 12.10.1 (patch 'a' or later) in
+ addition to versions 12.10.0 (included in CIAO) and version 12.9.1.
+
+Details
+-------
+
+Documentation and infrastructure fixes are not shown.
+
+#388 - Address indexing DeprecationWarning/IndexError from NumPy for PHA data with filter + ignore_bad (fix #361)
+
+#602 - Reduce integration tol
+    Changed integration routine tolerance from double epsilon to float epsilon
+    since opt routines have tolerance of ~ 1.0e-7
+
+#606 - stop using numpy.typeNA which is now deprecated
+    A numpy deprecation warning was fixed by removing the usage of typeNA, which
+    was not documented and will be removed in a future release of numpy. The
+    print_fields function has been changed to include a default mapping using
+    the current typeNA implementation.
+
+#608 - update ciao default plotter to matplotlib
+    The default Sherpa plotting package has been changed to matplotlib for 
+    CIAO users as well (it had been the default for standalone users for
+    several years). The update will be applied to new users when the 
+    `sherpa` command is run. Users of previous versions would need to 
+    edit/regenerate the file.
+
+#616 - enable run-time-option to test cache (default=True)
+    Capability to allow the user to turn off caching at runtime for testing 
+    purpose.
+
+#622 - Do not create warnings about error bars in plots if no error bars are to be shown (fix #621)
+    Remove the The displayed errorbars have been supplied with the data or 
+    calculated using chi2xspecvar... warnings that appear for data, 
+    residual/ratio, and fit plots when the user has explicitly turned off 
+    the display of errorbars (by setting the yerrorbars plot-preference 
+    setting to False).
+
+#626 - add plot_fit_ratio and plot_bkg_fit_ratio functions
+    Add the plot_fit_ratio function to the sherpa.ui layer (to match 
+    plot_fit_resid and plot_fit_delchi) and plot_bkg_fit_ratio to the
+    sherpa.astro.ui layer. Added tests for a number of plot types.
+
+#640 - fix 'tuple index out of range' error in the fit.est_errors method
+    Sherpa's Confidence class is confused if a parameter is frozen then 
+    thawed after a fit resulting with an exception of the form: IndexError:
+    tuple index out of range. The error does not show up if conf is called
+    from the ui level
+
+#647 - fix numpy hist warnings
+    When plotting a PDF Sherpa now calls numpy.histogram with density=True |
+    False rather than normed=True|False. There is no change visible to the
+    user other than a warning that will not be issued anymore. normed=True 
+    was broken for non uniform bins, but our code always produces uniform
+    bins, so we should never hit the problematic case.
+
+#658 - Handle files with MJD_OBS or MJD-OBS keywords (datastack module)
+    The sherpa.astro.datastack module has been updated to deal with files 
+    that use the MJD-OBS keyword instead of MJD_OBS. This is only used by 
+    the show_stack routine, which prints out several keywords from each 
+    file in the stack.
+
+#665 - Remove python 2.7 support (fix #498)
+    Remove support for Python 2.7 from Sherpa. The metadata used by pip now
+    requires python 3.5 or higher (but not version 4),
+
+#667 - improve matplotlib plot_fit plots (order of data and model)
+    Changes to Zorder of plot objects drawn by matplotlib to be more readable
+
+#674 - Add link/unlink parameter tests
+    This PR adds three tests for sherpa's un/link commands.
+
+#677 - XSPEC: build against 12.10.1m by removing support for models
+    Remove support for XSrelline, XSrelline_lp, and XSrelline_lp_ext models.
+    These were added in 12.10.1 but removed in 12.10.1m. It does not seem
+    worth supporting just those versions where they were available.
+
+#680 - Remove the unused parameter in sherpa.astro.optical.LogEmission model (fix #219)
+    Remove the unused parameter in the sherpa.astro.optical.LogEmission 
+    model. The LogEmission model only has four parameters (fwhm, pos, flux
+    and skew) consistent within the calc method. The hidden parameter limit
+    and it doc were removed.
+
+#682 - jointplot now respects the ratio argument (top plot is larger) with matplotlib backend
+    The matplotlib back end now makes the main (top) plot taller than the 
+    secondary (bottom) plot when using the sherpa.ui.plot_fit_resid and 
+    sherpa.ui.plot_fit_delchi routines (this also holds for the 
+    sherpa.astro.ui variants).
+
+#683 - Remove chips from the documentation
+    Remove mention of ChIPS from the documentation (both on read the docs 
+    and in the sherpa.astro.ui and sherpa.ui modules), replacing with 
+    matplotlib where appropriate.
+
+#684 - Add default config options
+    Whenever an option is read from the configuration file (~/.sherpa.rc)
+    provide a default option in case the configuration file is missing
+    (or is missing this option).
+
+#685 - raise ModelErr when model using Data1DInt have overlapping bins
+    Adds a check to regrid make sure the integrated bins do not overlap. 
+    The PR is a fix for issue #569
+
+#688 - Improve documentation and testing for get_source_plot when sent lo/hi arguments
+    Improve the documentation for the sherpa.astro.ui.get_source_plot routine,
+    describing how to use the result when the lo or hi arguments are sent.
+
+#691 - add warning when chips is selected but cannot be imported (rebase of #648)
+    Sherpa now warns the user if Chips is selected as a backend but it is
+    not available in the installation
+
+#692 - Allow users to override plot preferences when creating a plot
+    Change to allow kwargs to be specified to change plot preferences at 
+    creation time
+
+#698 - Add warnings in documentation about masked arrays
+    Updates docstring to indicate that sherpa doesn't support numpy masked
+    arrays
+
+#701 - a fix for /data/lenin2/Test/CIAO4.11/SherpaRegressionBeta1/45   
+    Enables the testers to turn on (or off) caching at runtime to test #444
+
+#704 - change calc_ftest from delta dof to dof (similar to XSPEC) - fix for #641
+    Update to make sherpa's calc_ftest provide same results as XSPEC's 
+    ftest (fix to #641)
+
+#705 - modelCacher1d needs to have a couple of deep instead of shallow copy()
+    Update to make deep copy of cached function values (fix to #673)
+
+#710 - Add warning about masked array to sherpa.astro.ui.load_arrays
+    Updates docstring to contain warning consistent with #698
+
+#712 Minor typo in docs
+    Corrects a typo "is is" in the documentation.
+
+#716 Fix for plot_cdf: plot() got an unexpected keyword argument 'clearwindpw'
+    Recent changes broke plot_cdf()due to a typo 'clearwindpw'. This update
+    corrects the typo.
+
+#721 Docs: update installation notes for conda environment
+    Add a warning about the need to set PYTHON_LDFLAGS to ' ' on macOS when
+    building within an anaconda environment. This is a documentation-only 
+    change.
+
+#725 convert a list to np.array to avoid warning messages 
+    Fixes issue #723 (a lot of warnings while running 'resample_data()' in 
+    CIAO4.12 Sherpa)
+
+#728 a fix cause using load_multi_arfs causes caching error
+    Fixes issue #717 (unable to fit if script uses load_multi_arfs/rmfs)
+
+
+Sherpa 4.11.1
+=============
+
+This release of Sherpa introduces several functional improvements and bug fixes,
+in particular Sherpa now has support for:
+  * asymmetric error bars
+  * PSFs with better pixel resolution than the data
+  * running optimization in parallel
+
+Details
+-------
+
+#630 Fix "get_int_proj does not work when recalc=True" (#543)
+    get_int_proj did not work when recalc=True on Python 3. This has now been fixed.
+
+#615 Asymmetric Errors
+    Sherpa now supports asymmetric error bars. Errors can be read through a new
+`load_ascii_with_errors` high level function, or through the new
+`Data1DAsymmetricErrs` class. Sherpa uses bootstrap for estimating the uncertainties.
+
+#585 plot pvalue
+    Updates to utilize the appropriate response files (ARF and RMF) for X-ray spectra
+    and changes to the p_value output to 1/(number of simulations) when p_value is 0
+    and the number of simulations in not large enough.
+
+#596 Run optimization algorithms over multiple cores
+    This PR enables the user to run the optimization algorithms (DifEvo, LevMar,
+and NelderMead) on multi-cores.
+
+#607 PSF rebinning (fix #43)
+    Sherpa now supports using a PSF with a finer resolution than 2D images. If Sherpa
+detects that the PSF has a smaller pixel size than the data, it will evaluate the
+model on a "PSF Space" that has the same resolution as the PSF and the same footprint as
+the data, then rebin the evaluated model back to the data space for calculating the statistic.
+
+#614 Refactor data classes (fix #563, #627, #628)
+    Sherpa's basic data classes have been refactored and cleaned up to help
+facilitating fixing bugs and implementing new features. New tests were added to reduce
+the chances of introducing regressions in the future.
+
+#612 Fix #609 User Model: unable to change parameter values
+    A regression introduced in Sherpa 4.10.0 presented users from change
+user-model parameter values through direct access. This issue has been
+fixed. Several tests were added to reduce the chance of regressions in
+the future.
+
+Fix #514 - the command line tool `sherpa_smoke` in the conda package now correctly honors
+command line arguments.
+
+
+Sherpa 4.11.0
+=============
+
+This release of Sherpa is based on the CIAO 4.11 release and includes
+additional bug fixes and improvements.
+
+Optimization routines and statistic methods were made more robust with several
+bug fixes and improvements.
+
+This version of Sherpa has been tested with Python 2.7, 3.5, 3.6, and 3.7.
+Support for Python 2.7 is being deprecated and may be dropped in future
+releases.
+
+This release also provides support for XSPEC 12.10.1 (patch 'a' or later) in
+addition to versions 12.10.0 (included in CIAO) and version 12.9.1.
+
+Details
+-------
+
+Documentation and infrastructure fixes are not shown.
+
+#444 Improve caching
+    When fitting multiple datasets simultaneously Sherpa now tries to cache
+model evaluations to improve performance.
+
+#465 Support XSPEC 12.10.0 (fix #436)
+    XSPEC 12.10.0e is now supported
+
+#508 Ensure fields are initialized before use (pileup code)
+    Resolved an issue where some fields in the C++ extension could have been
+uninitialized in a corner case.
+
+#523 Ensure the ui modules have a unique list of exported symbols (fix #502)
+    Remove the `sherpa.utils.erf` symbol from the two `ui` modules as it is
+"over-written" by the ModelWrapper-created symbol when applied to
+`sherpa.models.basic.Erf`.
+
+#524 Be explicit about 'invalid escape characters' in strings
+    Convert strings that contain "invalid" escape characters, which newer
+versions of Python complain about, to raw strings by preceding them with a 'r'
+character.
+
+#525 Fixed based line radpro_dm test and changed double --> real (template)
+
+#530 Ensure XSPEC 12.10.0 uses ATOMDB 3.0.9 by default
+    Ensure that the default AtomDB version is 3.0.9 when using XSPEC 12.10.0.
+This is to fix an issue with the models-only XSPEC installation in XSPEC
+12.10.0 which uses a default version of 3.0.7 but only provides data files for
+3.0.9. Without this change models such as XSapec would return all 0's (unless
+the AtomDB version was set manually by the user).
+
+#534 XSPEC 12.10.1 support and mtable fix
+    Sherpa now supports XSPEC 12.10.1. Several issues were fixed to ensure
+compatibility with this release. Note that there are known issues with version
+12.10.1 (no patches), so at least v12.10.1a must be used.
+
+#537 / #552 sherpa.rc changes
+    Sherpa does not read the verbosity.level setting from sherpa.rc anymore but
+the option is still in the file for backward compatibility
+
+#539 Fix XSPEC models: mtable table models and ismabs (fix #535, #538, #540)
+    Fix to address issues with XSpec- #535 XSPEC multiplicative table models
+(mtable models loaded with load_xstable_model); #538 incorrect evaluation of
+the ismabs model; #540 the kerrd model evaluated to 0 for XSPEC 12.10.0 and
+later.
+
+#546 Small code cleanup in LevMar
+    small code cleanup in the LevMar class to match the other classes in that
+file.
+
+#564 / #567 Harmonise the handling of dof is zero or negative in fit and calc_stat_info (fix #565)
+    The `fit` and `calc_stat_info` methods now use the same code to calculate
+the reduced statistic (`rstat`) and "quality of fit" (`qval`) values. This
+avoids a `TypeError` when the number of degrees of freedom is negative in
+`calc_stat_info` and ensures that `NaN` is returned for both values when the
+goodness-of-fit calculation has failed (e.g. the reduced statistic is zero or
+less or the statistic is negative), whereas in previous versions the `qval`
+value could be `None` or `1` depending on the code path.
+
+#576 Fix regression with responses `get_x` method
+    Version 4.10.1 introduced a regression which made the `get_x()` method fail
+when called on RMF and ARF objects. This has been resolved.
+
+#583 Update pager code (fix #445 #561)
+    Replace the use of an external pager (such as `more` or `less`) with a
+Python one. This means that Sherpa no-longer uses the PAGER environment
+variable, and that the screen output from the `show_*` series of commands
+should now appear in the correct location when using a Jupyter notebook or the
+spyder application.
+
+
+Sherpa 4.10.2
+==========
+
+This release fixes a regression introduced in Sherpa 4.10.1 related to PSF convolution. As part of the long term PSF rebinning improvements,
+Sherpa 4.10.1 introduced a check to validate that the data pixel size and the PSF pixel size match. If they don't match, then a warning is issued.
+The change did not account for an edge error case. Sherpa 4.10.2 solves this problem.
+The regression introduced a downstream regression in the gammapy project.
+
+Details
+---------
+
+#551 Fix gammapy/gammapy#1905, catch errors with psf pixel size.
+Sherpa did not properly catch errors when checking the PSF pixel size matches the image pixel size. This has now been fixed.
+
+Caveats
+-----------
+There is a potential issue for macOS conda users with python > 3.6 and matplotlib v3.0.1, when pyqt5 is not installed and selected as a matplotlib
+backend. With this specific combination of platform and dependencies matplotlib can fail to work properly. The issue can be replicated without
+importing Sherpa, so this is not a Sherpa bug.
+
+Several workarounds exist, the simplest of which are:
+    * install pyqt5 (`conda install pyqt`).
+    * downgrade matplotlib to v2 or v3.0.0 (`conda install matplotlib=3.0.0`)
+
+Sherpa 4.10.1
+=============
+
+This release fixes several bugs and introduces a few new features, notably the ability to evaluate model components on
+arbitrary grids and generate user-defined ARFs and RMFs. Also, as of this release Sherpa will no longer rely on any
+Fortran code. See the following section for details.
+
+It is now possible to build the Sherpa documentation using Sphinx. Additionally, the Sphinx documentation is
+automatically built and hosted on ReadTheDocs: https://sherpa.readthedocs.io/
+
+Details
+-------
+
+#407 Ensure 0-length array is an error in filter_resp (fix #405)
+    Add an explicit check in the C++ filter_resp code to error out if the noticed channels array
+    is empty.
+
+#422 Improve error message with wrong xspec version
+    Improve the handling of XSPEC versions mismatch.
+
+#466 Fix bounding box out-of-bounds memory read
+    Avoid an out-of-bounds memory read when calling pad_bounding_box (when the data is not
+    matching the expected conditions for this call).
+
+#469 Evaluate model on finer grid
+    Sherpa users can now define arbitrary grids, called evaluation spaces, on which to
+    evaluate individual model components, both in 1D and 2D. This can be useful in a number
+    of cases, for instance when it is desirable to evaluate models on a finer grid than the one
+    defined by the data, or in convolution models where information outside of the data range
+    can be used to reduce boundary effects or to inform the evaluation inside the data space.
+    Also, when plotting individual 1D model components (plot_source_component), if a specific
+    evaluation space was attached to the model then the plot will be of the model evaluated
+    over that evaluation space, not the data space. Other plotting commands should be
+    unaffected by this change.
+
+#470 Order for np.ones() should be a one length string not a bool
+    Fixed a `DeprecationWarning` in the optimization module.
+
+#471 Using overwrite rather than clobber of astropy.io.fits
+    `clobber` in astropy has been deprecated for a while now in favour of overwrite and thus
+    issues a `DeprecationWarning`. Sherpa now uses `overwrite` instead.
+
+#475 Fix unnecessary runtime warning (fix #402)
+    A condition check in the optimization code was modified so as not to produce a warning
+    when the value is a NaN.
+
+#481 Remove Fortran code
+    Sherpa does not rely on any Fortran routines anymore, except those compiled in XSPEC.
+    The existing Fortran code, which was used mainly in some of the optimization routines, has
+    been replaced by equivalent C++ code. This means that gfortran is no longer required for
+    building Sherpa, although a version of libgfortran compatible with the one used to link the
+    XSPEC libraries would still be needed at runtime if the XSPEC extension is
+    built.
+
+#482 ARF/RMF creation functions
+    The `create_rmf` and `create_arf` functions now allow users to easily generate user
+    defined response objects.
+
+#486 `ZeroDivisionError` in `calc_stat_info` (fix #476)
+    Sherpa did not catch divisions by zero in the calc_stat_info command. That has been fixed.
+
+#484 Equivalent Width errors
+    Several optional arguments `(params=None, error=False, otherids=(), niter=1000)`, were
+    added to `eqwidth`. If `error = True`, then get_draws shall be run if the fit stat is one of the
+    following: (Cash,  CStat, WStat) otherwise a multivariate normal distribution shall be run to
+    generate the samples. The optional niter parameter is used to generate the number of
+    samples. The optional parameter otherids is only used if get_draws is used internally when
+    multiple data sets were used to fit. Alternatively, the user can enter the samples via the
+    `params` option where the samples must be a `numpy.ndarray` of dimension `(num, npar)`.
+
+#487 PSF bin size warning
+    Sherpa assumes that the PSF image and the data have the same pixel size. When this is
+    not true Sherpa ignores the difference, which results in a larger PSF being applied. From
+    now on Sherpa will issue a warning when the PSF image
+    pixel size and the data image pixel size are different.
+
+Sherpa 4.10.0
+=============
+This release of Standalone Sherpa corresponds to the Sherpa code released as part of CIAO 4.10.
+
+Sherpa 4.10.0 fixes several bugs related to the support of instrumental responses, including improved support of XMM and
+Swift responses.
+
+Also, this release fixes a significant bug in the support of user statistics, improvements to the Python 3 compatibility,
+more robust usage of the numpy API, as well as several other minor bug fixes and new tests.
+
+Additionally, this release introduces support for XSPEC 12.9.1n models, as well as the ability to use aliases for
+parameter names. Some parameter names have been deprecated and may be removed in a future release. We reviewed the
+parameter limits for many models and updated them to reflect the latest XSPEC specification. Also, multiple versions of
+XSPEC are now supported, through optional models and version-dependent low-level function calls. This feature is for
+advanced users building Sherpa from source. Note that Sherpa has been tested against XSPEC 12.9.0i, 12.9.0o, and
+12.9.1n. Note that XSPEC is not directly supported by the standalone binary builds, and users are expected to build
+Sherpa from sources if they want to link it against their version of XSPEC. These changes make it easier for user to
+link different versions of XSPEC with the same Sherpa code base. Also note, however, that XSPEC 12.10 is not currently
+supported.
+
+Sherpa now requires pytest-3.3 or later for running the tests.
+
+Details
+---------
+
+#438 Change from error to warning for OGIP violations
+  Given that users can not easily change a response file, and previous versions of Sherpa would allow the responses to
+  be used, this commit changes some of the errors recently introduced (in PR #383) into warnings. The errors for the
+  first bin edge being <= 0 are still left in because users of the sherpa.astro.ui module will find that these files are
+  auto-corrected for them (by PR #383).
+
+#430 Update XSPEC parameters
+  XSPEC model parameter default values, limits, and properties were reviewed and updated to reflect changes in or
+  mismatches with the model.dat file shipped with XSPEC 12.9.1n.
+
+#428 handle function name changes in XSPEC 12.9.1
+  Sherpa now supports multiple versions of the XSPEC models from the 12.9.0 and 12.9.1 series. Some models recommend
+  using the C-style interface over the older FORTRAN one, which may also resolve some memory access issues. For CIAO
+  4.10 users this means the interfaces to XSPEC models have been updated to the 12.9.1n versions. For Standalone Sherpa
+  users this means they can build and run Sherpa against a larger range of XSPEC versions, and Sherpa will pick the
+  XSPEC low level model function accordingly. Note that Sherpa has been tested against XSPEC 12.9.0i, 12.9.0o, and
+  12.9.1n. The 14 models that have been changed are: apec, bapec, bvapec, bvvapec, gaussian, lorentz, meka, mekal,
+  raymond, vapec, vmeka, vmekal, vraymond, and vvapec.
+
+#427 Add support for XSPEC models added in 12.9.1 (fix #331)
+  Add support for models added in XSPEC 12.9.1: bvtapec, bvvtapec, tapec, vtapec, vvtapec, carbatm, hatm, ismabs,
+  slimbh, snapec, TBfeo, TBgas, TBpcf, TBrel, voigt, xscat.
+  Version 12.9.0 of XSPEC can still be used, in which case the models can be generated - e.g. a user can say xstapec.mdl
+  to create a Python object - but it will error out when evaluated.
+  The Si and S elemental parameters for the ismabs model have been renamed from the XSPEC versions since they are not
+  unique using the caseinsensitive matching used by Sherpa: so SI, SII, SIII and SiI, SiII, SiIII have been renamed S_I,
+  S_II, S_III and Si_I, Si_II, and Si_III respectively.
+  Low level support for the following convolution models from XSPEC 12.9.1 has also been added, but there is no Python
+  model support for these: clumin, rfxconv, vashift, vmshift, xilconv.
+
+#412 support ROSAT PSPC (and similar) RMF files with AstroPy
+  Add explicit tests for reading in, and using, ROSAT PSPC PHA and RMF files. Fix a bug in the AstroPy back-end handling
+  of the ROSAT RMF file.
+
+#409 EmissionGaussian model when skew parameter is not unity (fix #403)
+  The `sherpa.astro.optical.EmissionGaussian` code has been fixed for the case when the skew parameter is not unity. The
+  documentation has also been updated.
+
+#399 Python 3 fixes and new tests for pha2 datasets
+  Fixed several problems when using Sherpa with Python 3: failures when calling `list_bkg_ids` and `list_response_ids`
+  and the parameter querying after `paramprompt(True)` has been called.
+  There is also a change to avoid a `FutureWarning` being raised in the astropy backend when reading in PHA2 data files.
+  Tests have been added to test the reading of a PHA2 format dataset, and new files added to the `sherpa-test-data`
+  repository for this purpose.
+
+#398 Check that list_samplers returns a list (fix #397)
+  The `list_samplers` function now returns a list in Python 3 as well.
+
+#396 Fix `set_xlog` and related commands using Python 3 (fix #393)
+  Fix use of commands that set the plot state using the `sherpa.astro.ui` module, such as `set_xlog` and `set_xlinear`,
+  when using Python 3.
+
+#395 Add xspec optional models
+  Sherpa has new infrastructure for supporting multiple versions of XSPEC at the same time, with models that are built
+  and enabled conditionally depending on the version of XSPEC being linked. Models are assumed to have the same
+  parameters and low level functions across supported versions.
+
+#394 XSPEC build and functionality improvements
+  Add support for reading and changing the path to the XSPEC "manager" directory, and reading the current XSPEC "model"
+  directory (`get_xspath_manager`, `set_xspath_manager`, and `get_xspath_model`). These are intended for the power user
+  and so require an explicit import from `sherpa.astro.xspec`.
+  There are several improvements to the build and interface to the XSPEC model library: these have no user-visible
+  changes.
+
+#390 Add nlapec model
+  The `nlapec` XSpec model has been added. Note that XSPEC 12.9.0 is now required.
+
+#385 DS9 calls return string in Python 2 and 3 (fix #319)
+  Some low lever `xpa` calls were returning byte strings rather than strings in Python 3. This had particular impact on
+  the `image_getregion` function. This has now been fixed.
+
+#383 Replace 0-energy bins in ARF and RMFs (fix #332)
+  Sherpa now performs some validation of the energy ranges of ARF and RMF files against the OGIP standard. If the ranges
+  are inconsistent then the code will return with an error. If one energy bound is 0 the bound is replaced with a small
+  number to avoid numerical issues like division by zero. A new configuration option `minimum_energy`, if present,
+  allows users to override Sherpa's default behavior.
+
+#379 Use a line not span to draw horizontal line (fix #378)
+  Ensure that the line at y=0 (residual) or y=1 (ratio) is drawn for residual or ratio plots when using matplotlib 2.0.
+
+#373 Make sure ds9 properly works with Python 2.7 (fix #368)
+ For Python versions prior to 3.2 add in explicit code to make _Popen work as a context manager.
+
+#352 Add low-level support for the XSPEC rgsxsrc convolution model
+  Add low-level support for the rgsxsrc convolution model in XSPEC. This is intended for R&D into fully supporting XSPEC
+  convolution models in Sherpa.
+
+#255 Add aliases for parameter names so to support new xspec names (fix #74)
+  The XSPEC models have been updated to use parameter names that match the new XSPEC naming scheme introduced in XSPEC
+  12.9.0. The old parameter names can still be used as aliases for the new name, but are deprecated and may be removed
+  in a next major release. Note this allows any models to define aliases for their parameters.
+
+Sherpa 4.9.1
+============
+
+This version introduces full support for Python 3.6. It also fixes issues with non-Chandra response files, correctly
+handles the AREASCAL column in PHA files, and fixes a significant regression that was preventing user statistics from
+working in v4.8.2. It also introduces a number of smaller improvements and fixes. In particular, quite a few
+improvements have been made to the documentation and to the testing framework, including several new tests to improve
+stability.
+
+Details
+-------
+
+Infrastructure and minor non-functional changes have been omitted.
+
+#335 Fix `setup.py` install command
+  The `setup.py install` command was not enforcing the installation of the dependencies listed in `setup.py`. This has
+  been fixed.
+
+#368 Remove ds9 warnings when run under Python 3.6
+  Update the DS9 code so that external processes are cleaned up properly, so to remove the potential ResourceWarning
+  warnings when running DS9 on Python 3.6.
+
+#351 fix handling of AREASCAL column in PHA files (fix #350)
+  Add support for handling the AREASCAL value (either scalar of vector) for PHA data sets. This array is used in XMM
+  RGS data to handle missing chips.
+
+#358 Properly handle Swift RMF when using Astropy backend (fix #357)
+  A Swift RMF could not be read in when the AstroPy back end was in use. The problem was that the code did not support
+  RMF matrices that were not stored as variable-length arrays. This has now been fixed, and new tests have been added
+  for this kind of files.
+
+#343 Fix user statistics regression (fix #341)
+  A number of regressions were introduced in version 4.8.1 up to version 4.9.0, so user statistics that were properly
+  working in version 4.7 have not been working any more. This has been fixed, and a number of regression tests have
+  been added.
+
+#381 Fix `bdist_wheel` command
+  We reviewed our customization of the setuptools commands as we realized that a recent bug fix (#335) introduced a
+  regression in the bdist_wheel command used by pip to build Sherpa from source distributions. Both commands should now
+  properly work.
+
+Sherpa 4.9.0
+============
+
+This version fixes many bugs in the Python 3 support. Moreover, it includes a significant
+refactoring of the `Fit` and `Stat` classes that made it possible to fix several bugs
+related to the recent `wstat` implementation while making these classes more maintainable
+and extensible.
+
+Note that this version deprecates the use of `load_table_model` for XSPEC models.
+Sherpa/XSPEC users should use the new `load_xstable_model` function instead.
+
+Details
+-------
+
+Infrastructure and minor non-functional changes have been omitted.
+
+#242 Avoid use of inspect.getargspec in Python3
+  Finish off the replacement of inspect.getargspec by inspect.signature.
+
+#263 List_data_ids() fails on py3 with mixed id types (Fix #262).
+  Sherpa was sorting the list of dataset IDs in a non-python3 compliant fashion,
+  which resulted in issues when using strings and integers together as dataset
+  IDs. This has now been fixed.
+
+#267 add wstat tests
+  Add several regression tests for wstat.
+
+#282 Parallel_map not working on py3 with numcores=1 (Fix #277).
+  The `utils` function `parallel_map` failed on Python 3 when called with `numcores=1`,
+  i.e. on systems with only one processor/core. This has been fixed.
+
+#283 Sample flux and numpy deprecations (Fix #273 and #276).
+  The `sample_flux` function was not working under Python 3 if the `scales` argument
+  was provided. This has been fixed. Also, a `DeprecationWarning` was issued by
+  `numpy` because during the `sample_flux` execution values were extracted from
+  an array with non-integer indices. This has also been fixed.
+
+#284 String representation of data classes under py3 (Fix #275).
+  Data classes `DataPHA`, `DataARF`, `DataRMF`, `DataIMG`, and `DataIMGInt` in
+  `sherpa.astro.data` would throw an exception if users tried to print them as
+   strings, under Python 3. This has been fixed.
+
+#287 Rewrite sherpa.stats.Stat.calc_stat and simplify sherpa.fit.Fit (fix #227 #248 #289 #292).
+  In order to fix several issues related to the WStat support, and in order to
+  make the code more maintainable, the `sherpa.stats.Stat.calc_stat` and
+  `sherpa.fit.Fit` classes have gone through a round of refactoring. This fixes
+  the following issues: #227 Issues using wstat when grouping/filtering data; #248
+  backscal column not treated properly for WStat; #289 calc_stat does not error out
+  if background subtracted data is used with Likelihood statistics; #292 stat info
+  does not include reduced stat/qval for wstat.
+
+#295 Fix display of pileup model in Python 3.5 (Fix #294).
+  Fix display of instances of `sherpa.astro.models.JDPileup` so that, in Python 3.5,
+  they can be displayed after the model has been evaluated.
+
+#304 replace file -> open (Fix #297).
+  The `save` and `restore` functions used to use the `file` function which is not
+  compatible with Python 3. This has now been fixed.
+
+#305 Fix python 3 issues with some session commands (Fix #303).
+  The `set_xlog`, `set_ylog`, and `show_bkg_model` functions were not compatible
+  with Python 3. This has now been fixed (Issue #303).
+
+#307 Move XSPEC table support to load_xstable_model and deprecate its support
+  in load_table_model (Fix #270).
+  Add the `load_xstable_model` routine to the `sherpa.astro.ui` module, which
+  supports loading XSPEC additive or multiplicative (atable and mtable) models.
+  The support for these models is still available via `load_table_model` in this
+  release, but it is deprecated. The `read_xstable_model` routine has been added
+  to the `sherpa.astro.xspec` module.
+
+#312 Fix over-zealous code clean up in PR #287 affecting sigmarej.
+  Fits using the sigmarej iterated-fit method were broken if a filter had been
+  applied to the data before the fit and there are any bins that get ignored at
+  larger bin values than the filtered-out data. (This fixes a subtle regression
+  introduced by #287).
+
+#313 Allow sequence=None when using gridsearch and Python 3.5 (Fix #309).
+  Allow the `gridsearch` optimiser to be used with the `sequence` option set
+  to `None` for Python 3.5.
+
+Caveats
+------------
+
+The requirements for Sherpa are to build with Python 2.7 and 3.5. There has been limited
+testing with Python 3.6, for which we distribute conda binaries. If in doubt, please install
+Sherpa in 2.7 or 3.5 environments only. Support for Python versions 3.3 and 3.4 is possible
+but would require community support.
+
+It has been reported during testing that some versions of the matplotlib conda package do not
+install properly because of a pyqt v5 dependency. If you encounter this issue, please pin down
+pyqt to version 4, e.g. `conda install matplotlib pyqt=4`.
+
+The `sherpatest` package is not distributed as a conda package anymore. This will probably be
+true for the foreseeable future. The `sherpatest` package contains data and functional tests
+that relies on external datasets, so it allows users and developers to run the entire regression
+tests suite. If you want to install `sherpatest`, please use pip and github:
+
+~~~~
+$ pip install https://github.com/sherpa/sherpa-test-data/archive/4.9.0.tar.gz
+~~~~
+
+If you decide to run the full regression tests suite you should also have matplotlib installed.
+If matplotlib is not installed a test will run and fail rather than being skipped. This issue
+will be fixed in the next release.
+
+Sherpa 4.8.2
+============
+
+This version of Sherpa is the first one to run under both Python 2.7
+and Python 3.5. The python 3 conversion is considered a beta designed
+to maintain backwards compatibility with python 2.7. As such, we
+expect to have some iterations before the Python 3.5 support stabilizes.
+
+The smoke test has been greatly simplified: rather that running all of
+the unit and regression tests that do not require test data, the smoke
+test now simply ensures that the basic installation works, i.e. that
+basic commands can be run and that dependencies can be reached. This
+allows the use of more advanced tools for actual unit and regression
+tests without having to ship such tools to users.
+
+Several bugs were fixed, some enhancements implemented, and some
+deprecated calls to external API replaced. In particular:
+
+  * more documentation was migrated and is not part of the code base
+    as *docstrings*.
+  * the `calc_stat` API has been generalized to make statistic
+    functions more extensible.
+  * `calc_stat_info` now properly takes background into account when
+    `wstat` is selected.
+
+Details
+-------
+
+Infrastructure and minor non-functional changes have been omitted.
+
+#209: Fix docstrings for `group_snr()` and `group_adapt_snr()`. Docstrings
+  used to say "Combine the data so that each bin has a signal-to-noise
+  ratio of at least minimum" but the end of the groups are marked only
+  if the SNR exceeds the given SNR.
+
+#210: The smoke test has been greatly simplified and it now simply ensures
+  that the basic installation works, i.e. that basic commands can be run
+  and that dependencies can be reached. Previously, the smoke test would
+  run all unit tests. Units and regression tests can now take advantage of
+  `py.test` and `mock` packages (the latter is part of the standard
+  library in Python3).
+
+#211: Cleanup of documentation and code in `sherpa.astro.utils`. The
+  `calc_kcorr` function is now exported by sherpa.astro.utils. Minor
+  changes to the documentation in `sherpa.astro.utils` to conform to
+  Sphinx standards.
+
+#221: Integrate existing model documentation (from external sources and
+  the CIAO ahelp documentation system) into the model classes.
+
+#229: Code is both Python 2.7 and 3.5 compliant. This included updating
+  the CIAO dependencies: region, group, and stack libraries, which were
+  ported to Python 3 as well.
+
+#242: Avoid use of `inspect.argspec`, which was deprecated in Python3.
+
+#252: `plot_photon_flux` function was calling an internal function with
+  the wrong number of arguments and thus raising an error. This has been
+  fixed.
+
+#253: `calc_stat_info` call failed when `wstat` was selected, as the
+  background was not taken into account. This issue has now been fixed.
+
+#256: Fix docstring in `set_quality`, which were listing the wrong values
+  of the quality flag.
+
+#257: Fix docstring for `levmar` tolerance, which was listing the wrong
+  function defaults.
+
+
+Caveats/Known Issues
+--------------------
+
+The following are known issues with the standalone 4.8.2 release
+
+  **`show_all` does not work on Python3 with PHA**. E.g., the following
+    code throws an exception:
+
+``` python
+from sherpa.astro.ui.utils import Session
+from sherpa.astro.data import DataPHA
+session = Session()
+session.load_arrays(1, [1, 2, 3], [1, 2, 3], DataPHA)
+session.show_all()
+```
+
+  **the `parallel_map` function throws an exception on Python 3** when
+    only one core is available on the system running Sherpa. This impacts
+    a number of functions taking advantage of tasks parallelization on
+    multi-core systems. This functions include `calc_flux`, `sample_flux`,
+    a number of functions for plotting parameter projections, and the
+    `grid_search` optimization algorithm.
+
+  **string representation of some (but not all) dataset classes is broken
+    on Python 3**. For instance, the following code will result in an exception:
+
+```python
+from sherpa.astro.ui import *
+load_pha('3c273.pi')
+print(get_data())
+```
+
+  **`sample_flux` does not work on Python 3 when called with the `scales`
+    argument**, e.g.:
+
+```python
+from sherpa.astro import ui
+
+ui.load_pha('sherpa-test-data/sherpatest/3c273.pi')
+ui.set_model('polynom1d.p1')
+ui.fit()
+ui.covar()
+scal = ui.get_covar_results().parmaxes
+ui.sample_flux(p1, 0.5, 1, num=5, correlated=False, scales=scal)
+```
+
+
+
+Sherpa 4.8.1
+============
+
+Sherpa 4.8.1 is the standalone counterpart to the 4.8.0 release, which was
+focused on supporting CIAO 4.8. In particular, this version introduces support
+for newer versions of the dependency, along with some feature enhancements,
+bug fixes and additional, more accurate tests.
+
+The newly supported dependencies:
+
+  - matplotlib v1.5
+  - numpy 1.10 (with and without mkl support)
+  - xspec v12.9.0i (when building from source)
+  - astropy v1.1.2
+  - region library v4.8 (from CIAO 4.8)
+
+Mode details below (infrastructure changes are not shown):
+
+#102: fix issues when writing out FITS files using the `save_pha` and
+`save_table` commands when using the `astropy`/`pyfits` backend (bug #46).
+Fix for when the notice2d_id, notice2d_image, and the ignore version functions
+are called with an invalid identifier (i.e. an identifier that is not an integer
+or string value). The error is now an ArgumentTypeErr with the message "'ids'
+must be an identifier or list of identifiers". It was a NameError with the
+message "global name '_argument_type_error' is not defined".
+
+#107: Normalize plot labels. There are two main changes for plots of PHA data
+sets (and related quantities, such as the source, model, and ARF):
+
+- plots with matplotlib now use the LaTeX support - so that 'cm^2' is
+  now displayed as a superscript; previously they were displayed
+  directly. This does not change the display with the ChIPS backend.
+
+- plots created with `plot_source` used a different format to other
+  plots when analysis=wavelength, in that LaTeX symbols were used for
+  Angstrom and lambda (in other plots the string 'Angstrom' is used
+  instead). The source plots now match the other plots.
+
+#109: fix #103 and #113 in order to support `matplotlib` v1.5.
+
+#116: fix bug #27. The `astropy.io.fits`/`pyfits` interface used deprecated
+functionality. The code was updated to use the replacement classes/methods when
+available, falling back to the original code if not. The interfaces that were
+changed were, when the new symbols are available, to:
+
+ - use `astropy.io.fits.BinTableHDU.from_columns` rather than
+   `astropy.io.fits.new_table`
+
+ - use `astropy.io.fits.Header` rather than `astropy.io.CardList`
+
+#137: upgrade CIAO region library to v4.8
+
+#138: improve and fix issues in `save_all` function.
+
+ - added a new argument to `save_all`: if `outfile` is `None` then the `outfh`
+   argument is used 
+   to define the output handle (the argument can be any file-like argument, such
+   as a file
+   handle like `sys.stdout` or the output of `open`, or a `StringIO` object)
+ - setting the `clobber` argument to `save_all` now means that the output file
+   (the `outfile`
+   argument, if not `None`) is deleted if it already exists; prior to this, the
+   file would be
+   appended to instead
+ - the source expression is now saved correctly for most cases (e.g. when not
+   using `set_full_model`); this is bug #97 but also affects non-PHA data sets
+ - the background model expression was not always written out correctly when
+   using PHA
+   data sets
+ - quality and grouping arrays of PHA data sets are now stored as 16-byte
+   integers rather
+   than a floating-point value (this has no affect on the results, but matches
+   the OGIP standard)
+ - fixed up saving the grouping and quality arrays of background PHA data sets
+   (this would only
+   be an issue if the background is being fit, rather than subtracted)
+ - basic data sets created with the `load_arrays` function are now written out by
+   `save_all`
+   as part of the script; this is intended for small datasets and may have
+   problems with
+   precision if used with floating-point arrays
+ - calls to `load_psf` are now correctly restored (they may not have been written
+   out correctly
+   if multiple data sets were loaded)
+ - user models are now written out to disk; this consists of two parts:
+ - writing out the function that defines the model, which may or may not be
+   possible (if
+   not, a place-holder function is added to the output and a warning
+   displayed).
+ - the necessary calls to `load_user_model` and `add_user_pars` are now
+   included in the output
+ - the Python code created by `save` all has undergone several minor changes:
+ - it now explicitly imports the `sherpa.astro.ui` module, so that it can be
+   run from the
+   IPython prompt using the `%run <filename>` command, or directly as `python <filename>`
+ - it uses the `create_model_component` function rather than `eval` to create
+   model
+   components (this is CXC bug 12146)
+ - many optional arguments to functions are now given as `name=value` rather
+   than
+   being a positional argument, to make it clearer what the script is doing.
+ - calls to `load_data` have been replaced by more-specific versions - e.g.
+   `load_pha`
+   and `load_image` - if appropriate
+ - there have seen several minor syntactic clean ups to better follow the
+   suggestions from PEP8 
+
+When writing out code that defines a user-model, there is no attempt to make
+sure that
+modules used by the function are available. These will need to be added, either
+directly
+or imported, manually to the output.
+
+#151: Ensure AstroPy and Crates behave the same with gzipped files. Change the
+behaviour of the AstroPy back end so that it matches that of Crates when given a
+file name which does not exist, but a compressed version, with the suffix `.gz`
+does. The Crates behavior is to read the file. This extends to PHA files whose
+ancillary files - e.g. those stored in the `BACKFILE`, `ANCRFILE`, and
+`RESPFILE` keywords - are given as unzipped names, but only the gzipped names
+exist on disk.
+
+As an example: if `pha.fits.gz` exists but `pha.fits` does not, then
+
+    load_pha('pha.fits')
+
+will now load the file with either back end. If the response files are set to
+`arf.fits` and `rmf.fits` (via the `ANCRFILE` and `RESPFILE` keywords), but only
+the `.gz` versions exist, then they will now also be loaded by the AstroPy back
+end.
+
+#153: Make comparison test in `calc_chi2datavar_errors` less stringent, so to
+include the case where `sqrt(x)=0`.
+
+#155: The `get_draws` function now accepts a user-provided covariance matrix. If
+no covariance matrix is provided, the covariance matrix computed by the default
+implementation is used. Note that `covar()` must be invoked before invoking
+`get_draws` if no covariance matrix is provided, otherwise `get_draws` will exit
+with an error.
+
+#158: Fix bug that prevented region ascii files to be read in standalone
+Sherpa.
+
+#165: Remove usage of deprecated numpy API.
+
+#185: Fix the problem where if the working directory contained a file called
+`x` or `y` then the `sherpa.astro.ui.image_data()` function would fail with the message
+
+     DS9Err: Could not display image
+
+#187: Fix #92: a more meaningful message is given to the user when
+`sherpa.astro.io` is imported directly and no fits backends are available.
+
+#188: Fix #93. The `sherpa_test` script now tries to install the test
+dependencies before running the tests (but not the `sherpatest` package, which
+should be installed by the user if necessary, due to its footprint). If this is
+not possible, and the necessary dependencies (`pytest`) are not found, then a
+meaningful message is given to the user with instructions on how to install the
+dependencies. Also, the dependency on `pytest-cov` has been removed. Users can
+enable coverage reports from the command line if necessary.
+
+#190: Fix #22 - The datastack package can now be used even if there is no
+available plotting backend. In this case, plotting functions will not be
+available, but the rest of the datastack functionality will. 
+
+
+Sherpa 4.8.0
+============
+
+This version of Sherpa  introduces 'wstat' statistics which is an extension
+of 'cstat' with Poisson background data. It also provides the ability to include
+background data with the 'user statistics'.
+
+Many changes were aimed at improving the Xspec extension by making it more
+robust, intuitive, and by fixing several bugs. Sherpa 4.8.0 supports Xspec 12.9.0d
+and was also tested against versions 12.8.2e, 12.8.2l, and 12.8.2q.
+
+Most of the codebase was reviewed and cleaned up, in particular to remove the
+use of deprecated functionality and to comply with Python's PEP8 standard.
+More tests were added to the test suite, and
+a new testing infrastructure was put in place in order to simplify writing and
+running tests, and to measure the test suite code coverage.
+
+More details below (infrastructure changes are not shown):
+
+#32: Fix segfault from CRATES update in 4.8b1. Since v4.8b1 CRATES returns
+variable length arrays by default, rather than the zero-padded fixed length
+ones it used to return. Sherpa manipulated the arrays so to remove the
+zero-padding and obtaining variable length arrays. The change in the CRATES
+API resulted in Sherpa segfaulting when trying to manipulate the data coming
+from CRATES. In the patch, we use a new API offered by CRATES to get the
+old-style fixed-length arrays instead of the new default ones. In the future,
+we may want to update the Sherpa code to deal with the new arrays directly.
+
+#44: `save_quality` now correctly outputs 'QUALITY' as the column name,
+instead of 'GROUPS'.
+
+#48: Fix up several issues seen in plot labels - titles and Y-axis labels -
+for commands such as `sherpa.ui.plot_data`, `sherpa.ui.plot_fit_resid`, and
+`sherpa.ui.plot_chisqr`.
+
+#59: Fix bug #38 (grouping twice gives an IndexError exception). An un-handled
+corner case in one of the Sherpa internal methods (`utils.create_expr`) was
+triggering an `IndexError` when two `group_counts` operations were performed
+back to back. The fix handles the case so that applying `group_counts` twice
+does not result in an Exception.
+
+#77: Replace `==` and `!=` comparisons to `None` with `is` and `is not`.
+
+#78: OutOfBoundErr exceptions in some sherpa.utils
+functions are properly caught. There were several places where screen output
+used either `print` or `sys.stderr.write`.
+
+#81: Ensure that XSPEC models which fail - for instance, because a data file
+it needs is missing - return 0's for all bins, rather than random values. This
+should make it more obvious that something has gone wrong (for instance if the
+XSPEC chatter level is low enough not to show any error messages, as is the
+case for the default setting used by Sherpa, namely 0).
+
+#82: The XSpec "spectrum number" value is now set to 1 rather than 0, as this
+value is 1-based in Xspec.
+
+#83: Removed S-Lang scripts, files, and references in the code.
+
+#84: Clarified error messages in Xspec extension. Also, changed the class of
+the exception from `RuntimeError` to more appropriate exception types, in
+particular `LookupError`, `ValueError`, `KeyError`. This is a
+backwards-incompatible change, in that code that caught the `RuntimeError`
+will not catch the new error.
+
+#87: Some methods in `sherpa/fit.py` assigned mutable objects to default
+arguments. This has now been fixed. More instances of this issue have been
+identified (Bug #95) and will removed in the future.
+
+#90: Added background data to the UserStat class.
+
+#94: Implement wstat statistic as described at the following url:
+https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSappendixStatistics.html
+
+#96: Remove the unused myoptfct module.
+
+#99: Correct the documentation for the `set_exposure` function.
+
+#100 Fix bug #97, whereby the save_all function would not create the necessary
+`set_source()` line. This does not fix all cases, but it does the simple PHA
+case such as
+
+~~~~
+load_pha('src.pi')
+set_source(xsphabs.gal * powlaw1d.pl)
+save_all('test.out).
+~~~~
+
+It also ensures that files created by `save_all`
+can be run using IPython's %run directive, by explicitly importing the
+`sherpa.astro.ui` module.
+
+#101: Fix handling of non-contiguous bins in Xspec - i.e. when a model is
+called with both xlo and xhi arguments but the bins do not fully cover the
+energy, or wavelenth, range. This fixes #62 (for XSPEC 12.8.2; switching to
+XSPEC 12.9.0 should also fix it) and #56. It also fixes an (un-reported)
+problem with handling of non-contiguous grids when using a table model, where
+a crash was likely.  When an XSPEC model is called with both low and high
+values for the grid - i.e. with two arguments - then the two arrays are
+checked to have the same length, and a ValueError is raised if this condition
+does not hold. This is a breaking change, but the results are not guaranteed
+to be correct if the two arrays are not the same length.  The experimental
+interface for XSPEC convolution models has changed, so that the function call
+takes pars, fluxes, xlo, with optional xhi whereas before it was pars, xlo,
+xhi, fluxes. This is a breaking change, but this is in the low-level API that
+is not documented to users, and adds useful functionality (the ability to have
+xhi be optional). The cpflux convolution model has been added. Note that these
+models do not have Python classes associated with them as they are still an
+experimental interface.  The test suite has been updated to test the new and
+changed functionality in this PR. The choice of models is made so as to avoid
+known problematic models (with a version check where relevant).  It is
+believed that the changes in this PR fixes #42, although this is hard to prove
+conclusively given the erratic nature of the bug.
+
+#110: Update the sherpa.astro.datastack module documentation to include information from the
+CIAO ahelp documentation and to match the style used by the sherpa.astro.ui module.
+
+#111: Update the documentation to include more information about the pyBLoCXS code.
