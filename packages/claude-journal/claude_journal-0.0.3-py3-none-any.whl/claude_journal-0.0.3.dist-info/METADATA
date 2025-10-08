@@ -1,0 +1,257 @@
+Metadata-Version: 2.3
+Name: claude-journal
+Version: 0.0.3
+Summary: MCP server that provides journaling capabilities for Claude Code
+Author: Andrii Yurchuk
+Author-email: Andrii Yurchuk <ay@mntw.re>
+License: This is free and unencumbered software released into the public domain.
+         
+         Anyone is free to copy, modify, publish, use, compile, sell, or
+         distribute this software, either in source code form or as a compiled
+         binary, for any purpose, commercial or non-commercial, and by any
+         means.
+         
+         In jurisdictions that recognize copyright laws, the author or authors
+         of this software dedicate any and all copyright interest in the
+         software to the public domain. We make this dedication for the benefit
+         of the public at large and to the detriment of our heirs and
+         successors. We intend this dedication to be an overt act of
+         relinquishment in perpetuity of all present and future rights to this
+         software under copyright law.
+         
+         THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+         EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+         MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+         IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+         OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+         ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+         OTHER DEALINGS IN THE SOFTWARE.
+         
+         For more information, please refer to <https://unlicense.org>
+Requires-Dist: mcp>=1.16.0
+Requires-Dist: gitpython>=3.1.45
+Requires-Dist: pytest-cov>=7.0.0
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+
+[![codecov](https://codecov.io/gh/Ch00k/claude-journal/graph/badge.svg?token=a8iDciRD0f)](https://codecov.io/gh/Ch00k/claude-journal) &nbsp;
+[![PyPI - Version](https://img.shields.io/pypi/v/claude-journal)](https://pypi.org/project/claude-journal)
+
+# Claude Journal
+
+An MCP (Model Context Protocol) server that provides journaling capabilities for Claude Code, allowing Claude to persist
+technical insights, failed approaches, architectural decisions, user preferences, and deferred work across
+conversations.
+
+## Overview
+
+Claude Journal helps Claude remember important information across conversations by maintaining structured journal files.
+Journals are stored in `~/.claude/journal/` as a git repository, providing backup, restore, and sync capabilities.
+
+### Features
+
+- **Per-project journals**: Each project gets its own journal with a unique ID
+- **Global journal**: For cross-project insights and user preferences
+- **Git integration**: Automatic commits and optional remote sync
+- **Structured entries**: Five entry types (insight, failure, decision, preference, todo)
+- **Powerful search**: Search journals by content and type
+
+## Requirements
+
+- Python 3.12 or later
+- SQLite 3.9.0 or later (for FTS5 full-text search, bundled with Python 3.6+)
+- Git (for journal version control and sync)
+- uv (for installation)
+
+## Installation
+
+```bash
+uv tool install claude-journal
+```
+
+Add to Claude Code:
+
+```bash
+claude mcp add journal claude-journal
+```
+
+## Setup
+
+Initialize the journal repository:
+
+```bash
+claude-journal init
+```
+
+This creates `~/.claude/journal/` as a git repository with a `global/journal.md` file.
+
+For remote backup (optional):
+
+```bash
+claude-journal init --remote git@github.com:username/claude-journals.git
+```
+
+### Configuring Claude Code
+
+To make Claude use the journal effectively, add instructions to your `~/.claude/CLAUDE.md`:
+
+```markdown
+## Learning and Memory Management
+
+- YOU MUST use the journal tool frequently to capture technical insights, failed approaches, and user preferences
+- Before starting complex tasks, search the journal for relevant past experiences and lessons learned
+- Document architectural decisions and their outcomes for future reference
+- Track patterns in user feedback to improve collaboration over time
+- When you notice something that should be fixed but is unrelated to your current task, document it in your journal rather than fixing it immediately
+```
+
+You can also add project-specific journal instructions in `<project>/.claude/CLAUDE.md` if needed.
+
+## How It Works
+
+### Project Identification
+
+On first journal write in a project, Claude Journal:
+1. Generates a unique 8-character hex ID
+2. Creates `.claude/journal.json` in your project with this ID
+3. Creates `~/.claude/journal/<id>/journal.md`
+
+Subsequent writes in that project use the same ID, even if you rename the directory.
+
+### Entry Types
+
+- `insight` - Technical insights about code/architecture
+- `failure` - Failed approaches to avoid retrying
+- `decision` - Architectural decisions and reasoning
+- `preference` - User preferences and working style
+- `todo` - Deferred work items
+
+### Entry Format
+
+Entries are stored in markdown format:
+
+```markdown
+## [2025-10-06T14:23:45Z] insight
+
+Content goes here.
+Multiple lines supported.
+
+---
+```
+
+Each journal directory includes a `journal.db` SQLite database with an FTS5 (Full-Text Search) index for fast searching. The index is automatically created and updated as entries are written, and automatically rebuilt if the markdown file is modified outside the tool.
+
+## Usage
+
+Claude uses the journal tools automatically when configured. You don't need to invoke them manually.
+
+### Writing Entries
+
+When Claude learns something important, it writes to the journal:
+
+```
+[Claude internally uses JournalWrite tool]
+type: "decision"
+scope: "project"
+content: "Chose PostgreSQL over SQLite for multi-user support..."
+```
+
+### Searching
+
+When Claude needs to recall information:
+
+```
+[Claude internally uses JournalSearch tool]
+query: "authentication"
+scope: "project"
+```
+
+## Git Integration
+
+All journal operations include git commits:
+
+- **Before read operations**: Pulls from remote (if configured)
+- **After write operations**: Commits locally, pushes to remote (if configured)
+- **Commit messages**: `[scope] type: brief summary`
+
+If git operations fail (network issues, conflicts), the journal operation still succeeds locally and returns a warning.
+
+## MCP Tools
+
+Claude Journal provides two MCP tools:
+
+### JournalWrite
+
+**Parameters**:
+- `content` (string, required) - The journal entry content
+- `type` (enum, required) - One of: insight, failure, decision, preference, todo
+- `scope` (enum, optional, default: project) - One of: global, project
+
+### JournalSearch
+
+**Parameters**:
+- `query` (string, required) - FTS5 full-text search query (supports phrases in quotes, AND/OR/NOT operators, prefix matching with *)
+- `scope` (enum, optional, default: both) - One of: global, project, both
+- `type` (enum, optional) - Filter by entry type if specified
+
+## Directory Structure
+
+```
+~/.claude/journal/              # Git repository
+├── .git/
+├── global/
+│   ├── journal.md              # Global journal
+│   └── journal.db              # SQLite FTS5 search index
+└── <project-id>/
+    ├── journal.md              # Per-project journal
+    └── journal.db              # SQLite FTS5 search index
+
+<your-project>/.claude/
+└── journal.json                # {"id": "a3f8b2c9"}
+```
+
+
+## Troubleshooting
+
+### Journal directory missing after project ID exists
+
+If `.claude/journal.json` exists but the journal directory is missing from `~/.claude/journal/<id>/`:
+
+1. Check if journals repo needs restore: `cd ~/.claude/journal && git status`
+2. Pull from remote: `git pull`
+3. If journal was lost, the ID will be regenerated on next write
+
+### Git conflicts
+
+If you sync journals across machines and encounter conflicts:
+
+```bash
+cd ~/.claude/journal
+git status
+# Resolve conflicts manually
+git add .
+git commit
+```
+
+### Remote push failures
+
+Push failures don't prevent journal writes. The entry is saved locally and will be pushed on the next successful
+operation.
+
+## Development
+
+### Running tests
+
+```bash
+make test
+```
+
+### Linting, formatting, type checking
+
+```bash
+make lint
+```
+
+## License
+
+This is free and unencumbered software released into the public domain. See the LICENSE file for details.
