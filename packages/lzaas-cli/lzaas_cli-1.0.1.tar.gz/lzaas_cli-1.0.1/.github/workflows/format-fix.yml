@@ -1,0 +1,101 @@
+name: Auto-fix Code Formatting
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+    # Check for all GitHub App secrets
+    - name: Check for GitHub App secrets
+      id: check-secrets
+      run: |
+        if [[ -n "${{ secrets.APP_ID }}" && -n "${{ secrets.APP_PRIVATE_KEY }}" && -n "${{ secrets.APP_INSTALLATION_ID }}" ]]; then
+          echo "github_app_available=true" >> $GITHUB_OUTPUT
+        else
+          echo "github_app_available=false" >> $GITHUB_OUTPUT
+        fi
+
+        if [[ -n "${{ secrets.PAT_TOKEN }}" ]]; then
+          echo "pat_available=true" >> $GITHUB_OUTPUT
+        else
+          echo "pat_available=false" >> $GITHUB_OUTPUT
+        fi
+
+    # Generate GitHub App token if all secrets are available
+    - name: Generate GitHub App Token
+      id: app-token
+      if: steps.check-secrets.outputs.github_app_available == 'true'
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ secrets.APP_ID }}
+        private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+    # Checkout with GitHub App token (if available)
+    - name: Checkout with GitHub App
+      if: steps.app-token.outputs.token
+      uses: actions/checkout@v4
+      with:
+        token: ${{ steps.app-token.outputs.token }}
+        fetch-depth: 0
+
+    # Checkout with PAT (if no GitHub App token but PAT exists)
+    - name: Checkout with PAT
+      if: ${{ !steps.app-token.outputs.token && steps.check-secrets.outputs.pat_available == 'true' }}
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.PAT_TOKEN }}
+        fetch-depth: 0
+
+    # Checkout with GITHUB_TOKEN (fallback)
+    - name: Checkout with GITHUB_TOKEN
+      if: ${{ !steps.app-token.outputs.token && steps.check-secrets.outputs.pat_available == 'false' }}
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    - name: Install formatting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install black isort
+
+    - name: Format code with black
+      run: black lzaas/
+
+    - name: Sort imports with isort
+      run: isort lzaas/
+
+    - name: Check for changes
+      id: verify-changed-files
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Commit changes
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "Auto-fix code formatting [skip ci]"
+        git push

@@ -1,0 +1,167 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Build documentation
+      run: |
+        # Create build directory
+        mkdir -p _site
+
+        # Create a comprehensive index.html
+        cat > _site/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>LZaaS CLI Documentation</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    line-height: 1.6;
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background: #f8f9fa;
+                }
+                .header {
+                    text-align: center;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 40px 20px;
+                    border-radius: 10px;
+                    margin-bottom: 30px;
+                }
+                .logo { font-size: 3em; margin-bottom: 10px; }
+                .nav {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 20px;
+                    margin: 30px 0;
+                }
+                .card {
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    transition: transform 0.2s;
+                }
+                .card:hover { transform: translateY(-2px); }
+                .card h3 { margin-top: 0; color: #333; }
+                .card a { color: #0366d6; text-decoration: none; font-weight: 500; }
+                .card a:hover { text-decoration: underline; }
+                .footer { text-align: center; margin-top: 40px; color: #666; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="logo">🚀</div>
+                <h1>LZaaS CLI Documentation</h1>
+                <p>Landing Zone as a Service Command Line Interface</p>
+            </div>
+
+            <div class="nav">
+                <div class="card">
+                    <h3>📖 Getting Started</h3>
+                    <p>Learn how to install and use LZaaS CLI</p>
+                    <a href="./README.md">Read the README →</a>
+                </div>
+
+                <div class="card">
+                    <h3>📚 User Guide</h3>
+                    <p>Comprehensive guide for using LZaaS CLI</p>
+                    <a href="./docs/USER_GUIDE.md">User Guide →</a>
+                </div>
+
+                <div class="card">
+                    <h3>⚡ Quick Reference</h3>
+                    <p>Quick command reference and examples</p>
+                    <a href="./docs/QUICK_REFERENCE.md">Quick Reference →</a>
+                </div>
+
+                <div class="card">
+                    <h3>🔄 Changelog</h3>
+                    <p>See what's new in each release</p>
+                    <a href="./CHANGELOG.md">Changelog →</a>
+                </div>
+
+                <div class="card">
+                    <h3>🤝 Contributing</h3>
+                    <p>Learn how to contribute to the project</p>
+                    <a href="./CONTRIBUTING.md">Contributing →</a>
+                </div>
+
+                <div class="card">
+                    <h3>📄 License</h3>
+                    <p>Project license information</p>
+                    <a href="./LICENSE">License →</a>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p>Built with ❤️ by the SPITZKOP team</p>
+            </div>
+        </body>
+        </html>
+        EOF
+
+        # Copy all documentation files with proper structure
+        # Create docs directory in _site
+        mkdir -p _site/docs
+
+        # Copy docs directory contents if it exists
+        if [ -d "docs" ]; then
+          cp -r docs/* _site/docs/ 2>/dev/null || true
+        fi
+
+        # Copy root documentation files
+        cp README.md _site/ 2>/dev/null || true
+        cp CHANGELOG.md _site/ 2>/dev/null || true
+        cp CONTRIBUTING.md _site/ 2>/dev/null || true
+        cp LICENSE _site/ 2>/dev/null || true
+        cp RELEASE_GUIDE.md _site/ 2>/dev/null || true
+        cp PRODUCTION_LIFECYCLE_GUIDE.md _site/ 2>/dev/null || true
+        cp INSTALLATION_METHODS.md _site/ 2>/dev/null || true
+        cp PYPI_PACKAGE_MANAGEMENT.md _site/ 2>/dev/null || true
+        cp GITHUB_PAGES_TROUBLESHOOTING.md _site/ 2>/dev/null || true
+
+        # List what was copied for debugging
+        echo "Files copied to _site:"
+        find _site -type f | sort
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '_site'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
