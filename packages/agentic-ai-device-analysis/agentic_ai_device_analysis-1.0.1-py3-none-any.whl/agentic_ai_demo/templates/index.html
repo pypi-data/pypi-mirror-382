@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic AI based Device Attributes Analysis Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .risk-low { background: linear-gradient(135deg, #4ade80, #22c55e); }
+        .risk-medium { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+        .risk-high { background: linear-gradient(135deg, #f87171, #ef4444); }
+        .pulse-animation { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen gradient-bg">
+        <div class="container mx-auto px-4 py-8">
+            <h1 class="text-4xl font-bold text-white text-center mb-8">🤖 Agentic AI based Device Attributes Analysis Demo</h1>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Device Analysis Panel -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h2 class="text-2xl font-bold mb-4">Device Analysis</h2>
+                    <div class="space-y-4">
+                        <button onclick="analyzeDevice('normal')" class="w-full bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600">
+                            Analyze Normal Device
+                        </button>
+                        <button onclick="analyzeDevice('suspicious')" class="w-full bg-yellow-500 text-white py-2 px-4 rounded hover:bg-yellow-600">
+                            Analyze Suspicious Device
+                        </button>
+                        <button onclick="analyzeDevice('fraud')" class="w-full bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600">
+                            Analyze Fraudulent Device
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Results Panel -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h2 class="text-2xl font-bold mb-4">Analysis Results</h2>
+                    <div id="results" class="space-y-4">
+                        <p class="text-gray-500">Click a button to start analysis...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- AI Decision Process -->
+            <div class="mt-8 bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold mb-4">🧠 AI Decision Process</h2>
+                <div id="aiProcess" class="space-y-2">
+                    <p class="text-gray-500">AI reasoning will appear here...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function analyzeDevice(type) {
+            const resultsDiv = document.getElementById('results');
+            const processDiv = document.getElementById('aiProcess');
+            
+            // Show loading
+            resultsDiv.innerHTML = '<div class="pulse-animation">🔄 Analyzing device...</div>';
+            processDiv.innerHTML = '<div class="pulse-animation">🧠 AI is thinking...</div>';
+            
+            try {
+                console.log('Making request to:', `/api/analyze?type=${type}`);
+                const response = await fetch(`/api/analyze?type=${type}`);
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                // Display results
+                const riskClass = data.risk_level === 'LOW' ? 'risk-low' : 
+                                 data.risk_level === 'MEDIUM' ? 'risk-medium' : 'risk-high';
+                
+                resultsDiv.innerHTML = `
+                    <div class="${riskClass} text-white p-4 rounded">
+                        <h3 class="font-bold">Risk Level: ${data.risk_level}</h3>
+                        <p>Score: ${data.risk_score}%</p>
+                    </div>
+                    <div class="mt-4">
+                        <h4 class="font-bold">Anomalies Detected:</h4>
+                        <ul class="list-disc list-inside">
+                            ${data.anomalies.map(a => `<li>${a.type}: ${a.description}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="mt-4">
+                        <h4 class="font-bold">AI Recommendations:</h4>
+                        <ul class="list-disc list-inside">
+                            ${data.recommendations.map(r => `<li>${r}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+                
+                // Display AI process
+                processDiv.innerHTML = `
+                    <div class="space-y-2">
+                        ${data.ai_reasoning.map(step => `
+                            <div class="bg-blue-50 p-2 rounded">
+                                <strong>${step.step}:</strong> ${step.reasoning}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultsDiv.innerHTML = `<div class="text-red-500">Error: ${error.message}</div>`;
+                processDiv.innerHTML = '<div class="text-red-500">AI process failed</div>';
+            }
+        }
+    </script>
+</body>
+</html>
