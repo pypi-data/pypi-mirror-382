@@ -1,0 +1,855 @@
+%import common.NEWLINE
+
+// ======================
+//  START
+// ======================
+
+?start: (statement | _NEWLINE)+
+
+// ======================
+//  STATEMENTS
+// ======================
+?statement:  units_statement
+           | boundary_statement
+           | dimension_statement
+           | thermo_statement
+           | include_statement
+           | minimize_statement
+           | clear_statement       
+           | write_restart_statement
+           | undump_statement
+           | unfix_statement
+           | create_box_statement
+           | timestep_statement
+           | label_statement
+           | jump_statement
+           | next_statement
+           | replicate_statement
+           | neighbor_statement
+           | reset_timestep_statement
+           | bond_style_statement
+           | angle_style_statement
+           | dihedral_style_statement
+           | improper_style_statement
+           | atom_style_statement
+           | atom_modify_statement
+           | variable_statement
+           | mass_statement
+           | create_atoms_statement
+           | pair_style_statement
+           | pair_coeff_statement
+           | velocity_statement
+           | neigh_modify_statement
+           | bond_coeff_statement
+           | angle_coeff_statement
+           | dihedral_coeff_statement
+           | improper_coeff_statement
+           | group_statement
+           | thermo_style_statement
+           | thermo_modify_statement
+           | run_statement
+           | fix_modify_statement
+           | compute_statement
+           | fix_statement
+           | if_statement
+           | displace_atoms_statement
+           | region_statement
+           | read_data_statement
+           | write_data_statement
+           | lattice_statement           
+           | dump_modify_statement
+           | delete_atoms_statement
+           | change_box_statement
+           | dump_statement
+           | restart_statement
+           | package_statement
+           | pair_modify_statement
+           | kim_statement
+           | run_style_statement
+           | set_statement
+           | newton_statement
+
+// ======================
+//  1. units
+// ======================
+units_statement: "units" UNITS_STYLE _NEWLINE
+
+// ======================
+//  2. boundary
+// ======================
+boundary_statement: "boundary" BOUNDARY_STYLE BOUNDARY_STYLE BOUNDARY_STYLE? _NEWLINE
+
+// ======================
+//  3. dimension
+// ======================
+dimension_statement: "dimension" DIMENSIONS _NEWLINE
+
+// ======================
+//  4. thermo
+// ======================
+thermo_statement: "thermo" THERMO_FREQUENCY _NEWLINE
+
+// ======================
+//  5. include
+// ======================
+include_statement: "include" FILE_NAME _NEWLINE
+
+// ======================
+//  6. minimize
+// ======================
+minimize_statement: "minimize" ENERGY_TOLERANCE FORCE_TOLERANCE MAX_ITERATIONS MAX_EVALUATIONS _NEWLINE
+
+// ======================
+//  7. clear
+// ======================
+clear_statement: "clear" _NEWLINE
+
+// ======================
+//  8. write_restart
+// ======================
+write_restart_statement: "write_restart" FILE_NAME _NEWLINE
+
+// ======================
+//  9. undump
+// ======================
+undump_statement: "undump" DUMP_ID _NEWLINE
+
+// ======================
+//  10. unfix
+// ======================
+unfix_statement: "unfix" FIX_ID _NEWLINE
+
+// ======================
+//  11. create_box
+// ======================
+create_box_statement: "create_box" BOX_ID REGION_ID _NEWLINE
+
+// ======================
+//  12. timestep
+// ======================
+timestep_statement: "timestep" TIMESTEP _NEWLINE
+
+// ======================
+//  13. label
+// ======================
+label_statement: "label" LABEL_ID _NEWLINE
+
+// ======================
+//  14. jump
+// ======================
+jump_statement: "jump" (FILE_NAME | LABEL_ID) _NEWLINE
+
+// ======================
+//  15. next
+// ======================
+next_statement: "next" VAR_NAME+ _NEWLINE
+
+// ======================
+//  16. replicate
+// ======================
+replicate_statement: "replicate" REPLICATION_FACTOR REPLICATION_FACTOR REPLICATION_FACTOR REPLICATE_KEYWORDS? _NEWLINE
+
+// ======================
+//  17. neighbor
+// ======================
+neighbor_statement: "neighbor" NEIGHBOR_SKIN NEIGHBOR_STYLE _NEWLINE
+
+// ======================
+//  18. reset_timestep
+// ======================
+reset_timestep_statement: "reset_timestep" TIMESTEP _NEWLINE
+
+// ======================
+//  19. bond_style
+// ======================
+bond_style_statement: "bond_style" BOND_STYLE+ _NEWLINE
+
+// ======================
+//  20. angle_style
+// ======================
+angle_style_statement: "angle_style" ANGLE_STYLE+ _NEWLINE
+
+// ======================
+//  21. dihedral_style
+// ======================
+dihedral_style_statement: "dihedral_style" DIHEDRAL_STYLE+ _NEWLINE
+
+// ======================
+//  22. improper_style
+// ======================
+improper_style_statement: "improper_style" IMPROPER_STYLE+ _NEWLINE
+
+// ======================
+//  23. atom_style
+// ======================
+atom_style_statement: "atom_style" ATOM_STYLES _NEWLINE
+
+// ======================
+//  24. atom_modify
+// ======================
+atom_modify_statement: "atom_modify" atom_modify_option+ _NEWLINE
+
+atom_modify_option: "id" BOOL
+                  | "map" MAP_TYPE
+                  | "first" GROUP_ID
+                  | "sort" SORT_FREQUENCY BIN_SIZE
+
+// ======================
+//  25. variable
+// ======================
+variable_statement: "variable" VAR_NAME variable_style_option _NEWLINE
+
+variable_style_option: "equal"  ARGUMENT+
+                     | "atom"   ARGUMENT+
+                     | "index" (ARGUMENT | ESCAPED_STRING)+ 
+                     | "loop"   INT+
+                     | "string" ESCAPED_STRING
+
+// ======================
+//  26. mass
+// ======================
+mass_statement: "mass" mass_type_option MASS_VALUE _NEWLINE
+
+mass_type_option: ("*" | INT) ("*" INT)?
+
+// ======================
+//  27. create_atoms
+// ======================
+create_atoms_statement: "create_atoms" INT create_atoms_style create_atoms_args* _NEWLINE
+
+create_atoms_style: "box"
+                  | "region" REGION_ID
+                  | "single" COORDINATE_VALUE COORDINATE_VALUE COORDINATE_VALUE
+                  | "random" NUMBER_OF_PARTICLES RANDOM_SEED REGION_ID
+                  
+create_atoms_args: "mol" TEMPLATE_ID RANDOM_SEED
+                 | "remap" BOOL
+                 | "var" VAR_NAME
+                 | "set" ("x" | "y" | "z") VAR_NAME
+                 | "units" ("lattice" | "box")
+
+
+// ======================
+//  28. pair_style
+// ======================
+pair_style_statement: "pair_style" pair_style_body _NEWLINE
+
+pair_style_body: LJ_CUT PAIR_STYLE_CUTOFF
+               | "eam"
+               | EAM_ALLOY
+               | EAM_FS
+               | "gauss"
+               | "meam"
+               | "snap"
+               | "kim" POTENTIAL_NAME          
+               | COUL_CUT PAIR_STYLE_CUTOFF
+               | "morse" PAIR_STYLE_CUTOFF
+               | "hybrid" (ARGUMENT (ARGUMENT)*)+
+
+// ======================
+//  29. pair_coeff
+// ======================
+pair_coeff_statement: "pair_coeff" pair_coeff_atom_type_option+ ARGUMENT* _NEWLINE
+
+pair_coeff_atom_type_option: INT | "*" INT? | INT "*" INT?
+
+
+// ======================
+//  30. velocity
+// ======================
+velocity_statement: "velocity" GROUP_ID velocity_body velocity_keyword_pair* _NEWLINE
+
+velocity_body: "create" TEMPERATURE RANDOM_SEED
+             | "set" (VELOCITY_VALUE | "NULL") (VELOCITY_VALUE | "NULL") (VELOCITY_VALUE | "NULL")
+             | "scale" TEMPERATURE
+             | "ramp" (VELOCITY_COMPONENT VELOCITY_VALUE VELOCITY_VALUE AXIS COORDINATE_VALUE COORDINATE_VALUE)+
+             | "zero" ("linear" | "angular")
+             
+velocity_keyword_pair: "dist" ("uniform" | "gaussian")
+                     | "sum"  BOOL
+                     | "mom"  BOOL
+                     | "rot"  BOOL
+                     | "temp" COMPUTE_ID
+                     | "bias" BOOL
+                     | "loop" ("all" | "local" | "geom")
+                     | "rigid" FIX_ID
+                     | "units" ("box" | "lattice")
+
+
+
+// ======================
+//  31. neigh_modify
+// ======================
+neigh_modify_statement: "neigh_modify" neigh_modify_option+ _NEWLINE
+
+neigh_modify_option: "delay" STEPS
+                   | "every" STEPS
+                   | "check" BOOL
+                   | "once"  BOOL
+                   | "cluster" BOOL
+                   | "include" GROUP_ID
+                   | "exclude" exclude_option
+                   | "binsize" BIN_SIZE
+
+exclude_option: "group" GROUP_ID GROUP_ID
+              | MOLECULE_INTRA GROUP_ID
+              | MOLECULE_INTER GROUP_ID
+
+
+
+// ======================
+//  32. bond_coeff
+// ======================
+bond_coeff_statement: "bond_coeff" bond_coeff_atom_type_option ARGUMENT* _NEWLINE
+
+bond_coeff_atom_type_option: INT | "*" INT? | INT "*" INT?
+
+// ======================
+//  33. angle_coeff
+// ======================
+angle_coeff_statement: "angle_coeff" angle_coeff_atom_type_option ARGUMENT* _NEWLINE
+
+angle_coeff_atom_type_option: INT | "*" INT? | INT "*" INT?
+
+// ======================
+//  34. dihedral_coeff
+// ======================
+dihedral_coeff_statement: "dihedral_coeff" dihedral_coeff_atom_type_option ARGUMENT* _NEWLINE
+
+dihedral_coeff_atom_type_option: INT | "*" INT? | INT "*" INT?
+
+// ======================
+//  35. improper_coeff
+// ======================
+improper_coeff_statement: "improper_coeff" improper_coeff_atom_type_option ARGUMENT* _NEWLINE
+
+improper_coeff_atom_type_option: INT | "*" INT? | INT "*" INT?
+
+// ======================
+//  36. group
+// ======================
+group_statement: "group" GROUP_ID group_style _NEWLINE
+
+group_style: "delete"
+           | "clear"
+           | "empty"
+           | "type" INT+
+           | "region" REGION_ID
+           | "subtract" GROUP_ID GROUP_ID+
+           | "union" GROUP_ID GROUP_ID+
+           | "intersect" GROUP_ID GROUP_ID+
+
+
+// ======================
+//  37. thermo_style
+// ======================
+thermo_style_statement: "thermo_style" thermo_styles_options _NEWLINE
+
+thermo_styles_options: "one" | "multi" | "yaml" | "custom" THERMO_KEYWORDS+
+
+// ======================
+//  38. thermo_modify
+// ======================
+thermo_modify_statement: "thermo_modify" thermo_modify_arg+ _NEWLINE
+
+thermo_modify_arg: "lost" ERROR_ACTION_TYPE
+                 | LOST_BOND ERROR_ACTION_TYPE
+                 | "warn" WARNING_ACTION_TYPE
+                 | "norm" BOOL
+                 | "flush" BOOL
+                 | "line" OUTPUT_FORMAT
+                 | "temp" COMPUTE_ID
+                 | "press" COMPUTE_ID
+                 | "triclinic" BOOL
+                 
+// ======================
+//  39. run
+// ======================
+run_statement: "run" STEPS run_keyword_pair* _NEWLINE
+
+run_keyword_pair: "start" STEPS
+                | "stop"  STEPS
+                | "pre"   BOOL
+                | "post"  BOOL
+                | "upto"
+
+// ======================
+//  40. fix_modify
+// ======================
+fix_modify_statement: "fix_modify" FIX_ID fix_modify_option+ _NEWLINE
+
+fix_modify_option: "energy" BOOL
+                 | "temp" GROUP_ID
+                 | "press" GROUP_ID
+                 | DYNAMIC_DOF BOOL
+                 | "body" BOOL
+                 | "virial" BOOL
+                 | "thermo" BOOL
+                 | "reset_timestep" BOOL
+
+
+// ======================
+//  41. compute
+// ======================
+compute_statement: "compute" COMPUTE_ID GROUP_ID compute_body _NEWLINE
+
+compute_body: "temp"
+            | "pressure"
+            | "ke"
+            | "pe"
+            | TEMP_CHUNK
+            | CHUNK_ATOM
+            | STRESS_ATOM
+            | "msd"
+            | "com" 
+            | DISPLACE_ATOM
+            | "gyration" 
+            | "rdf" NUMBER_OF_BINS INT* ("cutoff" CUTOFF_RADIUS)?
+            | "reduce" REDUCE_OPERATIONS (POSITION_COMPONENT | VELOCITY_COMPONENT | FORCE_COMPONENT | VAR_EXPR | VAR_NAME)
+            | BOND_LOCAL BOND_ATTRIBUTES+ ("set dist" VAR_NAME)?                    
+            | PROPERTY_ATOM ATOM_ATTRIBUTES+
+            | PAIR_LOCAL ("dist" | DISTANCE_COMPONENT | FORCE_COMPONENT | "eng" | "force")* ("cutoff" ("type" | "radius"))?
+
+
+// ======================
+// 42. fix
+// ======================
+fix_statement: "fix" FIX_ID GROUP_ID fix_body _NEWLINE
+
+fix_body: "nve"                        -> fix_style_nve
+        | "nvt" fix_nvt_args           -> fix_style_nvt
+        | "npt" fix_npt_args+          -> fix_style_npt
+        | "langevin" fix_langevin_args -> fix_style_langevin
+        | "setforce" fix_setforce_args -> fix_style_setforce
+        | "addforce" fix_addforce_args -> fix_style_addforce
+        | "deform" fix_deform_args     -> fix_style_deform
+
+fix_nvt_args: "temp" TEMPERATURE TEMPERATURE DAMPING_PARAMETER
+fix_npt_args: "temp" TEMPERATURE TEMPERATURE DAMPING_PARAMETER
+            | ("iso" | AXIS | "xy" | "xz" | "yz") PRESSURE PRESSURE DAMPING_PARAMETER ("drag" NUMBER)?
+fix_langevin_args: TEMPERATURE TEMPERATURE DAMPING_PARAMETER RANDOM_SEED
+fix_setforce_args: FORCE_COMPONENT FORCE_COMPONENT FORCE_COMPONENT ("region" REGION_ID)?
+fix_addforce_args: FORCE_COMPONENT FORCE_COMPONENT FORCE_COMPONENT ("region" REGION_ID)?
+fix_deform_args: STEPS (deform_style)+ fix_deform_options*
+
+deform_style: AXIS "final" DISTANCE DISTANCE
+            | AXIS "delta" DISTANCE DISTANCE
+            | AXIS "scale" NUMBER
+            | AXIS "vel"   NUMBER
+            | AXIS "erate" NUMBER
+            | AXIS "trate" NUMBER
+            | AXIS "wiggle" DISTANCE NUMBER
+            | AXIS "variable" VAR_NAME VAR_NAME
+            | AXIS "volume"
+
+fix_deform_options: "remap" ("x" | "v" | "none")
+                 | "flip" BOOL
+                 | "units" ("lattice" | "box")
+
+// ======================
+//  43. if
+// ======================
+if_statement: "if" if_condition_expression "then" QUOTED_COMMANDS ("else" QUOTED_COMMANDS)? _NEWLINE
+
+if_condition_expression: ESCAPED_STRING | if_comparison_expression
+if_comparison_expression: VAR_EXPR COMPARISON_OPERATOR VALUE_EXPR
+                        | if_comparison_expression LOGICAL_OPERATOR if_comparison_expression
+                        | ("(" if_comparison_expression ")")
+
+// ======================
+//  44. displace_atoms
+// ======================
+displace_atoms_statement: "displace_atoms" GROUP_ID displace_atoms_style ("units" ("box" | "lattice"))? _NEWLINE
+
+displace_atoms_style: "move"     displace_atoms_move_args   -> displace_atoms_move
+                    | "ramp"     displace_atoms_ramp_args   -> displace_atoms_ramp
+                    | "random"   displace_atoms_random_args -> displace_atoms_random
+
+displace_atoms_move_args: DISTANCE DISTANCE DISTANCE
+displace_atoms_ramp_args: AXIS DISTANCE DISTANCE AXIS DISTANCE DISTANCE
+displace_atoms_random_args: DISTANCE DISTANCE DISTANCE RANDOM_SEED
+
+// ======================
+//  45. region
+// ======================
+region_statement: "region" REGION_ID region_body _NEWLINE
+
+region_body: "block"     region_block_args     -> region_style_block
+           | "sphere"    region_sphere_args    -> region_style_sphere
+           | "prism"     region_prism_args     -> region_style_prism
+           | "cylinder"  region_cylinder_args  -> region_style_cylinder
+           | "union"     region_union_args     -> region_style_union
+           | "intersect" region_intersect_args -> region_style_intersect
+           | "plane"     region_plane_args     -> region_style_plane
+
+region_block_args: (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) region_follow_up_args
+region_sphere_args: DISTANCE DISTANCE DISTANCE DISTANCE "move" (DISTANCE | "NULL") (DISTANCE | "NULL") (DISTANCE | "NULL") region_follow_up_args
+region_prism_args: (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) region_follow_up_args
+
+region_plane_args: (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) region_follow_up_args
+region_cylinder_args: AXIS (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) (DISTANCE | NONNUMERICVALUE) region_follow_up_args
+
+region_union_args: INT REGION_ID+ region_follow_up_args
+region_intersect_args: INT REGION_ID+ region_follow_up_args
+
+region_follow_up_args: (("units" ("box" | "lattice")) | ("side" ("in" | "out")))?
+
+// ======================
+//  46. read_data
+// ======================
+read_data_statement: "read_data" ARGUMENT+ _NEWLINE
+
+// ======================
+//  47. write_data
+// ======================
+write_data_statement: "write_data" ARGUMENT+ _NEWLINE
+
+// ======================
+//  48. lattice
+// ======================
+lattice_statement: "lattice" LATTICE_STYLE LATTICE_VALUE lattice_options* _NEWLINE
+
+lattice_options: lattice_origin
+               | lattice_spacing
+               | lattice_orient
+               | lattice_basis
+               | lattice_units
+
+lattice_origin: "origin" COORDINATE_VALUE COORDINATE_VALUE COORDINATE_VALUE
+lattice_spacing: "spacing" DISTANCE DISTANCE DISTANCE
+lattice_basis: "basis" COORDINATE_VALUE COORDINATE_VALUE COORDINATE_VALUE
+lattice_units: "units" ("box" | "lattice")
+
+lattice_orient: lattice_orient_x? lattice_orient_y? lattice_orient_z?
+
+lattice_orient_x: "orient" "x" INT INT INT -> lattice_orient_x
+lattice_orient_y: "orient" "y" INT INT INT -> lattice_orient_y
+lattice_orient_z: "orient" "z" INT INT INT -> lattice_orient_z
+
+// ======================
+//  49. dump_modify
+// ======================
+dump_modify_statement: "dump_modify" DUMP_ID dump_modify_args+ _NEWLINE
+
+dump_modify_args: "append"    BOOL
+                | "every"     STEPS
+                | "first"     BOOL
+                | "flush"     BOOL
+                | "pad"       INT
+                | "region"    (REGION_ID | "none")
+                | "unwrap"    BOOL
+                | "scale"     BOOL
+                | "precision" FLOAT
+                | "sort"      ("off" | "id" | INT)
+
+
+// ======================
+//  50. delete_atoms
+// ======================
+delete_atoms_statement: "delete_atoms" delete_atoms_args+ delete_atom_options* _NEWLINE
+
+delete_atoms_args: "group"    GROUP_ID
+                 | "region"   REGION_ID
+                 | "overlap"  DISTANCE_CUTOFF GROUP_ID GROUP_ID
+                 | "random"   ("fraction"| "count") COORDINATE_VALUE BOOL GROUP_ID REGION_ID RANDOM_SEED
+                 | "variable" VAR_NAME
+
+delete_atom_options: "compress" BOOL
+                   | "bond"     BOOL
+                   | "mol"      BOOL
+
+// ======================
+//  51. change_box
+// ======================
+change_box_statement: "change_box" GROUP_ID change_box_body+ ("units" ("box" | "lattice"))? _NEWLINE
+
+change_box_body: AXIS change_box_dimension
+               | ("xy" | "xz" | "yz" ) change_box_tilt
+               | "boundary" BOUNDARY_STYLE
+               | "ortho"
+               | "triclinic"
+               | "set"
+               | "remap"
+
+change_box_dimension: "final" DISTANCE DISTANCE
+                    | "delta" DISTANCE DISTANCE
+                    | "scale" NUMBER
+                    | "volume"
+
+change_box_tilt: ("final" | "delta") DISTANCE
+
+
+// ======================
+//  52. dump
+// ======================
+dump_statement: "dump" DUMP_ID GROUP_ID dump_style _NEWLINE
+
+dump_style: "atom"   STEPS FILE_NAME                    -> dump_atom
+          | "custom" STEPS FILE_NAME dump_custom_args+  -> dump_custom
+          | "local"  STEPS FILE_NAME dump_local_args    -> dump_local
+
+dump_custom_args: "id"
+                | "mol"
+                | "type"
+                | AXIS
+                | "radius"
+                | "diameter"
+                | VELOCITY_COMPONENT
+                | FORCE_COMPONENT
+                | VAR_EXPR
+
+dump_local_args: INT VAR_EXPR+ 
+
+// ======================
+//  53. restart
+// ======================
+
+restart_statement: "restart" STEPS (FILE_NAME+)? ("fileper" STEPS)? ("nfile" INT)? _NEWLINE
+
+// ======================
+//  54. package
+// ======================
+
+package_statement: "package" package_body _NEWLINE
+
+package_body: "gpu"    INT gpu_args*    -> package_gpu
+            | "intel"  INT intel_args*  -> package_intel
+            | "kokkos" kokkos_args*     -> package_kokkos
+            | "omp"    INT omp_args*    -> package_omp
+
+gpu_args: "neigh"      BOOL
+        | "newton"     ("on" | "off")
+        | PAIR_ONLY    ("on" | "off")
+        | "binsize"    FLOAT
+        | "split"      FLOAT
+        | "gpuID"      INT
+        | "tpa"        INT
+        | "platform"   ARGUMENT
+
+intel_args: "mode"     ("single" | "mixed" | "double")
+          | "neigh"    ("half" | "full")
+          | "newton"   ("on" | "off")
+          | "tpc"      INT
+          | "tptask"   INT
+          | "balance"  FLOAT
+          | "pppm"     ("cpu" | "gpu")
+          | "lrt"      BOOL
+          | "omp"      INT
+
+kokkos_args: "neigh"         ("half" | "full")
+           | NEIGH_QEQ       ("half" | "full")
+           | "binsize"       FLOAT
+           | "gpu"           ("on" | "off")
+           | "omp"           INT
+           | CUDA_AWARE      ("on" | "off")
+           | "suffix"        ("on" | "off")
+           | "newton"        ("on" | "off")
+           | "sort"          ("on" | "off")
+           | GPU_AWARE       ("on" | "off")
+           | PAIR_ONLY     ("on" | "off")
+
+omp_args: "neigh"   BOOL
+
+// ======================
+//  55. pair_modify
+// ======================
+
+pair_modify_statement: "pair_modify" pair_modify_args+ _NEWLINE
+
+pair_modify_args: "mix" ("geometric" | "arithmetic" | "sixthpower")
+                | "shift" BOOL
+                | "table" INT
+                | TABLE_DISP INT
+                | "tabinner" FLOAT
+                | TABBINER_DISP FLOAT
+                | "tail" BOOL
+                | "compute" BOOL
+                | COMPUTE_TALLY BOOL
+                | NEIGH_TRIM BOOL
+
+
+// ======================
+//  56. kim
+// ======================
+
+kim_statement: "kim" kim_body _NEWLINE
+
+kim_body: "init" MODEL_NAME UNITS_STYLE? ("unit_conversion_mode")?
+        | "interactions" ARGUMENT+
+
+// ======================
+//  57. run_style
+// ======================
+
+run_style_statement: "run_style" RUN_STYLES _NEWLINE
+
+
+// ======================
+//  58. set
+// ======================
+
+set_statement: "set" set_body ARGUMENT+ _NEWLINE
+
+set_body: "atom"  RANGE       -> set_atom
+         | "type" RANGE       -> set_type
+         | "mol"  RANGE       -> set_mol
+         | "group" GROUP_ID   -> set_group
+         | "region" REGION_ID -> set_region
+
+// ======================
+//  59. newton
+// ======================
+
+newton_statement: "newton" ("on" | "off") ("on" | "off")? _NEWLINE
+
+// ----------------------------------
+
+// ======================
+//   TERMINALS / TOKENS
+// ======================
+
+// COMPOUND TOKENS
+
+LJ_CUT: "lj/cut"
+EAM_ALLOY: "eam/alloy"
+EAM_FS: "eam/fs"
+COUL_CUT: "coul/cut"
+MULTI_HARMONIC: "multi/harmonic"
+VERLET_SPLIT: "verlet/split"
+
+TEMP_CHUNK: "temp/chunk" 
+LOST_BOND: "lost/bond" 
+TABLE_DISP: "table/disp"
+TABBINER_DISP: "tabinner/disp"
+DYNAMIC_DOF: "dynamic/dof"
+
+PAIR_ONLY: "pair/only"
+PAIR_LOCAL: "pair/local"
+BOND_LOCAL: "bond/local"
+BOND_PERIODIC: "bond/periodic"
+CHUNK_ATOM: "chunk/atom"
+STRESS_ATOM: "stress/atom"
+DISPLACE_ATOM: "displace/atom"
+PROPERTY_ATOM: "property/atom"
+NEIGH_QEQ: "neigh/qeq"
+NEIGH_TRIM: "neigh/trim"
+MOLECULE_INTRA: "molecule/intra"
+MOLECULE_INTER: "molecule/inter"
+COMPUTE_TALLY: "compute/tally"
+CUDA_AWARE: "cuda/aware"
+GPU_AWARE: "gpu/aware"
+
+
+
+COMPARISON_OPERATOR: "==" | "!=" | ">" | "<" | ">=" | "<="
+LOGICAL_OPERATOR: "&&" | "||"
+AXIS: "x" | "y" | "z" 
+POSITION_COMPONENT: AXIS
+DISTANCE_COMPONENT: "dx" | "dy" | "dz" | "NULL"
+VELOCITY_COMPONENT: "vx" | "vy" | "vz" | "NULL"
+FORCE_COMPONENT: "fx" | "fy" | "fz" | "NULL"
+
+UNITS_STYLE: "lj" | "real" | "metal" | "si" | "cgs" | "micro" | "nano" | "electron" | "gpumd"
+BOUNDARY_STYLE: "p" | "f" | "s" | "m"
+ATOM_STYLES: "atomic" | "charge" | "full" | "molecular" | "granular" | "bond" | "dielectric" | "dipole" 
+BOND_STYLE: "harmonic" | "morse" | "class2" | "hybrid"
+ANGLE_STYLE: "harmonic" | "class2" | "hybrid"
+DIHEDRAL_STYLE: "harmonic" | MULTI_HARMONIC | "class2" | "helix" | "hybrid"
+IMPROPER_STYLE: "cvff" | "harmonic" | "hybrid"
+NEIGHBOR_STYLE: "bin" | "nsq" | "multi"
+RUN_STYLES: "verlet" | VERLET_SPLIT
+
+LATTICE_STYLE: "sc" | "bcc" | "fcc" | "hcp" | "diamond" | "sq" | "hex" | "none" | "custom"
+
+THERMO_KEYWORDS: "step" | "elapsed"  | "elaplong" | "dt"       | "time"     | "cpu"      | "tpcpu"    | "spcpu"    | "cpuremain"| "part"     | "atoms"    | "temp"     | "press"    | "pe"       | "ke"       | "etotal"   | "enthalpy" | "evdwl"    | "ecoul"    | "epair"    | "ebond"    | "eangle"   | "edihed"   | "eimp"     | "emol"     | "elong"    | "etail"    | "vol"      | "density"  | "lx"       | "ly"       | "lz"       | "xy"       | "xz"       | "yz"       | "pxx"      | "pyy"      | "pzz"      | "pxy"      | "pxz"      | "pyz"      | "fmax"     | "fnorm"    | "cella"    | "cellb"    | "cellc"    | "cellalpha"| "cellbeta" | "cellgamma"| "ecouple"  | "econserve"
+
+
+ATOM_ATTRIBUTES: "id" | "mol" | "type" | "mass" | POSITION_COMPONENT | VELOCITY_COMPONENT | FORCE_COMPONENT | "temperature"
+
+BOND_ATTRIBUTES: DISTANCE_COMPONENT | FORCE_COMPONENT | "dist" | "engpot" | "force" | "engvib" | "engrot" | "omega"
+
+NEIGHBOR_SKIN: FLOAT
+COORDINATE_VALUE: FLOAT
+PAIR_STYLE_CUTOFF: FLOAT
+DISTANCE_CUTOFF: FLOAT
+ENERGY_TOLERANCE: FLOAT
+FORCE_TOLERANCE: FLOAT
+LATTICE_VALUE: FLOAT
+STEPS: INT
+MAX_ITERATIONS: INT
+MAX_EVALUATIONS: INT
+REPLICATION_FACTOR: INT
+NUMBER_OF_PARTICLES: INT
+NUMBER_OF_BINS: INT
+RANDOM_SEED: INT
+
+REDUCE_OPERATIONS: "sum" | "min" | "minabs" | "max" | "maxabs" | "ave" 
+WARNING_ACTION_TYPE: "ignore" | "reset" | "default"
+ERROR_ACTION_TYPE: "error" | "warn" | "ignore"
+OUTPUT_FORMAT: "one" | "multi" | "yaml"
+MAP_TYPE: "yes" | "array" | "hash"
+DIMENSIONS: "2" | "3"
+REPLICATE_KEYWORDS: "bbox"| BOND_PERIODIC
+POTENTIAL_NAME: ARGUMENT
+FILE_NAME: ARGUMENT
+MODEL_NAME: ARGUMENT
+
+TIMESTEP: NUMBER
+BIN_SIZE: NUMBER
+MASS_VALUE: NUMBER
+SORT_FREQUENCY: NUMBER
+THERMO_FREQUENCY: NUMBER
+CUTOFF_RADIUS: NUMBER
+DISTANCE: NUMBER
+TEMPERATURE: NUMBER
+PRESSURE: NUMBER
+VELOCITY_VALUE: NUMBER | "NULL"
+DAMPING_PARAMETER: NUMBER
+VALUE_EXPR: NUMBER
+RANGE: INT (":" INT)?
+
+LABEL_ID.-1: GENERIC_ID
+BOX_ID.-1: GENERIC_ID
+REGION_ID.-1: GENERIC_ID
+MOLECULE_ID.-1: GENERIC_ID
+COMPUTE_ID.-1: GENERIC_ID
+DUMP_ID.-1: GENERIC_ID
+GROUP_ID.-1: GENERIC_ID
+FIX_ID.-1: GENERIC_ID
+TEMPLATE_ID.-1: GENERIC_ID
+
+
+COMMAND: /(units|boundary|dimension|thermo|include|minimize|clear|write_restart|undump|unfix|create_box|timestep|label|jump|next|replicate|neighbor|reset_timestep|bond_style|angle_style|dihedral_style|improper_style|atom_style|atom_modify|variable|mass|create_atoms|pair_style|pair_coeff|velocity|neigh_modify|bond_coeff|angle_coeff|dihedral_coeff|improper_coeff|group|thermo_style|thermo_modify|run|fix_modify|compute|fix|if|displace_atoms|region|read_data|write_data|lattice|dump_modify|delete_atoms|change_box|dump|restart|package|pair_modify|kim|run_style|set|newton)\b/
+
+BOOL: "yes" | "no"
+NUMBER:  FLOAT | VAR_EXPR
+NONNUMERICVALUE: "INF" | "EDGE"
+GENERIC_ID: INT | ARGUMENT
+
+VAR_NAME: GENERIC_ID
+VAR_EXPR: /(v_|c_)[a-zA-Z_][a-zA-Z0-9_]* (\\[\\d+\\])?/
+
+ARGUMENT: /[^\s#]+/
+
+ESCAPED_STRING: /"(?:[^"\\]|\\.)*"/
+QUOTED_COMMANDS: ESCAPED_STRING
+
+INT: /[+-]?\d+/
+FLOAT: /[+-]?(\d+(\.\d*)?|\.\d+)([eEdD][+-]?\d+)?/
+
+_NEWLINE: NEWLINE
+WS: /[ \t]+/
+%ignore WS
+
+
+
+// ----------------------------------------------------------
+// ----------------------------------------------------------
+// ----------------------------------------------------------
+
+
+
+
+
+
+
