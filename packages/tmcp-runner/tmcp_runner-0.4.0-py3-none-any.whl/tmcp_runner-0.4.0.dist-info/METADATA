@@ -1,0 +1,590 @@
+Metadata-Version: 2.4
+Name: tmcp_runner
+Version: 0.4.0
+Summary: Python library for embedding MCP (Model Context Protocol) capabilities into applications, like Claude Desktop and Cursor do internally. Sponsored by TowardsAGI.
+Author-email: TowardsMCP Developers <support@towardsagi.ai>
+Maintainer-email: Mansoor Pasha I <support@towardsagi.ai>
+Project-URL: Homepage, https://towardsmcp.com
+Project-URL: Repository, https://github.com/QuantumicsAI/tmcp_runner
+Project-URL: Sponsor, https://towardsagi.ai
+Project-URL: Documentation, https://github.com/QuantumicsAI/tmcp_runner#readme
+Keywords: mcp,model-context-protocol,anthropic,ai,llm,tools,agents
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: httpx-sse>=0.4.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Dynamic: license-file
+
+# 🧩 tmcp_runner
+
+A Python library for embedding **Model Context Protocol (MCP)** capabilities into your applications, just like Claude Desktop and Cursor do internally.
+
+## Overview
+
+`tmcp_runner` enables your Python applications to:
+- 🔌 Connect to any MCP-compliant server using the official Anthropic MCP SDK
+- 🔍 Discover available tools, resources, and prompts from MCP servers
+- ⚡ Execute MCP tools programmatically with full async support
+- 🌐 Work with multiple MCP servers simultaneously
+- 🎯 Use the same configuration format as Claude Desktop
+
+## Installation
+
+```bash
+pip install tmcp-runner
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/QuantumicsAI/tmcp_runner.git
+cd tmcp_runner
+pip install -e .
+```
+
+## Quick Start
+
+### 1. Create MCP Configuration
+
+Create an `mcp_config.json` file with your MCP servers (same format as Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/directory"],
+      "transport": "stdio"
+    },
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "postgresql://user:pass@localhost:5432/dbname"
+      },
+      "transport": "stdio"
+    }
+  }
+}
+```
+
+### 2. Import and Use in Your Application
+
+```python
+import asyncio
+from tmcp_runner import TMCPRunner
+
+async def main():
+    # Initialize the MCP runner
+    runner = TMCPRunner("mcp_config.json")
+    
+    # Connect to all configured MCP servers
+    await runner.connect_all()
+    
+    # Discover available tools
+    discovery = await runner.discover_all()
+    print(f"Connected to {len(discovery)} MCP servers")
+    
+    # Execute a tool
+    result = await runner.execute_tool(
+        server_name="filesystem",
+        tool_name="read_file",
+        arguments={"path": "/path/to/file.txt"}
+    )
+    
+    # Process results
+    for content in result:
+        if hasattr(content, 'text'):
+            print(content.text)
+    
+    # Cleanup when done
+    await runner.disconnect_all()
+
+asyncio.run(main())
+```
+
+## ✅ Tested Agent Integration Examples
+
+We provide **3 complete, tested examples** showing how to integrate `tmcp_runner` with different AI agent frameworks:
+
+### 1. Simple Agent ([test_simple_agent.py](tests/test_simple_agent.py))
+Basic pattern for custom AI agents. **4/4 tests passed** ✅
+- Tool discovery and management
+- Query handling
+- Direct tool execution
+- Perfect for prototyping and learning
+
+### 2. LangChain Agent ([test_langchain_agent.py](tests/test_langchain_agent.py))
+Integration with LangChain framework. **6/6 tests passed** ✅
+- MCP tools wrapped as LangChain-compatible tools
+- AgentExecutor integration
+- Tool management for LangChain
+- Perfect for LangChain projects
+
+### 3. Pydantic Agent ([test_pydantic_agent.py](tests/test_pydantic_agent.py))
+Type-safe agent with Pydantic validation. **7/7 tests passed** ✅
+- Type-safe tool definitions
+- Validated execution results
+- Runtime type checking
+- Perfect for production systems
+
+**Run the tests:**
+```bash
+python3 tests/test_simple_agent.py
+python3 tests/test_langchain_agent.py
+python3 tests/test_pydantic_agent.py
+```
+
+**See [tests/README_AGENT_TESTS.md](tests/README_AGENT_TESTS.md) for complete documentation.**
+
+## Core API
+
+### TMCPRunner
+
+Main class for managing multiple MCP server connections in your application.
+
+```python
+from tmcp_runner import TMCPRunner
+
+runner = TMCPRunner("path/to/config.json")
+```
+
+#### Key Methods
+
+```python
+# Connection Management
+await runner.connect_all()                          # Connect to all servers
+await runner.connect_server("server-name")          # Connect to specific server
+await runner.disconnect_all()                       # Clean up all connections
+
+# Discovery
+servers = runner.list_servers()                     # List configured servers
+discovery = await runner.discover_all()             # Discover all tools & resources
+
+# Tool Execution
+result = await runner.execute_tool(
+    server_name="filesystem",
+    tool_name="read_file",
+    arguments={"path": "/file.txt"}
+)
+
+# Resource Reading
+content = await runner.read_resource(
+    server_name="github",
+    uri="repo://owner/repo/README.md"
+)
+```
+
+### MCPClient
+
+For direct interaction with a single MCP server:
+
+```python
+from tmcp_runner import MCPClient
+
+# Configure a server
+config = {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+    "transport": "stdio"
+}
+
+# Use with context manager (auto-cleanup)
+async with MCPClient("filesystem", config) as client:
+    # List available tools
+    tools = await client.list_tools()
+    
+    # Execute a tool
+    result = await client.call_tool("read_file", {"path": "/tmp/test.txt"})
+    
+    # List resources
+    resources = await client.list_resources()
+```
+
+## Integration Examples
+
+### Example 1: Adding MCP to a Web Application
+
+```python
+from fastapi import FastAPI
+from tmcp_runner import TMCPRunner
+
+app = FastAPI()
+runner = TMCPRunner("mcp_config.json")
+
+@app.on_event("startup")
+async def startup():
+    """Initialize MCP connections when app starts"""
+    await runner.connect_all()
+    print(f"✅ MCP servers connected: {runner.list_servers()}")
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Cleanup MCP connections when app shuts down"""
+    await runner.disconnect_all()
+
+@app.post("/execute-tool")
+async def execute_tool(server: str, tool: str, arguments: dict):
+    """Expose MCP tool execution via API"""
+    result = await runner.execute_tool(server, tool, arguments)
+    return {"result": [{"text": c.text} for c in result if hasattr(c, 'text')]}
+```
+
+### Example 2: AI Agent with MCP Tools
+
+```python
+from tmcp_runner import TMCPRunner
+import asyncio
+
+class AIAgent:
+    def __init__(self, mcp_config_path: str):
+        self.mcp = TMCPRunner(mcp_config_path)
+        self.available_tools = {}
+    
+    async def initialize(self):
+        """Setup MCP connections and discover tools"""
+        await self.mcp.connect_all()
+        
+        # Discover all available tools
+        discovery = await self.mcp.discover_all()
+        for server_name, info in discovery.items():
+            for tool in info.get('tools', []):
+                tool_id = f"{server_name}.{tool['name']}"
+                self.available_tools[tool_id] = {
+                    'server': server_name,
+                    'name': tool['name'],
+                    'description': tool['description']
+                }
+    
+    async def use_tool(self, tool_id: str, arguments: dict):
+        """Execute an MCP tool"""
+        tool = self.available_tools[tool_id]
+        result = await self.mcp.execute_tool(
+            tool['server'],
+            tool['name'],
+            arguments
+        )
+        return result
+    
+    async def cleanup(self):
+        """Cleanup MCP connections"""
+        await self.mcp.disconnect_all()
+
+# Usage
+async def main():
+    agent = AIAgent("mcp_config.json")
+    await agent.initialize()
+    
+    # Agent can now use any configured MCP tool
+    result = await agent.use_tool(
+        "filesystem.read_file",
+        {"path": "/data/context.txt"}
+    )
+    
+    await agent.cleanup()
+
+asyncio.run(main())
+```
+
+### Example 3: Background Task Processing
+
+```python
+from tmcp_runner import TMCPRunner
+import asyncio
+from typing import List, Dict
+
+class MCPTaskProcessor:
+    def __init__(self, config_path: str):
+        self.runner = TMCPRunner(config_path)
+        self.task_queue = asyncio.Queue()
+    
+    async def start(self):
+        """Start the processor"""
+        await self.runner.connect_all()
+        asyncio.create_task(self._process_tasks())
+    
+    async def _process_tasks(self):
+        """Process tasks from queue"""
+        while True:
+            task = await self.task_queue.get()
+            try:
+                result = await self.runner.execute_tool(
+                    task['server'],
+                    task['tool'],
+                    task['arguments']
+                )
+                task['callback'](result)
+            except Exception as e:
+                task['error_callback'](e)
+            finally:
+                self.task_queue.task_done()
+    
+    async def submit_task(self, server: str, tool: str, arguments: dict, callback, error_callback):
+        """Submit a task for processing"""
+        await self.task_queue.put({
+            'server': server,
+            'tool': tool,
+            'arguments': arguments,
+            'callback': callback,
+            'error_callback': error_callback
+        })
+    
+    async def stop(self):
+        """Stop the processor"""
+        await self.task_queue.join()
+        await self.runner.disconnect_all()
+```
+
+## Configuration
+
+### Stdio Transport (Local Servers)
+
+For MCP servers that run as local processes:
+
+```json
+{
+  "server-name": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-name", "arg1"],
+    "env": {
+      "API_KEY": "your-key"
+    },
+    "transport": "stdio"
+  }
+}
+```
+
+### SSE Transport (Remote Servers)
+
+For remote MCP servers using Server-Sent Events:
+
+```json
+{
+  "remote-server": {
+    "url": "https://your-mcp-server.com/sse",
+    "transport": "sse"
+  }
+}
+```
+
+## Supported MCP Servers
+
+Works with any MCP-compliant server, including:
+
+### Official Anthropic Servers
+- **filesystem** - File system operations
+- **github** - GitHub API integration
+- **postgres** - PostgreSQL database access
+- **sqlite** - SQLite database access
+- **puppeteer** - Web automation
+- **gdrive** - Google Drive integration
+- **slack** - Slack integration
+- And many more...
+
+Browse available servers at [mcpservers.org](https://mcpservers.org)
+
+## Architecture
+
+```
+┌─────────────────────────┐
+│   Your Application      │
+│  (Web App, AI Agent,    │
+│   Background Service)   │
+└───────────┬─────────────┘
+            │
+            │ imports
+            │
+    ┌───────▼────────┐
+    │  TMCPRunner    │
+    │  (Library)     │
+    └───────┬────────┘
+            │
+            │ manages
+            │
+    ┌───────▼────────┐
+    │   MCPClient    │
+    │   (per server) │
+    └───────┬────────┘
+            │
+            │ uses
+            │
+    ┌───────▼────────┐
+    │  Official MCP  │
+    │   Python SDK   │
+    └───────┬────────┘
+            │
+    ┌───────▼────────┐
+    │  MCP Servers   │
+    │ (Tools, Data)  │
+    └────────────────┘
+```
+
+## How It Works (Like Claude Desktop)
+
+1. **Configuration Loading**: Reads MCP server configs from JSON file
+2. **Server Connection**: Spawns stdio processes or connects to SSE endpoints
+3. **Discovery**: Queries each server for available tools, resources, and prompts
+4. **Tool Execution**: Executes tools via JSON-RPC and returns typed results
+5. **Resource Reading**: Fetches resource contents by URI
+
+## Advanced Usage
+
+### Concurrent Tool Execution
+
+```python
+async def execute_multiple_tools():
+    runner = TMCPRunner("mcp_config.json")
+    await runner.connect_all()
+    
+    # Execute multiple tools concurrently
+    results = await asyncio.gather(
+        runner.execute_tool("server1", "tool1", {"arg": "val1"}),
+        runner.execute_tool("server2", "tool2", {"arg": "val2"}),
+        runner.execute_tool("server3", "tool3", {"arg": "val3"}),
+    )
+    
+    await runner.disconnect_all()
+    return results
+```
+
+### Dynamic Server Management
+
+```python
+async def dynamic_servers():
+    runner = TMCPRunner("mcp_config.json")
+    
+    # Connect only to specific servers
+    await runner.connect_server("filesystem")
+    await runner.connect_server("postgres")
+    
+    # Later, connect to more servers
+    await runner.connect_server("github")
+    
+    # Disconnect specific server
+    await runner.disconnect_server("filesystem")
+    
+    await runner.disconnect_all()
+```
+
+### Error Handling
+
+```python
+async def robust_execution():
+    runner = TMCPRunner("mcp_config.json")
+    
+    try:
+        await runner.connect_all()
+    except Exception as e:
+        print(f"Connection failed: {e}")
+        return
+    
+    try:
+        result = await runner.execute_tool(
+            "filesystem",
+            "read_file",
+            {"path": "/nonexistent.txt"}
+        )
+    except RuntimeError as e:
+        print(f"Tool execution failed: {e}")
+    finally:
+        await runner.disconnect_all()
+```
+
+## Testing
+
+```bash
+# Install with dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run with coverage
+pytest --cov=tmcp_runner
+```
+
+## Requirements
+
+- Python 3.10+
+- Dependencies (auto-installed):
+  - `mcp>=1.0.0` - Official Anthropic MCP SDK
+  - `httpx>=0.27.0` - HTTP client
+  - `httpx-sse>=0.4.0` - SSE support
+  - `pydantic>=2.0.0` - Data validation
+
+## Use Cases
+
+Perfect for:
+- 🤖 **AI Agents** - Give your AI agents access to tools and data sources
+- 🌐 **Web Applications** - Add MCP capabilities to FastAPI, Flask, Django apps
+- ⚙️ **Background Services** - Process MCP tasks asynchronously
+- 🔄 **Data Pipelines** - Integrate MCP servers into ETL workflows
+- 🧪 **Testing Frameworks** - Test MCP server implementations
+- 📱 **Desktop Applications** - Build desktop apps with MCP integration
+
+## Security
+
+- ✅ Process isolation for stdio servers
+- ✅ Environment variable control
+- ✅ No shell injection vulnerabilities
+- ✅ Input validation
+- ✅ Configurable permissions per server
+
+**Best Practices**:
+- Use restricted directories for filesystem access
+- Use read-only tokens when possible
+- Store secrets in environment variables
+- Validate tool inputs before execution
+- Review MCP server code before use
+
+## Documentation
+
+- **README.md** (this file) - Library API and integration guide
+- **ARCHITECTURE.md** - Technical architecture details
+- **example_usage.py** - Comprehensive code examples
+- **demo.py** - Interactive demonstration
+
+## Contributing
+
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new features
+4. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Resources
+
+- [MCP Documentation](https://docs.anthropic.com/mcp)
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+- [MCP Server Registry](https://mcpservers.org)
+
+## Support
+
+- 🐛 Issues: [GitHub Issues](https://github.com/QuantumicsAI/tmcp_runner/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/QuantumicsAI/tmcp_runner/discussions)
+- 📧 Email: support@quantumics.ai
+
+---
+
+Made with ❤️ by [Quantumics AI](https://quantumics.ai)
