@@ -1,0 +1,381 @@
+2007-09-22  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* gthwe_wrap.i: Declare function prototypes in '%{ %}' verbatim
+	section.
+
+2007-09-21  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.h (xmlfprintf): Define new macro to be used for printing out
+	XML (or other) statements that should be returned back to the
+	external SWIG wrapper, expands to pyfprintf in SWIG context,
+	otherwise it defaults back to fprintf to maintain compatibility
+	with command-line version.  This was done because the
+	"-Dfprintf=pyfprintf" compiler directive no longer appears to work
+	with GCC 4.1.2 and because overwriting standard library functions
+	via preprocessor directives is deprecated.:
+
+	* hwe.c (run_data, run_randomization): Use it throughout.
+
+	* statistics.c (init_stats, store_stats, print_stats): Likewise
+
+	* stamp_time.c (stamp_time): Likewise.
+
+	* print_data.c (print_data): Likewise.
+
+2006-02-19  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* gthwe_wrap.i (run_data, run_randomization): New parameter for
+	the SWIG wrapper.
+
+	* hwe.c (main): Pass in '1' (true) for generating XML open tags if
+	running from command line.
+	(run_data): New parameter, 'header'.  If true, output the XML
+	<hardyweinbergGuoThompson> tag, otherwise suppress it.
+	(run_randomization): Likewise new parameter.
+
+2005-05-05  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.c (init_rand): Don't use fixed seed, take from call to
+	time().
+
+2005-03-10  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.c (run_randomization): Use #ifdef INDIVID_GENOTYPES
+	selectively disable calculation of individual stats
+	in {init,store,print}_stats().
+
+2005-03-09  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.c (run_data): Remove old comment.
+
+	* hwe.h (MAX_ALLELES): Remove.
+
+	* gthwe_wrap.i (run_data, run_randomization): Remove hardcoded
+	MAX_ALLELES, LENGTH.
+
+2005-03-03  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.c: Move GSL includes to hwe.h.
+	(run_data): Use LESS_OR_EQUAL macro in place of '<=' when
+	comparing floats.
+	Correct for dememorisation steps when calculating p-values in the
+	case of individual genotypes.
+	(run_randomization): Use LESS_OR_EQUAL macro in place of '<=' when
+	comparing floats.
+
+	* statistics.c (store_stats): Use GREATER_OR_EQUAL macro in place
+	of '>=' which is numerically unstable.
+	(init_stats, store_stats, print_stats): Put logging in LOGGING
+	#ifdef and improve diagnostics.
+
+	* hwe.h (EPSILON, GREATER_OR_EQUAL, LESS_OR_EQUAL): New macros to
+	check for greater-than-or-equality and less-than-or-equality
+	between floats, use GNU Scientific Library (GSL) function
+	gsl_fcmp() to compare floats to within EPSILON.  Set EPSILON to
+	1e-6.
+	Move GSL #includes here.
+
+	* statistics.c (store_stats): Use greater than or equal to ('>=')
+	when incrementing test statistic count, rather than just greater
+	than ('>') as noted by Richard Single.
+
+2005-03-01  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* Makefile (SRC, OBJS, REMOVABLE): Add statistics.{c,o}
+
+	* func.h (diff_statistic, chen_statistic, init_stats, store_stats)
+	(print_stats):   Function prototypes.
+
+	* read_data.c (read_data): genotypes and allele_array now passed
+	in as pointer parameters, and calloc()ed internally.  Use
+	consistent variable naming, fixed indented.
+
+	* hwe.c (diff_statistic, chen_statistic, init_stats, store_stats)
+	(print_stats): Moved to statistics.c.
+	(main): Don't hardcode size of arrays, now calloced in read_data().
+	Pass pointers to genotypes, allele_array into read_data() function
+	Don't forget to free() at end of function.
+	(run_randomization): Remove an unused variable 'k'.
+
+	* statistics.c: New file, split out individual genotype statistic
+	gathering related function from hwe.c.
+
+2004-12-23  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* gthwe_wrap.i: %module _Gthwe -> Gthw for compatibility with most
+	recent SWIG.
+
+2004-10-21  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* *.c, *.h: Add copyright for both Sun-Wei Guo (1992) and
+	UC (1999-2004) and GNU GPL license headers to all files.
+
+2004-09-19  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.c (run_data): Remove unused variables 'l', 'k'.
+
+2004-08-11  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.c (chen_statistic): Fixed numerical bug: using floating
+	point number in place of integer.
+	(init_stats): Accept as parameter to function and print out
+	statistic type in XML.
+	(store_stats): Likewise.
+	Print out XML tag for genotypeSimulatedStatistic for 169 genotype
+	only (this is for debugging only).
+	(run_data): Pass string indicating statistic type to init_stats()
+	and print_stats() functions.
+	(run_randomization): Likewise.
+
+	* cal_prob.c (cal_prob): Indentation changes only.
+
+2004-08-06  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.c (norm_dev): Rename to 'chen_statistic'.
+	(diff_statistic): New function to calculate simple test statistic
+	based on |observed - expected|.
+	(init_stats, store_stats, print_stats): Accept function pointer as
+	an argument so that functions are generic and can keep track of
+	any (two-tailed) test statistic given by a function.
+	(run_data): Initialize, record and print new diff_statistic and
+	relabel 'normdev_count' -> 'chen_statistic_count' and update other
+	variable names to reflect new naming convention.
+	(run_randomization): Likewise.
+
+2004-07-12  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* gthwe_wrap.i (run_randomization): Add FILE * to SWIG wrapper.
+
+	* hwe.c (run_data, init_stats, print_stats, run_randomization):
+	XML-ify individual genotype output.  Put much debugging output
+	inside DEBUG or PERMU_DEBUG #define's.
+	(run_randomization): Pass in FILE pointer parameter to save to XML
+	stream.
+
+2004-07-09  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.c (norm_dev): Recoded to calculate Z_ij and Z_ii stats
+	according to Biometrics 55:1269-1272 (for heterozygote case) and
+	Chen et al. 2004 for homozygote case.
+	(run_data): Split out individual genotype stat recording functions
+	into functions described below.
+	(init_stats, store_stats, print_stats): New functions to store
+	individual genotype statistics, split out of main run_data()
+	function, so they can be reused by run_randomization() function.
+	(run_randomization): Use them.  Obsoletes storage of histograms.
+
+2004-06-30  Alex Lancaster <alexl AT users.sourceforge.net>
+
+	* gthwe_wrap.i (run_randomization): New prototype for SWIG export.
+
+	* hwe.c (run_data): Major code refactor.  Relabel variables with
+	sensible names: 'a' -> 'genotypes', 'n' -> 'allele_array',
+	'total' -> 'total_individuals'.  Split out randomization test
+	into new function run_randomization().
+	(run_randomization): New function, refactored out of run_data(),
+	can be called separately from run_data() via SWIG.
+
+	* hwe.h (LENGTH): Remove.
+
+	* cal_prob.c (cal_prob): Don't define array with hardcoded LENGTH,
+	use pointer.
+
+	* test_switch.c (test_switch): Likewise.
+
+	* read_data.c (read_data): Likewise.
+
+	* print_data.c (print_data): Likewise.
+
+	* do_switch.c (do_switch): Likewise.
+
+2004-06-29  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.c (norm_dev): New function to calculate normalized deviate
+	of genotype frequency.  This function is currently **broken**, a
+	placeholder for testing purposes only, please do not rely on it's
+	output.
+	(run_data): Calculate norm_dev() of initial genotype and store in
+	array.  Create an array to store count of times norm_dev exceeds
+	or falls below the observed norm_dev for each iteration in MCMC
+	chain.  Used to calculate p-value.  This p-value is also *broken*,
+	this is placeholder code only!
+
+2004-06-25  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* hwe.c (run_data): For both MCMC and straight MC versions, save
+	histograms of simulated genotype frequencies found during each
+	search and at end of chain and permutations, respectively, print
+	output to stdout.  Implemented as a calloc()ed two-dimensional
+	array of dimension (num_genotypes * total) that is free()d at the
+	end of the function.  This is only enabled if PERMU_TEST is
+	#define'd.
+
+2004-06-23  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* ln_p_value.c (ln_p_value): #ifdef PERMU_DEBUG around debug
+	output.
+
+	* hwe.c (run_data): New num_genotypes variable, initialize just
+	once.
+	More fixes in permutation test, don't recalculate ln_p_observed,
+	because it will be based on a changed matrix.
+	Use num_genotypes in places where total was being used
+	erroneously, 'total' in context of rest of program refers to the
+	total number of *gametes* _not_ genotypes.
+	Fixed serious bug in estimating new genotypes, use L() macro not
+	LL() macro which takes into account if matrix is not referenced
+	using lower-triangular coordinates, previously, genotype (n,m)
+	was being treated differently to (m,n), throwing off numbers.
+	Free() (c)alloced arrays, 's' and 'g'.
+	More debug tweakage throughout.
+
+2004-06-23    <alexl AT users.sourceforge.net>
+
+	* ln_p_value.c (ln_p_value): Don't hardcode array lengths, make
+	them pointers.  Don't make the integers register variables.  More
+	indentation, one printf debug statement.
+
+	* cal_n.c (cal_n): Don't hardcode array lengths, make them
+	pointers.  Indentation.
+
+	* cal_const.c (cal_const): Likewise.
+
+	* hwe.c (run_data): Add missing call to cal_n().  Tweak debug.
+	(run_data): More testing of straight Monte Carlo version.
+
+2004-06-15    <alexl AT users.sourceforge.net>
+
+	* Makefile (CFLAGS): Add CFLAGSEXTRA for passing at command-line.
+
+2004-06-11 Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* read_data.c (read_data): Prevent test running only if less than
+	*two* alleles not three (i.e. only if locus is monomorphic).
+
+	* example-2alleles.gtout: New output test file corresponding to
+	example-2alleles.dat.
+
+	* example-2alleles.dat: New test file for 2 allele case.
+
+	* Makefile (LIB): Add -lgsl -lgslcblas for GNU Scientific Library
+	to use gsl_sf_lnfact().
+
+2004-05-17  Alex Lancaster  <alex at berkeley dot edu>
+
+	* hwe.c (run_data): Don't hardcode length of a[] and n[] arrays,
+	make them simply be pointers.
+	(run_data): After DEBUG, fflush() stdout.
+
+	sample.group and sample.size initializations were switched, switch
+	them to the correct initializations.
+
+	* to_calculate_log.c (log_factorial): Use gsl_sf_lnfact() function
+	from the GNU Scientific Library (GSL) in place of the original log
+	factorial function, which can't handle large enough numbers.
+
+	* random_choose.c (random_choose): Make work variable dynamically
+	allocated using calloc() and free() at end of function.
+
+2002-08-30  Alex Lancaster  <alex at berkeley dot edu>
+
+	* Makefile (CFLAGS):  Add -Wall.
+
+2002-03-23  Alex Lancaster  <alex at berkeley dot edu>
+
+	* hwe.c:
+	In XML_OUTPUT mode only, output parameters used in gthwe's MCMC
+	algorithm: sample.{step,group,size} as dememorizationSteps,
+	samplingNum and samplingSize, respectively.
+
+2002-02-06  Alex Lancaster  <alex at berkeley dot edu>
+
+	* hwe.c:
+	Change <hardyweinberg-guo-thompson> tag to <hardyweinbergGuoThompson>.
+
+2002-01-31  Alex Lancaster  <alex at berkeley dot edu>
+
+	* hwe.c:
+	Change XML tag output to <hardyweinberg-guo-thompson>, reserve "role"
+	attribute for qualifying this kind of output.
+
+	* hwe.c:
+	(run_data()): New function.  Does the "heavy-lifting" for the program,
+	most of the code originally in "main()" moved here.  Accepts the
+	variables and arrays parsed in by the check_file() and read_data() and
+	can be called by external programs or be made into an * extension
+	function in languages like Python using SWIG.
+	(init_rand()): New function.  All code that originally did set-up for
+	random numbers is now done here, it is the first thing called within
+	run_data().
+	(main()): Most code "out-sourced" to run_data() and init_rand(), is
+	now the command-line shell around these functions, simply calls
+	check_file() and read_data(), the farms the result out to run_data().
+
+	* func.h: Add declarations for init_rand(), run_data() functions.
+
+	* stamp_time.c:
+	(stamp_time()): fprintf formats was missing "ld" for "long" type.
+
+	* print_data.c: (print_data()): Register type was missing "int" type.
+
+	* check_file.c: (check_file()): Add missing return type of int.
+
+	* gthwe_wrap.i: Fix comment.
+
+	* gthwe_wrap.i:
+	Added SWIG wrapper for gthwe.  Calls the new run_data() function.
+
+2002-01-30  Alex Lancaster  <alex at berkeley dot edu>
+
+	* hwe.c: Fix comments to refer to "gthwe" not "hwe".
+
+	* check_file.c: Fix usage message to be "gthwe" not "hwe".
+
+	* README.1: Update README.1 with new information about CFLAGS.
+
+	* Makefile, hwe.c, print_data.c, stamp_time.c:
+	Merge XML_BRANCH back into main branch, fix conflicts and make XML output
+	be well-formed.
+	Now provide two #defines: XML_BRANCH to produce XML output, and
+	SUPPRESS_ALLELE_TABLE which suppresses the generation of the allele
+	frequency table, these options can be set independently of one
+	another.  They are off by default, output defaults to complete
+	old-style text output.
+
+2001-09-21  Alex Lancaster  <alex at berkeley dot edu>
+
+	* README.1: Note addition of SUPPRESS_TABLE in README.1
+
+	* Makefile (CFLAGS):
+	Set SUPPRESS_TABLE to true so that genotype freq table is
+	not generated by default.
+
+	* hwe.c (main):
+	If SUPPRESS_TABLE #define is set, don't call (print_data), i.e
+	don't print out observed genotype file.
+
+2001-03-09  Alex Lancaster  <alex at berkeley dot edu>
+
+	* Makefile, hwe.c, print_data.c, stamp_time.c: XML changes
+
+2000-11-30  Alex Lancaster  <alex at berkeley dot edu>
+
+	* gthwe: Really remove it...
+
+	* Makefile, gthwe: Tune Makefile.
+	Remove executable binary.
+
+2000-11-29  Mark P. Nelson  <mpn@allele5.biol.berkeley.edu>
+
+	* Makefile, README.1, cal_const.c, cal_n.c, cal_prob.c,
+	check_file.c, do_switch.c, example.dat, example.gtout, func.h,
+	gthwe, hwe.c, hwe.h, ln_p_value.c, new_rand.c, print_data.c,
+	random_choose.c, read_data.c, select_index.c, stamp_time.c,
+	test_switch.c, to_calculate_log.c: John Chen's adaptation of
+	Sun-Wei Guo's Hardy-Weinberg exact prog
+
+	* Makefile, README.1, cal_const.c, cal_n.c, cal_prob.c,
+	check_file.c, do_switch.c, example.dat, example.gtout, func.h,
+	gthwe, hwe.c, hwe.h, ln_p_value.c, new_rand.c, print_data.c,
+	random_choose.c, read_data.c, select_index.c, stamp_time.c,
+	test_switch.c, to_calculate_log.c: New files.

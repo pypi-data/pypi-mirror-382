@@ -1,0 +1,112 @@
+2008-07-27  Alex Lancaster <alexl AT users sourceforge net>
+
+	* emhaplofreq.h (NAME_LEN): Increase maximum size of allele name to 20.
+
+2008-06-08  Richard M. Single <rsingle@uvm.edu>
+
+	* emhaplofreq.h: Changed MAX_ROWS from 1023 to a conservative
+	value of 5000.  Changed MAX_GENOS from 20000 to 40000.  Tests
+	based on NMDP data with 10000 individuals required ~30000 for
+	MAX_GENOS.
+
+	* emhaplofreq.c: Array genopheno[] was removed throughout. Space
+	was allocated for this array, but it was not used. genopheno[] was
+	used (at one point in time) to keep track of the geno-pheno
+	relationships for each permutation, thus it had been incremented
+	as "genopheno[i][0]=permu+1;" to avoid having to be initialized
+	with each permu. But, it is no longer used. The array gp[] stores
+	the genotype- phenotype relationships. The 1st dimension of the
+	gp[] array was changed from MAX_GENOS to MAX_GENOS_PER_PHENO
+	since, for a given phenotype, space only needs to be allocated for
+	each of the possible genotypes for that phenotype
+	[not all possible genotypes across all phenotypes].
+
+	(emalc): Some of the initialization loops (for ambig[] and
+	addto_ambig[]) were rearranged to avoid looping through these
+	arrays more than necessary.  This speeds up computations
+	especially for large files with a lot of phenotpyes.
+
+	Also in the emcalc() routine, the criterion for setting
+	error_flag=2 was changed from "if (expected_freq_sum < .00000001)"
+	to "if (expected_freq_sum < 1.e-16)". This is only an issue for
+	very large datasets. The check based on error_flag=3 is still a
+	safety measure for the condition that error_flag=2 is checking. It
+	may be possible to remove error_flag=2 altogether (setting
+	expected_freq_sum=1.e-16 if it is less than this value), but
+	additional testing with very large datasets is needed to determine
+	if that is ok.
+
+2007-09-21  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* emhaplofreq.h (xmlfprintf): Define new macro to be used for
+	printing out XML (or other) statements that should be returned
+	back to the external SWIG wrapper, expands to pyfprintf in SWIG
+	context, otherwise it defaults back to fprintf to maintain
+	compatibility with command-line version.  This was done because
+	the "-Dfprintf=pyfprintf" compiler directive no longer appears to
+	work with GCC 4.1.2 and because overwriting standard library
+	functions via preprocessor directives is deprecated.
+
+	* emhaplofreq.c (main_proc, linkage_diseq): Use it throughout.
+
+2005-06-15  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* emhaplofreq.c: Change prototypes to match function calls
+	exactly, e.g. replace (*)[] invalid ANSI constructs with (*)[VAR]
+	constructs which is valid ANSI C and also to placate GCC 4.0.
+
+2004-12-23  Alex Lancaster  <alexl AT users.sourceforge.net>
+
+	* emhaplofreq_wrap.i: %module _Emhaplofreq -> Emhaplofreq for
+	compatibility with most recent SWIG.
+
+2004-07-20  Owen Solberg  <solberg@mws11.biol.berkeley.edu>
+
+	* emhaplofreq.c (linkage_diseq): Add new alloc memory structure
+	called summary_d to store the 'unprimed' LD measure.  This is
+	calculated by multiplying summary_dprime by dmax, which appears to
+	yield the expected behavior.  Also prints this value to the XML
+	stream next to where summary_dprime is printed.
+
+2004-02-09  Alex Lancaster  <alexl AT socrates.berkeley.edu>
+
+	* emhaplofreq_wrap.i (main_proc): Accept new integer
+	max_init_cond, in function prototype.
+
+	* emhaplofreq.c: Add extra int to prototype of main_proc.
+	(main): Hardcode MAX_INIT only when invoked from command-line (to
+	preserve existing behavior).
+	(main_proc): Accept new function parameter: max_init_cond, so that
+	wrappers can use alternative number of initial conditions.  Don't
+	assign this value from the hardcoded value in the header file.
+
+2003-12-17  Alex Lancaster  <alexl AT socrates.berkeley.edu>
+
+	* emhaplofreq_wrap.i (main_proc): Add matching parameter in
+	prototype for SWIG wrapper.
+
+	* emhaplofreq.c (main_proc): Add a new parameter 'permu_print', if
+	set to 1 the likelihood statistic will printed to the
+	output (either the permu file or the XML output depending on
+	compile-time option).  Used to suppress lengthy permutation
+	information when not required.
+	(main): When calling from command-line, enable permu_print.
+	(emcalc): Initialize 'prev_loglike' to 0.0, to
+	quit compiler warning.
+
+2003-12-12  Alex Lancaster  <alexl AT socrates.berkeley.edu>
+
+	* emhaplofreq_wrap.i (main_proc): Update wrapper to reflect new
+	function syntax.
+
+	* emhaplofreq.c (main_proc): Add new parameters: max_permu and
+	max_init_for_permu which are no longer hard-coded and can be
+	passed in from an outside invocation of this function.  Use them
+	in calloc()ing the 'like_ratio' and 'error_flag_permu' arrays.
+	MAX_PERMU -> max_permu and MAX_INIT_FOR_PERMU ->
+	max_init_for_permu throughout.
+	(main): Pass the hard-coded MAX_PERMU and MAX_INIT_FOR_PERMU from
+	emhaplofreq, when invoked in command-line mode, until we add
+	getopt-parsed options for them.
+
+	* Start ChangeLog.
