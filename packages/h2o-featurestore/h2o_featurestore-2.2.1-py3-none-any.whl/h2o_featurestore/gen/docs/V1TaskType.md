@@ -1,0 +1,11 @@
+# V1TaskType
+
+
+## Properties
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**value** | **str** |  | defaults to "INGEST",  must be one of ["INGEST", "LAZY_INGEST", ]
+
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+
