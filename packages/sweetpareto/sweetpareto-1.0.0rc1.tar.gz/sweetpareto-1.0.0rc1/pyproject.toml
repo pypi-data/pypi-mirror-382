@@ -1,0 +1,103 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sweetpareto"
+description = "Extracting and plotting pareto fronts"
+maintainers = [
+  {name="Andrew Johnson", email="drew@djsn.dev"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dynamic = ["version"]
+dependencies = [
+  "numpy",
+  "pandas",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Natural Language :: English",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+license = "MPL-2.0"
+
+[project.optional-dependencies]
+plot = [
+  # upper-bound seaborn as the objects API gets more stable
+  "seaborn>=0.12.0,<0.14.0",
+]
+
+[project.urls]
+Homepage = "https://codeberg.org/djsn/sweet-pareto"
+Issues = "https://codeberg.org/djsn/sweet-pareto/issues"
+
+[tool.hatch.version]
+path = "src/sweetpareto/__init__.py"
+
+[tool.hatch.build.targets.sweetpareto]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src", "tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sweetpareto"]
+only-packages = true
+
+[tool.hatch.build.targets.wheel.hooks.cython]
+dependencies = ["hatch-cython", "numpy"]
+
+[tool.hatch.build.targets.wheel.hooks.cython.options]
+compile_py = false
+include_numpy = true
+define_macros = [
+    ["NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION"],
+]
+
+# dev environment
+[tool.hatch.envs.default]
+features = [
+  "plot",
+]
+
+dependencies = [
+  "pandas-stubs",
+  "pytest",
+  "pytest-mpl",
+  "hypothesis[numpy]",
+]
+
+# Test matrix
+[tool.hatch.envs.hatch-test]
+extra-dependencies = [
+  "hypothesis[numpy]",
+  "seaborn",
+  "pytest-mpl",
+]
+
+[tool.hatch.envs.test.scripts]
+gen-test-images = "pytest -m mpl_image_compare --mpl-generate-path=tests/baseline"
+
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.11", "3.12", "3.13"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --mpl --mpl-results-path=tests/image-results"
+testpaths = [
+  "tests",
+]
+
+[tool.ruff.lint.extend-per-file-ignores]
+# FBT001: Boolean-typed positional argument in function def
+#  Ignore in testing because I don't want to fuss with hypothesis and
+#  keyword only arguments.
+#  Ignored in engines because we aren't calling the private engine funcs with
+#  kwargs and hatch fmt seems to be stripping the noqa: tags
+"tests/**/*py" = ["FBT001"]
+"src/sweetpareto/_engines.py" = ["FBT001"]
+# Ignore FBT001 in the cython wrapper because it is not called at the high level
+"src/sweetpareto/_front_cython_wrapper.py" = ["FBT001"]
