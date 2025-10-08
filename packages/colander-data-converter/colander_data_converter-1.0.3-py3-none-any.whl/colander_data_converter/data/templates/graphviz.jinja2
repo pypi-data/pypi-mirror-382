@@ -1,0 +1,36 @@
+digraph D {
+    nodesep=0.5;
+    graph [
+        overlap="orthoxy"
+        diredgeconstraints="true"
+        splines="ortho"
+        pad="0.5"
+        sep="0.9"
+    ]
+    node [
+        shape="box",
+        style="filled,rounded",
+        fontcolor="{{ theme.node_font_color }}",
+        fontsize="10",
+        fontname="{{ theme.node_font }}"
+    ]
+    edge [
+        fontsize="8",
+        color="{{ theme.edge_color }}",
+        fontcolor="{{ theme.edge_font_color }}",
+        fontname="{{ theme.edge_font }}"
+    ]
+
+{% for id, entity in feed.entities.items() %}
+    {% with t = theme.types[entity.colander_internal_type] %}
+        "{{ id }}" [ label="{{ entity.name }}" color="{{ t.fg_color }}" fillcolor="{{ t.bg_color }}"];
+    {% endwith %}
+    {%  for rid, relation in entity.get_immutable_relations().items() %}
+        "{{ relation.obj_from.id }}" -> "{{ relation.obj_to.id }}" [ label="{{ relation.name }}" ];
+    {% endfor %}
+{% endfor %}
+
+{% for id, relation in feed.relations.items() %}
+    "{{ relation.obj_from.id }}" -> "{{ relation.obj_to.id }}" [ label="{{ relation.name }}" ];
+{% endfor %}
+}
