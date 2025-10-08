@@ -1,0 +1,86 @@
+#! /usr/bin/env python3
+"""test_mFit.py
+   Fitting example with iminiut
+
+   Uses function PhyPraKit.mFit, which in turn uses iminuitFit
+
+   This is a rather complete example showing a fit to
+   data with independent and correlated, absolute and 
+   relative uncertainties in the x and y directions. 
+   
+.. moduleauthor:: Guenter Quast <g.quast@kit.edu>
+
+"""
+
+import numpy as np, matplotlib.pyplot as plt
+from PhyPraKit import generateXYdata, mFit
+
+# ------------------------ end of iminuitFit ----------------------
+      
+if __name__ == "__main__": # --------------------------------------  
+  #
+  # Example of an application of PhyPraKit.mFit()
+  #
+  # define the model function to fit
+  def model(x, A=10000., x0=1.):
+    return A*np.exp(-x/x0)
+  mpardict = {'A':10000., 'x0':1.}  # model parameters
+
+# set error components 
+  sabsy = 70
+  srely = 0.05 # 5% of model value
+  cabsy = 40
+  crely = 0.03 # 3% of model value
+  sabsx = 0.05
+  srelx = 0.04 # 4%
+  cabsx = 0.03
+  crelx = 0.02 # 2%
+
+# generate pseudo data
+  np.random.seed(314159)  # initialize random generator
+  nd=14
+  xmin = 0.
+  xmax = 2.6
+  data_x = np.linspace(xmin, xmax, nd)       # x of data points
+  sigy = np.sqrt(sabsy * sabsy + (srely*model(data_x, **mpardict))**2)
+  sigx = np.sqrt(sabsx * sabsx + (srelx * data_x)**2)
+  xt, yt, data_y = generateXYdata(data_x, model, sigx, sigy,
+                                      xabscor=cabsx,
+                                      xrelcor=crelx,
+                                      yabscor=cabsy,
+                                      yrelcor=crely,
+                                      mpar=mpardict.values() )
+
+# perform fit to data with function mFit using iminuitFit class
+  parvals, parerrs, cor, chi2 = mFit(model,
+      data_x, data_y,      # data x and y coordinates
+      sx=sabsx,            # indep x
+      sy=sabsy,            # indel y
+      srelx=srelx,         # indep. rel. x
+      srely=srely,         # indep. rel. y
+      xabscor=cabsx,       # correlated x
+      xrelcor=crelx,       # correlated rel. x
+      yabscor=cabsy,       # correlated y
+      yrelcor=crely,       # correlated rel. y
+      ref_to_model=True,   # reference of rel. uncert. to model
+      p0=(1., 0.5),        # initial guess for parameter values 
+#       constraints=['A', 1., 0.03], # constraints within errors
+      use_negLogL=True,    # full -2log(L) if parameter dep. uncertainties
+      plot=True,           # plot data and model
+      plot_band=True,      # plot model confidence-band
+      plot_cor=True,       # plot profiles likelihood and contours
+      quiet=False,         # suppress informative printout
+      axis_labels=['x', 'y   \  f(x, *par)'], 
+      data_legend = 'random data',    
+      model_legend = 'exponential model'
+  )
+
+# Print results to illustrate how to use output
+  print('\n*==* Fit Result:')
+  print(" chi2: {:.3g}".format(chi2))
+  print(" parameter values:      ", parvals)
+  print(" neg. parameter errors: ", parerrs[:,0])
+  print(" pos. parameter errors: ", parerrs[:,1])
+  print(" correlations : \n", cor)
+  
+  plt.show()
