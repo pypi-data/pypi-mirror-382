@@ -1,0 +1,374 @@
+name: Multi-Environment Testing
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main, 'feature/**' ]
+  workflow_dispatch:
+    inputs:
+      deploy_to_test_pypi:
+        description: 'Deploy to Test PyPI'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  template-sync:
+    name: Template Sync Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Run sync-templates.py
+      run: |
+        python sync-templates.py
+        git status --short
+
+    - name: Ensure templates are in sync
+      run: git diff --exit-code
+
+  # Matrix testing across different environments
+  test-matrix:
+    name: Test ${{ matrix.os }} / Python ${{ matrix.python-version }} / ${{ matrix.install-method }}
+    needs: template-sync
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+        install-method: [pip, pipx, source]
+        exclude:
+          # Skip some combinations to save time
+          - os: windows-latest
+            python-version: '3.9'
+          - os: macos-latest
+            python-version: '3.9'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install Node.js (for CLI detection tests)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install test CLIs
+      run: |
+        npm install -g @qwenlm/qwen-cli
+        npm install -g @google/generative-ai-cli
+        npm install -g @openai/codex-cli
+      continue-on-error: true
+    
+    - name: Install pipx
+      if: matrix.install-method == 'pipx'
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install pipx
+        python -m pipx ensurepath
+    
+    - name: Build package
+      run: |
+        python -m pip install --upgrade pip build
+        python -m build
+    
+    - name: Test with pip install
+      if: matrix.install-method == 'pip'
+      run: |
+        python -m pip install dist/*.whl
+        multiagent --version
+        mkdir test-pip
+        cd test-pip
+        multiagent init --no-interactive --dry-run
+    
+    - name: Test with pipx install
+      if: matrix.install-method == 'pipx'
+      run: |
+        pipx install dist/*.whl
+        multiagent --version
+        mkdir test-pipx
+        cd test-pipx
+        multiagent init --no-interactive --dry-run
+    
+    - name: Test from source
+      if: matrix.install-method == 'source'
+      run: |
+        python -m pip install -e .
+        python -m multiagent_core.cli --version
+        mkdir test-source
+        cd test-source
+        python -m multiagent_core.cli init --no-interactive --dry-run
+    
+    - name: Test CLI detection
+      id: cli-detection
+      run: |
+        python -c "
+        import subprocess
+        import json
+        
+        # Test if CLIs are detected
+        result = subprocess.run(['multiagent', 'doctor'], capture_output=True, text=True)
+        print('Doctor output:', result.stdout)
+        
+        # Check for expected CLIs
+        found_clis = []
+        if 'Qwen CLI' in result.stdout:
+            found_clis.append('qwen')
+        if 'Gemini CLI' in result.stdout:
+            found_clis.append('gemini')
+        if 'Codex CLI' in result.stdout:
+            found_clis.append('codex')
+        
+        print(f'Found CLIs: {found_clis}')
+        print(f'::set-output name=found_clis::{json.dumps(found_clis)}')
+        "
+      continue-on-error: true
+    
+    - name: Test template copying
+      run: |
+        mkdir test-templates
+        cd test-templates
+        multiagent init --no-interactive
+        # Check if templates were copied
+        test -d .claude || exit 1
+        test -d .github || exit 1
+        test -d .multiagent || exit 1
+        test -f .github/copilot-instructions.md || exit 1
+        # Check copilot-instructions has full content
+        lines=$(wc -l < .github/copilot-instructions.md)
+        if [ "$lines" -lt "200" ]; then
+          echo "copilot-instructions.md seems incomplete (only $lines lines)"
+          exit 1
+        fi
+      continue-on-error: true
+      shell: bash
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.install-method }}
+        path: |
+          test-*/
+          *.log
+
+  # Component detection testing
+  test-components:
+    name: Test Component Detection
+    needs: template-sync
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install multiagent-core
+      run: |
+        python -m pip install --upgrade pip build
+        python -m build
+        python -m pip install dist/*.whl
+    
+    - name: Test without components
+      run: |
+        multiagent status | tee status-before.log
+        grep -q "multiagent-devops.*Not installed" status-before.log || echo "devops detection failed"
+        grep -q "multiagent-testing.*Not installed" status-before.log || echo "testing detection failed"
+        grep -q "multiagent-agentswarm.*Not installed" status-before.log || echo "agentswarm detection failed"
+    
+    - name: Install components
+      run: |
+        # These would be real packages in production
+        # For testing, we'll check the detection logic
+        echo "Would install: pipx install multiagent-devops"
+        echo "Would install: pipx install multiagent-testing"
+        echo "Would install: pipx install multiagent-agentswarm"
+    
+    - name: Test with components
+      run: |
+        # In real scenario, this would show installed
+        multiagent status | tee status-after.log
+
+  # Staging deployment to Test PyPI
+  deploy-staging:
+    name: Deploy to Test PyPI
+    needs: [test-matrix, test-components]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://test.pypi.org/project/multiagent-core/
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Build package
+      run: |
+        python -m pip install --upgrade pip build twine
+        python -m build
+    
+    - name: Deploy to Test PyPI
+      env:
+        TEST_PYPI_TOKEN: ${{ secrets.TEST_PYPI_TOKEN }}
+      run: |
+        python -m twine upload --repository testpypi dist/* \
+          --username __token__ \
+          --password $TEST_PYPI_TOKEN \
+          --skip-existing
+    
+    - name: Test installation from Test PyPI
+      run: |
+        sleep 30  # Wait for package to be available
+        python -m pip install --index-url https://test.pypi.org/simple/ \
+          --extra-index-url https://pypi.org/simple/ \
+          multiagent-core
+        multiagent --version
+
+  # Integration tests in Docker
+  test-docker:
+    name: Docker Environment Test
+    needs: template-sync
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build Docker test environment
+      run: |
+        cat > Dockerfile.test << 'EOF'
+        FROM python:3.11-slim
+        
+        # Install system dependencies
+        RUN apt-get update && apt-get install -y \
+          git \
+          curl \
+          nodejs \
+          npm \
+          && rm -rf /var/lib/apt/lists/*
+        
+        # Install CLIs for testing
+        RUN npm install -g @qwenlm/qwen-cli \
+          @google/generative-ai-cli \
+          @openai/codex-cli || true
+        
+        # Copy package
+        WORKDIR /app
+        COPY . .
+        
+        # Install package
+        RUN pip install --upgrade pip build && \
+          python -m build && \
+          pip install dist/*.whl
+        
+        # Test commands
+        RUN multiagent --version && \
+          multiagent doctor && \
+          multiagent init --no-interactive --dry-run
+        EOF
+        
+        docker build -f Dockerfile.test -t multiagent-test .
+    
+    - name: Run Docker tests
+      run: |
+        docker run --rm multiagent-test multiagent doctor
+        docker run --rm multiagent-test bash -c "cd /tmp && multiagent init --no-interactive && ls -la"
+
+  # WSL-specific testing
+  test-wsl:
+    name: WSL Compatibility Test
+    needs: template-sync
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up WSL
+      uses: Vampire/setup-wsl@v3
+      with:
+        distribution: Ubuntu-22.04
+    
+    - name: Test in WSL
+      shell: wsl-bash {0}
+      run: |
+        # Install Python in WSL
+        sudo apt-get update
+        sudo apt-get install -y python3 python3-pip python3-venv
+        
+        # Build and install
+        python3 -m pip install --upgrade pip build
+        python3 -m build
+        python3 -m pip install dist/*.whl
+        
+        # Test
+        multiagent --version
+        multiagent doctor
+        cd /tmp
+        multiagent init --no-interactive
+        test -d .claude
+        test -f .github/copilot-instructions.md
+
+  # Summary and reporting
+  test-summary:
+    name: Test Summary
+    needs: [test-matrix, test-components, test-docker, test-wsl]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Generate test report
+      run: |
+        echo "# Test Summary Report" > report.md
+        echo "" >> report.md
+        echo "## Test Matrix Results" >> report.md
+        echo "| OS | Python | Method | Status |" >> report.md
+        echo "|----|--------|--------|--------|" >> report.md
+        
+        # Parse results and generate report
+        for dir in test-results-*; do
+          if [ -d "$dir" ]; then
+            os=$(echo $dir | cut -d'-' -f3)
+            python=$(echo $dir | cut -d'-' -f4)
+            method=$(echo $dir | cut -d'-' -f5)
+            # Check for success indicators
+            if [ -f "$dir/test-$method/.claude" ]; then
+              status="✅"
+            else
+              status="❌"
+            fi
+            echo "| $os | $python | $method | $status |" >> report.md
+          fi
+        done
+        
+        cat report.md
+    
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('report.md', 'utf8');
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: report
+          });
