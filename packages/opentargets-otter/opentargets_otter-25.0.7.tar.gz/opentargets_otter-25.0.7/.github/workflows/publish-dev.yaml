@@ -1,0 +1,34 @@
+name: Publish Dev
+
+on:
+  push:
+    tags:
+      # Matches tags that contain a dash after YY.major.minor
+      # Example: 25.0.0-beta.1
+      # Keep in mind github does not support all regex features:
+      # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yaml
+
+  build:
+    uses: ./.github/workflows/build.yaml
+    needs: ci
+
+  publish-to-pypi:
+    name: Publish to PyPI 🐍
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/opentargets-otter
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-package-distribution
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
