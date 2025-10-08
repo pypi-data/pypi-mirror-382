@@ -1,0 +1,259 @@
+# Orcastrator
+
+Orcastrator is a Python toolkit and CLI for automating ORCA quantum-chemistry calculations.
+
+**Features:**
+- Simple TOML-based configuration
+- Automatic directory and scratch management
+- Multi-stage pipelines with caching and chaining (opt → freq → sp)
+- Parallel execution across molecules
+- SLURM batch script generation
+
+**Version:** 3.0.0
+**License:** MIT
+**Requirements:** Python ≥3.11
+
+## Installation
+
+```bash
+uv tool install orcastrator
+```
+
+## Quickstart
+
+1. Generate a template configuration:
+   ```bash
+   orcastrator init
+   ```
+
+2. Edit `orcastrator.toml`:
+   ```toml
+   # Core paths (relative to this file)
+   output_dir = "output"
+   molecules_dir = "molecules"
+
+   # Resources
+   cpus = 8
+   mem_per_cpu_gb = 4
+   workers = 2
+   scratch_dir = "/scratch"
+
+   # Workflow settings
+   overwrite = false
+   debug = false
+
+   # Molecule filtering (optional)
+   # include = ["mol1", "mol2"]
+   # exclude = ["mol3"]
+   rerun_failed = false
+
+   # Pipeline stages
+   [[stages]]
+   name = "opt"
+   keywords = ["D4", "TPSS", "def2-SVP", "OPT"]
+
+   [[stages]]
+   name = "freq"
+   keywords = ["D4", "TPSS", "def2-SVP", "FREQ"]
+   keep = ["*.gbw"]  # Copy wavefunction from previous stage
+
+   [[stages]]
+   name = "sp"
+   keywords = ["D4", "TPSSh", "def2-TZVP"]
+   keep = ["*.gbw"]
+   ```
+
+3. Run the pipeline:
+   ```bash
+   orcastrator run orcastrator.toml
+   ```
+
+4. (Optional) Submit to SLURM:
+   ```bash
+   orcastrator slurm orcastrator.toml
+   orcastrator slurm --no-submit orcastrator.toml  # just generate script
+   ```
+
+## Configuration Reference
+
+### Core Settings
+
+- `output_dir` - Output directory for results (relative to config file)
+- `molecules_dir` - Directory containing .xyz files (relative to config file)
+- `cpus` - Total CPU cores available
+- `mem_per_cpu_gb` - Memory per CPU core in GB
+- `workers` - Number of parallel workers (molecules processed simultaneously)
+- `scratch_dir` - Scratch directory for temporary files (default: `/scratch`)
+
+### Workflow Settings
+
+- `overwrite` - Rerun all calculations (default: `false`)
+- `debug` - Enable debug logging (default: `false`)
+- `include` - List of molecule names to include (optional)
+- `exclude` - List of molecule names to exclude (optional)
+- `rerun_failed` - Only rerun previously failed molecules (default: `false`)
+
+### SLURM Settings (Optional)
+
+- `nodelist` - SLURM node list (e.g., `["node001", "node002"]`)
+- `exclude_nodes` - SLURM nodes to exclude
+- `timelimit` - SLURM time limit (format: `HH:MM:SS`)
+
+### Stage Configuration
+
+Each `[[stages]]` block defines a calculation step:
+
+- `name` - Unique stage identifier
+- `keywords` - ORCA keywords (e.g., `["OPT", "TPSS", "def2-SVP"]`)
+- `blocks` - Additional ORCA % blocks (e.g., `["%scf maxiter 150 end"]`)
+- `mult` - Override multiplicity for this stage (optional)
+- `charge` - Override charge for this stage (optional)
+- `keep` - File patterns to copy from previous stage (e.g., `["*.gbw", "*.xyz"]`)
+
+## Architecture
+
+Orcastrator 3.0.0 uses a streamlined architecture for better maintainability:
+
+```
+src/
+├── config.py    # Pydantic-based configuration
+├── molecule.py  # Molecule representation
+├── engine.py    # ORCA execution and scratch management
+├── runner.py    # Parallel workflow execution
+└── cli.py       # Command-line interface
+```
+
+**Key improvements in 3.0.0:**
+- 27% code reduction (1,775 → 1,303 lines)
+- Flat configuration structure (no unnecessary nesting)
+- ProcessPoolExecutor for parallel execution
+- Content hashing for cache validation
+- Loguru for structured logging
+
+## Migration from 2.0.x
+
+Version 3.0.0 is backward compatible. Legacy config format is automatically converted:
+
+**Old format (still works):**
+```toml
+[main]
+cpus = 4
+
+[molecules]
+directory = "molecules"
+
+[[step]]
+name = "opt"
+```
+
+**New format (recommended):**
+```toml
+cpus = 4
+molecules_dir = "molecules"
+
+[[stages]]
+name = "opt"
+```
+
+No changes required to existing workflows.
+
+## Examples
+
+### Basic Optimization and Frequency
+
+```toml
+output_dir = "results"
+molecules_dir = "molecules"
+cpus = 4
+mem_per_cpu_gb = 2
+
+[[stages]]
+name = "opt"
+keywords = ["OPT", "B3LYP", "def2-SVP"]
+
+[[stages]]
+name = "freq"
+keywords = ["FREQ", "B3LYP", "def2-SVP"]
+keep = ["*.gbw"]
+```
+
+### High-Level Single Point
+
+```toml
+output_dir = "results"
+molecules_dir = "molecules"
+cpus = 8
+mem_per_cpu_gb = 4
+workers = 2
+
+[[stages]]
+name = "opt"
+keywords = ["OPT", "TPSS", "def2-SVP", "D4"]
+
+[[stages]]
+name = "sp"
+keywords = ["DLPNO-CCSD(T)", "def2-TZVPP", "def2-TZVPP/C"]
+blocks = ["%scf maxiter 200 end"]
+keep = ["*.gbw"]
+```
+
+### Selective Processing
+
+```toml
+output_dir = "results"
+molecules_dir = "molecules"
+cpus = 4
+
+# Only process specific molecules
+include = ["benzene", "toluene", "phenol"]
+
+[[stages]]
+name = "opt"
+keywords = ["OPT", "PBE0", "def2-TZVP"]
+```
+
+## XYZ File Format
+
+Molecule files should include charge and multiplicity in the comment line:
+
+**JSON format (recommended):**
+```xyz
+12
+{"charge": 0, "mult": 1}
+C    0.000000    0.000000    0.000000
+H    1.089000    0.000000    0.000000
+...
+```
+
+**Simple format:**
+```xyz
+12
+charge=0 mult=1
+C    0.000000    0.000000    0.000000
+H    1.089000    0.000000    0.000000
+...
+```
+
+## Development
+
+**Dependencies:**
+- click - CLI framework
+- pydantic - Configuration validation
+- loguru - Structured logging
+- jinja2 - SLURM template rendering
+- toml - Configuration parsing
+
+**Testing:**
+```bash
+uv run python -m src.cli --version
+uv run python -m src.cli init --slim
+```
+
+**Project structure:**
+- `src/` - Main codebase (3.0.0)
+- `orcastrator/` - Legacy codebase (2.0.x, deprecated)
+- `test/` - Integration tests
+
+## License
+
+MIT License - see LICENSE file for details.
