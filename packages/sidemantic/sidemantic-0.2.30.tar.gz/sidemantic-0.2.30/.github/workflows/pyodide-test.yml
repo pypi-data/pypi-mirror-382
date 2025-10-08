@@ -1,0 +1,79 @@
+name: Pyodide Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-pyodide:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Pyodide
+        run: npm install pyodide
+
+      - name: Test sidemantic in Pyodide
+        run: |
+          cat > test_pyodide.mjs << 'EOF'
+          import { loadPyodide } from 'pyodide';
+
+          async function main() {
+            const pyodide = await loadPyodide();
+
+            console.log('Loading Pyodide packages...');
+            await pyodide.loadPackage(['micropip', 'pydantic', 'pyyaml', 'jinja2']);
+
+            console.log('Installing sidemantic without deps...');
+            await pyodide.runPythonAsync(`
+              import micropip
+              # Install missing pure-Python deps, then sidemantic without deps
+              # (avoids pydantic-core typing-extensions>=4.14.1 vs Pyodide 4.11.0 conflict)
+              await micropip.install(['sqlglot', 'lkml', 'inflect'], deps=False)
+              await micropip.install('sidemantic', deps=False)
+            `);
+
+            console.log('Testing basic imports...');
+            await pyodide.runPythonAsync(`
+              from sidemantic import Model, Dimension, Metric, Relationship
+              from sidemantic.core.semantic_graph import SemanticGraph
+              print('✓ Core imports successful')
+
+              # Test creating a model (doesn't need duckdb)
+              model = Model(
+                  name="test",
+                  table="test_table",
+                  primary_key="id",
+                  dimensions=[
+                      Dimension(name="name", type="categorical", sql="name")
+                  ],
+                  metrics=[
+                      Metric(name="count", agg="count")
+                  ],
+                  relationships=[
+                      Relationship(name="other", type="many_to_one", foreign_key="other_id")
+                  ]
+              )
+              print('✓ Model creation successful')
+
+              # Test semantic graph (doesn't need duckdb)
+              graph = SemanticGraph()
+              graph.add_model(model)
+              print('✓ SemanticGraph successful')
+
+              print('All Pyodide imports and basic operations work!')
+            `);
+          }
+
+          main().catch(err => {
+            console.error(err);
+            process.exit(1);
+          });
+          EOF
+          node test_pyodide.mjs
