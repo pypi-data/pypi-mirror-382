@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "IAM role for pod identity association [created and managed by eksctl]"
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster name"
+Resources:
+  Role1:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-karpenter"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+              - sts:TagSession
+            Effect: Allow
+            Principal:
+              Service: pods.eks.amazonaws.com
+        Version: '2012-10-17'
+      ManagedPolicyArns:
+        - !Sub "arn:aws:iam::${AWS::AccountId}:policy/KarpenterControllerPolicy-${ClusterName}"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+Outputs:
+  Role1:
+    Value:
+      Fn::GetAtt:
+        - Role1
+        - Arn

@@ -1,0 +1,28 @@
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: gpu-v1-nodepool
+spec:
+  disruption:
+    consolidateAfter: 30s
+    consolidationPolicy: WhenEmpty
+    expireAfter: Never
+  limits:
+    cpu: "200"
+  template:
+    metadata:
+      labels:
+        nodepool: gpu-v1-nodepool
+    spec:
+      requirements:
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ['g4dn', 'g5', 'g5g', 'g6', 'g6e', 'p2', 'p3', 'p3dn', 'p4d', 'p5']
+        - key: karpenter.sh/capacity-type # If not included, the webhook for the AWS cloud provider will default to on-demand
+          operator: In
+          values: [ "on-demand" ]
+        - key: kubernetes.io/os
+          operator: In
+          values: [ "linux" ]
+      nodeClassRef:
+        name: gpu-v1-ec2nodeclass

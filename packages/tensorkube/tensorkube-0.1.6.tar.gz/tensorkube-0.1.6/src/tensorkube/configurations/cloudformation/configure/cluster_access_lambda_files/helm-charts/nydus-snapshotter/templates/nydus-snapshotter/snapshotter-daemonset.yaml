@@ -1,0 +1,171 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ template "nydus-snapshotter.fullname" . }}
+  labels:
+    app: {{ template "nydus-snapshotter.fullname" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: "{{ .Values.name }}"
+  annotations:
+    {{- if .Values.daemonsetAnnotations }}
+{{ toYaml .Values.daemonsetAnnotations | indent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "nydus-snapshotter.fullname" . }}
+      component: "{{ .Values.name }}"
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "nydus-snapshotter.fullname" . }}
+        component: "{{ .Values.name }}"
+        release: {{ .Release.Name }}
+        {{- if .Values.podLabels }}
+{{ toYaml .Values.podLabels | indent 8 }}
+        {{- end }}
+      {{- if .Values.podAnnotations }}
+      annotations:
+{{ toYaml .Values.podAnnotations | indent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{template "nydus-snapshotter.fullname" . }}-sa
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      {{- end }}
+      hostNetwork: {{ .Values.hostNetwork }}
+      hostPID: {{ .Values.hostPid }}
+      {{- if .Values.hostNetwork }}
+      dnsPolicy: "ClusterFirstWithHostNet"
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      {{- end }}
+
+      {{- if quote .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- if and (.Capabilities.APIVersions.Has "scheduling.k8s.io/v1beta1") (.Values.priorityClassName) }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      {{- with .Values.image.pullSecrets | default .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.hostAliases }}
+      hostAliases:
+{{ toYaml .Values.hostAliases | indent 8 }}
+      {{- end }}
+      containers:
+      - name: nydus-snapshotter
+        image: {{ template "nydus-snapshotter.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: FS_DRIVER
+            valueFrom:
+              configMapKeyRef:
+                name: nydus-snapshotter-configs
+                key: FS_DRIVER
+                optional: true
+          - name: ENABLE_CONFIG_FROM_VOLUME
+            valueFrom:
+              configMapKeyRef:
+                name: nydus-snapshotter-configs
+                key: ENABLE_CONFIG_FROM_VOLUME
+                optional: true 
+          - name: ENABLE_RUNTIME_SPECIFIC_SNAPSHOTTER
+            valueFrom:
+              configMapKeyRef:
+                name: nydus-snapshotter-configs
+                key: ENABLE_RUNTIME_SPECIFIC_SNAPSHOTTER
+                optional: true
+          - name: ENABLE_SYSTEMD_SERVICE
+            valueFrom:
+              configMapKeyRef:
+                name: nydus-snapshotter-configs
+                key: ENABLE_SYSTEMD_SERVICE
+                optional: true                    
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+        {{- if .Values.containerRuntime.containerd.enable }}
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - "bash"
+              - "-c"
+              - |
+                /opt/nydus-artifacts/opt/nydus/snapshotter.sh cleanup
+        {{- end }}
+        command: 
+         - bash
+         - -c
+         - |-
+           /opt/nydus-artifacts/opt/nydus/snapshotter.sh deploy
+        {{- if .Values.args }}
+        args:
+{{ toYaml .Values.args | indent 12 }}
+        {{- end }}
+        volumeMounts:
+        - name: config
+          mountPath: "/etc/nydus-snapshotter"
+        - name: nydus-lib
+          mountPath: "/var/lib/containerd/io.containerd.snapshotter.v1.nydus"
+          mountPropagation: Bidirectional
+        - name: nydus-run
+          mountPath: "/run/containerd-nydus"
+          mountPropagation: Bidirectional
+        - name: nydus-opt
+          mountPath: "/opt/nydus"
+          mountPropagation: Bidirectional
+        - name: nydus-etc
+          mountPath: "/etc/nydus"
+          mountPropagation: Bidirectional     
+        - name: containerd-conf
+          mountPath: {{ .Values.containerRuntime.containerd.configDir }}
+        - name: local-bin
+          mountPath: "/usr/local/bin/"
+        - name: etc-systemd-system
+          mountPath: "/etc/systemd/system/"
+        securityContext:
+          privileged: true
+      volumes:
+      - name: config
+        configMap:
+          name: {{ template "nydus-snapshotter.fullname" . }}
+      - name: nydus-run
+        hostPath:
+          path: /run/containerd-nydus
+          type: DirectoryOrCreate
+      - name: nydus-lib
+        hostPath:
+          path: /var/lib/containerd/io.containerd.snapshotter.v1.nydus
+          type: DirectoryOrCreate
+      - name: nydus-opt
+        hostPath:
+          path: /opt/nydus
+          type: DirectoryOrCreate
+      - name: nydus-etc
+        hostPath:
+          path: /etc/nydus
+          type: DirectoryOrCreate
+      {{- if .Values.containerRuntime.containerd.enable }}
+      - name: containerd-conf
+        hostPath:
+          path: {{ .Values.containerRuntime.containerd.configDir }}
+      {{- end }}
+      - name: local-bin
+        hostPath:
+          path: /usr/local/bin/
+      - name: etc-systemd-system
+        hostPath:
+          path: /etc/systemd/system/  

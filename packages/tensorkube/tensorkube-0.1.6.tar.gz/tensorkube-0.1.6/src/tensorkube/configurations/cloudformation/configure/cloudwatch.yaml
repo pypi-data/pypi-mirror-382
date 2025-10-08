@@ -1,0 +1,264 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an IAM role connected to a Kubernetes service account.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: The name of the EKS cluster
+  OIDCProviderURL:
+    Type: String
+    Description: OIDC issuer URL for the EKS cluster
+  Namespace:
+    Type: String
+    Description: The Kubernetes namespace for the service account
+  ServiceAccountName:
+    Type: String
+    Description: The Kubernetes service account name
+
+Resources:
+  CloudwatchIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "cloudwatch-agent-role_${ClusterName}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                Fn::Join:
+                  - ''
+                  - - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/'
+                    - Fn::Select:
+                        - 1
+                        - Fn::Split:
+                            - '//'
+                            - Ref: 'OIDCProviderURL'
+            Action: "sts:AssumeRoleWithWebIdentity"
+            Condition:
+              StringEquals: |
+                #!TensorkubePyPlate
+                output = {}
+                oidc_provider_url = params["OIDCProviderURL"]
+                oidc_issuer = oidc_provider_url.split('//')[1]
+                namespace = params["Namespace"]
+                service_account_name = params["ServiceAccountName"]
+                output = {
+                    f"{oidc_issuer}:aud": "sts.amazonaws.com",
+                    f"{oidc_issuer}:sub": f"system:serviceaccount:{namespace}:{service_account_name}"
+                }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+
+  CloudwatchAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref ClusterName
+      AddonName: "amazon-cloudwatch-observability"
+      ServiceAccountRoleArn: !GetAtt CloudwatchIAMRole.Arn
+      AddonVersion: v4.3.0-eksbuild.1 # get using: aws eks describe-addon-versions --addon-name amazon-cloudwatch-observability --kubernetes-version X.XX
+      ResolveConflicts: OVERWRITE
+      ConfigurationValues: |
+        #!TensorkubePyPlate
+        import json, textwrap
+        
+        application_log = textwrap.dedent(f"""
+        [INPUT]
+            Name                tail
+            Tag                 application.*
+            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+            Path                /var/log/containers/*.log
+            multiline.parser    docker, cri
+            DB                  /var/fluent-bit/state/flb_container.db
+            Mem_Buf_Limit       50MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Rotate_Wait         30
+            storage.type        filesystem
+            Read_from_Head      ${{READ_FROM_HEAD}}
+
+        [INPUT]
+            Name                tail
+            Tag                 application.*
+            Path                /var/log/containers/fluent-bit*
+            multiline.parser    docker, cri
+            DB                  /var/fluent-bit/state/flb_log.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${{READ_FROM_HEAD}}
+
+        [INPUT]
+            Name                tail
+            Tag                 application.*
+            Path                /var/log/containers/cloudwatch-agent*
+            multiline.parser    docker, cri
+            DB                  /var/fluent-bit/state/flb_cwagent.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${{READ_FROM_HEAD}}
+
+        [FILTER]
+            Name                aws
+            Match               application.*
+            az                  false
+            ec2_instance_id     false
+            Enable_Entity       true
+
+        [FILTER]
+            Name                kubernetes
+            Match               application.*
+            Kube_URL            https://kubernetes.default.svc:443
+            Kube_Tag_Prefix     application.var.log.containers.
+            Merge_Log           On
+            Merge_Log_Key       log_processed
+            K8S-Logging.Parser  On
+            K8S-Logging.Exclude Off
+            Labels              Off
+            Annotations         Off
+            Use_Kubelet         On
+            Kubelet_Port        10250
+            Buffer_Size         0
+            Use_Pod_Association On
+
+        [OUTPUT]
+            Name                cloudwatch_logs
+            Match               application.*
+            region              ${{AWS_REGION}}
+            log_group_name      /aws/containerinsights/${{CLUSTER_NAME}}/application
+            log_stream_template tensorkube-app.$kubernetes['namespace_name'].$kubernetes['pod_name'].$kubernetes['container_name'].${{HOST_NAME}}
+            log_stream_prefix   tensorkube-app-
+            auto_create_group   true
+            extra_user_agent    container-insights
+            add_entity          true""").strip("\n")
+
+        dataplane_log = textwrap.dedent(f"""
+        [INPUT]
+            Name                systemd
+            Tag                 dataplane.systemd.*
+            Systemd_Filter      _SYSTEMD_UNIT=docker.service
+            Systemd_Filter      _SYSTEMD_UNIT=containerd.service
+            Systemd_Filter      _SYSTEMD_UNIT=kubelet.service
+            DB                  /var/fluent-bit/state/systemd.db
+            Path                /var/log/journal
+            Read_From_Tail      ${{READ_FROM_TAIL}}
+
+        [INPUT]
+            Name                tail
+            Tag                 dataplane.tail.*
+            Path                /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+            multiline.parser    docker, cri
+            DB                  /var/fluent-bit/state/flb_dataplane_tail.db
+            Mem_Buf_Limit       50MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Rotate_Wait         30
+            storage.type        filesystem
+            Read_from_Head      ${{READ_FROM_HEAD}}
+
+        [FILTER]
+            Name                modify
+            Match               dataplane.systemd.*
+            Rename              _HOSTNAME                   hostname
+            Rename              _SYSTEMD_UNIT               systemd_unit
+            Rename              MESSAGE                     message
+            Remove_regex        ^((?!hostname|systemd_unit|message).)*$
+
+        [FILTER]
+            Name                aws
+            Match               dataplane.*
+            imds_version        v2
+
+        [OUTPUT]
+            Name                cloudwatch_logs
+            Match               dataplane.*
+            region              ${{AWS_REGION}}
+            log_group_name      /aws/containerinsights/${{CLUSTER_NAME}}/dataplane
+            log_stream_prefix   tensorkube-dataplane-
+            auto_create_group   true
+            extra_user_agent    container-insights""").strip("\n")
+
+        host_log = textwrap.dedent(f"""
+        [INPUT]
+            Name                tail
+            Tag                 host.dmesg
+            Path                /var/log/dmesg
+            Key                 message
+            DB                  /var/fluent-bit/state/flb_dmesg.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${{READ_FROM_HEAD}}
+
+        [INPUT]
+            Name                tail
+            Tag                 host.messages
+            Path                /var/log/messages
+            Parser              syslog
+            DB                  /var/fluent-bit/state/flb_messages.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${{READ_FROM_HEAD}}
+
+        [INPUT]
+            Name                tail
+            Tag                 host.secure
+            Path                /var/log/secure
+            Parser              syslog
+            DB                  /var/fluent-bit/state/flb_secure.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${{READ_FROM_HEAD}}
+
+        [FILTER]
+            Name                aws
+            Match               host.*
+            imds_version        v2
+
+        [OUTPUT]
+            Name                cloudwatch_logs
+            Match               host.*
+            region              ${{AWS_REGION}}
+            log_group_name      /aws/containerinsights/${{CLUSTER_NAME}}/host
+            log_stream_prefix   tensorkube-host-
+            auto_create_group   true
+            extra_user_agent    container-insights""").strip("\n")
+
+        container_logs = {
+            "containerLogs": {
+                "fluentBit": {
+                    "config": {
+                        "extraFiles": {
+                            "application-log.conf": application_log,
+                            "dataplane-log.conf": dataplane_log,
+                            "host-log.conf": host_log,
+                        }
+                    }
+                }
+            }
+        }
+
+        output = json.dumps(container_logs)
+        
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+Transform: [TensorkubePyPlate]
+
+Outputs:
+  CloudwatchIAMRoleARN:
+    Description: ARN of the IAM role
+    Value: !GetAtt CloudwatchIAMRole.Arn

@@ -1,0 +1,33 @@
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: default
+spec:
+  disruption:
+    consolidateAfter: 30s
+    consolidationPolicy: WhenEmpty
+    expireAfter: Never
+  limits:
+    cpu: "200"
+  template:
+    spec:
+      requirements:
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: [ "c4","c5", "m5","r3", "r4", "r5","inf1","inf2",
+                    "trn1", "g4dn", "g5", "g5g","g6", "g6e", "t3","m4","m5",
+                    "p2","p3","p3dn","p4d","p5" ]
+        #        - key: node.kubernetes.io/instance-type
+        #          operator: In
+        #          values: ["c5.large", "m5.large", "r5.large", "m5.xlarge","g5.xlarge",]
+        #        - key: kubernetes.io/arch
+        #          operator: In
+        #          values: ["amd64"]
+        - key: karpenter.sh/capacity-type # If not included, the webhook for the AWS cloud provider will default to on-demand
+          operator: In
+          values: [ "on-demand" ]
+        - key: kubernetes.io/os
+          operator: In
+          values: [ "linux" ]
+      nodeClassRef:
+        name: default

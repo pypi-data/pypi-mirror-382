@@ -1,0 +1,272 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cloud resources for job queues
+Parameters:
+  TemplateBucketName:
+    Type: String
+    Description: "Template Bucket Name"
+  TemplatesVersion:
+    Type: String
+    Description: "Templates Version"
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  KarpenterNodeRole:
+    Type: String
+    Description: "Karpenter Node Role"
+  EksctlNodegroupRole:
+    Type: String
+    Description: "Eksctl Nodegroup Role"
+  KedaTrainBucketName:
+    Type: String
+    Description: "Keda Train Bucket Name"
+  KedaBuildBucketName:
+    Type: String
+    Description: "Keda Build Bucket Name"
+  AWSLambdaFunctionArn:
+    Type: String
+    Description: "ARN of Lambda Function with AWS access"
+  ClusterLambdaFunctionArn:
+    Type: String
+    Description: "ARN of Lambda Function with cluster access"
+  S3AccessRole:
+    Type: String
+    Description: "S3 Access Role"
+  KedaBuildkitISRAServiceAccountName:
+    Type: String
+    Description: "Keda Buildkit ISRA Service Account Name"
+  OIDCProviderURL:
+    Type: String
+    Description: "OIDC Provider URL"
+  BuildkitISRARoleArn:
+    Type: String
+    Description: "Buildkit ISRA Role ARN"
+
+Resources:
+  SqsDynamodbAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-sqs-access-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                Fn::Join:
+                  - ''
+                  - - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/'
+                    - Fn::Select:
+                        - 1
+                        - Fn::Split:
+                            - '//'
+                            - Ref: 'OIDCProviderURL'
+            Action: "sts:AssumeRoleWithWebIdentity"
+            Condition:
+              StringEquals: |
+                #!TensorkubePyPlate
+                output = {}
+                oidc_provider_url = params["OIDCProviderURL"]
+                oidc_issuer = oidc_provider_url.split('//')[1]
+                output = {
+                    f"{oidc_issuer}:aud": "sts.amazonaws.com",
+                    f"{oidc_issuer}:sub": "system:serviceaccount:keda:keda-operator"
+                }
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: ResourceType
+          Value: JobQueue
+
+  SQSAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${ClusterName}-sqs-access-policy"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:GetQueueUrl
+            Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${ClusterName}-*"
+      Roles:
+        - !Ref SqsDynamodbAccessRole
+        - !Ref JobQueueSidecarIAMRole
+
+  DynamoDbTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ClusterName}-job-status"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: job_name
+          KeyType: HASH
+        - AttributeName: job_id
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: job_name
+          AttributeType: S
+        - AttributeName: job_id
+          AttributeType: S
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: ResourceType
+          Value: JobQueue
+
+  DynamoDbAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${ClusterName}-dynamodb-access-policy"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:CreateTable
+              - dynamodb:UpdateTable
+              - dynamodb:DescribeTable
+              - dynamodb:ListTables
+              - dynamodb:CreateGlobalTable
+              - dynamodb:DeleteTable
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:BatchGetItem
+              - dynamodb:BatchWriteItem
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ClusterName}-*"
+      Roles:
+        - !Ref SqsDynamodbAccessRole
+        - !Ref JobQueueSidecarIAMRole
+
+  KedaS3TrainBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref KedaTrainBucketName
+      AccessControl: Private
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: ResourceType
+          Value: JobQueue
+    DeletionPolicy: Retain
+
+
+  KedaS3BucketAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${ClusterName}-default-s3-bucket-access-policy"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${ClusterName}-*/*"
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource: !Sub "arn:aws:s3:::${ClusterName}-*"
+      Roles:
+        - !Ref SqsDynamodbAccessRole
+        - !Ref JobQueueSidecarIAMRole
+
+
+  KedaEnvironmentCloudResources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucketName}.s3.us-east-1.amazonaws.com/${TemplatesVersion}/environment.yaml"
+      Parameters:
+        ClusterName: !Ref ClusterName
+        Environment: keda
+        BuildBucketName: !Ref KedaBuildBucketName
+        AWSLambdaFunctionArn: !Ref AWSLambdaFunctionArn
+        OIDCProviderURL: !Ref OIDCProviderURL
+        S3AccessRole: !Ref S3AccessRole
+        ServiceAccountName: !Ref KedaBuildkitISRAServiceAccountName
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: ResourceType
+          Value: JobQueue
+
+  KedaEnvironmentClusterResources:
+    Type: Custom::InvokeLambdaFunction
+    Properties:
+      Region: !Sub "${AWS::Region}"
+      ClusterName: !Ref ClusterName
+      AWSAccountId: !Sub "${AWS::AccountId}"
+      Operation: "create-env"
+      Parameters:
+        EnvName: keda
+        ClusterName: !Ref ClusterName
+        Region: !Ref AWS::Region
+        BuildBucketName: !Ref KedaBuildBucketName
+        BuildkitISRARoleArn: !Ref BuildkitISRARoleArn
+      ServiceToken: !Ref ClusterLambdaFunctionArn
+    DependsOn: KedaEnvironmentCloudResources
+
+
+  JobQueueSidecarIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-job-sidecar-iam-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                Fn::Join:
+                  - ''
+                  - - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/'
+                    - Fn::Select:
+                        - 1
+                        - Fn::Split:
+                            - '//'
+                            - Ref: 'OIDCProviderURL'
+            Action: "sts:AssumeRoleWithWebIdentity"
+            Condition:
+              StringEquals: |
+                #!TensorkubePyPlate
+                output = {}
+                oidc_provider_url = params["OIDCProviderURL"]
+                oidc_issuer = oidc_provider_url.split('//')[1]
+                output = {
+                    f"{oidc_issuer}:aud": "sts.amazonaws.com",
+                    f"{oidc_issuer}:sub": "system:serviceaccount:keda:job-queue-sidecar-keda-sa-v2"
+                }
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+        - Key: ResourceType
+          Value: JobQueue
+
+
+
+Transform: [TensorkubePyPlate]
+
+Outputs:
+  SqsDynamodbAccessRoleArn:
+    Value: !GetAtt SqsDynamodbAccessRole.Arn
+  JobQueueSidecarIAMRoleArn:
+    Value: !GetAtt JobQueueSidecarIAMRole.Arn

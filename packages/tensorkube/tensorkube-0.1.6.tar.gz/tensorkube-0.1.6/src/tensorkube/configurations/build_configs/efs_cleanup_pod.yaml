@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: efs-cleanup
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      containers:
+        - name: cleanup
+          image: alpine:latest
+          command: #TODO
+            - /bin/sh
+            - -c
+            - |
+              apk add --no-cache curl unzip aws-cli docker
+              aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ACCNO.dkr.ecr.us-east-1.amazonaws.com
+              buildctl-daemonless.sh build --frontend dockerfile.v0 --local context=/data/build/PROJECT --local dockerfile=/data/build/PROJECT --output type=tar,dest=/data/images/PROJECT.tar
+          volumeMounts:
+            - name: efs-pvc
+              mountPath: /mnt/efs
+      restartPolicy: Never
+      volumes:
+        - name: efs-pvc
+          persistentVolumeClaim:
+            claimName: efs-pvc

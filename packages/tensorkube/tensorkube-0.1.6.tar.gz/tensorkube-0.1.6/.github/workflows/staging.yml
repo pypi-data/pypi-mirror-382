@@ -1,0 +1,491 @@
+name: Publish tensorkube to Test PyPI
+
+on:
+  push:
+    branches : [ main ]
+
+jobs:
+  build:
+    name: Build distribution 
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Build source and wheel distributions
+      run: |
+        python -m pip install --upgrade build
+        python -m build
+
+    - name: Store the distribution packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  publish-to-testpypi:
+    name: Publish Python distribution to TestPyPI
+    needs:
+      - build
+      - upload-templates-to-s3
+      - update_aws_image_on_ecr
+      - update_cluster_image_on_ecr
+      - update_helm_charts_on_ecr
+      - update_monitoring_image_on_ecr
+    runs-on: ubuntu-latest
+
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/tensorkube
+
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish distribution 📦 to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+        user: __token__
+        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        skip-existing: true
+  update-docs:
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install package and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Generate documentation
+        run: |
+          cd doc_generator
+          python doc_gen.py
+
+      - name: Checkout docs repository
+        uses: actions/checkout@v4
+        with:
+          repository: samagra14/docs
+          token: ${{ secrets.DOCS_REPO_TOKEN }}
+          path: docs-repo
+          fetch-depth: 0
+
+      - name: Update documentation and docs.json
+        id: update-docs
+        run: |
+          cd docs-repo
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git checkout -b update-tensorkube-docs-${{ github.sha }}
+          
+          # Verify jq is available
+          jq --version
+          
+          # Create CLI reference directory if it doesn't exist
+          mkdir -p reference/cli_reference
+          
+          # Remove existing CLI reference files
+          rm -rf reference/cli_reference/*
+          
+          # Check if files exist and copy them
+          if [ -d "../doc_generator/docs/commands" ] && [ "$(ls -A ../doc_generator/docs/commands)" ]; then
+            cp -r ../doc_generator/docs/commands/tensorkube_* reference/cli_reference/
+          
+            # Update docs.json CLI Reference section
+            CLI_FILES=$(ls reference/cli_reference/*.mdx | sed 's|docs/||g' | sed 's|.mdx$||g' | sort | jq -R . | jq -s .)
+            jq --argjson files "$CLI_FILES" '
+              .navigation.tabs |= map(
+                if .tab == "Reference" then
+                  .groups |= map(
+                    if .group == "CLI Reference" then
+                      .pages = $files
+                    else
+                      .
+                    end
+                  )
+                else
+                  .
+                end
+              )
+            ' docs.json > docs.json.tmp
+            mv docs.json.tmp docs.json
+          
+            # Only commit if there are changes
+            if git status --porcelain | grep .; then
+              git add reference/cli_reference/ docs.json
+              git commit -m "Update Tensorkube documentation
+          
+              Automated documentation update from tensorkube repository.
+              Source commit: ${{ github.sha }}"
+              git push origin update-tensorkube-docs-${{ github.sha }}
+              echo "changes_made=true" >> $GITHUB_OUTPUT
+            else
+              echo "No changes to commit"
+              echo "changes_made=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No documentation files generated"
+            echo "changes_made=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.update-docs.outputs.changes_made == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_REPO_TOKEN }}
+        run: |
+          gh pr create \
+            --repo samagra14/docs \
+            --base main \
+            --head update-tensorkube-docs-${{ github.sha }} \
+            --title "docs: Update Tensorkube CLI documentation - ${{github.sha}}" \
+            --body "Automated documentation update from tensorkube repository.
+          
+            Source commit: ${{ github.sha }}"
+
+  upload-templates-to-s3:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install package
+        run: pip install .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::089962644720:role/github_user
+          aws-region: us-east-1
+
+      - name: Get version
+        id: get_version
+        run: |
+          echo "templates_version=$(python -c 'from tensorkube.constants import get_templates_version; print(get_templates_version())')" >> $GITHUB_OUTPUT
+
+      - name: Upload YAML files to S3
+        run: |
+          # Define YAML files here (relative to repo root)
+          FILES=("src/tensorkube/configurations/cloudformation/environment.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/bootstrap.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/cloudwatch.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/cluster-oidc.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/codebuild_lambda_automation.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/eksctl-cluster-addon-vpc-cni-role.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/eksctl-cluster-addons.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/eksctl-cluster-nodegroup.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/eksctl-cluster-podidentityrole-iamrole.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/eksctl_base_cluster.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/empty_stack.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/job_queue_cloud_resources.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/karpenter_cloudformation.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/lambda-aws-access.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/lambda-eks-access.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/monitoring-stack.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/nydus-resources.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/pod-identity-association.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/s3_access.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/teardown_actions_stack.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/tensorkube-base-stack.yaml" \
+          "src/tensorkube/configurations/cloudformation/configure/update_awsauth_configmap_and_helmfile_apply.yaml" \
+          )
+          
+          # Retrieve the version from the previous step
+          VERSION="${{ steps.get_version.outputs.templates_version }}"
+          
+          # Loop over each file and upload to S3 with prefix 'VERSION/'
+          for file in "${FILES[@]}"; do
+            filename=$(basename "$file")
+            echo "Uploading $file to s3://tensorkube-cfn-staging-70w939rx1f/${VERSION}/${filename}"
+            aws s3 cp "$file" "s3://tensorkube-cfn-staging-70w939rx1f/${VERSION}/${filename}"
+          done
+
+  update_aws_image_on_ecr:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::089962644720:role/github_user
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        run: |
+          aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws/s6z9f6e5
+
+
+      - name: Install package
+        run: pip install .
+
+      - name: Set Docker image name and tag
+        id: set_vars
+        run: |
+          echo "TAG=$(python -c 'from tensorkube.constants import AWS_ACCESS_LAMBDA_FUNCTION_IMAGE_VERSION; print(AWS_ACCESS_LAMBDA_FUNCTION_IMAGE_VERSION)')" >> "$GITHUB_OUTPUT"
+
+      - name: Check if AWS Access Lambda image with tag already exists
+        id: check_image_tag_aws_access_lambda
+        run: |
+          IMAGE_EXISTS=$(aws ecr-public describe-images \
+            --repository-name tensorfuse/tensorkube-aws-access-lambda \
+            --region us-east-1 \
+            --query "imageDetails[?imageTags && contains(imageTags, '${{ steps.set_vars.outputs.TAG }}')]" \
+            --output text)
+          
+          if [[ -n "$IMAGE_EXISTS" ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Cluster Access Lambda Image with tag ${{ steps.set_vars.outputs.TAG }} already exists. Skipping build and push."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v2
+        if: steps.check_image_tag_aws_access_lambda.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.set_vars.outputs.TAG }}
+        with:
+          context: ./src/tensorkube/configurations/cloudformation/configure/aws_access_lambda_files
+          file: ./src/tensorkube/configurations/cloudformation/configure/aws_access_lambda_files/Dockerfile
+          push: true
+          tags: |
+            public.ecr.aws/s6z9f6e5/tensorfuse/tensorkube-aws-access-lambda:${{ env.TAG }}
+
+
+  update_cluster_image_on_ecr:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::089962644720:role/github_user
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        run: |
+          aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws/s6z9f6e5
+
+
+      - name: Install package
+        run: pip install .
+
+      - name: Set Docker image name and tag
+        id: set_vars
+        run: |
+          echo "TAG=$(python -c 'from tensorkube.constants import EKS_ACCESS_LAMBDA_FUNCTION_IMAGE_VERSION; print(EKS_ACCESS_LAMBDA_FUNCTION_IMAGE_VERSION)')" >> "$GITHUB_OUTPUT"
+
+      - name: Check if Cluster Access Lambda image with tag already exists
+        id: check_image_tag_cluster_access_lambda
+        run: |
+          IMAGE_EXISTS=$(aws ecr-public describe-images \
+            --repository-name tensorfuse/tensorkube-cluster-access-lambda \
+            --region us-east-1 \
+            --query "imageDetails[?imageTags && contains(imageTags, '${{ steps.set_vars.outputs.TAG }}')]" \
+            --output text)
+
+          if [[ -n "$IMAGE_EXISTS" ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Cluster Access Lambda Image with tag ${{ steps.set_vars.outputs.TAG }} already exists. Skipping build and push."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v2
+        if: steps.check_image_tag_cluster_access_lambda.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.set_vars.outputs.TAG }}
+        with:
+          context: ./src/tensorkube/configurations/cloudformation/configure/cluster_access_lambda_files
+          file: ./src/tensorkube/configurations/cloudformation/configure/cluster_access_lambda_files/Dockerfile
+          push: true
+          tags: |
+            public.ecr.aws/s6z9f6e5/tensorfuse/tensorkube-cluster-access-lambda:${{ env.TAG }}
+
+
+  update_monitoring_image_on_ecr:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::089962644720:role/github_user
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        run: |
+          aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws/s6z9f6e5
+
+
+      - name: Install package
+        run: pip install .
+
+      - name: Set Docker image name and tag
+        id: set_vars
+        run: |
+          echo "TAG=$(python -c 'from tensorkube.constants import MONITORING_LAMBDA_FUNCTION_IMAGE_VERSION; print(MONITORING_LAMBDA_FUNCTION_IMAGE_VERSION)')" >> "$GITHUB_OUTPUT"
+
+      - name: Check if Monitoring Lambda image with tag already exists
+        id: check_image_tag_monitoring_lambda
+        run: |
+          IMAGE_EXISTS=$(aws ecr-public describe-images \
+            --repository-name tensorfuse/tensorkube-monitoring-lambda \
+            --region us-east-1 \
+            --query "imageDetails[?imageTags && contains(imageTags, '${{ steps.set_vars.outputs.TAG }}')]" \
+            --output text)
+
+          if [[ -n "$IMAGE_EXISTS" ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Monitoring Lambda Image with tag ${{ steps.set_vars.outputs.TAG }} already exists. Skipping build and push."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v2
+        if: steps.check_image_tag_monitoring_lambda.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.set_vars.outputs.TAG }}
+        with:
+          context: ./src/tensorkube/configurations/cloudformation/configure/monitoring_lambda_files
+          file: ./src/tensorkube/configurations/cloudformation/configure/monitoring_lambda_files/Dockerfile
+          push: true
+          tags: |
+            public.ecr.aws/s6z9f6e5/tensorfuse/tensorkube-monitoring-lambda:${{ env.TAG }}
+
+
+  update_helm_charts_on_ecr:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::089962644720:role/github_user
+          aws-region: us-east-1
+
+      - name: Setup helm
+        uses: azure/setup-helm@v4.3.0
+        with:
+          version: '3.16.3'
+        id: install
+
+      - name: Login to Amazon ECR Public
+        run: |
+          helm version
+          aws ecr-public get-login-password --region us-east-1 | helm registry login --username AWS --password-stdin public.ecr.aws
+
+      - name: Package and Push Helm Charts
+        run: |
+          helm version
+          export CWD=$(pwd)
+          cd src/tensorkube/configurations/cloudformation/configure/cluster_access_lambda_files/helm-charts
+          
+          for dir in */ ; do
+            chart_dir=$(basename "$dir")
+            chart_version=$(yq '.version' "$chart_dir/Chart.yaml")
+            chart_package="${chart_dir}-${chart_version}.tgz"
+            repo_base="tensorfuse/helm-charts"
+            ecr_repo="public.ecr.aws/s6z9f6e5/${repo_base}"
+
+            exists=$(aws ecr-public describe-images \
+            --repository-name "${repo_base}/${chart_dir}" \
+            --region $AWS_REGION \
+            --query "imageDetails[?imageTags && contains(imageTags, '${chart_version}')]" \
+            --output json | jq 'length')
+
+            if [ "$exists" -eq 0 ]; then
+              echo "Packaging and pushing $chart_dir version $chart_version"
+              helm package "$chart_dir"
+              helm push "$chart_package" "oci://$ecr_repo"
+            else
+              echo "Chart $chart_dir version $chart_version already exists. Skipping push."
+            fi
+          done  
+          
+          cd $CWD
+          cd src/tensorkube/configurations/helm-charts/volumes
+          for dir in */ ; do
+            chart_dir=$(basename "$dir")
+            chart_version=$(yq '.version' "$chart_dir/Chart.yaml")
+            chart_package="${chart_dir}-${chart_version}.tgz"
+            repo_base="tensorfuse/helm-charts/volumes"
+            ecr_repo="public.ecr.aws/s6z9f6e5/${repo_base}"
+
+            exists=$(aws ecr-public describe-images \
+            --repository-name "${repo_base}/${chart_dir}" \
+            --region $AWS_REGION \
+            --query "imageDetails[?imageTags && contains(imageTags, '${chart_version}')]" \
+            --output json | jq 'length')
+            
+
+            if [ "$exists" -eq 0 ]; then
+              echo "Packaging and pushing $chart_dir version $chart_version"
+              helm package "$chart_dir"
+              helm push "$chart_package" "oci://$ecr_repo"
+            else
+              echo "Chart $chart_dir version $chart_version already exists. Skipping push."
+            fi
+          done

@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${JOB_NAME}
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      containers:
+        - name: user-container
+          image: ${JOB_IMAGE}
+          resources:
+            requests:
+              nvidia.com/gpu: ${GPUS}
+            limits:
+              nvidia.com/gpu: ${GPUS}
+          env:
+          - name: AWS_DEFAULT_REGION
+            value: REGION
+      restartPolicy: Never
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: karpenter.k8s.aws/instance-family
+                    operator: NotIn
+                    values:
+                      - r5

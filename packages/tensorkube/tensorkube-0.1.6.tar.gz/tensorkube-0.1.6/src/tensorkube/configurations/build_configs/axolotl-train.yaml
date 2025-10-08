@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${JOB_NAME}
+  namespace: ${NAMESPACE}
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      annotations:
+        image_tag: ${IMAGE_TAG}
+    spec:
+      ttlSecondsAfterFinished: 100
+      restartPolicy: Never
+      containers:
+      - image: ${IMAGE_URL}
+        name: user-container
+        env:
+          - name: AWS_DEFAULT_REGION
+            value: us-east-1 
+        resources:
+          requests:
+            nvidia.com/gpu: ${GPUS}
+          limits:
+            nvidia.com/gpu: ${GPUS}
+        volumeMounts:
+        - name: axolotl-config-name
+          mountPath: /etc/config  # Path where the config file will be mounted
+        - mountPath: /dev/shm
+          name: dshm
+        imagePullPolicy: Always
+      volumes:
+      - name: axolotl-config-name
+        configMap:
+          name: ${AXOLOTL_CONFIGMAP_NAME}
+          items:
+            - key: config
+              path: axolotl-config.yaml
+      - name: dshm
+        emptyDir:
+          medium: Memory          
+          sizeLimit: 10Gi 
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: karpenter.k8s.aws/instance-family
+                    operator: NotIn
+                    values:
+                      - r5
+

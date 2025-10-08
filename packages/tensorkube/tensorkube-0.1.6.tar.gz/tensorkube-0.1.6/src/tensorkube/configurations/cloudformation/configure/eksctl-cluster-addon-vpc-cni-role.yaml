@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IAM role for "vpc-cni" [created and managed by eksctl]
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  OIDCProviderURL:
+    Type: String
+    Description: "OIDC Provider URL"
+Resources:
+  Role1:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals: |
+                #!TensorkubePyPlate
+                output = {}
+                oidc_provider_url = params["OIDCProviderURL"]
+                oidc_issuer = oidc_provider_url.split('//')[1]
+                output = {
+                    f"{oidc_issuer}:aud": "sts.amazonaws.com",
+                    f"{oidc_issuer}:sub": "system:serviceaccount:kube-system:aws-node"
+                }
+            Effect: Allow
+            Principal:
+              Federated:
+                Fn::Join:
+                  - ''
+                  - - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/'
+                    - Fn::Select:
+                        - 1
+                        - Fn::Split:
+                          - '//'
+                          - Ref: 'OIDCProviderURL'
+        Version: '2012-10-17'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+Transform: [ TensorkubePyPlate ]
+Outputs:
+  Role1:
+    Value:
+      Fn::GetAtt:
+        - Role1
+        - Arn

@@ -1,0 +1,56 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: rootless-overlay
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+    spec:
+      containers:
+        - name: user-container
+          image: ubuntu:latest
+          imagePullPolicy: Always
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              unagit me -r
+              mkdir -p /mnt/local/upper /mnt/local/work /mnt/local/overlay
+              mount -t overlay overlay -o lowerdir=/mnt/efs/lower,upperdir=/mnt/local/upper,workdir=/mnt/local/work /mnt/local/overlay
+              ls /mnt/local/overlay
+              cat /mnt/local/overlay/krishna
+              echo "Jai Hanuman ji ki" >> /mnt/local/overlay/krishna
+              if [ -f /mnt/local/overlay/krishna ]; then
+                echo "File exists in overlay filesystem"
+                cat /mnt/local/overlay/krishna
+              else
+                echo "File does not exist in overlay filesystem"
+              fi
+              # Check the presence of the file in the upper and lower layers
+              if [ -f /mnt/local/upper/krishna ]; then
+                echo "File exists in the upper (write) layer"
+              else
+                echo "File does not exist in the upper (write) layer"
+              fi
+              if [ -f /mnt/efs/lower/krishna ]; then
+                echo "File exists in the lower (read-only) layer"
+                cat /mnt/efs/lower/krishna
+              else
+                echo "File does not exist in the lower (read-only) layer"
+              fi
+              exec /bin/bash
+          volumeMounts:
+#          - name: efs-storage
+#            mountPath: /mnt/efs
+          - name: local-mount
+            mountPath: /mnt/local
+          securityContext:
+            capabilities:
+              add: ["SYS_ADMIN"]
+      volumes:
+#      - name: efs-storage
+#        persistentVolumeClaim:
+#          claimName: efs-pvc
+      - name: local-mount
+        emptyDir: {}

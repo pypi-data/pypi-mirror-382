@@ -1,0 +1,213 @@
+helmDefaults:
+  wait: true
+  timeout: 600
+  createNamespace: true
+
+values:
+  - /tmp/values.yaml
+
+repositories:
+- name: ecr
+  oci: true
+  url: public.ecr.aws
+- name: istio
+  url: https://istio-release.storage.googleapis.com/charts
+- name: nvdp
+  url: https://nvidia.github.io/k8s-device-plugin
+- name: kedacore
+  url: https://kedacore.github.io/charts
+
+releases:
+- name: karpenter-crd
+  namespace: kube-system
+  chart: ecr/karpenter/karpenter-crd
+  version: {{.Values.karpenterVersion}}
+  createNamespace: true
+  wait: true
+  set:
+  - name: webhook.enabled
+    value: true
+  - name: webhook.serviceName
+    value: karpenter
+  - name: webhook.port
+    value: 8443
+
+
+- name: karpenter
+  namespace: kube-system
+  needs:
+    - kube-system/karpenter-crd
+  chart: ecr/karpenter/karpenter
+  version: {{.Values.karpenterVersion}}
+  createNamespace: true
+  wait: true
+  set:
+  - name: settings.clusterName
+    value: {{ .Values.clusterName }}
+  - name: settings.interruptionQueue
+    value: {{ .Values.clusterName }}
+  - name: controller.resources.requests.cpu
+    value: 1
+  - name: controller.resources.requests.memory
+    value: 1Gi
+  - name: controller.resources.limits.cpu
+    value: 1
+  - name: controller.resources.limits.memory
+    value: 1Gi
+  - name: settings.featureGates.nodeRepair
+    value: true
+
+- name: karpenter-configuration
+  needs:
+    - kube-system/karpenter
+  chart: "ecr/{{ .Values.tkHelmChartsRepoId }}/tensorfuse/helm-charts/tk-karpenter-config"
+  version: {{.Values.karpenterConfigVersion}}
+  values:
+    - clusterName: {{ .Values.clusterName }}
+    - gpuNodepoolVersion: {{ .Values.gpuNodepoolVersion }}
+    - karpenterTopologyZoneValues:
+      {{- range .Values.karpenterConfigTopologyZoneValues }}
+        - {{.}}
+      {{- end }}
+
+
+- name: istio-base
+  namespace: istio-system
+  chart: istio/base
+  version: {{.Values.istioVersion}}
+  set:
+  - name: defaultRevision
+    value: default
+
+- name: istiod
+  chart: istio/istiod
+  namespace: istio-system
+  version: {{.Values.istioVersion}}
+  set:
+    - name: affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key
+      value: "alpha.eksctl.io/nodegroup-name"
+    - name: affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator
+      value: In
+    - name: affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+      value: {{ .Values.managedNodeGroupName }}
+  needs:
+    - istio-system/istio-base
+
+- name: istio-ingressgateway
+  chart: istio/gateway
+  namespace: istio-system
+  version: {{.Values.istioVersion}}
+  needs:
+    - istio-system/istiod
+  values:
+    - service:
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout: "600"
+    - affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: "alpha.eksctl.io/nodegroup-name"
+                  operator: In
+                  values:
+                    - {{ .Values.managedNodeGroupName }}
+
+
+- name: knative-crds
+  needs:
+    - istio-system/istio-ingressgateway
+  chart: "ecr/{{ .Values.tkHelmChartsRepoId }}/tensorfuse/helm-charts/tk-knative-crds"
+  version: {{.Values.knativeCrdsVersion}}
+
+- name: knative-core
+  needs:
+    - knative-crds
+  chart: "ecr/{{ .Values.tkHelmChartsRepoId }}/tensorfuse/helm-charts/tk-knative-core"
+  version: {{.Values.knativeCoreVersion}}
+
+- name: knative-net-istio
+  needs:
+    - knative-core
+  chart: "ecr/{{ .Values.tkHelmChartsRepoId }}/tensorfuse/helm-charts/tk-knative-net-istio"
+  version: {{.Values.knativeNetIstioVersion}}
+
+
+- name: nvidia-device-plugin
+  chart: nvdp/nvidia-device-plugin
+  namespace: nvidia-device-plugin
+  version: {{.Values.nvidiaDevicePluginVersion}}
+  values:
+    - failOnInitError: false
+    - selectorLabelsOverride:
+        name: nvidia-device-plugin-ds
+
+- name: keda
+  chart: kedacore/keda
+  namespace: keda
+  version: {{.Values.kedaVersion}}
+  set:
+    - name: podIdentity.aws.irsa.enabled
+      value: true
+    - name: podIdentity.aws.irsa.roleArn
+      value: {{ .Values.sqsAccessRoleArn }}
+    - name: affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key
+      value: "alpha.eksctl.io/nodegroup-name"
+    - name: affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator
+      value: In
+    - name: affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+      value: {{ .Values.managedNodeGroupName }}
+
+- name: job-queue-resources
+  chart: "ecr/{{ .Values.tkHelmChartsRepoId }}/tensorfuse/helm-charts/tk-job-queue"
+  version: {{.Values.jobQueuesChartVersion}}
+  namespace: keda
+  needs:
+    - keda
+  set:
+    - name: sqsAccessRoleArn
+      value: {{ .Values.sqsAccessRoleArn }}
+
+
+- name: job-queue-sa-role-rb
+  chart: "ecr/{{ .Values.tkHelmChartsRepoId }}/tensorfuse/helm-charts/tk-sa-role-rb"
+  version: {{.Values.saRoleRbChartVersion}}
+  namespace: keda
+  values:
+    - namespace: keda
+    - roleRules:
+        - apiGroups:
+            - ""
+          resources:
+            - pods
+          verbs:
+            - get
+            - list
+    - serviceAccountISRARoleArn: {{ .Values.jobQueueISRARoleArn }}
+    - serviceAccountName: "job-queue-sidecar-keda-sa-v2"
+    - k8sRoleName: "job-queue-sidecar-keda-role"
+    - rbName: "job-queue-sidecar-keda-rb-v2"
+
+- name: nydus-snapshotter
+  chart: "ecr/{{ .Values.tkHelmChartsRepoId }}/tensorfuse/helm-charts/nydus-snapshotter"
+  version: {{.Values.nydusSnapshotterChartVersion}}
+  namespace: nydus-snapshotter
+  set:
+  - name: nodeSelector.nodepool
+    value: "{{ .Values.gpuNodepoolVersion }}-nodepool"
+
+- name: default-environment-resources
+  chart: "ecr/{{ .Values.tkHelmChartsRepoId }}/tensorfuse/helm-charts/tk-env"
+  version: {{.Values.tkEnvChartVersion}}
+  namespace: default
+  set:
+    - name: envName
+      value: {{ .Values.envName }}
+    - name: clusterName
+      value: {{ .Values.clusterName }}
+    - name: bucketName
+      value: {{ .Values.defaultEnvBuildBucketName }}
+    - name: region
+      value: {{ .Values.region }}
+    - name: buildkitISRARoleArn
+      value: {{ .Values.buildkitISRARoleArn }}

@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Resources to configure AWS Lambda with access to the cluster"
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "Cluster Name"
+  EksAccessLambdaRepoURI:
+    Type: String
+    Description: "URI of the EKS access Lambda repository"
+  EksAccessLambdaFunctionImageVersion:
+    Type: String
+    Description: "Version of the EKS access Lambda function image"
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: describe-tensorkube-cluster
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - eks:DescribeCluster
+                Resource: !Sub "arn:aws:eks:${AWS::Region}:${AWS::AccountId}:cluster/${ClusterName}"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+        - PolicyName: RoleTrustPolicyUpdateAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:GetRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${ClusterName}-*"
+        - PolicyName: DescribeAvailabilityZones
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeAvailabilityZones
+                Resource: "*"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+
+
+  ClusterAccessEntry:
+    Type: AWS::EKS::AccessEntry
+    Properties:
+      ClusterName: !Ref ClusterName
+      PrincipalArn: !GetAtt LambdaExecutionRole.Arn
+      AccessPolicies:
+        - AccessScope:
+            Type: cluster
+          PolicyArn: "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+      Tags:
+        - Key: CreatedBy
+          Value: Tensorfuse
+        - Key: ClusterName
+          Value: !Ref ClusterName
+    DependsOn: LambdaExecutionRole
+
+  ClusterAccessFunction:
+      Type: AWS::Lambda::Function
+      Properties:
+        PackageType: Image
+        Code:
+          ImageUri: !Sub "${EksAccessLambdaRepoURI}:${EksAccessLambdaFunctionImageVersion}"
+        Role: !GetAtt LambdaExecutionRole.Arn
+        Timeout: 900
+        MemorySize: 1024
+        EphemeralStorage:
+          Size: 2048
+        Environment:
+          Variables:
+            CLUSTER_NAME: !Ref ClusterName
+        Description: "Lambda function to access the cluster"
+        Tags:
+          - Key: CreatedBy
+            Value: Tensorfuse
+          - Key: ClusterName
+            Value: !Ref ClusterName
+      DependsOn:
+        - ClusterAccessEntry
+
+Outputs:
+  LambdaFunction:
+    Value: !Ref ClusterAccessFunction
+    Description: "Lambda function to access the cluster"
+  LambdaFunctionArn:
+    Value: !GetAtt ClusterAccessFunction.Arn
+    Description: "ARN of the Lambda function"

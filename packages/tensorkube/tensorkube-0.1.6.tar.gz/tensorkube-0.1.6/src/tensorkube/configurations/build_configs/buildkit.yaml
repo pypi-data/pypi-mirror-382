@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: buildkit
+spec:
+  backoffLimit: 0
+  template:
+    serviceAccountName: $DUMMY_SA
+    spec:
+      containers:
+        - name: buildkit
+          image: tensorfuse/buildkit:v3
+          command: #TODO
+            - /bin/sh
+            - -c
+            - |
+              apk add --no-cache curl unzip aws-cli docker
+              aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ACCNO.dkr.ecr.us-east-1.amazonaws.com
+              buildctl-daemonless.sh build --frontend dockerfile.v0 --local context=/data/build/PROJECT --local dockerfile=/data/build/PROJECT --output type=tar,dest=/data/images/PROJECT.tar
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              ephemeral-storage: "100Gi"
+              cpu: 6
+              memory: "24Gi"
+            limits:
+              cpu: 6
+              memory: "24Gi"
+          env:
+          - name: AWS_DEFAULT_REGION
+            value: REGION #TODO
+          volumeMounts:
+            - name: persistent-storage
+              mountPath: /data
+#            - name: efs-pvc
+#              mountPath: /mnt/efs
+      restartPolicy: Never
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: karpenter.k8s.aws/instance-family
+                    operator: NotIn
+                    values: ['g4dn', 'g5', 'g5g', 'g6', 'g6e', 'p2', 'p3', 'p3dn', 'p4d', 'p5']
+
+      volumes:
+        - name: persistent-storage
+          persistentVolumeClaim:
+            claimName: s3-claim
+#        - name: efs-pvc
+#          persistentVolumeClaim:
+#            claimName: efs-pvc
