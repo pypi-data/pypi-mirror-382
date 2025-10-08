@@ -1,0 +1,1 @@
+A simple text processing library.
