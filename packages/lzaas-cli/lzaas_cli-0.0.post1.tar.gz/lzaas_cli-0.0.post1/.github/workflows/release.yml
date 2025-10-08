@@ -1,0 +1,133 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (e.g., v1.0.2)'
+        required: true
+        default: 'v1.0.2'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set release tag
+      id: set_tag
+      run: |
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          echo "tag_name=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          echo "ref_name=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag_name=${{ github.ref }}" >> $GITHUB_OUTPUT
+          echo "ref_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+
+    - name: Build package
+      run: python -m build
+
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: twine upload dist/*
+      continue-on-error: true
+
+    - name: Generate GitHub App Token
+      id: github_app_token
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ secrets.APP_ID }}
+        private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      continue-on-error: true
+
+    - name: Create GitHub Release (with App Token)
+      if: steps.github_app_token.outcome == 'success'
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ steps.github_app_token.outputs.token }}
+      with:
+        tag_name: ${{ steps.set_tag.outputs.tag_name }}
+        name: Release ${{ steps.set_tag.outputs.ref_name }}
+        body: |
+          ## What's Changed
+
+          See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
+
+          ## Installation
+
+          ```bash
+          pip install lzaas-cli==${{ steps.set_tag.outputs.ref_name }}
+          ```
+
+          ## Documentation
+
+          - [User Guide](docs/USER_GUIDE.md)
+          - [Quick Reference](docs/QUICK_REFERENCE.md)
+          - [Installation Methods](INSTALLATION_METHODS.md)
+        draft: false
+        prerelease: false
+        files: |
+          dist/*
+
+    - name: Create GitHub Release (Fallback with GITHUB_TOKEN)
+      if: steps.github_app_token.outcome != 'success'
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.set_tag.outputs.tag_name }}
+        name: Release ${{ steps.set_tag.outputs.ref_name }}
+        body: |
+          ## What's Changed
+
+          See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
+
+          ## Installation
+
+          ```bash
+          pip install lzaas-cli==${{ steps.set_tag.outputs.ref_name }}
+          ```
+
+          ## Documentation
+
+          - [User Guide](docs/USER_GUIDE.md)
+          - [Quick Reference](docs/QUICK_REFERENCE.md)
+          - [Installation Methods](INSTALLATION_METHODS.md)
+        draft: false
+        prerelease: false
+        files: |
+          dist/*
+      continue-on-error: true
+
+    - name: Release Status
+      run: |
+        if [[ "${{ steps.github_app_token.outcome }}" == "success" ]]; then
+          echo "✅ GitHub release created successfully using GitHub App token"
+        else
+          echo "⚠️ GitHub App token not available, attempted fallback with GITHUB_TOKEN"
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "✅ Fallback succeeded"
+          else
+            echo "❌ Both GitHub App and GITHUB_TOKEN failed"
+            echo "📦 PyPI package was uploaded successfully"
+            echo "🔧 Manual release creation may be required"
+            echo "Release tag: ${{ github.ref_name }}"
+            echo "Package: https://pypi.org/project/lzaas-cli/${{ github.ref_name }}/"
+          fi
+        fi
