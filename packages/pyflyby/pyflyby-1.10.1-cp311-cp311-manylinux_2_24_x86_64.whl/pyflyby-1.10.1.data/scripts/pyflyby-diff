@@ -1,0 +1,34 @@
+#!/usr/bin/env -S bash -e
+
+# License for THIS FILE ONLY: CC0 Public Domain Dedication
+# http://creativecommons.org/publicdomain/zero/1.0/
+
+# Get the directory containing to the symlink target of the script.
+if script=$(readlink -e "$0" 2>/dev/null) && [[ "$script" -ef "$0" ]]; then
+    scriptdir=$(dirname "$script")
+elif script=$(realpath "$0" 2>/dev/null) && [[ "$script" -ef "$0" ]]; then
+    scriptdir=$(dirname "$script")
+elif script=$(greadlink -e "$0" 2>/dev/null) && [[ "$script" -ef "$0" ]]; then
+    scriptdir=$(dirname "$script")
+else
+    scriptdir=$(
+        d=$(dirname "$0")
+        b=$(basename "$0")
+        cd "$d"
+        if l=$(readlink "$b"); then
+            ld=$(dirname "$l")
+            cd "$ld"
+        fi
+        pwd
+    )
+fi
+
+libexecdir="$scriptdir/../libexec/pyflyby"
+
+PATH="$scriptdir:$libexecdir:$PATH"
+
+if [[ -t 1 ]] && type -p diff-colorize >/dev/null; then
+    diff -u "$@" | diff-colorize
+else
+    diff -u "$@"
+fi
