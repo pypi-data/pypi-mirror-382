@@ -1,0 +1,277 @@
+Metadata-Version: 2.4
+Name: gym-mcp-server
+Version: 0.1.0
+Summary: Expose any Gymnasium environment as an MCP server
+Project-URL: Homepage, https://github.com/haggaishachar/gym-mcp-server
+Project-URL: Repository, https://github.com/haggaishachar/gym-mcp-server
+Project-URL: Issues, https://github.com/haggaishachar/gym-mcp-server/issues
+Author: Haggai Shachar
+License: MIT
+Keywords: agents,ai,gym,gymnasium,mcp,model-context-protocol,reinforcement-learning
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.12
+Requires-Dist: gymnasium>=0.29.0
+Requires-Dist: numpy>=1.21.0
+Requires-Dist: pillow>=8.0.0
+Provides-Extra: dev
+Requires-Dist: black>=22.0.0; extra == 'dev'
+Requires-Dist: flake8>=5.0.0; extra == 'dev'
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Provides-Extra: docs
+Requires-Dist: sphinx-rtd-theme>=1.0.0; extra == 'docs'
+Requires-Dist: sphinx>=5.0.0; extra == 'docs'
+Provides-Extra: examples
+Requires-Dist: jupyter>=1.0.0; extra == 'examples'
+Requires-Dist: matplotlib>=3.5.0; extra == 'examples'
+Description-Content-Type: text/markdown
+
+# Gym MCP Server
+
+Expose any Gymnasium environment as an MCP (Model Context Protocol) server, automatically converting the Gym API (`reset`, `step`, `render`) into MCP tools that any agent can call via standard JSON interfaces.
+
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Test Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen.svg)](htmlcov/index.html)
+
+## Features
+
+- 🎮 Works with any Gymnasium environment
+- 🔧 Exposes gym operations as MCP tools (`reset`, `step`, `render`, etc.)
+- 🚀 Simple API with automatic serialization and error handling
+- 🤖 Designed for AI agent integration (OpenAI Agents SDK, LangChain, etc.)
+- 🔍 Type safe with full type hints
+
+## Installation
+
+```bash
+pip install gym-mcp-server
+```
+
+**Requirements:** Python 3.12+
+
+## Quick Start
+
+### Interactive Mode
+
+Test the server interactively:
+
+```bash
+python -m gym_mcp_server --env CartPole-v1 --interactive
+```
+
+```
+> reset
+Reset result: {
+  "observation": [0.012, -0.034, 0.045, 0.067],
+  "info": {},
+  "done": false,
+  "success": true
+}
+
+> step 1
+Step result: {
+  "observation": [0.015, 0.123, 0.042, -0.234],
+  "reward": 1.0,
+  "done": false,
+  "truncated": false,
+  "info": {},
+  "success": true
+}
+```
+
+### Programmatic Usage
+
+```python
+from gym_mcp_server import GymMCPAdapter
+
+# Initialize the adapter
+adapter = GymMCPAdapter("CartPole-v1")
+
+# Reset the environment
+result = adapter.call_tool("reset_env")
+obs = result["observation"]
+
+# Take an action
+result = adapter.call_tool("step_env", action=1)
+reward = result["reward"]
+done = result["done"]
+
+# Clean up
+adapter.call_tool("close_env")
+```
+
+## Available Tools
+
+The server exposes these MCP tools:
+
+- **`reset_env`** - Reset to initial state (optional `seed`)
+- **`step_env`** - Take an action (required `action`)
+- **`render_env`** - Render current state (optional `mode`)
+- **`close_env`** - Close environment and free resources
+- **`get_env_info`** - Get environment metadata
+- **`get_available_tools`** - List all available tools
+
+All tools return a standardized format:
+
+```python
+{
+    "success": bool,  # Whether the operation succeeded
+    "error": str,     # Error message (if success=False)
+    # ... tool-specific data
+}
+```
+
+## Examples
+
+### Simple Control Loop
+
+```python
+from gym_mcp_server import GymMCPAdapter
+
+adapter = GymMCPAdapter("CartPole-v1")
+obs = adapter.call_tool("reset_env")["observation"]
+done = False
+
+while not done:
+    # Simple policy: move right if pole angle is positive
+    action = 1 if obs[2] > 0 else 0
+    result = adapter.call_tool("step_env", action=action)
+    obs = result["observation"]
+    done = result["done"]
+    print(f"Reward: {result['reward']}")
+
+adapter.call_tool("close_env")
+```
+
+### Random Agent
+
+```python
+import random
+from gym_mcp_server import GymMCPAdapter
+
+adapter = GymMCPAdapter("CartPole-v1")
+
+for episode in range(5):
+    adapter.call_tool("reset_env")
+    done = False
+    total_reward = 0
+    
+    while not done:
+        action = random.randint(0, 1)
+        result = adapter.call_tool("step_env", action=action)
+        done = result["done"]
+        total_reward += result["reward"]
+    
+    print(f"Episode {episode + 1}: {total_reward:.2f}")
+
+adapter.call_tool("close_env")
+```
+
+### Environment Information
+
+```python
+from gym_mcp_server import GymMCPAdapter
+
+adapter = GymMCPAdapter("CartPole-v1")
+info = adapter.call_tool("get_env_info")
+
+print(f"Action Space: {info['env_info']['action_space']}")
+print(f"Observation Space: {info['env_info']['observation_space']}")
+
+adapter.call_tool("close_env")
+```
+
+## AI Agent Integration
+
+Works seamlessly with AI agent frameworks:
+
+```python
+from agents import Agent
+from gym_mcp_server import GymMCPAdapter
+
+adapter = GymMCPAdapter("CartPole-v1")
+agent = Agent(name="GymAgent", instructions="Control the CartPole")
+
+# Your agent can interact with the gym environment through MCP tools
+```
+
+Compatible with:
+- OpenAI Agents SDK
+- LangChain
+- AutoGPT
+- Any MCP-compatible framework
+
+## Configuration
+
+### Environment Variables
+
+- `GYM_MCP_HOST`: Host to bind to (default: localhost)
+- `GYM_MCP_PORT`: Port to bind to (default: 8000)
+- `GYM_MCP_RENDER_MODE`: Default render mode (default: ansi)
+
+### Command Line Options
+
+```bash
+python -m gym_mcp_server --help
+```
+
+- `--env`: Gymnasium environment ID (required)
+- `--render-mode`: Default render mode
+- `--interactive`: Run in interactive mode
+- `--host`: Host to bind to
+- `--port`: Port to bind to
+
+## Troubleshooting
+
+### Environment-Specific Dependencies
+
+Some environments require additional packages:
+
+```bash
+pip install gymnasium[atari]   # For Atari environments
+pip install gymnasium[box2d]   # For Box2D environments
+pip install gymnasium[mujoco]  # For MuJoCo environments
+```
+
+### Python Version
+
+Ensure you're using Python 3.12+:
+
+```bash
+python --version  # Should show 3.12 or higher
+```
+
+## Development
+
+For development and testing:
+
+```bash
+git clone https://github.com/haggaishachar/gym-mcp-server.git
+cd gym-mcp-server
+make install-dev  # Install with dev dependencies
+make check        # Run all checks (format, lint, typecheck, test)
+```
+
+See the [Makefile](Makefile) for all available commands.
+
+## License
+
+MIT License - see the LICENSE file for details.
+
+## Links
+
+- [GitHub Repository](https://github.com/haggaishachar/gym-mcp-server)
+- [Gymnasium Documentation](https://gymnasium.farama.org/)
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+
