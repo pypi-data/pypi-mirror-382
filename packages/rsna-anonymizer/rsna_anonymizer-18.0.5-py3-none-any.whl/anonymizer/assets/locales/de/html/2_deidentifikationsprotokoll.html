@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<!-- Liste der von tkhtmlview unterstützten HTML-Tags:
+siehe https://github.com/bauripalash/tkhtmlview?tab=readme-ov-file#html-support -->
+<html>
+<body>
+<div style="color: THEME_COLOR;font-size: 14px;">
+
+	<h3>DICOM Standard zur De-Identifikation</h3>
+		<p>
+		In <a href="https://dicom.nema.org/medical/dicom/2023b/output/chtml/part15/chapter_E.html">PS 3.15 Anhang E</a> spezifiziert der DICOM-Standard eine Reihe von De-Identifikationsregeln für verschiedene Situationen.
+		Die Regeln sind in ein Basisanwendungskonfidentialitätsprofil gruppiert, das alle geschützten Gesundheitsdaten (PHI) entfernt, sowie in eine Reihe von Optionen, die bestimmte Klassen von PHI in bestimmten Fällen entspannen können.
+		Die nachfolgenden Abschnitte beschreiben das von der Anonymisierungssoftware implementierte De-Identifikationsprotokoll unter Bezugnahme auf das DICOM-Profil und seine Optionen.
+		</p>
+		<h4>113100: Basisanwendungskonfidentialitätsprofil</h4>
+		Das RSNA DICOM Anonymizer-Programm implementiert das Basiskonfigurationsprofil.
+		Das Programm importiert entweder den Standort-Identifier (SiteID und UIDRoot) aus einer Index-Excel-Datei, die vom Java-Anonymizer exportiert wurde, oder generiert automatisch einen neuen eindeutigen SiteID und verwendet einen Standard-UIDRoot.
+		Die Elemente PatientName (0010,0010) und PatientID (0010,0020) werden durch die Zuweisung sequenzieller Integer zu eindeutigen PHI-Patienten-IDs modifiziert, sobald sie auf sie stoßen.
+		Die sequenzielle Ganzzahl wird dem SiteID-Parameter angehängt, was eine Zeichenfolge in der Form [SiteID]-[sequenzielle Ganzzahl] ergibt, die für beide Elemente verwendet wird.
+		Wenn die PHI-Patienten-ID fehlt oder leer ist, weist das Programm [SiteID]-000000 den Elementen PatientID und PatientName zu.
+		Das Programm führt eine Datenbank, um sicherzustellen, dass alle Studien desselben Patienten auf die gleiche Weise de-identifiziert werden.
+		<ol>
+		<li>UIDs werden durch solche ersetzt, die mit dem Format generiert sind: [UIDRoot].[SiteID].[sequenzielle Ganzzahl]</li>
+		<li>Alle UIDs werden in Gruppen entfernt.</li>
+		<li>Alle Elemente in den Gruppen 0032 bis 4008 werden entfernt.</li>
+		<li>Alle privaten Gruppen werden entfernt.</li> 
+		<li>Das Element PatientIdentityRemoved (0012,0062) wird der Wert "YES" zugewiesen.</li> 
+		<li>Das Element DeIdentificationMethod (0012,0063) wird der Wert "RSNA DICOM ANONYMIZER" zugewiesen.</li> 
+		<li>113100 wird dem Element DeIdentificationMethodCodeSequence (0012,0064) angehängt.</li>
+		<li>Ein privater Block: 0x0013 wird erstellt und der Wert "RSNA" zugewiesen, der Projektname und die SiteID werden zu diesem Block hinzugefügt.</li>
+		</ol>
+		<h4>113101: Option zur Bereinigung von Pixeldaten</h4>
+		<p>Nicht implementiert.</p>
+		<h4>113102: Option zur Bereinigung erkennbarer visueller Merkmale</h4>
+		<p>Nicht implementiert.</p>
+		<h4>113103: Option zur Bereinigung von Grafiken</h4>
+		<p>Nicht implementiert, aber Kurven- und Overlay-Gruppen (5XXX und 6XXX) werden entfernt.</p>
+		<h4>113104: Option zur Bereinigung strukturierter Inhalte</h4>
+		<p>Nicht implementiert, jedoch können Projekteinstellungen SR (Structured Report)-bezogene Speicherklassen erlauben/verbieten.</p>
+		<h4>113105: Option zur Bereinigung von Beschreibungen</h4>
+		<p>Diese Option ist teilweise implementiert. Es werden nur die folgenden durch die Option definierten Elemente behalten:</p> 
+		<ul>
+			<li>(0008,1030) StudyDescription </li> 
+			<li>(0008,103e) SeriesDescription</li>
+		</ul>
+		<h4>113106: Option zum Beibehalten der longitudinalen zeitlichen Informationen (vollständige Daten)</h4>
+		<p>Nicht implementiert.</p>
+		<h4>113107: Option zum Beibehalten der longitudinalen zeitlichen Informationen (modifizierte Daten)</h4>
+		<p>Diese Option ist teilweise implementiert.</p>
+		<ul>
+			<li>Alle Datumsangaben werden durch Berechnen des MD5-Hashs von PHI-Patienten-ID modifiziert.</li>
+			<li>Der Ganzzahlwert des Hashs wird durch die Anzahl der Tage in 10 Jahren (3652) geteilt, und der Rest wird verwendet, um das zu modifizierende Datum zu verschieben.</li>
+			<li>Dadurch bleiben die zeitlichen Beziehungen zwischen Studien eines einzelnen Patienten erhalten, während verschiedene Verschiebungen für verschiedene Patienten verwendet werden.</li>
+			<li>Zeit (Tageszeit)-Elemente werden nicht modifiziert.</li>
+			<li>113107 wird dem Element DeIdentificationMethodCodeSequence (0012,0064) angehängt.</li>
+		</ul>
+		<h4>113108: Option zum Beibehalten von Patienteneigenschaften</h4>
+		<p>Diese Option ist teilweise implementiert. Es werden nur die folgenden durch die Option definierten Elemente behalten:</p>
+		<ul>
+			<li>(0010,0040) PatientSex</li>
+			<li>(0010,1010) PatientAge</li>
+			<li>(0010,1020) PatientSize</li>
+			<li>(0010,1030) PatientWeight</li>
+			<li>(0010,2160) EthnicGroup</li>
+			<li>(90010,21a0) SmokingStatus</li>
+			<li>113108 wird dem Element DeIdentificationMethodCodeSequence (0012,0064) angehängt.</li>
+		</ul>
+		<h4>113109: Option zum Beibehalten der Geräteidentität</h4>
+		<p>Diese Option ist teilweise implementiert. Es werden nur die folgenden durch die Option definierten Elemente behalten:</p>
+		<ul>
+			<li>(0008,0070) Manufacturer</li>
+			<li>(0008,1090) ManufacturerModelName</li>
+			<li>113109 wird dem Element DeIdentificationMethodCodeSequence (0012,0064) angehängt.</li>
+		</ul>
+		<h4>113110: Option zum Beibehalten von UIDs</h4>
+		<p>Nicht implementiert.</p>
+		<h4>113111: Option zum Beibehalten sicherer privater Daten</h4>
+		<p>Nicht implementiert.</p>
+	
+</div>
+</body>
+</html>
