@@ -1,0 +1,140 @@
+name: Automated Agent PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
+
+jobs:
+  identify-agent:
+    runs-on: ubuntu-latest
+    outputs:
+      agent: ${{ steps.extract.outputs.agent }}
+      task_id: ${{ steps.extract.outputs.task_id }}
+    steps:
+      - name: Extract agent from branch name
+        id: extract
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          if [[ $BRANCH =~ ^agent-([a-z]+)-([A-Z0-9]+) ]]; then
+            echo "agent=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+            echo "task_id=${BASH_REMATCH[2]}" >> $GITHUB_OUTPUT
+          fi
+
+  invoke-claude-review:
+    needs: identify-agent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          
+      - name: Get PR diff
+        id: diff
+        run: |
+          gh pr diff ${{ github.event.pull_request.number }} > pr_diff.txt
+          
+      - name: Get changed files
+        id: files
+        run: |
+          gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[].path' > changed_files.txt
+          
+      - name: Create review prompt
+        id: prompt
+        run: |
+          cat > review_prompt.md << 'EOF'
+          # PR Review Request
+          
+          **PR Number**: ${{ github.event.pull_request.number }}
+          **Agent**: ${{ needs.identify-agent.outputs.agent }}
+          **Task**: ${{ needs.identify-agent.outputs.task_id }}
+          **Title**: ${{ github.event.pull_request.title }}
+          
+          ## Files Changed
+          $(cat changed_files.txt)
+          
+          ## Review Requirements
+          1. Security vulnerabilities
+          2. Code quality and standards
+          3. Test coverage
+          4. Integration issues
+          5. Performance impacts
+          
+          ## Diff
+          ```diff
+          $(cat pr_diff.txt | head -500)
+          ```
+          
+          Please review and provide:
+          - Approval status (approve/request-changes)
+          - Specific issues found
+          - Suggestions for improvement
+          EOF
+          
+      # This is where we need to invoke @claude
+      # Options:
+      # 1. Use Claude API directly if available
+      # 2. Use a webhook to trigger external service
+      # 3. Create a review request that gets picked up by monitoring
+      
+      - name: Post review request comment
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "@claude-review-requested
+
+          **Automated Review Request**
+          
+          Agent: @${{ needs.identify-agent.outputs.agent }}
+          Task: ${{ needs.identify-agent.outputs.task_id }}
+          
+          Review needed for:
+          - Security check
+          - Code standards
+          - Test coverage
+          - Integration compatibility
+          
+          [Review Details](review_prompt.md)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  create-feedback-issue:
+    needs: [identify-agent, invoke-claude-review]
+    runs-on: ubuntu-latest
+    if: failure() || contains(github.event.pull_request.labels.*.name, 'needs-changes')
+    steps:
+      - name: Create feedback issue for agent
+        run: |
+          gh issue create \
+            --title "Review Feedback: ${{ needs.identify-agent.outputs.task_id }}" \
+            --assignee "${{ needs.identify-agent.outputs.agent }}-bot" \
+            --label "review-feedback" \
+            --body "## Review Feedback for PR #${{ github.event.pull_request.number }}
+            
+            Task: ${{ needs.identify-agent.outputs.task_id }}
+            Agent: @${{ needs.identify-agent.outputs.agent }}
+            
+            ### Required Changes
+            See PR review comments: #${{ github.event.pull_request.number }}
+            
+            ### Next Steps
+            1. Address review feedback
+            2. Push fixes to branch
+            3. Request re-review
+            
+            This issue will auto-close when PR is approved."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  auto-merge:
+    needs: [identify-agent, invoke-claude-review]
+    runs-on: ubuntu-latest
+    if: success() && contains(github.event.pull_request.labels.*.name, 'approved')
+    steps:
+      - name: Auto-merge approved PR
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --merge \
+            --auto \
+            --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
