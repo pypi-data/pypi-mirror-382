@@ -1,0 +1,44 @@
+name: Run unit tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    env:
+      PYTHON_VERSION: ${{ matrix.python-version }}
+
+    steps:
+    # Checkout the repository to the runner
+    - name: Check out the code
+      uses: actions/checkout@v4
+
+    # Set up Python environment
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y g++ libomp-dev
+        python -m pip install --upgrade pip
+
+    # Run pytest on the tests directory
+    - name: Run tests with pytest
+      run: |
+        python -m pip install .[test]
+        echo "PYTHONPATH=$(pwd)/src/python" >> $GITHUB_ENV
+        python -m pytest ./tests
