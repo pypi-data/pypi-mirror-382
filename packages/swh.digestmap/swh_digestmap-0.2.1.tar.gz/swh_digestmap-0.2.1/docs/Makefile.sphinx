@@ -1,0 +1,53 @@
+# Makefile to be included by other modules, from the TOPLEVEL/docs/ dir, to
+# automatically build sphinx documentation.
+
+APIDOC_DIR = apidoc
+APIDOC_OPTS = --ext-viewcode --separate --implicit-namespaces
+SPHINXBUILD = sphinx-build
+SPHINXAPIDOC = sphinx-apidoc
+SPHINX_OPTS = -t standalone_package_doc
+SPHINX_BUILDDIR = _build
+SPHINX_SRCDIR = .
+
+# relative to docs/ dir. Hence "." exclude the docs/ dir itself
+APIDOC_EXCLUDES = . conftest.py setup.py
+APIDOC_EXCLUDES += */tests/* */migrations/* */wsgi.py */conftest.py
+APIDOC_EXCLUDES += */deposit/settings/* */web/settings/*
+APIDOC_EXCLUDES += bin build dist utils node_modules
+APIDOC_SWH_EXCLUDES = $(patsubst %,"../%",$(APIDOC_EXCLUDES))
+
+html: sphinx/html
+help: sphinx/help
+
+# allow to skip apidoc generation, for modules where the overall documentation
+# structure, table of contents, etc., is manually curated
+ifeq ($(SKIP_APIDOC),yes)
+apidoc_dep =
+else
+apidoc_dep = apidoc-stamp
+endif
+
+sphinx/clean:
+	$(SPHINXBUILD) -M clean $(SPHINX_SRCDIR) $(SPHINX_BUILDDIR) $(SPHINX_OPTS) $(SPHINXOPTS)
+sphinx/%: $(apidoc_dep)
+	$(SPHINXBUILD) -b $* $(SPHINX_SRCDIR) $(SPHINX_BUILDDIR)/$* $(SPHINX_OPTS) $(SPHINXOPTS)
+
+apidoc: $(apidoc_dep)
+apidoc-stamp:
+	$(SPHINXAPIDOC) $(APIDOC_OPTS) -o $(APIDOC_DIR) `if [ -d ../src/swh ]; then echo ../src/swh; else echo ../swh; fi` $(APIDOC_SWH_EXCLUDES)
+	# to silent Sphinx warnings about apidoc documents not included in any toctree
+	find $(shell pwd)/apidoc -name "*.rst" | xargs sed -i '1i:orphan:\n'
+	touch $@
+
+assets:
+
+.PHONY: clean clean-apidoc
+clean: sphinx/clean clean-apidoc
+clean-apidoc:
+	rm -rf $(APIDOC_DIR)
+	rm -f *-stamp
+
+
+# Local Variables:
+# mode: makefile
+# End:
