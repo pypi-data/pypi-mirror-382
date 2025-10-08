@@ -1,0 +1,146 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      lang="en"
+      metal:use-macro="context/prefs_main_template/macros/master"
+      xml:lang="en"
+      i18n:domain="plone"
+>
+
+  <metal:block fill-slot="top_slot">
+    <metal:override define-slot="top_slot">
+      <tal:defines tal:define="
+                     dummy python:request.set('disable_toolbar',1);
+                     disable_column_one python:request.set('disable_plone.leftcolumn', 1);
+                     disable_column_two python:request.set('disable_plone.rightcolumn', 1);
+                   " />
+    </metal:override>
+  </metal:block>
+
+  <body>
+
+
+    <metal:main metal:fill-slot="prefs_configlet_main"
+                i18n:domain="plone"
+    >
+
+      <a id="setup-link"
+         href=""
+         tal:attributes="
+           href string:$portal_url/@@overview-controlpanel;
+         "
+         i18n:translate=""
+      >
+       Site Setup
+      </a>
+      <h1 class="documentFirstHeading"
+          i18n:translate=""
+      >Layouts Editor</h1>
+
+      <p class="documentDescription"
+         i18n:translate=""
+      >
+      Edit content layouts
+      </p>
+
+      <div id="content-core"
+           tal:define="
+             icons nocall:context/@@iconresolver;
+             authToken context/@@authenticator/token;
+             action request/action|nothing;
+           "
+      >
+        <div class="table-responsive"
+             id="mosaic-show-hide-layouts"
+             tal:condition="python:action != 'edit'"
+        >
+          <table class="table table-sm table-bordered">
+            <thead>
+              <tr>
+                <th i18n:translate="">Title</th>
+                <th i18n:translate="">Path</th>
+                <th i18n:translate="">Types</th>
+                <th i18n:translate="">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr tal:repeat="layout view/list_contentlayouts">
+                <td>${layout/title}</td>
+                <td>${layout/key}</td>
+                <td>${layout/_for}</td>
+                <td>
+                  <a class="btn btn-sm btn-outline-secondary"
+                     href="${context/absolute_url}/@@${view/__name__}?action=${python:'show' if hidden else 'hide'}&amp;layout=${layout/key}&amp;_authenticator=${authToken}"
+                     title="toggle visibility"
+                     i18n:attributes="title"
+                     tal:define="
+                       hidden layout/hidden;
+                     "
+                  >
+                    <img tal:replace="structure python:icons.tag('eye-slash' if hidden else 'eye')" />
+                  </a>
+                  <tal:block condition="python:layout['key'].startswith('custom/')">
+                    <a class="btn btn-sm btn-outline-secondary"
+                    href="${context/absolute_url}/@@${view/__name__}?action=existing&amp;layout=${layout/key}"
+                    >
+                      <img tal:replace="structure python:icons.tag('search')" />
+                    </a>
+                    <a class="btn btn-sm btn-outline-secondary"
+                       href="${context/absolute_url}/@@${view/__name__}?action=edit&amp;layout=${layout/key}"
+                    >
+                      <img tal:replace="structure python:icons.tag('pencil')" />
+                    </a>
+                    <a class="btn btn-sm btn-outline-danger"
+                       href="${context/absolute_url}/@@manage-layouts-from-editor?action=deletelayout&amp;layout=${layout/key}&amp;_authenticator=${authToken}"
+                    >
+                      <img tal:replace="structure python:icons.tag('trash')" />
+                    </a>
+                  </tal:block>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <form action="./@@${view/__name__}"
+              method="POST"
+              tal:define="
+                layout request/layout|nothing;
+              "
+              tal:condition="python:action == 'edit'"
+        >
+          <input tal:replace="structure context/@@authenticator/authenticator" />
+          <input name="action"
+                 type="hidden"
+                 value="save"
+          />
+          <input name="name"
+                 type="hidden"
+                 value="${layout}"
+          />
+          <label i18n:translate="">Edit Layout:
+            <i i18n:name="layout">${request/layout}</i></label>
+          <textarea class="pat-code-editor"
+                    name="layout"
+                    data-pat-code-editor="language: html"
+          >${python:view.get_layout_source(layout)}</textarea>
+          <div class="formControls">
+            <button class="btn btn-primary"
+                    name="form.buttons.Save"
+                    type="submit"
+                    i18n:translate=""
+                    >Save</button>
+            <button class="btn btn-secondary"
+                    name="form.buttons.Cancel"
+                    type="submit"
+                    i18n:translate=""
+            >Cancel</button>
+          </div>
+        </form>
+      </div>
+
+    </metal:main>
+
+  </body>
+</html>
