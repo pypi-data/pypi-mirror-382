@@ -1,0 +1,114 @@
+# Copyright 2025 Canonical Ltd.
+# See LICENSE file for licensing details.
+[project]
+name = "paas-charm"
+version = "1.9.0"
+description = "Companion library for 12-factor app support in Charmcraft & Rockcraft."
+readme = "README.md"
+authors = [
+    {name = "Canonical IS DevOps team", email="is-devops-team@canonical.com"},
+]
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+
+
+[project.urls]
+Repository = "https://github.com/canonical/paas-charm"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.package-data]
+paas_charm = ["**/cos/**", "**/cos/**/.**", "**/*.j2"]
+
+# Testing tools configuration
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+log_cli_level = "INFO"
+pythonpath = [
+  "examples/flask/charm/lib",
+  "examples/django/charm/lib",
+  "examples/fastapi/charm/lib",
+  "examples/go/charm/lib",
+  "examples/expressjs/charm/lib",
+  "examples/flask-minimal/charm/lib",
+  "examples/springboot/charm/lib",
+  "lib",
+  "src"
+]
+
+# Formatting tools configuration
+[tool.black]
+line-length = 99
+target-version = ["py38"]
+extend-exclude = '''
+
+(
+  examples/flask/charm/lib/.*
+  |   examples/flask-minimal/charm/lib/.*
+  |   examples/django/charm/lib/.*
+  |   examples/fastapi/charm/lib/.*
+  |   examples/go/charm/lib/.*
+  |   examples/expressjs/charm/lib/.*
+  |   examples/springboot/charm/lib/.*
+)
+'''
+
+[tool.isort]
+line_length = 99
+profile = "black"
+skip = [
+  "examples/flask/charm/lib",
+  "examples/flask-minimal/charm/lib",
+  "examples/django/charm/lib",
+  "examples/fastapi/charm/lib",
+  "examples/go/charm/lib",
+  "examples/expressjs/charm/lib",
+  "examples/springboot/charm/lib",
+]
+
+# Linting tools configuration
+[tool.flake8]
+max-line-length = 99
+max-doc-length = 99
+max-complexity = 10
+exclude = [".git", "__pycache__", ".tox", "build", "dist", "*.egg_info", "venv", "examples/*/lib/**"]
+select = ["E", "W", "F", "C", "N", "R", "D", "H"]
+# Ignore W503, E501 because using black creates errors with this
+# Ignore D107 Missing docstring in __init__
+ignore = ["W503", "E501", "D107"]
+# D100, D101, D102, D103: Ignore missing docstrings in tests
+per-file-ignores = [
+    "tests/*:D100,D101,D102,D103,D104,D205,D212,D415,DCO020,DCO030,DCO050",
+]
+docstring-convention = "google"
+# Check for properly formatted copyright header in each file
+copyright-check = "True"
+copyright-author = "Canonical Ltd."
+copyright-regexp = "Copyright\\s\\d{4}([-,]\\d{4})*\\s+%(author)s"
+
+[tool.bandit]
+exclude_dirs = ["venv/", "tests/"]
+
+[tool.mypy]
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
