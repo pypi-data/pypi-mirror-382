@@ -1,0 +1,282 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>WebXR iPhone Controller</title>
+    <script src="/three.min.js"></script>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+      header { position: fixed; top: 10px; left: 10px; z-index: 10; }
+      .hud { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 12px 20px; z-index: 10; pointer-events: none; display: none; }
+      body.xr-active .hud { display: block; }
+      .panel { background: rgba(0,0,0,0.5); backdrop-filter: blur(6px); border-radius: 12px; padding: 12px; color: #fff; font-family: -apple-system, system-ui, sans-serif; pointer-events: auto; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .buttons { display: flex; gap: 10px; }
+      .btn { appearance: none; border: none; border-radius: 10px; padding: 10px 14px; color: #111; font-weight: 700; background: #fff; font-size: 16px; min-width: 96px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+      .btn:active { transform: translateY(1px); }
+      .btn__title { line-height: 1; }
+      .btn__status { font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; line-height: 1; transition: background-color 0.2s ease, color 0.2s ease; }
+      .btn--toggle .btn__status { background: rgba(0,0,0,0.18); color: #111; }
+      .btn--toggle[data-state="on"] .btn__status { color: #fff; }
+      .btn--track .btn__status { background: rgba(7,59,76,0.18); color: #073b4c; }
+      .btn--track[data-state="on"] .btn__status { background: rgba(255,209,102,0.35); color: #073b4c; }
+      .btn--record .btn__status { background: rgba(239,71,111,0.18); color: #ef476f; }
+      .btn--record[data-state="on"] .btn__status { background: rgba(239,71,111,0.45); color: #fff; }
+      .btn--track-off { background: #ffd166; color: #111; }
+      .btn--track-on { background: #073b4c; color: #fff; }
+      .btn--record-off { background: #06d6a0; color: #111; }
+      .btn--record-on { background: #ef476f; color: #fff; }
+      .btn--reset-off { background: #6c757d; color: #fff; }
+      .btn--reset-on { background: #118ab2; color: #fff; }
+      /* Make the control area 5x+ larger for easy touch */
+      .slider { position: relative; width: 100%; height: 200px; touch-action: none; -webkit-tap-highlight-color: transparent; }
+      .slider__track { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); height: 24px; background: rgba(255,255,255,0.25); border-radius: 999px; }
+      .slider__fill { position: absolute; left: 0; top: 0; height: 100%; background: #06d6a0; border-radius: 999px; width: 0%; }
+      .slider__handle { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: #fff; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
+      .value { min-width: 54px; text-align: right; font-variant-numeric: tabular-nums; }
+      .hint { font-size: 12px; opacity: 0.9; margin-top: 6px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <details open>
+        <summary style="color:#333; background:#fff; padding:6px 10px; border-radius:8px; display:inline-block">WebXR iPhone</summary>
+      </details>
+    </header>
+    <div class="hud">
+      <div class="panel">
+        <div class="row" style="margin-bottom: 10px;">
+          <div style="font-weight:600;">Gripper</div>
+          <div class="value" id="sliderValue">0.00</div>
+        </div>
+        <div class="slider" id="gripSlider" aria-label="Gripper slider">
+          <div class="slider__track">
+            <div class="slider__fill" id="sliderFill"></div>
+          </div>
+          <div class="slider__handle" id="sliderHandle" style="left: 0%;"></div>
+        </div>
+        <div class="hint">Slider has extra padding near 0 and 1 for easier reach</div>
+        <div class="row" style="margin-top: 12px;">
+          <div class="buttons">
+            <button class="btn btn--toggle btn--track btn--track-off" id="btnA" title="Tracking disabled" aria-label="Tracking off">
+              <span class="btn__title" data-title>Tracking</span>
+              <span class="btn__status" data-status>Off</span>
+            </button>
+            <button class="btn btn--toggle btn--record btn--record-off" id="btnB" title="Recording stopped" aria-label="Recording stopped">
+              <span class="btn__title" data-title>Recording</span>
+              <span class="btn__status" data-status>Stopped</span>
+            </button>
+            <button class="btn btn--reset btn--reset-off" id="btnReset" title="Reset (press and hold)" aria-label="Reset">
+              <span class="btn__title" data-title>Reset</span>
+              <span class="btn__status" data-status></span>
+            </button>
+          </div>
+      </div>
+    </div>
+    </div>
+
+    <script type="module">
+      import { initWebSocket, startXRApp } from '/core.js';
+
+      let websocket = null;
+
+      // Buttons array: indices used: 0 (trigger/gripper), 3 (stick/reset), 4 (A), 5 (B)
+      const buttons = new Array(8).fill(0.0);
+
+      // Gripper slider state
+      let gripValue = 0.0;
+      const PADDING_FRAC = 0.15; // 15% on each side clamps to 0/1 (easier edges)
+
+      function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+      function setupSlider() {
+        const slider = document.getElementById('gripSlider');
+        const handle = document.getElementById('sliderHandle');
+        const fill = document.getElementById('sliderFill');
+        const valueEl = document.getElementById('sliderValue');
+
+        function setGrip(val) {
+          gripValue = clamp(val, 0.0, 1.0);
+          buttons[0] = gripValue; // right_trigger
+          const pct = gripValue * 100;
+          handle.style.left = `${pct}%`;
+          fill.style.width = `${pct}%`;
+          valueEl.textContent = gripValue.toFixed(2);
+        }
+
+        function updateFromEvent(ev) {
+          const rect = slider.getBoundingClientRect();
+          const x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+          const xNorm = clamp(x / rect.width, 0, 1);
+          // Map with padding: [0..P] -> 0, [1-P..1] -> 1, middle scaled to [0..1]
+          let v;
+          if (xNorm <= PADDING_FRAC) v = 0.0;
+          else if (xNorm >= 1.0 - PADDING_FRAC) v = 1.0;
+          else v = (xNorm - PADDING_FRAC) / (1.0 - 2.0 * PADDING_FRAC);
+          setGrip(v);
+        }
+
+        let dragging = false;
+        const start = (e) => { dragging = true; updateFromEvent(e); };
+        const move = (e) => { if (dragging) updateFromEvent(e); };
+        const end = () => { dragging = false; };
+
+        slider.addEventListener('mousedown', start);
+        slider.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', end);
+        slider.addEventListener('touchstart', start, { passive: true });
+        slider.addEventListener('touchmove', move, { passive: true });
+        window.addEventListener('touchend', end);
+
+        setGrip(0.0);
+      }
+
+      function setupButtons() {
+        const configs = {
+          reset: {
+            idx: 3,
+            el: document.getElementById('btnReset'),
+            type: 'momentary',
+            baseLabel: 'Reset',
+            labels: { off: '', on: 'Resetting...' },
+            aria: { off: 'Reset', on: 'Resetting' },
+            titles: { off: 'Reset (press and hold)', on: 'Resetting...' },
+            classes: { off: 'btn--reset-off', on: 'btn--reset-on' }
+          },
+          track: {
+            idx: 4,
+            el: document.getElementById('btnA'),
+            type: 'toggle',
+            baseLabel: 'Tracking',
+            labels: { off: 'Off', on: 'On' },
+            aria: { off: 'Tracking off', on: 'Tracking on' },
+            titles: { off: 'Tracking disabled', on: 'Tracking active' },
+            classes: { off: 'btn--track-off', on: 'btn--track-on' }
+          },
+          record: {
+            idx: 5,
+            el: document.getElementById('btnB'),
+            type: 'toggle',
+            baseLabel: 'Recording',
+            labels: { off: 'Stopped', on: 'Active' },
+            aria: { off: 'Recording stopped', on: 'Recording active' },
+            titles: { off: 'Recording stopped', on: 'Recording active' },
+            classes: { off: 'btn--record-off', on: 'btn--record-on' }
+          }
+        };
+
+        const state = {
+          reset: { pressed: false },
+          track: { pressed: false, latched: false },
+          record: { pressed: false, latched: false }
+        };
+
+        const applyVisual = (name) => {
+          const cfg = configs[name];
+          const st = state[name];
+          const active = cfg.type === 'toggle' ? st.latched : st.pressed;
+          const key = active ? 'on' : 'off';
+
+          const label = cfg.labels?.[key];
+          const titleEl = cfg.el.querySelector('[data-title]');
+          if (titleEl) titleEl.textContent = cfg.baseLabel ?? (label ?? titleEl.textContent);
+
+          const statusEl = cfg.el.querySelector('[data-status]');
+          if (statusEl) statusEl.textContent = label ?? '';
+
+          const aria = (cfg.aria && cfg.aria[key]) ?? cfg.baseLabel ?? label;
+          if (aria !== undefined) cfg.el.setAttribute('aria-label', aria);
+
+          const titleAttr = (cfg.titles && cfg.titles[key]) ?? aria;
+          if (titleAttr !== undefined) cfg.el.setAttribute('title', titleAttr);
+
+          if (cfg.classes) {
+            const allClasses = Object.values(cfg.classes).filter(Boolean);
+            if (allClasses.length) cfg.el.classList.remove(...allClasses);
+            const activeClass = cfg.classes[key];
+            if (activeClass) cfg.el.classList.add(activeClass);
+          }
+
+          if (cfg.type === 'toggle') cfg.el.dataset.state = key;
+          else delete cfg.el.dataset.state;
+        };
+
+        const setPressed = (name, pressed) => {
+          const cfg = configs[name];
+          const st = state[name];
+          if (st.pressed === pressed) return;
+          st.pressed = pressed;
+          buttons[cfg.idx] = pressed ? 1.0 : 0.0;
+          applyVisual(name);
+        };
+
+        const setLatched = (name, latched) => {
+          const cfg = configs[name];
+          if (cfg.type !== 'toggle') return;
+          const st = state[name];
+          if (st.latched === latched) return;
+          st.latched = latched;
+          applyVisual(name);
+        };
+
+        const press = (name) => setPressed(name, true);
+
+        const release = (name, shouldToggle) => {
+          const cfg = configs[name];
+          const st = state[name];
+          if (!st.pressed) return;
+          setPressed(name, false);
+          if (cfg.type === 'toggle' && shouldToggle) {
+            setLatched(name, !st.latched);
+          }
+          if (name === 'reset' && shouldToggle) {
+            setLatched('track', false);
+            setLatched('record', false);
+          }
+        };
+
+        const releaseAll = (shouldToggle) => {
+          for (const name of Object.keys(configs)) {
+            release(name, shouldToggle);
+          }
+        };
+
+        for (const name of Object.keys(configs)) {
+          applyVisual(name);
+          const el = configs[name].el;
+          el.addEventListener('touchstart', () => press(name), { passive: true });
+          el.addEventListener('touchend', () => release(name, true));
+          el.addEventListener('touchcancel', () => release(name, true));
+        }
+
+        window.addEventListener('touchend', () => releaseAll(true));
+        window.addEventListener('touchcancel', () => releaseAll(true));
+      }
+
+      function onInit() {
+        // Nothing specific to initialize in 3D scene for iPhone
+      }
+
+      function onFrame({ view }) {
+        // Build right-controller from viewer pose
+        const p = view.transform.position;
+        const q = view.transform.orientation;
+        const btns = buttons.slice();
+        const controllers = {
+          left: null,
+          right: { position: [p.x, p.y, p.z], orientation: [q.w, q.x, q.y, q.z], buttons: btns }
+        };
+        return controllers;
+      }
+
+      // Boot using shared core
+      websocket = initWebSocket();
+      startXRApp({ websocket, onInit, onFrame });
+      setupSlider();
+      setupButtons();
+    </script>
+  </body>
+  </html>

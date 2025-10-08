@@ -1,0 +1,127 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+
+    <title>Input Tracking</title>
+    <script src="/three.min.js"></script>
+  </head>
+  <body>
+    <header>
+      <details open>
+        <summary>Input Tracking</summary>
+        <p>
+          This application tracks user input in an immersive AR environment using WebXR
+          and sends the data to a server.
+        </p>
+    </header>
+    <script type="module">
+        import { WebXRVideoPlayer } from './video-player.js';
+        import { initWebSocket, startXRApp } from '/core.js';
+
+        let websocket = null;
+        let videoPlayer = null;
+        let controllerAxes = { left: null, right: null };
+
+        function initControllerAxes(scene) {
+          // Create axis visualizers for both controllers
+          ['left', 'right'].forEach(hand => {
+            const axesGroup = new THREE.Group();
+            axesGroup.visible = false;
+
+            // Create axis lines - X (red), Y (green), Z (blue)
+            const axisLength = 0.1; // 10cm axes
+
+            // X axis (red)
+            const xGeometry = new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(0, 0, 0),
+              new THREE.Vector3(axisLength, 0, 0)
+            ]);
+            const xLine = new THREE.Line(
+              xGeometry,
+              new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 })
+            );
+
+            // Y axis (green)
+            const yGeometry = new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(0, 0, 0),
+              new THREE.Vector3(0, axisLength, 0)
+            ]);
+            const yLine = new THREE.Line(
+              yGeometry,
+              new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 })
+            );
+
+            // Z axis (blue)
+            const zGeometry = new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(0, 0, 0),
+              new THREE.Vector3(0, 0, axisLength)
+            ]);
+            const zLine = new THREE.Line(
+              zGeometry,
+              new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 3 })
+            );
+
+            axesGroup.add(xLine);
+            axesGroup.add(yLine);
+            axesGroup.add(zLine);
+
+            // Add a small sphere to represent the controller position
+            const sphere = new THREE.Mesh(
+              new THREE.SphereGeometry(0.02, 16, 16),
+              new THREE.MeshBasicMaterial({ color: hand === 'left' ? 0x8888ff : 0xff8888 })
+            );
+            axesGroup.add(sphere);
+
+            scene.add(axesGroup);
+            controllerAxes[hand] = axesGroup;
+          });
+        }
+        function onInit({ scene, camera }) {
+          initControllerAxes(scene);
+          // Initialize video player
+          videoPlayer = new WebXRVideoPlayer();
+          videoPlayer.init(scene, camera);
+        }
+
+        function onFrame({ session, frame, refSpace }) {
+          // Gather controllers from input sources and update axes
+          const controllers = { left: null, right: null };
+          for (let inputSource of session.inputSources) {
+            if (inputSource.gripSpace && (inputSource.handedness === 'left' || inputSource.handedness === 'right')) {
+              const gripPose = frame.getPose(inputSource.gripSpace, refSpace);
+              if (!gripPose) continue;
+              const pos = gripPose.transform.position;
+              const orient = gripPose.transform.orientation;
+              const buttons = inputSource.gamepad ? inputSource.gamepad.buttons.map(b => b.value) : [];
+              controllers[inputSource.handedness] = {
+                position: [pos.x, pos.y, pos.z],
+                orientation: [orient.w, orient.x, orient.y, orient.z],
+                buttons: buttons
+              };
+              const axesGroup = controllerAxes[inputSource.handedness];
+              if (axesGroup) {
+                axesGroup.visible = true;
+                axesGroup.position.set(pos.x, pos.y + 1.1, pos.z);
+                axesGroup.quaternion.set(orient.x, orient.y, orient.z, orient.w);
+              }
+            }
+          }
+          for (let hand of ['left', 'right']) {
+            if (!controllers[hand] && controllerAxes[hand]) {
+              controllerAxes[hand].visible = false;
+            }
+          }
+          if (videoPlayer) videoPlayer.update();
+          return controllers;
+        }
+
+        // Start the XR application and WebSocket connection using shared core
+        websocket = initWebSocket();
+        startXRApp({ websocket, onInit, onFrame });
+      </script>
+  </body>
+</html>
