@@ -1,0 +1,83 @@
+Metadata-Version: 2.4
+Name: django-pbsmmapi
+Version: 1.3.2b0
+Summary: Django models that import content from the PBS MediaManager API
+Author: Bob Donahue
+License-Expression: MIT
+License-File: LICENSE
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 4.0
+Classifier: Framework :: Django :: 4.1
+Classifier: Framework :: Django :: 4.2
+Classifier: Framework :: Django :: 5.0
+Classifier: Framework :: Django :: 5.1
+Classifier: Framework :: Django :: 5.2
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
+Requires-Python: <4.0,>=3.10
+Requires-Dist: django>=4.0
+Requires-Dist: huey>=2.5.3
+Requires-Dist: nltk>=3.9
+Requires-Dist: pycaption>=2.2.16
+Requires-Dist: python-dateutil
+Requires-Dist: pytz
+Requires-Dist: requests
+Description-Content-Type: text/markdown
+
+# django-pbsmmapi
+
+Code to model PBS MediaManager objects; scripts to ingest data into those models.
+
+## Introduction
+
+This is a Django app to allow Django-based projects to work with the PBS MediaManager API. It is not expected to be a COMPLETE interface to the entirety of the PBS MediaManager; however it should allow access to all of the primary content object types.
+
+In addition to Django, [huey](https://huey.readthedocs.io/en/latest/) is used for running background ingestion tasks.
+
+## Quick start
+
+1. Add the pbsmmapi apps to your INSTALLED_APPS setting:
+
+```python
+    INSTALLED_APPS = [
+        ...
+        'pbsmmapi',
+        'pbsmmapi.episode',
+        'pbsmmapi.season',
+        'pbsmmapi.show',
+        'pbsmmapi.special',
+        'pbsmmapi.franchise',
+        'pbsmmapi.changelog',
+    ]
+```
+
+2. You ALSO need to have PBS Media Manager credentials - an API KEY and a SECRET KEY. These also go into the `settings.py` file of your project:
+
+```python
+    PBSMM_API_ID = os.environ["PBSMM_API_ID"]
+    PBSMM_API_SECRET = os.environ["PBSMM_API_SECRET"]
+```
+
+It's not a good idea to commit these in plain text. Set them as environment variables (as suggested above) or using some other secret management tool.
+
+3. To ingest shows and/or franchises automatically, configure `PBSMM_SHOW_SLUGS` and/or `PBSMM_FRANCHISE_SLUGS`:
+
+```
+PBSMM_SHOW_SLUGS = [
+    "antiques-roadshow",
+]
+
+PBSMM_FRANCHISE_SLUGS = [
+    "masterpiece",
+]
+```
+
+Huey will attempt to scrape all Show and/or Franchise data, including Specials, Seasons, Episodes, and Assets. The changelog endpoint will also be scraped.
+
+Once a complete ingest has finished, changelog data is used to ingest updated and newly added objects.
