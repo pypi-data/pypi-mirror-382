@@ -1,0 +1,184 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pranaam"
+version = "0.2.0"
+description = "Predict religion and caste based on name"
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+license = {text = "MIT"}
+authors = [
+  { name = "Rajashekar Chintalapati", email = "rajshekar.ch@gmail.com" },
+  { name = "Aaditya Dar" },
+  { name = "Gaurav Sood", email = "gsood07@gmail.com" }
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Text Processing :: Linguistic",
+  "Natural Language :: English",
+  "Natural Language :: Hindi"
+]
+keywords = ["predict", "religion", "name", "hindi", "english", "machine-learning", "deep-learning", "nlp", "name-classification", "tensorflow"]
+dependencies = [
+  "tensorflow>=2.14.0,<2.16",  # Pin to versions that work with existing models
+  "tqdm>=4.64.0",
+  "gdown>=4.7.0", 
+  "pandas>=1.5.0",
+  "numpy>=1.21.0,<2.0.0",
+  "setuptools>=65.5.1",
+  "wheel>=0.38.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "check-manifest",
+  "black>=23.0.0",
+  "ruff>=0.1.0",
+  "mypy>=1.0.0",
+  "pre-commit>=3.0.0",
+  "pandas-stubs>=2.0.0",
+  "types-requests",
+  "types-tqdm"
+]
+test = [
+  "pytest>=7.0.0",
+  "pytest-cov>=4.0.0",
+  "coverage>=7.0.0",
+  "pytest-mock>=3.10.0",
+  "pytest-xdist>=3.0.0"
+]
+docs = [
+  "sphinx>=5.0.0",
+  "sphinx-rtd-theme>=1.0.0",
+  "myst-parser>=0.18.0",
+]
+streamlit = [
+  "streamlit>=1.20.0",
+  "scikit-learn>=1.0.0,<2.0.0",
+  "nltk>=3.8.0",
+  "joblib>=1.0.0"
+]
+all = [
+  "pranaam[dev,test,docs,streamlit]"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/appeler/pranaam"
+"Repository" = "https://github.com/appeler/pranaam"
+"Bug Tracker" = "https://github.com/appeler/pranaam/issues"
+
+[project.scripts]
+predict_religion = "pranaam.predict:main"
+
+[tool.setuptools]
+packages = ["pranaam"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+pranaam = ["notebooks/*.ipynb"]
+
+[tool.pytest.ini_options]
+python_files = "test_*.py"
+testpaths = ["pranaam/tests"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--disable-warnings"
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests (requires model download)",
+    "unit: marks tests as unit tests",
+    "e2e: marks tests as end-to-end tests with real models"
+]
+# Coverage options (enabled in CI)
+# addopts = "--cov=pranaam --cov-report=html --cov-report=term-missing"
+
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | notebooks
+)/
+'''
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+exclude = ["pranaam/notebooks/"]
+
+[[tool.mypy.overrides]]
+module = ["tensorflow.*", "gdown.*"]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["pranaam"]
+omit = ["*/tests/*", "*/test_*.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+extend-exclude = ["pranaam/notebooks/"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+per-file-ignores = {"__init__.py" = ["F401"], "tests/*" = ["B011", "S101"]}
+
+[tool.ruff.lint.isort]
+known-first-party = ["pranaam"]
