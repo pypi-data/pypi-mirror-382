@@ -1,0 +1,138 @@
+---
+title: Examples
+---
+
+A few patterns to get you started.
+
+## Simple function benchmark
+
+```python
+from pybench import bench
+
+@bench(name="sum-small", n=1000, repeat=10)
+def sum_small():
+    return sum(range(100))
+```
+
+## Context mode to isolate hot path
+
+```python
+from pybench import Bench, BenchContext
+
+suite = Bench("strings")
+
+@suite.bench(name="join-baseline", baseline=True)
+def base(b: BenchContext):
+    s = ",".join(str(i) for i in range(50))
+    b.start(); _ = ",".join([s] * 5); b.end()
+```
+
+## Parameterized cases
+
+```python
+from pybench import bench
+
+@bench(name="join_param", params={"n": [100, 1000], "sep": ["-", ":"]})
+def join_param(n: int, sep: str):
+    sep.join(str(i) for i in range(n))
+```
+
+## Running
+
+```bash
+pybench run examples/ --profile smoke     # default
+pybench run examples/ --profile thorough  # heavier runs
+```
+
+## Save, export, compare (quick tour)
+
+```bash
+pybench run examples/ --save latest
+pybench run examples/ --save-baseline main
+pybench run examples/ --export json:run.json
+pybench run examples/ --export chart:run.html
+pybench run examples/ --compare main --fail-on mean:5%,p99:10%
+```
+
+## Daily CLI workflow
+
+```bash
+# 1. Quick smoke check while iterating on code
+pybench run src/benchmarks --profile smoke --vs main
+
+# 2. Heavier pass before merging
+pybench run src/benchmarks --profile thorough --save latest
+
+# 3. Gate the PR with thresholds (CI)
+pybench run src/benchmarks --compare main --fail-on mean:7%,p99:12%
+```
+
+- Use `--vs main` (or `--vs last`) for an immediate sanity check against your saved baseline.
+- When CI runs, combine `--save` and `--export markdown:report.md` to surface artifacts in build logs or PR comments.
+
+## Budget tuning and overrides
+
+```bash
+# Keep each variant below ~50 ms total, but never exceed 1e6 iterations
+pybench run examples/ --budget 50ms --max-n 1_000_000
+
+# Force at least 2 ms of runtime even for super-fast functions
+pybench run examples/ --min-time 2ms
+
+# Override case parameters without editing the source file
+pybench run examples/ -k join -P n=100_000 -P repeat=20
+```
+
+Budgets are especially helpful with larger suites. pybenchx auto-calibrates `n`, but these guardrails keep the tool responsive and prevent runaway loops.
+
+## Working with history
+
+```bash
+pybench list        # summarize saved runs and baselines
+pybench stats       # disk usage, age, retention recommendations
+pybench clean --keep 5
+```
+
+- Runs live in `.pybenchx/runs/`; baselines live in `.pybenchx/baselines/`.
+- `clean` keeps the newest N artifacts per category and deletes the rest.
+- You can delete `.pybenchx/` entirely to start fresh—pybenchx recreates it on the next run.
+
+## Turning runs into reports
+
+```bash
+pybench run examples/ --export markdown:bench.md --export csv:bench.csv
+pybench run examples/ --export chart:web/bench.html
+```
+
+Markdown exports summarize speedups and percentiles—great for PRs. CSV/JSON are machine-friendly, while the chart reporter bundles an interactive Chart.js dashboard you can open locally or serve with docs.
+
+## Automating in CI
+
+```yaml
+- name: Benchmark
+    run: |
+        pybench run benchmarks/ --profile thorough --save latest \
+            --compare main --fail-on mean:5%,p99:10% \
+            --export markdown:bench.md
+- name: Upload artifact
+    uses: actions/upload-artifact@v4
+    with:
+        name: bench-report
+        path: .pybenchx/exports/bench.md
+```
+
+This recipe keeps the smoke-test posture locally, but enforces stricter `thorough` runs in CI. If regressions exceed the threshold, the job fails. The exported Markdown report becomes a reviewer-friendly artifact.
+
+## Markdown report sample
+
+When you `--export md`, you get a compact table ready for PRs and docs:
+
+| group   | benchmark             | time (avg) | p99      | vs base        |
+| ---     | ---                   | ---        | ---      | ---            |
+| strings | join-baseline  ★      | 12.30 µs   | 12.80 µs | baseline       |
+| strings | join_split            | 11.95 µs   | 12.10 µs | 1.03× faster   |
+| strings | join_plus             | 24.10 µs   | 24.50 µs | 2.00× slower   |
+
+- “≈ same” appears when mean differs ≤ 1% vs the group baseline.
+- Use `baseline=True` on one case per group to anchor comparisons.
+- Percentiles come from recorded samples; export JSON if you want raw data for custom dashboards.

@@ -1,0 +1,85 @@
+---
+title: CLI
+---
+
+Discover and run benchmarks defined with `@bench` or `Bench`.
+
+## Basic
+
+```bash
+pybench run <files|directories> [options]
+# alias
+pyb run <...>
+```
+
+- Directories expand to `**/*bench.py`.
+- Colors enabled on TTY; use `--no-color` to disable.
+
+## Options
+
+```text
+-k <word>             # filter by substring in case/file name
+-P k=v                # override params: n, repeat, warmup, group and custom params (repeatable)
+--no-color            # disable ANSI colors
+--sort [group|time]   # sort groups or by avg time within group
+--desc                # descending order
+--budget 300ms        # per-variant budget (calibration). Accepts ns, ms, s
+--max-n 1000000       # cap for calibrated n
+--profile [thorough|smoke]
+--brief               # compact output: benchmark, time(avg), vs base
+--save LABEL          # save this run under .pybenchx/runs with optional label
+--save-baseline NAME  # save this run as a named baseline under .pybenchx/baselines
+--compare BASE|PATH   # compare current run against a baseline name or JSON file
+--vs {name,last}      # shortcut for --compare; "last" targets the most recent auto-saved run
+--fail-on POLICY      # e.g. "mean:7%,p99:12%"; checked when --compare/--vs is used
+--export FMT[:PATH]   # export as json|md|csv|chart to stdout or a file when a path is given
+```
+
+Profiles:
+- thorough: `budget≈1s`, `repeat=30`
+- smoke (default): no calibration, `repeat=3`, `warmup=0`
+
+## Overrides with -P
+
+```bash
+pybench run examples/ -P repeat=5 -P n=10000 -P warmup=0
+pybench run examples/ -P group=strings
+pybench run examples/ -P sep=":"  # override a case parameter
+```
+
+## Sorting and brief mode
+
+```bash
+pybench run examples/ --sort time --desc
+pybench run examples/ --brief
+```
+
+## Header and table
+
+- Header: CPU, Python, clock resolution, profile.
+- Table: mean, iter/s, min…max, p75/p99/p995, baseline and speed vs base. “≈ same” when ≤1% diff.
+
+## Run management
+
+- Runs auto-save under `.pybenchx/runs/`; named baselines live under `.pybenchx/baselines/`.
+- Use `--save`/`--save-baseline` for explicit labels, `--compare` or `--vs {name,last}` for comparisons, and `--fail-on` to enforce policies.
+- Inspect history with `pybench list`, view storage totals with `pybench stats`, and prune older runs via `pybench clean --keep N`.
+- P-values are computed via Mann–Whitney U (approx). `p99` policy uses the actual P99 delta.
+
+## Exporting Markdown
+
+Generate a Markdown table you can paste into docs or discussions:
+
+```bash
+pybench run path/ --export md:bench.md
+```
+
+### Exporting charts
+
+Create a self-contained HTML dashboard powered by Chart.js:
+
+```bash
+pybench run path/ --export chart:run.html
+```
+
+Tip: use `--profile smoke` while iterating; switch to `thorough` for published runs.
