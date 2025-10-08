@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block head_content %}
+  <script defer data-storage-service-id="{{ storage_service.id }}" data-storage-service-api-key="{{ storage_service.api_key }}" type="text/javascript" language="javascript" src="{{ url_for('static', filename='js/aggregator/storage_service.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+
+<div class="row">
+<div class="col">
+
+<div class="alert alert-secondary"><strong>Storage Service</strong></div>
+
+<table class="table table-bordered table-condensed">
+  <tr><td width=20%><strong>Name</strong></td><td>{{ storage_service.name }}</td></tr>
+  <tr><td width=20%><strong>URL</strong></td><td>{{ storage_service.url}}</td></tr>
+  <tr><td width=20%><strong>User name</strong></td><td>{{ storage_service.user_name}}</td></tr>
+  <tr>
+    <td width=20%>
+      <strong>API key</strong>
+    </td>
+    <td>
+      <span id="apikey">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull; </span>
+      <i id="apikeyBtn" class="fa-solid fa-eye" aria-hidden="true"></i>
+    </td>
+  </tr>
+  <tr><td width=20%><strong>Download limit</strong></td><td>{{ storage_service.download_limit}}</td></tr>
+  <tr><td width=20%><strong>Download offset</strong></td><td>{{ storage_service.download_offset}}</td></tr>
+  <tr><td width=20%><strong>Default service</strong></td><td>{{ storage_service.default}}</td></tr>
+</table>
+<a href="{{ url_for('aggregator.edit_storage_service', storage_service_id=storage_service.id) }}"><button type="button" class="btn btn-info">Edit</button></a>
+<a href="{{ url_for('aggregator.delete_storage_service', storage_service_id=storage_service.id) }}"><button type="button" class="btn btn-danger">Delete</button></a>
+{% if mets_fetch_jobs %}
+<a href="{{ url_for('reporter.view_aips', storage_service_id=storage_service.id) }}"><button type="button" class="btn btn-success">View AIPs</button></a>
+{% endif %}
+
+</div>
+<div class="col">
+
+  <div id="console">
+  </div>
+
+</div>
+</div>
+
+
+<div class="alert alert-secondary" style="margin-top: 20px;"><strong>METS fetch jobs</strong></div>
+
+<table id="infotable" class="table table-striped table-bordered">
+  <thead>
+  <tr>
+  <th><strong>Scan date</strong></th>
+  <th><strong>Download duration</strong></th>
+  <th><strong>Packages in SS</strong></th>
+  <th><strong>New AIPs added</strong></th>
+  <th><strong>Action</strong></th>
+  </tr>
+  </thead>
+  {% if mets_fetch_jobs %}
+    {% for mets_fetch_job in mets_fetch_jobs %}
+      <tr>
+        <td>{{ mets_fetch_job.download_start }}</td>
+        <td>{% if mets_fetch_job.download_end %} {{ mets_fetch_job.download_end - mets_fetch_job.download_start }} {% endif %}</td>
+        <td>{{ mets_fetch_job.total_packages }} packages
+          <i class="fa-solid fa-circle-info fa-lg" id="{{ mets_fetch_job.id }}" style="margin-left: 5px;"></i><br/>
+          <div class="stats" id="stats-{{ mets_fetch_job.id }}">
+            <span class="text-muted">
+              <small>
+                {{ mets_fetch_job.total_aips }} AIPs <br>
+                {{ mets_fetch_job.total_sips }} SIPs <br>
+                {{ mets_fetch_job.total_dips }} DIPs <br>
+                {{ mets_fetch_job.total_replicas }} AIP replicas<br>
+                {{ mets_fetch_job.total_deleted_aips }} deleted AIPs <br>
+              </small>
+          </span>
+          </div>
+        </td>
+        <td>{{ mets_fetch_job.aips|length }}</td>
+        <td>
+          <a href="{{ url_for('aggregator.delete_fetch_job', fetch_job_id=mets_fetch_job.id) }}"><button type="button" class="btn btn-danger">Delete</button></a>
+        </td>
+      </tr>
+    {% endfor %}
+  {% endif %}
+</table>
+<button type="button" class="btn btn-success" style="margin-top: 20px;" id="newfetchjob">New fetch job</button>
+
+{% endblock %}

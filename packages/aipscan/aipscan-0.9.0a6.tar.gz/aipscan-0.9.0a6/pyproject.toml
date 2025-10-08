@@ -1,0 +1,148 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aipscan"
+dynamic = ["version"]
+description = "A reporting system for Archivematica using data from AIPs."
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "click",
+    "celery",
+    "faker",
+    "filelock",
+    "flask",
+    "flask-restx",
+    "flask-sqlalchemy",
+    "flask-wtf",
+    "typesense",
+    "wtforms",
+    "lxml",
+    "metsrw",
+    "natsort",
+    "pandas",
+    "plotly-express",
+    "pymysql[rsa]",
+    "python-dateutil",
+    "requests",
+    "sqlalchemy",
+]
+
+[project.urls]
+Homepage = "https://github.com/artefactual-labs/AIPscan"
+Repository = "https://github.com/artefactual-labs/AIPscan"
+Issues = "https://github.com/artefactual-labs/AIPscan/issues"
+
+[project.optional-dependencies]
+server = ["gunicorn"]
+
+[dependency-groups]
+dev = [
+    "faker",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "ruff",
+    "tzlocal",
+]
+linting = ["pre-commit-uv"]
+
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.custom]
+path = "build.py"
+
+[tool.hatch.build.targets.sdist]
+packages = ["AIPscan"]
+include = [
+    "/build.py",
+    "/build_config/**",
+    "/package.json",
+    "/package-lock.json",
+]
+artifacts = ["AIPscan/static/dist/**"]
+
+# Force Hatch to ship the build hook and frontend sources, i.e. "include" alone
+# misses files outside packages.
+[tool.hatch.build.targets.sdist.force-include]
+"build.py" = "build.py"
+"build_config" = "build_config"
+"package.json" = "package.json"
+"package-lock.json" = "package-lock.json"
+
+[tool.hatch.build.targets.wheel]
+packages = ["AIPscan"]
+artifacts = ["AIPscan/static/dist/**"]
+exclude = ["**/tests/**"]
+
+[tool.pytest.ini_options]
+testpaths = ["AIPscan", "tools"]
+
+[tool.ruff]
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "A",  # flake8-builtins
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "E",  # pycodestyle-error
+    "F",  # pyflakes
+    "I",  # isort
+    "UP", # pyupgrade
+    "W",  # pycodestyle-warning
+]
+ignore = [
+    "E501", # lines-too-long
+    "C416", # unnecessary-comprehension
+    "C408", # unnecessary-collection-call
+    "C401", # unnecessary-generator-set
+    "C405", # unnecessary-literal-set
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tools/**/*" = ["T201"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint.mccabe]
+# We have a couple of instances where complexity > 10.
+max-complexity = 12
+
+[tool.tox]
+requires = ["tox>=4", "tox-uv>=1"]
+env_list = ["py39", "py310", "py311", "py312", "py313", "linting"]
+
+[tool.tox.env_run_base]
+runner = "uv-venv-lock-runner"
+dependency_groups = ["dev"]
+commands = [["pytest", { replace = "posargs", default = [], extend = true }]]
+
+[tool.tox.env.linting]
+runner = "uv-venv-lock-runner"
+skip_install = true
+dependency_groups = ["linting"]
+commands = [
+    [
+        "pre-commit",
+        "run",
+        "--all-files",
+        "--show-diff-on-failure",
+        { replace = "posargs", default = [], extend = true },
+    ],
+]
