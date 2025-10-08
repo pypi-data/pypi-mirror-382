@@ -1,0 +1,768 @@
+# topmark:header:start
+#
+#   project      : TopMark
+#   file         : context.py
+#   file_relpath : src/topmark/pipeline/context.py
+#   license      : MIT
+#   copyright    : (c) 2025 Olivier Biot
+#
+# topmark:header:end
+
+"""Context for header processing in the Topmark pipeline."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from functools import cached_property
+from typing import TYPE_CHECKING, cast
+
+from yachalk import chalk
+
+from topmark.filetypes.base import InsertCapability
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
+
+    from topmark.config import Config
+    from topmark.filetypes.base import FileType
+    from topmark.pipeline.processors.base import HeaderProcessor
+
+
+class BaseStatus(Enum):
+    """Base class for status enums in the Topmark pipeline.
+
+    This class serves as a common base for all status enums representing different
+    phases of the header processing pipeline (e.g., file, header, generation, comparison, write).
+    It provides shared utilities, such as computing the maximum value length for pretty-printing.
+
+    Usage:
+        Subclass this class to define specific statuses for each pipeline phase.
+    """
+
+    @cached_property
+    def value_length(self) -> int:
+        """Maximum length of the enum *value* strings for this enum type.
+
+        Note:
+            This is effectively a class-level property cached per enum member the
+            first time it is accessed. Access ``SomeStatus.ANY.value_length`` to get
+            the max width for ``SomeStatus``.
+
+        Returns:
+            int: The length of the longest enum value string in the subclass.
+        """
+        return max(len(member.value) for member in type(self))
+
+
+class FsStatus(BaseStatus):
+    """Represents the status of file system checks in the pipeline.
+
+    Used to indicate the result of existence and permission checks.
+    """
+
+    PENDING = "pending"
+    OK = "ok"
+    EMPTY = "empty file"
+    NOT_FOUND = "not found"
+    NO_READ_PERMISSION = "no read permission"
+    UNREADABLE = "read error"
+    NO_WRITE_PERMISSION = "no write permission"
+
+    @property
+    def color(self) -> Callable[[str], str]:
+        """Get the chalk color renderer associated with this file system status.
+
+        Returns:
+            Callable[[str], str]: Function to colorize a string for this status.
+        """
+        return cast(
+            "Callable[[str], str]",
+            {
+                FsStatus.PENDING: chalk.gray,
+                FsStatus.OK: chalk.green,
+                FsStatus.EMPTY: chalk.yellow,
+                FsStatus.NOT_FOUND: chalk.red,
+                FsStatus.NO_READ_PERMISSION: chalk.red_bright,
+                FsStatus.UNREADABLE: chalk.red_bright,
+                FsStatus.NO_WRITE_PERMISSION: chalk.red_bright,
+            }[self],
+        )
+
+
+class ResolveStatus(BaseStatus):
+    """Represents the status of file type resolution in the pipeline.
+
+    Used to indicate whether the file type was successfully resolved or not.
+    """
+
+    PENDING = "pending"
+    RESOLVED = "resolved"
+    TYPE_RESOLVED_HEADERS_UNSUPPORTED = "known file type, headers not supported"
+    TYPE_RESOLVED_NO_PROCESSOR_REGISTERED = "known file type, no header processor"
+    UNSUPPORTED = "unsupported file type"
+
+    @property
+    def color(self) -> Callable[[str], str]:
+        """Get the chalk color renderer associated with this resolve status.
+
+        Returns:
+            Callable[[str], str]: Function to colorize a string for this status.
+        """
+        return cast(
+            "Callable[[str], str]",
+            {
+                ResolveStatus.PENDING: chalk.gray,
+                ResolveStatus.RESOLVED: chalk.green,
+                ResolveStatus.TYPE_RESOLVED_HEADERS_UNSUPPORTED: chalk.yellow,
+                ResolveStatus.TYPE_RESOLVED_NO_PROCESSOR_REGISTERED: chalk.red,
+                ResolveStatus.UNSUPPORTED: chalk.yellow,
+            }[self],
+        )
+
+
+class ContentStatus(BaseStatus):
+    """Represents the status of file content checks in the pipeline."""
+
+    PENDING = "pending"
+    OK = "ok"
+    SKIPPED_NOT_TEXT_FILE = "not a text file"
+    SKIPPED_MIXED_LINE_ENDINGS = "mixed line endings"
+    SKIPPED_POLICY_BOM_BEFORE_SHEBANG = "BOM before shebang"
+    UNREADABLE = "unreadable"
+
+    @property
+    def color(self) -> Callable[[str], str]:
+        """Get the chalk color renderer associated with this content status.
+
+        Returns:
+            Callable[[str], str]: Function to colorize a string for this status.
+        """
+        return cast(
+            "Callable[[str], str]",
+            {
+                ContentStatus.PENDING: chalk.gray,
+                ContentStatus.OK: chalk.green,
+                ContentStatus.SKIPPED_NOT_TEXT_FILE: chalk.red,
+                ContentStatus.SKIPPED_MIXED_LINE_ENDINGS: chalk.red,
+                ContentStatus.SKIPPED_POLICY_BOM_BEFORE_SHEBANG: chalk.red,
+                ContentStatus.UNREADABLE: chalk.red_bright,
+            }[self],
+        )
+
+
+class HeaderStatus(BaseStatus):
+    """Represents the status of header processing for a file in the pipeline.
+
+    Used to indicate detection, parsing, and validation results for the file header.
+    """
+
+    PENDING = "pending"
+    MISSING = "missing"
+    DETECTED = "detected"
+    MALFORMED = "malformed"
+    EMPTY = "empty"
+    ERRORED = "errored"
+
+    @property
+    def color(self) -> Callable[[str], str]:
+        """Get the chalk color renderer associated with this header status.
+
+        Returns:
+            Callable[[str], str]: Function to colorize a string for this status.
+        """
+        return cast(
+            "Callable[[str], str]",
+            {
+                HeaderStatus.PENDING: chalk.gray,
+                HeaderStatus.MISSING: chalk.blue,
+                HeaderStatus.DETECTED: chalk.green,
+                HeaderStatus.MALFORMED: chalk.red_bright,
+                HeaderStatus.EMPTY: chalk.yellow_bright,
+                HeaderStatus.ERRORED: chalk.red_bright,
+            }[self],
+        )
+
+
+class GenerationStatus(BaseStatus):
+    """Represents the status of header generation in the pipeline.
+
+    Used to indicate whether a new header was generated, rendered,
+    or if required fields are missing.
+    """
+
+    PENDING = "pending"
+    GENERATED = "generated"
+    NO_FIELDS = "no fields"
+    RENDERED = "rendered"
+
+    @property
+    def color(self) -> Callable[[str], str]:
+        """Get the chalk color renderer associated with this generation status.
+
+        Returns:
+            Callable[[str], str]: Function to colorize a string for this status.
+        """
+        return cast(
+            "Callable[[str], str]",
+            {
+                GenerationStatus.PENDING: chalk.gray,
+                GenerationStatus.GENERATED: chalk.green,
+                GenerationStatus.NO_FIELDS: chalk.yellow_bright,
+                GenerationStatus.RENDERED: chalk.blue,
+            }[self],
+        )
+
+
+class ComparisonStatus(BaseStatus):
+    """Represents the status of comparing the current and expected header in the pipeline.
+
+    Used to indicate if the header has changed, is unchanged, or cannot be compared.
+    """
+
+    PENDING = "pending"
+    CHANGED = "changed"
+    UNCHANGED = "unchanged"
+    CANNOT_COMPARE = "can't compare"
+
+    @property
+    def color(self) -> Callable[[str], str]:
+        """Get the chalk color renderer associated with this comparison status.
+
+        Returns:
+            Callable[[str], str]: Function to colorize a string for this status.
+        """
+        return cast(
+            "Callable[[str], str]",
+            {
+                ComparisonStatus.PENDING: chalk.gray,
+                ComparisonStatus.CHANGED: chalk.red,
+                ComparisonStatus.UNCHANGED: chalk.green,
+                ComparisonStatus.CANNOT_COMPARE: chalk.yellow_bright,
+            }[self],
+        )
+
+
+class StripStatus(BaseStatus):
+    """Represents the status of header stripping in the pipeline.
+
+    This axis is orthogonal to scanner detection and write outcomes:
+      - Scanner (HeaderStatus) tells us whether a header exists in the original file.
+      - StripStatus tells us whether we prepared/performed a removal.
+      - WriteStatus records the final write outcome (e.g., REMOVED on apply).
+    """
+
+    PENDING = "pending"
+    NOT_NEEDED = "not needed"  # no header present to remove
+    READY = "ready"  # removal prepared (updated_file_lines computed)
+    FAILED = "failed"
+
+    @property
+    def color(self) -> Callable[[str], str]:
+        """Get the chalk color renderer associated with this strip status.
+
+        Returns:
+            Callable[[str], str]: Function to colorize a string for this status.
+        """
+        return cast(
+            "Callable[[str], str]",
+            {
+                StripStatus.PENDING: chalk.gray,
+                StripStatus.NOT_NEEDED: chalk.blue,
+                StripStatus.READY: chalk.green,
+                StripStatus.FAILED: chalk.red_bright,
+            }[self],
+        )
+
+
+class WriteStatus(BaseStatus):
+    """Represents the status of the header write operation in the pipeline.
+
+    Used to indicate whether the header was written, previewed, skipped, or failed.
+    """
+
+    PENDING = "pending"
+    PREVIEWED = "previewed"
+    WRITTEN = "written"
+    SKIPPED = "skipped"
+    FAILED = "failed"
+    REPLACED = "replaced"
+    INSERTED = "inserted"
+    REMOVED = "removed"
+
+    @property
+    def color(self) -> Callable[[str], str]:
+        """Get the chalk color renderer associated with this write status.
+
+        Returns:
+            Callable[[str], str]: Function to colorize a string for this status.
+        """
+        return cast(
+            "Callable[[str], str]",
+            {
+                WriteStatus.PENDING: chalk.gray,
+                WriteStatus.PREVIEWED: chalk.blue,
+                WriteStatus.WRITTEN: chalk.green,
+                WriteStatus.SKIPPED: chalk.yellow,
+                WriteStatus.FAILED: chalk.red_bright,
+                WriteStatus.REPLACED: chalk.green,
+                WriteStatus.INSERTED: chalk.green_bright,
+                WriteStatus.REMOVED: chalk.yellow_bright,
+            }[self],
+        )
+
+
+# --- Step gatekeeping ------------------------------------------------------
+
+
+def may_proceed_to_sniff(ctx: "ProcessingContext") -> bool:
+    """Determine if processing can proceed to the sniffer step.
+
+    Processing can proceed if:
+      - The file was successfully resolved (ctx.status.resolve is RESOLVED)
+      - A file type is present (ctx.file_type is not None)
+
+    Args:
+        ctx (ProcessingContext): The processing context for the current file.
+
+    Returns:
+        bool: True if processing can proceed to the sniffer step, False otherwise.
+    """
+    return ctx.status.resolve == ResolveStatus.RESOLVED and ctx.file_type is not None
+
+
+def may_proceed_to_read(ctx: "ProcessingContext") -> bool:
+    """Determine if processing can proceed to the read step.
+
+    Processing can proceed if:
+      - The file was successfully resolved (ctx.status.resolve is RESOLVED)
+      - A file type is present (ctx.file_type is not None)
+      - A header processor is available (ctx.header_processor is not None)
+
+    Note:
+        The file system status (`ctx.status.fs`) is not strictly required here,
+        to allow tests to skip the sniffer and invoke the reader directly. In such
+        cases, the reader is the definitive authority for content checks (existence,
+        permissions, binary/text, etc).
+
+    Args:
+        ctx (ProcessingContext): The processing context for the current file.
+
+    Returns:
+        bool: True if processing can proceed to the read step, False otherwise.
+    """
+    return (
+        ctx.status.resolve == ResolveStatus.RESOLVED
+        # and ctx.status.fs in {FsStatus.OK, FsStatus.EMPTY}
+        and ctx.file_type is not None
+        and ctx.header_processor is not None
+    )
+
+
+def may_proceed_to_scan(ctx: ProcessingContext) -> bool:
+    """Determine if processing can proceed to the scan step.
+
+    Processing can proceed if:
+      - The content checks passed (ctx.status.content is OK)
+      - The file type was successfully resolved (ctx.file_type is not None)
+      - A header processor is available (ctx.header_processor is not None)
+
+    Args:
+        ctx (ProcessingContext): The processing context for the current file.
+
+    Returns:
+        bool: True if processing can proceed to the scan step, False otherwise.
+    """
+    return (
+        ctx.status.content == ContentStatus.OK
+        and ctx.file_type is not None
+        and ctx.header_processor is not None
+    )
+
+
+def may_proceed_to_build(ctx: ProcessingContext) -> bool:
+    """Determine if processing can proceed to the build step.
+
+    Processing can proceed if:
+      - The file was successfully resolved (ctx.status.resolve is RESOLVED)
+      - A header processor is available (ctx.header_processor is not None)
+
+    Args:
+        ctx (ProcessingContext): The processing context for the current file.
+
+    Returns:
+        bool: True if processing can proceed to the build step, False otherwise.
+    """
+    return (
+        ctx.status.resolve == ResolveStatus.RESOLVED
+        and ctx.file_type is not None
+        and ctx.header_processor is not None
+        and ctx.file_lines is not None
+    )
+
+
+def may_proceed_to_patcher(ctx: ProcessingContext) -> bool:
+    """Determine if processing can proceed to the patcher step.
+
+    Processing can proceed if:
+      - The comparison step was performed (ctx.status.comparison is CHANGED or UNCHANGED)
+
+    Args:
+        ctx (ProcessingContext): The processing context for the current file.
+
+    Returns:
+        bool: True if processing can proceed to the patcher step, False otherwise.
+    """
+    return ctx.status.comparison in {ComparisonStatus.CHANGED, ComparisonStatus.UNCHANGED}
+
+
+def may_proceed_to_render(ctx: ProcessingContext) -> bool:
+    """Determine if processing can proceed to the render step.
+
+    Processing can proceed if:
+      - The header was successfully generated (ctx.status.generation is RENDERED or GENERATED)
+
+    Args:
+        ctx (ProcessingContext): The processing context for the current file.
+
+    Returns:
+        bool: True if processing can proceed to the render step, False otherwise.
+    """
+    return ctx.status.generation in {GenerationStatus.NO_FIELDS, GenerationStatus.GENERATED}
+
+
+# --- Diagnostics support ------------------------------------------------------
+class DiagnosticLevel(Enum):
+    """Severity levels for diagnostics collected during processing.
+
+    Levels map to terminal colors and are ordered by importance: ERROR > WARNING > INFO.
+    This enum is **internal**; the public API exposes string literals.
+    """
+
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+    @property
+    def color(self) -> Callable[[str], str]:
+        """Return the `yachalk` color function associated with this severity level.
+
+        Intended for human-readable output only; machine formats should not use colors.
+
+        Returns:
+            Callable[[str], str]: The `yachalk` color function associated with this severity level.
+        """
+        return cast(
+            "Callable[[str], str]",
+            {
+                DiagnosticLevel.INFO: chalk.blue,
+                DiagnosticLevel.WARNING: chalk.yellow,
+                DiagnosticLevel.ERROR: chalk.red_bright,
+            }[self],
+        )
+
+
+@dataclass(frozen=True)
+class Diagnostic:
+    """Internal structured diagnostic with a severity level and message.
+
+    Note:
+        This type is **not** part of the public API surface. Conversions to
+        `PublicDiagnostic` happen at the API boundary.
+    """
+
+    level: DiagnosticLevel
+    message: str
+
+
+@dataclass
+class HeaderProcessingStatus:
+    """Tracks the status of each processing phase for a single file.
+
+    Fields correspond to each pipeline phase: file, header, generation, comparison, write.
+    """
+
+    # File system status (existence, permissions, binary):
+    fs: FsStatus = FsStatus.PENDING
+    # File type resolution status:
+    resolve: ResolveStatus = ResolveStatus.PENDING
+    # File content status (BOM, shebang, mixed newlines, readability):
+    content: ContentStatus = ContentStatus.PENDING
+
+    # Header-level axes
+    header: HeaderStatus = HeaderStatus.PENDING  # Status of header detection/parsing
+    generation: GenerationStatus = GenerationStatus.PENDING  # Status of header generation/rendering
+    comparison: ComparisonStatus = ComparisonStatus.PENDING  # Status of header comparison
+    write: WriteStatus = WriteStatus.PENDING  # Status of writing the header
+    strip: StripStatus = StripStatus.PENDING  # Status of header stripping lifecycle
+
+    def reset(self) -> None:
+        """Set all status fields to PENDING."""
+        self.fs = FsStatus.PENDING
+        self.resolve = ResolveStatus.PENDING
+        self.content = ContentStatus.PENDING
+        self.header = HeaderStatus.PENDING
+        self.generation = GenerationStatus.PENDING
+        self.comparison = ComparisonStatus.PENDING
+        self.strip = StripStatus.PENDING
+        self.write = WriteStatus.PENDING
+
+
+@dataclass
+class ProcessingContext:
+    """Context for header processing in the pipeline.
+
+    This class holds all necessary information for processing a file's header,
+    including the file path, configuration, detected header state, and derived
+    header fields. It is used to pass data between different stages of the
+    header processing pipeline.
+
+    Attributes:
+        path (Path): The file path to process.
+        config (Config): The configuration for processing.
+        file_type (FileType | None): The resolved file type, if applicable.
+        status (HeaderProcessingStatus): Processing status for each pipeline phase.
+        header_processor (HeaderProcessor | None): The header processor instance for this file.
+        file_lines (list[str] | None): The full original file content as list of lines.
+        leading_bom (bool): True when the original file began with a UTF-8 BOM
+            ("\ufeff"). The reader sets this and strips the BOM from memory; the
+            updater re-attaches it to the final output.
+        has_shebang (bool): True if the first line starts with '#!' (post-BOM normalization).
+        newline_hist (dict[str, int]): histogram of newline styles found in the file
+        dominant_newline (str | None): Contains the dominant newline style
+        dominance_ratio (float | None): Dominance ratio of the dominant newline style
+        mixed_newlines (bool | None): True if mixed newline styles found in file
+        newline_style (str): The newline style in the file (``LF``, ``CR``, ``CRLF``).
+        ends_with_newline (bool | None): True if the file ends with a newline.
+        pre_insert_capability (InsertCapability): Advisory from sniffer
+            about pre-insert checks (e.g. spacers, empty body), defaults to UNEVALUATED
+        pre_insert_reason (str | None): Reason why insertion may be problematic
+        pre_insert_origin (str | None): Origin of pre_insertion diagnostic
+        existing_header_range (tuple[int, int] | None): The (start, end) line numbers
+            of the existing header.
+        existing_header_block (str | None): The text block of the existing header.
+        existing_header_lines (list[str] | None): Raw lines of the existing header from the file.
+        existing_header_dict (dict[str, str] | None): Parsed fields from the existing header.
+        builtin_fields (dict[str, str] | None): Built-in/derived fields
+            based on the file and config.
+        expected_header_block (str | None): The fully formatted expected header text.
+        expected_header_lines (list[str] | None): Raw lines of the expected header.
+        expected_header_dict (dict[str, str] | None): Final rendered fields before formatting.
+        updated_file_lines (list[str] | None): Updated file content as a list of lines
+        header_diff (str | None): Unified diff (patch) for patching (updating) the header
+        diagnostics (list[Diagnostic]): Any warnings or errors encountered during processing.
+    """
+
+    # 📁 1. File input context
+    path: Path  # The file path to process (absolute or relative to working directory)
+    config: "Config"  # Active config at time of processing
+    file_type: "FileType | None" = None  # Resolved file type (e.g., PythonFileType)
+    status: HeaderProcessingStatus = field(default_factory=HeaderProcessingStatus)
+    header_processor: "HeaderProcessor | None" = (
+        None  # HeaderProcessor instance for this file type, if applicable
+    )
+    file_lines: list[str] | None = None  # Original file content as a list of lines
+    leading_bom: bool = False  # True if original file began with a UTF-8 BOM
+    has_shebang: bool = False  # True if the first line starts with '#!' (post-BOM normalization)
+
+    newline_hist: dict[str, int] = field(default_factory=lambda: {})
+    dominant_newline: str | None = None
+    dominance_ratio: float | None = None
+    mixed_newlines: bool | None = None
+
+    newline_style: str = "\n"  # Newline style (default = "\n")
+    ends_with_newline: bool | None = None  # True if file ends with a newline sequence
+
+    # Advisory from sniffer about pre-insert checks (e.g. spacers, empty body)
+    pre_insert_capability: InsertCapability = InsertCapability.UNEVALUATED
+    pre_insert_reason: str | None = None
+    pre_insert_origin: str | None = None
+    # 🔍 2. Existing header (detected from original file)
+    existing_header_range: tuple[int, int] | None = (
+        None  # (start_line, end_line) of detected header
+    )
+    existing_header_block: str | None = None  # Text block of the detected header
+    existing_header_lines: list[str] | None = None  # Raw lines of the detected header
+    existing_header_dict: dict[str, str] | None = None  # Parsed fields from the detected header
+
+    # 🧮 3. Derived and expected header state (from config + file path)
+    builtin_fields: dict[str, str] | None = (
+        None  # Built-in/derived fields, e.g. {"file": ..., "file_relpath": ...}
+    )
+    expected_header_block: str | None = None  # Fully formatted header text to be written
+    expected_header_lines: list[str] | None = None  # Raw lines of the expected header
+    expected_header_dict: dict[str, str] | None = None  # Final rendered fields before formatting
+
+    # 4. Updated file and resulting diff
+    updated_file_lines: list[str] | None = None  # Updated file content as a list of lines
+    header_diff: str | None = None  # Unified diff (patch) for patching (updating) the header
+
+    # Processing diagnostics: warnings/errors collected during processing
+    diagnostics: list[Diagnostic] = field(default_factory=list[Diagnostic])
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a machine-readable representation of this processing result.
+
+        The schema is stable for CLI/CI consumption and avoids color/formatting.
+        """
+        return {
+            "path": str(self.path),
+            "file_type": (self.file_type.name if self.file_type else None),
+            "status": {
+                "fs": self.status.fs.name,
+                "resolve": self.status.resolve.name,
+                "content": self.status.content.name,
+                "header": self.status.header.name,
+                "generation": self.status.generation.name,
+                "comparison": self.status.comparison.name,
+                "write": self.status.write.name,
+                "strip": self.status.strip.name,
+            },
+            "existing_header_range": self.existing_header_range,
+            "has_diff": bool(self.header_diff),
+            "diagnostics": [
+                {"level": d.level.value, "message": d.message} for d in self.diagnostics
+            ],
+            "diagnostic_counts": {
+                "info": sum(1 for d in self.diagnostics if d.level == DiagnosticLevel.INFO),
+                "warning": sum(1 for d in self.diagnostics if d.level == DiagnosticLevel.WARNING),
+                "error": sum(1 for d in self.diagnostics if d.level == DiagnosticLevel.ERROR),
+            },
+            "pre_insert_check": {
+                "capability": self.pre_insert_capability.name,
+                "reason": self.pre_insert_reason,
+                "origin": self.pre_insert_origin,
+            },
+            # Heuristic: treat MISSING or CHANGED as a would-change indicator
+            "would_change": (
+                self.status.header == HeaderStatus.MISSING
+                or self.status.comparison == ComparisonStatus.CHANGED
+            ),
+        }
+
+    def format_summary(self) -> str:
+        """Return a concise, human‑readable one‑liner for this file.
+
+        The summary is aligned with TopMark's pipeline phases and mirrors what
+        comparable tools (e.g., *ruff*, *black*, *prettier*) surface: a clear
+        primary outcome plus a few terse hints.
+
+        Rendering rules:
+          1. Primary bucket comes from
+             [`topmark.cli_shared.utils.classify_outcome`][topmark.cli_shared.utils.classify_outcome].
+             This ensures stable wording across commands/pipelines.
+          2. If a write outcome is known (e.g., PREVIEWED/WRITTEN/INSERTED/REMOVED),
+             append it as a trailing hint.
+          3. If there is a diff but no write outcome (e.g., check/summary with
+             `--diff`), append a "diff" hint.
+          4. If diagnostics exist, append the diagnostic count as a hint.
+
+        Verbose per‑line diagnostics are emitted only when Config.verbosity_level >= 1
+        (treats None as 0).
+
+        Examples (colors omitted here):
+            path/to/file.py: python – would insert header - previewed
+            path/to/file.py: python – up-to-date
+            path/to/file.py: python – would strip header - diff - 2 issues
+        """
+        # Local import to avoid import cycles at module import time
+        from topmark.cli_shared.utils import classify_outcome
+
+        verbosity_level: int = self.config.verbosity_level or 0
+
+        parts: list[str] = [f"{self.path}:"]
+
+        # File type (dim), or <unknown> if resolution failed
+        if self.file_type is not None:
+            parts.append(chalk.dim(self.file_type.name))
+        else:
+            parts.append(chalk.dim("<unknown>"))
+
+        # Primary bucket/label with color
+        key: str
+        label: str
+        color_fn: Callable[[str], str]
+        key, label, color_fn = classify_outcome(self)
+        parts.append("\u2013")  # en dash separator
+        parts.append(color_fn(label))
+
+        if key != "ok":
+            # Secondary hints: write status > diff marker > diagnostics
+
+            if self.status.write != WriteStatus.PENDING:
+                parts.append("-")
+                parts.append(self.status.write.color(self.status.write.value))
+            elif self.header_diff:
+                parts.append("-")
+                parts.append(chalk.yellow("diff"))
+
+        diag_show_hint: str = ""
+        if self.diagnostics:
+            n_info: int = sum(1 for d in self.diagnostics if d.level == DiagnosticLevel.INFO)
+            n_warn: int = sum(1 for d in self.diagnostics if d.level == DiagnosticLevel.WARNING)
+            n_err: int = sum(1 for d in self.diagnostics if d.level == DiagnosticLevel.ERROR)
+            parts.append("-")
+            # Compose a compact triage summary like "1 error, 2 warnings"
+            triage: list[str] = []
+            if verbosity_level <= 0:
+                diag_show_hint = chalk.dim.italic(" (use '-v' to view)")
+            if n_err:
+                triage.append(chalk.red_bright(f"{n_err} error" + ("s" if n_err != 1 else "")))
+            if n_warn:
+                triage.append(chalk.yellow(f"{n_warn} warning" + ("s" if n_warn != 1 else "")))
+            if n_info and not (n_err or n_warn):
+                # Only show infos when there are no higher severities
+                triage.append(chalk.blue(f"{n_info} info" + ("s" if n_info != 1 else "")))
+            parts.append(", ".join(triage) if triage else chalk.blue("info"))
+
+        result: str = " ".join(parts) + diag_show_hint
+
+        # Optional verbose diagnostic listing (gated by verbosity level)
+        if self.diagnostics and verbosity_level > 0:
+            details: list[str] = []
+            for d in self.diagnostics:
+                prefix: str = {
+                    DiagnosticLevel.ERROR: chalk.red_bright("error"),
+                    DiagnosticLevel.WARNING: chalk.yellow("warning"),
+                    DiagnosticLevel.INFO: chalk.blue("info"),
+                }[d.level]
+                details.append(f"  [{prefix}] {d.message}")
+            result += "\n" + "\n".join(details)
+
+        return result
+
+    @property
+    def summary(self) -> str:
+        """Return a formatted summary string of the processing status for this file."""
+        return self.format_summary()
+
+    @classmethod
+    def bootstrap(cls, *, path: Path, config: Config) -> ProcessingContext:
+        """Create a fresh context with no derived state."""
+        return cls(path=path, config=config)
+
+    # --- Convenience helpers -------------------------------------------------
+    def add_info(self, message: str) -> None:
+        """Add an `info` diagnostic to the processing context.
+
+        Args:
+            message (str): The diagnostic message.
+        """
+        self.diagnostics.append(Diagnostic(DiagnosticLevel.INFO, message))
+
+    def add_warning(self, message: str) -> None:
+        """Add an `warning` diagnostic to the processing context.
+
+        Args:
+            message (str): The diagnostic message.
+        """
+        self.diagnostics.append(Diagnostic(DiagnosticLevel.WARNING, message))
+
+    def add_error(self, message: str) -> None:
+        """Add an `error` diagnostic to the processing context.
+
+        Args:
+            message (str): The diagnostic message.
+        """
+        self.diagnostics.append(Diagnostic(DiagnosticLevel.ERROR, message))
