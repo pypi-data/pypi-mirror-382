@@ -1,0 +1,532 @@
+Metadata-Version: 2.4
+Name: django_settings_inspector
+Version: 1.0.1
+Summary: A Django management and CLI tool to inspect and colorize project settings
+Home-page: https://github.com/cumulus13/django-settings-inspector
+Author: Hadi Cahyadi
+Author-email: cumulus13@gmail.com
+License: MIT
+Classifier: Framework :: Django
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Environment :: Console
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: Django>=3.2
+Requires-Dist: rich>=13.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# 🧭 Django Settings Inspector
+
+**Django Settings Inspector** is a developer tool that extends Django’s built-in management commands to **inspect and visualize project configuration** in a structured and colorized format.
+
+It helps you quickly understand, debug, and document your Django settings — whether you are auditing security, reviewing deployments, or checking environment consistency.
+
+[![PyPI version](https://img.shields.io/pypi/v/django-settings-inspector.svg?color=blue&logo=pypi)](https://pypi.org/project/django-settings-inspector/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/django-settings-inspector.svg?logo=python)](https://pypi.org/project/django-settings-inspector/)
+[![License](https://img.shields.io/github/license/cumulus13/django-settings-inspector?color=green)](https://github.com/cumulus13/django-settings-inspector/blob/main/LICENSE)
+[![Downloads](https://static.pepy.tech/badge/django-settings-inspector)](https://pepy.tech/project/django-settings-inspector)
+
+---
+
+## ✨ Features
+
+* 🔍 Inspect all Django configuration categories
+* 🎨 Beautiful color output using [Rich](https://github.com/Textualize/rich)
+* 🧩 Works as standard Django management commands
+* 🧰 Includes standalone CLI (`djinspect`) for quick inspection
+* ⚙️ Optional `--filter` keyword to narrow results (on `all` command)
+* 🧪 Fully testable with `pytest`
+* 💡 No side effects — purely read-only and safe
+
+---
+
+## 📦 Installation
+
+From **PyPI**:
+
+```bash
+pip install django-settings-inspector
+```
+
+From **source** (for development):
+
+```bash
+git clone https://github.com/cumulus13/django-settings-inspector.git
+cd django-settings-inspector
+pip install -e .
+```
+
+## ⚙️ Setup
+
+Add `django_settings_inspector` to your Django project’s `INSTALLED_APPS`:
+
+```python
+INSTALLED_APPS = [
+    ...
+    "django_settings_inspector",
+]
+```
+
+That’s it! You can now run any of the new management commands:
+
+```bash
+python manage.py all
+```
+
+Or use the standalone CLI:
+
+```bash
+djinspect all
+```
+
+## ⚙️ Usage
+
+### 1️⃣ Import in your Django project
+
+Instead of a giant `settings.py`, you can modularize it:
+
+```python
+# settings.py
+from django_settings_inspector.management.commands.core import *
+from django_settings_inspector.management.commands.db import *
+from django_settings_inspector.management.commands.cache import *
+from django_settings_inspector.management.commands.logging import *
+from django_settings_inspector.management.commands.security import *
+```
+
+Or load all in one line:
+
+```python
+from django_settings_inspector.management.commands.all import *
+```
+
+---
+
+### 2️⃣ Use the CLI inspector
+
+List all detected settings:
+
+```bash
+django-settings-inspector all
+```
+
+Filter by keyword:
+
+```bash
+django-settings-inspector all --filter DATABASE
+```
+
+Example Output:
+
+```
+DATABASES:
+  default:
+    ENGINE: django.db.backends.sqlite3
+    NAME: db.sqlite3
+
+CACHES:
+  default:
+    BACKEND: django.core.cache.backends.locmem.LocMemCache
+```
+
+---
+
+### 3️⃣ Django management command
+
+You can run it as a Django command too:
+
+```bash
+python manage.py all
+```
+
+With filters:
+
+```bash
+python manage.py all --filter TIME_ZONE
+```
+
+---
+
+## 🧠 Example Workflow
+
+Here’s how you might use it in a real-world Django project:
+
+```bash
+# Create new Django project
+django-admin startproject myproject
+
+# Optionally import Django Settings Inspector for exploration
+cd myproject
+echo "from django_settings_inspector.management.commands.all import *" >> settings.py
+
+# Keep your existing settings below (do not remove SECRET_KEY or BASE_DIR)
+
+# Run server
+python manage.py runserver
+```
+
+And you’ll instantly have access to all modularized settings and their management commands.
+
+---
+
+## 🎨 Example Output
+
+When `rich` is installed:
+
+```bash
+python manage.py static
+```
+
+Produces:
+
+```
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Setting            ┃ Value                                                       ┃
+┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ STATIC_URL         │ /static/                                                    │
+│ STATIC_ROOT        │ BASE_DIR / "staticfiles"                                   │
+│ STATICFILES_DIRS   │ ['assets', 'frontend/static']                              │
+│ STATICFILES_STORAGE│ 'django.contrib.staticfiles.storage.StaticFilesStorage'    │
+└────────────────────┴─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🧰 CLI Options
+
+| Command        | Description                                                                 |
+| -------------- | --------------------------------------------------------------------------- |
+| `all`          | Show all grouped settings; supports `--filter <keyword>`                    |
+| `auth`         | Authentication-related settings                                             |
+| `cache`        | Caching configuration                                                       |
+| `core`         | Core environment & global options (`BASE_DIR`, `DEBUG`, `SECRET_KEY`, etc.) |
+| `db`           | Database configuration                                                      |
+| `diffsettings` | Colorized diff between Django defaults and current settings                 |
+| `email`        | Email backend and related configs                                           |
+| `installed`    | Installed apps and related settings                                         |
+| `locale`       | Language and timezone settings                                              |
+| `logging`      | Logging configuration                                                       |
+| `media`        | Media and upload file settings                                              |
+| `middleware`   | Middleware stack                                                            |
+| `security`     | Security and HTTPS-related settings                                         |
+| `session`      | Session configuration                                                       |
+| `site`         | Site and root application settings                                          |
+| `static`       | Static files settings                                                       |
+| `storage`      | File storage and upload settings                                            |
+| `template`     | Template engine settings                                                    |
+| `validator`    | Validation & password policy settings                                       |
+
+### 🧩 Available Commands (run with django-admin)
+
+| Command                   | Description                          |
+| ------------------------- | ------------------------------------ |
+| `django-admin all`        | Show all settings (merged view)      |
+| `django-admin core`       | Show core Django settings            |
+| `django-admin db`         | Show database-related settings       |
+| `django-admin auth`       | Show authentication settings         |
+| `django-admin cache`      | Show cache settings                  |
+| `django-admin logging`    | Show logging configuration           |
+| `django-admin security`   | Show security settings               |
+| `django-admin email`      | Show email settings                  |
+| `django-admin session`    | Show session settings                |
+| `django-admin site`       | Show site-related settings           |
+| `django-admin static`     | Show static file configuration       |
+| `django-admin storage`    | Show media and file storage settings |
+| `django-admin template`   | Show template settings               |
+| `django-admin locale`     | Show i18n/l10n and timezone settings |
+| `django-admin installed`  | List installed apps                  |
+| `django-admin middleware` | List middleware components           |
+| `django-admin validator`  | Validate settings consistency        |
+
+---
+
+## 🧰 CLI & Management Commands 
+
+This package exposes a set of Django management commands (usable with `python manage.py <command>`) and a small standalone CLI (`djinspect`) that currently wraps the `all` command.
+
+> Note: `python manage.py <command>` works inside any Django project that has `django_settings_inspector` installed and added to `INSTALLED_APPS`.
+> `djinspect` is a lightweight CLI shipped with the package — at present it supports the `all` command. If you want it to proxy all commands, tell me and I’ll add it.
+
+### Global options
+
+* `-h`, `--help` — show help for a command.
+* `--filter <keyword>` (or `-f <keyword>`) — **only supported by `all`**; case-insensitive keyword filter for the aggregated output.
+
+---
+
+### All commands (management commands included in the package)
+
+Use `python manage.py <command>` (examples below). All commands print human-readable configuration; if `rich` is installed they will print a colored table/syntax-highlighted block.
+
+* `all`
+  Show grouped settings for many categories (Database, Cache, Static, Media, Auth, Security, Email, etc.).
+  Example:
+
+  ```bash
+  python manage.py all
+  python manage.py all --filter cache      # only sections/keys matching "cache"
+  djinspect all --filter email            # CLI wrapper for 'all' (djinspect supports 'all')
+  ```
+
+* `auth`
+  Show authentication-related settings (`AUTH_USER_MODEL`, `AUTHENTICATION_BACKENDS`, login/logout URLs, password hashers, session auth-related keys).
+  Example:
+
+  ```bash
+  python manage.py auth
+  ```
+
+* `cache`
+  Show cache configuration (`CACHES`, `CACHE_MIDDLEWARE_*`, cacheops settings if present, `USE_ETAGS`, etc.).
+  Example:
+
+  ```bash
+  python manage.py cache
+  ```
+
+* `core`
+  Show core environment and security basics (`BASE_DIR`, `DEBUG`, masked `SECRET_KEY`, `ALLOWED_HOSTS`).
+  Example:
+
+  ```bash
+  python manage.py core
+  ```
+
+* `db`
+  Show database-related settings (`DATABASES`, `DEFAULT_AUTO_FIELD`).
+  Example:
+
+  ```bash
+  python manage.py db
+  ```
+
+* `diffsettings`
+  Display the difference between project settings and Django defaults (similar to Django’s built-in `diffsettings`, but colorized if Rich is available).
+  Example:
+
+  ```bash
+  python manage.py diffsettings
+  ```
+
+* `email`
+  Show email configuration (`EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `DEFAULT_FROM_EMAIL`, `ADMINS`, etc.).
+  Example:
+
+  ```bash
+  python manage.py email
+  ```
+
+* `installed`
+  Show `INSTALLED_APPS` and related app-level settings (e.g. `DEFAULT_AUTO_FIELD`, `MIGRATION_MODULES`).
+  Example:
+
+  ```bash
+  python manage.py installed
+  ```
+
+* `locale`
+  Show internationalization and timezone settings (`LANGUAGE_CODE`, `TIME_ZONE`, `USE_I18N`, `USE_TZ`).
+  Example:
+
+  ```bash
+  python manage.py locale
+  ```
+
+* `logging`
+  Show logging configuration (`LOGGING`, `LOGGING_CONFIG`, `DEFAULT_LOGGING`, etc.).
+  Example:
+
+  ```bash
+  python manage.py logging
+  ```
+
+* `media`
+  Show media/file upload settings (`MEDIA_URL`, `MEDIA_ROOT`, `DEFAULT_FILE_STORAGE`, and common cloud-storage vars if present).
+  Example:
+
+  ```bash
+  python manage.py media
+  ```
+
+* `middleware`
+  Show middleware stack plus related flags (`MIDDLEWARE`, `MIDDLEWARE_CLASSES`, `SECURE_*`, `CSRF_*`, `SESSION_*`, CORS settings if present).
+  Example:
+
+  ```bash
+  python manage.py middleware
+  ```
+
+* `security`
+  Show security & HTTPS-related settings (`CSRF_COOKIE_SECURE`, `SESSION_COOKIE_SECURE`, `SECURE_SSL_REDIRECT`, HSTS settings, `X_FRAME_OPTIONS`, etc.).
+  Example:
+
+  ```bash
+  python manage.py security
+  ```
+
+* `session`
+  Show session-specific configuration (`SESSION_ENGINE`, cookie names, age, `SESSION_SAVE_EVERY_REQUEST`, `SESSION_FILE_PATH`, etc.).
+  Example:
+
+  ```bash
+  python manage.py session
+  ```
+
+* `site`
+  Site and environment-level settings (`BASE_DIR`, `ROOT_URLCONF`, `WSGI_APPLICATION`, `ASGI_APPLICATION`, `ALLOWED_HOSTS`, `SITE_ID`, etc.).
+  Example:
+
+  ```bash
+  python manage.py site
+  ```
+
+* `static`
+  Show static files settings (`STATIC_URL`, `STATICFILES_DIRS`, `STATIC_ROOT`, `STATICFILES_STORAGE`, `STATICFILES_FINDERS`, WhiteNoise options if present).
+  Example:
+
+  ```bash
+  python manage.py static
+  ```
+
+* `storage`
+  Show storage-related settings (`DEFAULT_FILE_STORAGE`, `STORAGES`, upload limits and permissions, `DATA_UPLOAD_MAX_MEMORY_SIZE`, etc.).
+  Example:
+
+  ```bash
+  python manage.py storage
+  ```
+
+* `template`
+  Show template engine settings (`TEMPLATES`, `TEMPLATE_DIRS`, `OPTIONS` context processors/loaders/jinja options).
+  Example:
+
+  ```bash
+  python manage.py template
+  ```
+
+* `validator`
+  Show validation and password-related settings (`AUTH_PASSWORD_VALIDATORS`, `PASSWORD_HASHERS`, `PASSWORD_RESET_TIMEOUT`, etc.) and related auth redirect urls.
+  Example:
+
+  ```bash
+  python manage.py validator
+  ```
+
+---
+
+### Example: colorized output (when `rich` installed)
+
+```bash
+python manage.py static
+# prints a colored table with STATIC_URL, STATIC_ROOT, STATICFILES_DIRS, etc.
+```
+
+---
+
+### Notes & Tips
+
+* `djinspect` CLI is provided as a convenience and currently runs the `all` command:
+
+  ```bash
+  djinspect all --filter cache
+  ```
+---
+
+## 🧪 Tests (pytest)
+
+```
+tests/
+├── __init__.py
+├── conftest.py
+├── test_core_commands.py
+└── test_cli.py
+```
+
+### Example `test_cli.py`
+
+```python
+import subprocess
+import sys
+
+def test_cli_all_command():
+    result = subprocess.run(
+        [sys.executable, "-m", "django_settings_inspector.cli", "--filter", "DATABASE"],
+        capture_output=True,
+        text=True
+    )
+    assert "DATABASES" in result.stdout
+
+def test_import_all():
+    import django_settings_inspector.management.commands.all as allmod
+    assert hasattr(allmod, "BASE_DIR")
+```
+
+### Example test file: `tests/test_core_commands.py`
+
+```python
+import pytest
+from django.core.management import call_command
+
+@pytest.mark.django_db
+def test_all_command_runs_safely(settings):
+    """Ensure 'all' command runs without error."""
+    call_command("all")
+
+def test_specific_command_outputs(settings, capsys):
+    """Check output contains key variables."""
+    call_command("core")
+    captured = capsys.readouterr()
+    assert "BASE_DIR" in captured.out
+```
+
+Run tests:
+
+```bash
+pytest -v
+```
+---
+
+## 💡 Tips for Development
+
+* Use `pip install -e .` during development
+* Use `python -m django_settings_inspector.cli` to test CLI
+* To publish to PyPI:
+
+## 🧑‍💻 Contributing
+
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature/my-feature`)
+3. Commit changes (`git commit -am 'Add my feature'`)
+4. Push to your branch (`git push origin feature/my-feature`)
+5. Open a Pull Request
+
+---
+
+## ⚖️ License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+MIT © 2025 [Hadi Cahyadi](mailto:cumulus13@gmail.com)
+
+## author
+[Hadi Cahyadi](mailto:cumulus13@gmail.com)
+    
+
+[![Buy Me a Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/cumulus13)
+
+[![Donate via Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/cumulus13)
+ 
+[Support me on Patreon](https://www.patreon.com/cumulus13)
