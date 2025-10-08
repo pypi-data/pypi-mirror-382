@@ -1,0 +1,127 @@
+Metadata-Version: 2.4
+Name: xsxl
+Version: 0.1.0
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: File Formats
+Requires-Dist: pyarrow>=10.0
+Requires-Dist: pandas>=1.5 ; extra == 'pandas'
+Requires-Dist: polars>=0.18 ; extra == 'polars'
+Requires-Dist: pytest>=7.0 ; extra == 'dev'
+Requires-Dist: pandas>=1.5 ; extra == 'dev'
+Requires-Dist: polars>=0.18 ; extra == 'dev'
+Requires-Dist: maturin>=1.0 ; extra == 'dev'
+Provides-Extra: pandas
+Provides-Extra: polars
+Provides-Extra: dev
+Summary: High-performance Python library for streaming Excel (XLSX) data to Apache Arrow format
+Keywords: excel,xlsx,arrow,parser,etl
+Author-email: Your Name <your.email@example.com>
+License: MIT OR Apache-2.0
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Homepage, https://github.com/yourusername/xsxl
+Project-URL: Repository, https://github.com/yourusername/xsxl
+Project-URL: Documentation, https://xsxl.readthedocs.io
+
+# xsxl - High-Performance Excel to Arrow Parser
+
+A blazingly fast Python library for streaming Excel (XLSX) data directly to Apache Arrow format, built in Rust with PyO3.
+
+## Features
+
+- **Streaming Architecture**: Process files larger than memory with configurable batch sizes
+- **Lazy Loading**: Only loads metadata on open, data parsed on-demand
+- **Type Inference**: Automatically infers Arrow types from Excel number formats
+- **High Performance**: ~3M cells/sec with full type inference
+- **Zero-Copy**: Uses Arrow C Data Interface for efficient data transfer
+- **Thread-Safe**: GIL released during parsing for true parallelism
+
+## Installation
+
+```bash
+pip install xsxl
+```
+
+## Quick Start
+
+```python
+import xsxl
+
+# Open workbook (metadata only, no data loaded)
+wb = xsxl.open("data.xlsx")
+
+# Iterate over sheets
+for sheet_name in wb:
+    print(f"Found sheet: {sheet_name}")
+
+# Get a specific sheet (still no data loaded)
+sheet = wb["Sales"]
+
+# Reference a range (still lazy)
+range = sheet.get_range("A1:Z10000")
+
+# Now data is parsed and streamed
+for batch in range.iter_batches(batch_size=5000):
+    print(f"Got {batch.num_rows} rows")
+
+# Or convert to pandas/polars
+df = range.to_pandas()
+pl_df = range.to_polars()
+```
+
+## Usage Examples
+
+### Stream Large Files
+
+```python
+wb = xsxl.open("huge_file.xlsx")
+range = wb["Sheet1"].get_range("A1:ZZ1000000")
+
+# Process in batches to keep memory bounded
+for batch in range.iter_batches(batch_size=10000):
+    # Process each batch
+    process_batch(batch.to_pandas())
+```
+
+### Load Multiple Sheets Selectively
+
+```python
+wb = xsxl.open("multi_sheet.xlsx")
+
+# Load only sheets matching pattern
+data = {}
+for name in wb:
+    if name.startswith("Sales_"):
+        data[name] = wb[name].get_range("A1:Z1000").to_pandas()
+```
+
+### Transpose Mode
+
+```python
+# For data laid out horizontally
+range = sheet.get_range("A1:J100", transpose=True)
+df = range.to_pandas()  # Columns become rows
+```
+
+## Performance
+
+Benchmarked on 2024 MacBook Pro M4:
+- **Parsing**: 2,989,014 cells/sec with full type inference
+- **Memory**: <100MB for metadata, configurable batch sizes for data
+- **GIL**: Released during parsing for true parallelism
+
+## License
+
+MIT OR Apache-2.0
+
