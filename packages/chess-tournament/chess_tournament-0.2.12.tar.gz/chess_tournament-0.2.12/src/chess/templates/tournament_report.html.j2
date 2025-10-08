@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Full Tournament Report - {{ tournament.name | e }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1, h2, h3 { color: #2E3B4E; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f4f4f4; }
+    .not-played { color: gray; }
+    .in-progress { color: orange; }
+    .victory { color: green; font-weight: bold; }
+    .defeat { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <h1>Tournament: {{ tournament.name | e }}</h1>
+  <p>
+    <strong>Location:</strong> {{ tournament.location | e }}<br>
+    <strong>Dates:</strong> {{ tournament.start_date }} → {{ tournament.end_date }}<br>
+    <strong>Total rounds:</strong> {{ tournament.number_of_rounds }}<br>
+    <strong>Current round:</strong> {{ tournament.current_round }}<br>
+    <strong>Description:</strong> {{ tournament.description | e }}
+  </p>
+
+  <!-- Registered players -->
+  <h2>Registered Players (Alphabetical Order)</h2>
+  <table>
+    <tr><th>Last Name</th><th>First Name</th><th>National ID</th></tr>
+    {% for player in sorted_players %}
+    <tr>
+      <td>{{ player.last_name | e }}</td>
+      <td>{{ player.first_name | e }}</td>
+      <td>{{ player.id_national | e }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <!-- Rounds -->
+  <h2>Rounds and Matches</h2>
+  {% if not tournament.rounds %}
+    <p>No rounds have been played yet.</p>
+  {% else %}
+    {% for round_obj in tournament.rounds %}
+      <h3>Round {{ round_obj.round_no }} - {{ round_obj.start_time or "Not started" }} → {{ round_obj.end_time or "In progress" }}</h3>
+
+      {% if not round_obj.matches %}
+        <p>No matches in this round yet.</p>
+      {% else %}
+        <table>
+          <tr><th>player white</th><th>player black</th><th>Result</th></tr>
+          {% for match in round_obj.matches %}
+            {% set score = match.score %}
+            {% if score == [0, 0] %}
+              {% set score_str = "<span class='not-played'>Not played</span>" %}
+            {% elif score == [1, 0] %}
+              {% set score_str = "<span class='victory'>1 - 0</span>" %}
+            {% elif score == [0, 1] %}
+              {% set score_str = "<span class='defeat'>0 - 1</span>" %}
+            {% else %}
+              {% set score_str = "0.5 - 0.5" %}
+            {% endif %}
+
+            <tr>
+              <td>{{ match.player_white.first_name | e }} {{ match.player_white.last_name | e }}</td>
+              <td>{{ match.player_black.first_name | e }} {{ match.player_black.last_name | e }}</td>
+              <td>{{ score_str | safe }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+
+  <!-- Standings -->
+  <h2>Current Standings</h2>
+  <table>
+    <tr><th>Rank</th><th>Last Name</th><th>First Name</th><th>Points</th></tr>
+    {% for player in sorted_standings %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ player.last_name | e }}</td>
+        <td>{{ player.first_name | e }}</td>
+        <td>{{ scores[player.id_national] }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+
+</body>
+</html>
