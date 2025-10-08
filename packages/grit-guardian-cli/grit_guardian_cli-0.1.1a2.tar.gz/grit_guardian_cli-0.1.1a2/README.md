@@ -1,0 +1,81 @@
+# Grit Guardian CLI 🐉
+
+Grit Guardian is a command-line habit management system that gamifies your routines with an interactive virtual companion (Guardian).
+Don't let your Guardian's mood get sour: stay consistent and build lasting habits!
+
+[![Tests](https://github.com/pi-weiss/grit-guardian-cli/workflows/Tests/badge.svg)](https://github.com/pi-weiss/grit-guardian_cli/actions)
+[![Coverage](https://codecov.io/gh/pi-weiss/grit-guardian_cli/branch/main/graph/badge.svg)](https://codecov.io/gh/pi-weiss/grit-guardian-cli)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads)
+[![license: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+## ✨ Features
+
+
+- 📊 **Habit Tracking**: Track daily and weekly quests with completion timestamps
+- 🔥 **Streak Analytics**: Calculate current and longest streaks with achievement rates
+- 🐉 **Virtual Companion**: Interactive Guardian with mood based on your performance
+- 📅 **Weekly Progress**: Rich table showing week-at-a-glance quest completion
+- 📈 **Analytics Dashboard**: Identify struggling habits and track overall progress
+- 🎯 **Sample Data**: Quick-start with pre-configured habit examples
+- 💾 **Local Storage**: SQLite database with automatic backup and recovery
+
+## 🚀 Quick Start
+
+### Installation
+
+#### Option 1: Install from PyPI (Recommended)
+```bash
+pip install grit-guardian-cli
+```
+
+After installing with pip, you can optionally set up the `gg` command as a shortcut:
+```bash
+echo 'alias gg="grit-guardian"' >> ~/.bashrc # or ~/.zshrc for zsh
+source ~/.bashrc # or source ~/.zshrc
+```
+
+#### Option 2: Install from Source
+```bash
+git clone https://github.com/pi-weiss/grit-guardian-cli.git
+cd grit-guardian-cli
+poetry install
+
+```
+When installed via Poetry, both `grit-guardian` and `gg` commands are automatically available in the Poetry shell.
+
+### First Run
+
+1. **Initialize with sample data:**
+   ```bash
+   grit-guardian init
+   # or use the short alias
+   gg init
+   ```
+
+2. **View your habits:**
+   ```bash
+   gg list
+   ```
+
+3. **Check today's status:**
+   ```bash
+   gg status
+   ```
+
+4. **Complete a habit:**
+   ```bash
+   gg complete "Morning Reading"
+   ```
+
+5. **Meet your Guardian:**
+   ```bash
+   gg guardian
+   ```
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+**Forge your destiny, one habit at a time!** 🐉✨
+
