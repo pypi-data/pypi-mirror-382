@@ -1,0 +1,114 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  # 🚨 CRITICAL: Secret Detection Job - Prevents API Key Exposure
+  secret-detection:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Get full history for secret scanning
+    
+    - name: 🔍 TruffleHog Secret Scan
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+    
+    - name: 🔍 GitLeaks Secret Detection  
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+    
+    - name: 🚨 Block on Secret Detection
+      if: failure()
+      run: |
+        echo "🚨 SECURITY ALERT: Secrets detected in repository!"
+        echo "This build is BLOCKED until secrets are removed."
+        echo ""
+        echo "Common secrets that trigger this:"
+        echo "- API keys (Google, OpenAI, GitHub tokens)"
+        echo "- Database passwords"
+        echo "- Private keys (.pem, .key files)"
+        echo "- GEMINI.md files with API keys"
+        echo ""
+        echo "To fix:"
+        echo "1. Remove secrets from files"
+        echo "2. Add them to .gitignore"
+        echo "3. Use environment variables instead"
+        echo "4. Store secrets in GitHub Secrets"
+        exit 1
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: secret-detection  # Only run if no secrets detected
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+  
+  dependency-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js (if package.json exists)
+      if: hashFiles('package.json') != ''
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Node.js Security Audit
+      if: hashFiles('package.json') != ''
+      run: |
+        npm audit --audit-level high
+        npm audit fix --dry-run
+    
+    - name: Setup Python (if Python files exist)
+      if: hashFiles('**/*.py') != ''
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Python Security Check
+      if: hashFiles('**/*.py') != ''
+      run: |
+        pip install safety bandit
+        safety check || echo "Safety check completed with warnings"
+        bandit -r . -f json -o bandit-report.json || echo "Bandit scan completed with findings"
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          trivy-results.sarif
+        retention-days: 30

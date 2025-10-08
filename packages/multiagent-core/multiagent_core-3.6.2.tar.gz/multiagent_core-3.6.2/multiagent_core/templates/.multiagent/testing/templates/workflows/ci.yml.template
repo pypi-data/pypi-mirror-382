@@ -1,0 +1,64 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main, develop, 'agent-*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Detect project type
+      id: detect
+      run: |
+        if [ -f "package.json" ]; then
+          echo "type=node" >> $GITHUB_OUTPUT
+          echo "version={{NODE_VERSION|20}}" >> $GITHUB_OUTPUT
+        elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+          echo "type=python" >> $GITHUB_OUTPUT
+          echo "version={{PYTHON_VERSION|3.11}}" >> $GITHUB_OUTPUT
+        else
+          echo "type=unknown" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Setup Node.js
+      if: steps.detect.outputs.type == 'node'
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ steps.detect.outputs.version }}
+        cache: 'npm'
+
+    - name: Setup Python
+      if: steps.detect.outputs.type == 'python'
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ steps.detect.outputs.version }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        if [ -f "package.json" ]; then
+          npm ci
+        elif [ -f "requirements.txt" ]; then
+          pip install -r requirements.txt
+        elif [ -f "pyproject.toml" ]; then
+          pip install -e .
+        fi
+
+    - name: Run linting
+      run: |
+        {{LINT_COMMAND|npm run lint}}
+
+    - name: Run tests
+      run: |
+        {{TEST_COMMAND|npm test}}
+
+    - name: Build project
+      if: "{{HAS_BUILD|false}}"
+      run: |
+        {{BUILD_COMMAND|npm run build}}
