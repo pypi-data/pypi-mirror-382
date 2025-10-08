@@ -1,0 +1,303 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "egrc-core"
+version = "1.3.0"
+description = "EGRC Core - Shared functionality and GraphQL support for Enterprise Governance, Risk, and Compliance platform"
+authors = [
+    {name = "EGRC Team", email = "team@egrc.com"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Security",
+    "Framework :: FastAPI",
+    "Framework :: Pydantic",
+]
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    # Core Framework
+    "fastapi>=0.104.1",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    # Database
+    "sqlalchemy>=2.0.23",
+    "alembic>=1.13.0",
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.9",
+    # Authentication & Security
+    "bcrypt>=4.0.1",
+    "cryptography>=3.4.8",
+    "passlib>=1.7.4",
+    "python-jose>=3.3.0",
+    "python-multipart>=0.0.6",
+    # GraphQL
+    "strawberry-graphql>=0.215.0",
+    "strawberry-graphql-django>=0.15.0",
+    # Logging & Monitoring
+    "structlog>=23.2.0",
+    # Caching
+    "redis>=5.0.1",
+    # Message Queue
+    "pika>=1.3.2",
+    "kafka-python>=2.0.2",
+    # HTTP Client
+    "httpx>=0.25.2",
+    "aiohttp>=3.9.1",
+    # Cloud Storage
+    "boto3>=1.34.0",
+    "azure-storage-blob>=12.19.0",
+    "google-cloud-storage>=2.10.0",
+    # Configuration & Environment
+    "python-dotenv>=1.0.0",
+    # Data Processing
+    "pandas>=2.1.4",
+    "numpy>=1.26.2",
+    # Utilities
+    "click>=8.1.7",
+    "rich>=13.7.0",
+    "typer>=0.9.0",
+    # Date/Time
+    "python-dateutil>=2.8.2",
+    "pytz>=2023.3",
+    # Validation & Serialization
+    "marshmallow>=3.20.1",
+    # Background Tasks
+    "celery>=5.3.4",
+    # File Processing
+    "openpyxl>=3.1.2",
+    # Email
+    "emails>=0.6.0",
+    # LLM Integration
+    "openai>=1.3.0",
+    "anthropic>=0.7.0",
+    "httpx>=0.25.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-postgresql>=5.0.0",
+    # Code Quality
+    "black>=23.11.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.7.1",
+    "pylint>=3.0.3",
+    "pydocstyle>=6.3.0",
+    "bandit>=1.7.5",
+    "safety>=2.3.5",
+    # Pre-commit
+    "pre-commit>=3.6.0",
+    "commitizen>=3.13.0",
+    # Documentation
+    "sphinx>=7.2.6",
+    "sphinx-rtd-theme>=1.3.0",
+    "sphinx-autodoc-typehints>=1.25.0",
+    # Development Tools
+    "ipython>=8.18.1",
+    "jupyter>=1.0.0",
+    # Performance Profiling
+    "py-spy>=0.3.14",
+    "memory-profiler>=0.61.0",
+]
+
+[project.scripts]
+egrc-cli = "egrc_core.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/egrc/egrc-core"
+Documentation = "https://egrc-core.readthedocs.io"
+Repository = "https://github.com/egrc/egrc-core.git"
+"Bug Tracker" = "https://github.com/egrc/egrc-core/issues"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["egrc_core"]
+known_third_party = ["fastapi", "pydantic", "sqlalchemy", "structlog"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "strawberry.*",
+    "alembic.*",
+    "celery.*",
+    "redis.*",
+    "pandas.*",
+    "numpy.*",
+    "openpyxl.*",
+    "emails.*",
+]
+ignore_missing_imports = true
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114",  # missing-module-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "R0913",  # too-many-arguments
+]
+
+[tool.pylint.format]
+max-line-length = 88
+
+[tool.pylint.design]
+max-args = 10
+max-locals = 20
+max-returns = 6
+max-branches = 15
+max-statements = 60
+
+[tool.bandit]
+exclude_dirs = ["tests", "test_*"]
+skips = ["B101", "B601"]  # Skip assert_used and shell_injection for tests
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["egrc_core"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+    "*/alembic/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+# Semantic Release Configuration
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+version_variable = "egrc_core/__version__.py:__version__"
+build_command = "python -m build"
+upload_to_vcs_release = true
+upload_to_pypi = true
+upload_to_release = true
+commit_author = "semantic-release <semantic-release@egrc.com>"
+commit_subject = "chore(release): {version} [skip ci]"
+commit_message = "Automated release {version}"
+tag_commit = true
+major_on_zero = false
+version_source = "tag"
+changelog_file = "CHANGELOG.md"
+prerelease = false
+prerelease_token = "rc"
+prerelease_branches = ["alpha", "beta", "rc"]
+changelog_merge_defaults = true
+changelog_merge_prerelease = true
+changelog_merge_include = ["feat", "fix", "perf", "refactor", "docs", "style", "test", "build", "ci", "chore", "module", "security", "deprecate", "remove", "revert", "alpha", "beta"]
+changelog_merge_exclude = []
+changelog_merge_commit_pattern = "^(feat|fix|perf|refactor|docs|style|test|build|ci|chore|module|security|deprecate|remove|revert|alpha|beta)(\\(.+\\))?: .+"
+changelog_merge_commit_parsers = [
+    { type = "feat", section = "Features" },
+    { type = "fix", section = "Bug Fixes" },
+    { type = "perf", section = "Performance Improvements" },
+    { type = "refactor", section = "Code Refactoring" },
+    { type = "docs", section = "Documentation" },
+    { type = "style", section = "Styles" },
+    { type = "test", section = "Tests" },
+    { type = "build", section = "Build System" },
+    { type = "ci", section = "Continuous Integration" },
+    { type = "chore", section = "Miscellaneous" },
+    { type = "module", section = "New Modules" },
+    { type = "security", section = "Security" },
+    { type = "deprecate", section = "Deprecations" },
+    { type = "remove", section = "Removals" },
+    { type = "revert", section = "Reverts" },
+    { type = "alpha", section = "Alpha Features" },
+    { type = "beta", section = "Beta Features" },
+]
+changelog_merge_replacements = [
+    { pattern = "^(feat)", replacement = "✨ $1" },
+    { pattern = "^(fix)", replacement = "🐛 $1" },
+    { pattern = "^(perf)", replacement = "⚡ $1" },
+    { pattern = "^(refactor)", replacement = "♻️ $1" },
+    { pattern = "^(docs)", replacement = "📚 $1" },
+    { pattern = "^(style)", replacement = "💄 $1" },
+    { pattern = "^(test)", replacement = "✅ $1" },
+    { pattern = "^(build)", replacement = "🔨 $1" },
+    { pattern = "^(ci)", replacement = "👷 $1" },
+    { pattern = "^(chore)", replacement = "🔧 $1" },
+    { pattern = "^(module)", replacement = "📦 $1" },
+    { pattern = "^(security)", replacement = "🔒 $1" },
+    { pattern = "^(deprecate)", replacement = "⚠️ $1" },
+    { pattern = "^(remove)", replacement = "🗑️ $1" },
+    { pattern = "^(revert)", replacement = "⏪ $1" },
+    { pattern = "^(alpha)", replacement = "🧪 $1" },
+    { pattern = "^(beta)", replacement = "🔬 $1" },
+]
