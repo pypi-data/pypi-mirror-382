@@ -1,0 +1,178 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "deadline-cloud-for-vred"
+dynamic = ["version"]
+readme = "README.md"
+requires-python = ">=3.11"
+description = "AWS Deadline Cloud for VRED"
+license = "Apache-2.0"
+# https://pypi.org/classifiers/
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: Microsoft :: Windows",
+  "License :: OSI Approved :: Apache Software License",
+  "Intended Audience :: Developers",
+  "Intended Audience :: End Users/Desktop"
+]
+
+
+dependencies = [
+    "deadline >= 0.51.1,< 0.54",
+]
+
+[project.scripts]
+install-deadline-cloud-for-vred = "scripts.install_submitter:main"
+
+[project.urls]
+Homepage = "https://github.com/aws-deadline/deadline-cloud-for-vred"
+Source = "https://github.com/aws-deadline/deadline-cloud-for-vred"
+
+[tool.hatch.build]
+artifacts = [
+  "*_version.py",
+]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+version_scheme = "post-release"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "_version.py"
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_custom_hook.py"
+
+[tool.hatch.build.hooks.custom.copy_version_py]
+destinations = [
+  "src/deadline/vred_submitter",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/*",
+    "hatch_version_hook.py",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = [
+  "src/deadline",
+  "scripts"
+]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+show_error_codes = true
+pretty = true
+files = ["src/**/*.py"]
+ignore_missing_imports = true
+# Tell mypy that there's a namspace package src/deadline
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["vred.*"]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+  "deadline",
+  "openjd"
+]
+
+[tool.black]
+line-length = 100
+
+[tool.pytest.ini_options]
+xfail_strict = true
+addopts = [
+    "--durations=5",
+    "--color=yes",
+    "--cov=vred_submitter",
+    "--cov-report=html:build/coverage",
+    "--cov-report=xml:build/coverage/coverage.xml",
+    "--cov-report=term-missing"
+]
+testpaths = [ "test" ]
+norecursedirs = [ "test/worker" ]
+markers = [
+    "submitter: marks tests as submitter tests",
+    "scene_files: marks tests that require scene files"
+]
+
+pythonpath = [
+  # The VRED submitter plugin isn't structured like a Python package
+  "vred_submitter_plugin/plug-ins"
+]
+
+[tool.coverage.run]
+source_pkgs = [ "vred_submitter" ]
+branch = true
+parallel = true
+omit = [ "**/__main__.py", "**/_version.py" ]
+disable_warnings = [ "module-not-measured" ]
+
+[tool.coverage.paths]
+source =  [
+    "src/"
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 0
+
+[tool.semantic_release]
+# Can be removed or set to true once we are v1
+major_on_zero = false
+tag_format = "{version}"
+allow_zero_version = true
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = [
+    "build",
+    "chore",
+    "ci",
+    "docs",
+    "feat",
+    "fix",
+    "perf",
+    "style",
+    "refactor",
+    "test",
+]
+minor_tags = []
+patch_tags = [
+  "chore",
+  "feat",
+  "fix",
+  "refactor",
+]
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = false
+
+[tool.semantic_release.changelog]
+template_dir = ".semantic_release"
+
+[tool.semantic_release.changelog.environment]
+trim_blocks = true
+lstrip_blocks = true
+
+[tool.semantic_release.branches.release]
+match = "(mainline|release|patch_.*)"
