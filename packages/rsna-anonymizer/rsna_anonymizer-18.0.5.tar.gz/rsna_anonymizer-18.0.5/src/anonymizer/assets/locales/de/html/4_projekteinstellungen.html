@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<!-- Liste der HTML-Tags, die von tkhtmlview unterstützt werden:
+siehe https://github.com/bauripalash/tkhtmlview?tab=readme-ov-file#html-support -->
+<html>
+<body>
+<div style="color: THEME_COLOR; font-size: 14px;">
+	<!-- <h1 style="text-align: center;">RSNA DICOM Anonymizer Project Settings</h1> -->
+
+		<h2>Projekteinstellungen</h2>
+		<ul>
+			<li>Die Einstellungsnamen sind in der linken Spalte aufgelistet und die entsprechenden Werte oder Optionen befinden sich in der rechten Spalte.</li> 
+			<li>Die meisten Einstellungen können durch Klicken auf den entsprechenden blauen Button konfiguriert werden.</li>
+			<li>Jede Einstellung wird unten beschrieben:</li>
+		</ul>
+		<img src="assets/locales/de/html/images/NeueProjekteinstellungen.png"/>
+
+			<h3>Standort-ID</h3>
+			<ul>
+				<li>Die Standort-ID wird entweder automatisch generiert oder aus einer Java Anonymizer Index-Datei (Index.xlsx) analysiert.</li>
+				<li>Die Standort-ID <b>kann nach der Projekt-Erstellung nicht geändert werden</b>.</li>
+				<li>Die Standort-ID wird als erster Eintrag im privaten Block (0013,1001) jeder anonymisierten DICOM-Datei geschrieben.</li>
+				<li>Die Standort-ID erscheint in eckigen Klammern in der Titelleiste des Dashboards, nach dem Projektnamen, wenn ein Projekt geöffnet ist.</li>
+			</ul>
+				<h4>Automatische Generierung</h4>
+				<ul>
+					<li>Die Standort-ID wird automatisch vom Anonymizer bei der Erstellung eines neuen Projekts generiert.</li>
+					<li>Zur Sicherstellung der Eindeutigkeit basiert sie auf der Anzahl der 30-minütigen Intervalle seit dem 1. Januar 1970.</li>
+				</ul>
+				<h4>Projekt durch Importieren der Java Anonymizer Index-Datei (Index.xlsx) konfigurieren</h4>
+				<ul>
+					<li>Wenn der Benutzer auf die Schaltfläche <i>Java Indexdatei laden</i> klickt und die Inhalte einer Java Anonymizer Indexdatei importiert, wird die Standort-ID aus der ersten Studienzeile aus der Indexdatei analysiert.</li>
+					<li>Die Daten aller Studien in der Indexdatei werden in die Anonymizer-Datenbank importiert, um sicherzustellen, dass weiterhin eindeutige UIDs für das Projekt generiert werden.</li>
+				</ul>
+
+			<h3>Projektname</h3>
+			<ul>
+				<li>Der Projektname muss weniger als 16 Zeichen lang sein.</li> 
+				<li>Der Projektname wird als zweiter Eintrag im privaten Block (0013,1003) jeder anonymisierten DICOM-Datei geschrieben.</li>
+				<li>Das Projektname wird als Standardverzeichnisname für den Anonymisierungs-Speicher verwendet, siehe die Einstellung des Speicherverzeichnisses unten.</li>
+				<li>Der Projektname erscheint in der Titelleiste des Dashboards eines geöffneten Projekts gefolgt von der Standort-ID in eckigen Klammern.</li>
+				<li>Der Projektname <b>kann nach der Projekt-Erstellung nicht geändert werden</b>.</li>
+			</ul>
+
+			<h3>UID Root</h3>
+			<ul>
+				<li>Die UID-Root bildet das Präfix aller DICOM-UIDs, die vom Anonymizer für dieses Projekt generiert werden.</li>
+				<li>Standardmäßig ist es auf die RSNA UID-Root eingestellt.</li> 
+				<li>Die UID-Root <b>kann nach der Projekt-Erstellung nicht geändert werden</b>.</li>
+				<li>Der Anonymizer generiert sequenzielle UIDs für ein Projekt im Format: <i>"[UID Root].[Site ID].[N]"</i>, wobei N die ganze Sequenznummer ist.</li>
+			</ul>
+
+			<h3>DICOM-Server</h3>
+				<h4>Lokaler Server</h4>
+				<img src="assets/locales/de/html/images/LokalerServer.png"/>
+				<ul>
+					<li>Der lokale Server fungiert sowohl als DICOM Service Class Provider (SCP) als auch als Service Class User (SCU) für den Anonymizer.</li>
+					<li>Die Dropdown-Liste Adresse wird mit den IP-Adressen der Netzwerk-Schnittstellen des lokalen Rechners gefüllt.</li>
+					<li>Wenn ein Projekt geöffnet ist, wird der lokale SCP gestartet und hört auf eingehende DICOM-Assoziationen an der ausgewählten Adresse, Port und AE-Titel.</li>
+					<li>Der lokale SCP akzeptiert Assoziationen von <b><i>jedem</i></b> entfernten SCU, der den angegebenen AE-Titel aufruft.</li>
+					<li>Wenn ein Projekt geschlossen ist, wird der lokale Server SCP gestoppt.</li>
+					<li>Der lokale Server SCU erhält Ports vom Betriebssystem für ausgehende DICOM-Assoziationen, verwendet aber die gleiche Adresse und den gleichen AE-Titel wie der SCP.</li>
+				</ul>
+
+				<h4>DICOM Bildarchiv (Query/Retrieve-Server)</h4>
+				<img src="assets/locales/de/html/images/BildarchivQRServer.png"/>
+				<ul>	
+					<li>Der DICOM Bildarchiv (Query/Retrieve-Server) ist der entfernte DICOM Service Class Provider (SCP), den der Anonymizer abfragen und DICOM-Dateien abrufen wird.</li>
+					<li>Wenn nötig und unterstützt durch die Netzwerkarchitektur, kann die Abfrage-Server-Adresse über seinen Domainnamen über eine DNS-Suche gefunden werden.</li>
+					<li>Die Abfrage-Server-Adresse, der Port und der AE-Titel geben an, wie der Abfrage-SCP auf eingehende DICOM-Assoziationen hört.</li> 
+					<li>Die lokalen SCU-Details des Anonymizers müssen typischerweise den erlaubten DICOM-SCU-Tabellen des entfernten Servers hinzugefügt werden, um den Zugriff zu ermöglichen.</li>
+					<li>Der DICOM Bildarchiv (Query/Retrieve-Server) muss konfiguriert sein, um dem Anonymizer SCU zu erlauben, C-ECHO-, C-FIND- und C-MOVE-Anforderungen auszuführen.</li>
+					<li>Der DICOM Bildarchiv (Query/Retrieve-Server) muss mit den Zielinformationen des Anonymizer SCP (Adresse, Port, AE-Titel) konfiguriert sein.</li>
+					<li>Der Anonymizer lokale SCU ruft DICOM-Studien und deren zugehörige Dateien vom Abfrage-Server ab, indem er DICOM C-MOVE-Anforderungen auf einer benutzerdefinierten Ebene ausführt.</li>
+					<li>Der Anonymizer lokale SCP empfängt die Dateien vom Abfrage-Server über eine separate Assoziation, von der die Anforderung gemacht wurde (gemäß dem C-MOVE-Protokoll).</li>
+					<li>Die Details des Abfrage- und Importprozesses finden Sie im Abschnitt <i>Abfrage-, Abruf- und Importansicht</i> unten.</li>
+				</ul>
+
+				<h4>Export-Server</h4>
+				<img src="assets/locales/de/html/images/ExportServer.png"/>
+				<ul>	
+					<li>Der Export-Server ist der entfernte DICOM Service Class Provider (SCP), an den der Anonymizer DICOM-Dateien sendet.</li>
+					<li>Wenn nötig und unterstützt durch die Netzwerkarchitektur, kann die Export-Server-Adresse über seinen Domainnamen über eine DNS-Suche gefunden werden.</li>
+					<li>Die Export-Server-Adresse, der Port und der AE-Titel geben an, wie der Export-SCP auf eingehende DICOM-Assoziationen hört.</li> 
+					<li>Die lokalen SCU-Details des Anonymizers müssen typischerweise den erlaubten DICOM-SCU-Tabellen des entfernten Export-Servers hinzugefügt werden, um den Zugriff zu ermöglichen.</li>
+					<li>Der Export-Server muss konfiguriert sein, um dem Anonymizer SCU zu erlauben, C-ECHO-, C-FIND- und C-SEND-Anforderungen auszuführen.</li>
+					<li>Der Anonymizer SCU sendet DICOM-Studien und deren zugehörige Dateien an den Export-Server, indem er DICOM C-SEND-Anforderungen auf einer benutzerdefinierten Ebene ausführt.</li>
+					<li>Die Details des Exportprozesses finden Sie im Abschnitt <i>Exportansicht</i> unten.</li>
+				</ul>
+				
+			<h3>AWS S3-Server</h3>
+			<img src="assets/locales/de/html/images/AWSCognitoCredentials.png"/>
+			<ul>
+				<li>Der AWS Cognito Credentials-Dialog erfasst die Parameter, die der Anonymizer benötigt, um anonymisierte Studien als AWS Cognito-Anwendungsbenutzer an einen AWS S3-Speicherbucket zu senden.</li>
+				<li>Die Standardwerte außer Benutzername und Passwort sind die Werte, die für das RSNA Imaging Archive gesendet werden müssen.</li>
+				<li>Kontaktieren Sie die RSNA-Informationsabteilung, um Ihre Standort-ID und Ihr Projekt zur Registrierung eines Benutzernamens und Passworts für den Export in ihr Archiv zu erhalten.</li>
+				<li>Zur Konfiguration einer benutzerdefinierten AWS S3-Installation ist die Einrichtung einer Cognito-Anwendung, eines Benutzers und eines Identitätspools mit ListBucket- und PutObject-Berechtigungen erforderlich.</li>
+				<li>Das Kontrollkästchen <i>Auf AWS exportieren</i> muss aktiviert sein, um den Export zu AWS S3 anstelle des DICOM Export-Servers zu ermöglichen.</li>
+				<li>Die Details des Exportprozesses zu AWS S3 finden Sie im Abschnitt <i>Exportansicht</i> unten.</li></li>
+			</ul>
+
+			<h3>Netzwerk-Zeitüberschreitungen</h3>
+			<img src="assets/locales/de/html/images/Netzwerk-Zeitüberschreitungen.png"/>
+			<ul>
+				<li>Die Netzwerk-Zeitüberschreitungen sind die maximale Zeit, die der Anonymizer auf eine Antwort von einem entfernten DICOM-Server wartet, bevor er abbricht.</li>
+				<li>Es gibt 4 verschiedene Zeitüberschreitungen, die in Sekunden eingestellt werden können und an die Netzwerkbedingungen angepasst werden können.</li>
+				<li>Die Standardwerte sind auf vernünftige Werte gesetzt, die die meisten Server berücksichtigen sollten.</li>
+				<li>Der Netzwerk-Zeitüberschreitung wird abgebrochen, wenn von dem entfernten Server keine erwartete Aktivität festgestellt wurde.</li>
+				<li>Der Netzwerk-Zeitüberschreitung ist der wahrscheinlichste Timeout, der möglicherweise angepasst werden muss.</li>
+			</ul>
+
+			<h3>Speicherverzeichnis</h3>
+			<img src="assets/locales/de/html/images/Speicherverzeichnis.png"/>
+			<ul>
+				<li>Das Speicherverzeichnis ist ein lokaler Dateisystemstandort, an dem der Anonymizer die anonymisierten Dateien und alle Projektdaten speichert.</li>
+				<li>Standardmäßig wird das Speicherverzeichnis im Benutzerverzeichnis erstellt: <b><i>/Dokumente/RSNA Anonymizer/Projektname (siehe oben)</i></b></li>
+				<li>Die Projektdatei: <b><i>ProjectModel.pkl</i></b> speichert die Projekteinstellungen im Stammverzeichnis des Speicherverzeichnisses.</li>
+				<li>Zwei Unterordner werden aus dem Speicherverzeichnis-Stamm erstellt: <b><i>/privat</i></b> und <b><i>/öffentlich</i></b>.</li>
+				<li>Der <b><i>/privat</i></b> Unterordner enthält <i>Private Health Information (PHI)</i>, die aus eingehenden DICOM-Dateien extrahiert wurde.</li>
+				<li>Die Anonymizer-Datendatei: <b><i>/privat/AnonymizerModel.pkl</i></b> speichert die PHI-Daten in komprimierter Form.</li>
+				<li>Verschiedene <b><i>/privat/quarantäne</i></b> Unterordner werden erstellt, wenn Fehler in eingehenden Dateien erkannt werden.</li>
+				<li>Der <b><i>/privat/phi_export</i></b> Unterordner speichert alle PHI-Patienten-Lookup-Dateien, die aus der Exportansicht durch Klicken auf <i>Patient Lookup erstellen</i> erstellt wurden.</li>
+				<li>Der <b><i>/öffentlich</i></b> Unterordner enthält die anonymisierten Dateien mit der Struktur: <b><i>/öffentlich/[anonymized_patient_id]/[study_uid]/[series_uid]/[instance_uid].dcm</i></b></li>
+				<li>Das Speicherverzeichnis <b>kann nach der Projekt-Erstellung nicht geändert werden</b>.</li>
+			</ul>
+
+			<h3>Modalitäten</h3>
+			<img src="assets/locales/de/html/images/Modalitäten.png"/>
+			<ul>
+				<li>Der Modalitäten-Dialog listet die Bildgebirgsmethoden auf, die typischerweise in der Radiologie zu finden sind.</li>
+				<li>Klicken Sie auf einen Eintrag, um eine Modalität auszuwählen/abzuwählen. Eine ausgewählte Modalität wird grün hervorgehoben.</li>
+				<li>Der Anonymizer akzeptiert nur Dateien mit Modalitäten, die hier ausgewählt sind.</li>
+				<li>Es besteht eine eins-zu-viele-Beziehung zwischen einer Modalität und der Speicherklasse.</li>
+				<li>Der Anonymizer erstellt automatisch eine Liste der erlaubten Speicherklassen, die den aktuell ausgewählten Modalitäten entsprechen.</li>
+				<li>Speicherklassen können im Dialog <i>Speicherklassen</i> unten bearbeitet werden.</li>
+			</ul>
+
+			<h3>Speicherklassen</h3>
+			<img src="assets/locales/de/html/images/Speicherklassen.png"/>
+			<ul>
+				<li>Der Speicherklassen-Dialog listet alle aktuellen DICOM-Speicherklassen auf, die durch den Standard definiert sind.</li>
+				<li>Die Liste der Speicherklassen, die durch die oben ausgewählten Modalitäten impliziert werden, kann hier bestätigt und/oder bearbeitet werden.</li>
+				<li>Klicken Sie auf einen Eintrag, um eine Speicherklasse auszuwählen/abzuwählen. Eine ausgewählte Speicherklasse wird grün hervorgehoben.</li>
+				<li>Nach etwaigen Bearbeitungen setzt das Klicken auf den <b><i>Von Modalitäten</b></i>-Button die Liste der Speicherklassen zurück, die durch die aktuell ausgewählten Modalitäten impliziert werden.</li>
+			</ul>
+
+			<h3>Übertragungssyntaxen</h3>
+			<img src="assets/locales/de/html/images/TransferSyntaxen.png"/>
+			<ul>
+				<li>Der Transfersyntaxen-Dialog listet die Datenformate auf, die derzeit vom Anonymizer unterstützt werden.</li>
+				<li>Die ersten 4 Transfersyntaxen verwenden keine Bildkompression und sind standardmäßig ausgewählt.</li>
+				<li>Die anderen Transfersyntaxen bieten Unterstützung für die JPEG-Bildkompression mit unterschiedlichen Algorithmen.</li>
+				<li>Die ausgewählten Speicherklassen in Kombination mit den ausgewählten Transfersyntaxen bestimmen, welche DICOM-Dateien vom Anonymizer akzeptiert werden.</li>
+				<li>Die Präsentation- und Speicherkontexte, die durch die ausgewählten Speicherklassen und Transfersyntaxen bestimmt werden, werden bei der Verhandlung von Assoziationen verwendet, wenn der Anonymizer als SCU und SCP fungiert.</li>
+				<li>Der Anonymizer transkodiert keine DICOM-Dateien von einer Übertragungssyntax in eine andere.</li>
+				<li>Die Übertragungssyntax der von dem Anonymizer empfangenen DICOM-Dateien wird in der entsprechenden anonymisierten Datei beibehalten.</li>
+
+			</ul>
+
+			<h3>Skriptdatei</h3>
+			<ul>
+				<li>Die Standard-Skriptdatei, die mit diesem Anonymizer geliefert wird, enthält die Anweisungen zur Einhaltung des DICOM-Standard-De-Identifikationsprotokolls, das im entsprechenden Hilfemenü beschrieben wird.</li>
+				<li>Alternative Skriptdateien können über diese Schaltfläche geladen werden, um komplexere oder ältere Projekte zu unterstützen.</li>
+				<li>Wenn eine andere Anonymizer-Skriptdatei geladen wird, beachten Sie die Einschränkungen, wie sie im Übersichtsabschnitt beschrieben sind: Unterschiede zur Java-Version.</li>	
+			</ul>
+
+			<h3>Logging-Level</h3>
+			<img src="assets/locales/de/html/images/Protokollierungsstufen.png"/>
+			<ul>
+				<li>Der Anonymizer generiert detaillierte Protokollinformationen, erfasst Programmaktivitäten auf Debug-, Info-, Warnungs-, Fehler- und Kritische-Ebenen und speichert sie in einer Datei.</li>
+				<li>Es gibt bis zu 10 Logdateien (maximale Größe: 100MB) in einer rotierenden Liste.</li>
+				<li>Protokollpfad unter Windows: <i>[Benutzerverzeichnis]\AppData\Local\Anonymizer</i></li>
+				<li>Protokollpfad unter MacOS: <i>[Benutzerverzeichnis]/Library/Logs/Anonymizer/</i></li>
+				<li>Protokollpfad unter Linux: <i>[Benutzerverzeichnis]/Logs/Anonymizer/</i></li>
+				<li>Die Protokollausgabe der DICOM-Bibliotheken PYDICOM und PYNETDICOM, die vom Anonymizer verwendet werden, kann mit diesem Dialog gesteuert werden.</li>
+				<li><b>Warnung: </b> Wenn die Debug-Ausgabe für PYDICOM aktiviert ist, werden PHI-Daten in die Protokolle geschrieben.</li>
+				<li><a href=https://github.com/tmoreno/open-log-viewer/releases>Open Log Viewer</a> ist ein ausgezeichneter kostenloser plattformübergreifender Logfile-Betrachter für fortgeschrittene Benutzer.</li>
+			</ul>
+			<img src="assets/locales/en_US/html/images/OpenLogViewer.png"/>
+
+			
+
+</div>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<!-- Liste des balises HTML prises en charge par tkhtmlview :
+voir https://github.com/bauripalash/tkhtmlview?tab=readme-ov-file#html-support -->
+<html>
+<body>
+<div style="color: THEME_COLOR; font-size: 14px;">
+	<!-- <h1 style="text-align: center;">Paramètres du projet RSNA DICOM Anonymiseur</h1> -->
+
+		<h2>Paramètres du Projet</h2>
+		<ul>
+			<li>Les noms des paramètres sont listés dans la colonne de gauche et les valeurs ou options correspondantes sont dans la colonne de droite.</li> 
+			<li>La plupart des paramètres peuvent être configurés en cliquant sur le bouton bleu correspondant.</li>
+			<li>Chaque paramètre est décrit ci-dessous :</li>
+		</ul>
+		<img src="assets/locales/en_US/html/images/NewProjectSettings.png"/>
+
+			<h3>ID du Site</h3>
+			<ul>
+				<li>L'ID du site est soit généré automatiquement, soit extrait d'un fichier d'index Java Anonymiseur (Index.xlsx).</li>
+				<li>L'ID du site <b>ne peut pas être changé</b> après la création du projet.</li>
+				<li>L'ID du site est écrit comme première entrée dans le bloc privé (0013,1001) de chaque fichier DICOM anonymisé.</li>
+				<li>L'ID du site apparaît entre crochets dans la barre de titre du tableau de bord, après le nom du projet lorsqu'un projet est ouvert.</li>
+			</ul>
+				<h4>Génération automatique</h4>
+				<ul>
+					<li>L'ID du site est généré automatiquement par l'Anonymiseur lors de la création d'un nouveau projet.</li>
+					<li>Pour assurer l'unicité, il est basé sur le temps et égal au nombre d'intervalles de 30 minutes depuis le 1er janvier 1970.</li>
+				</ul>
+				<h4>Configurer le projet en important un fichier d'index Java Anonymiseur (Index.xlsx)</h4>
+				<ul>
+					<li>Si l'utilisateur clique sur le bouton <i>Charger le fichier d'index Java</i> et importe le contenu d'un fichier d'index Java Anonymiseur, l'ID du site sera extrait de la première ligne d'étude lue à partir du fichier d'index.</li>
+					<li>Les données de toutes les études dans le fichier d'index seront importées dans la base de données Anonymiseur pour garantir que des UID uniques continuent d'être générés pour le projet.</li>
+				</ul>
+
+			<h3>Nom du Projet</h3>
+			<ul>
+				<li>Le nom du projet doit comporter moins de 16 caractères.</li> 
+				<li>Le nom du projet est écrit comme deuxième entrée dans le bloc privé (0013,1003) de chaque fichier DICOM anonymisé.</li>
+				<li>Le nom du projet est utilisé comme nom de répertoire par défaut pour le magasin d'anonymisation, voir le paramètre du répertoire de stockage ci-dessous.</li>
+				<li>Le nom du projet apparaît dans la barre de titre du tableau de bord d'un projet ouvert suivi de l'ID du site entre crochets.</li>
+				<li>Le nom du projet <b>ne peut pas être changé</b> après la création du projet.</li>
+			</ul>
+
+			<h3>Racine UID</h3>
+			<ul>
+				<li>La racine UID forme le préfixe de tous les UID DICOM générés par l'Anonymiseur pour ce projet.</li>
+				<li>Par défaut, elle est définie sur la racine UID RSNA.</li> 
+				<li>La racine UID <b>ne peut pas être changée</b> après la création du projet.</li>
+				<li>L'Anonymiseur génère des UID séquentiels pour un projet avec le format : <i>"[Racine UID].[ID du site].[N]"</i> où N est le numéro de séquence entier.</li>
+			</ul>
+
+			<h3>Serveurs DICOM</h3>
+				<h4>Serveur Local</h4>
+				<img src="assets/locales/en_US/html/images/LocalServer.png"/>
+				<ul>
+					<li>Le serveur local agit à la fois comme fournisseur de services DICOM (SCP) et utilisateur de services (SCU) pour l'Anonymiseur.</li>
+					<li>La liste déroulante Adresse est remplie avec les adresses IP des interfaces réseau de la machine locale.</li>
+					<li>Lorsqu'un projet est ouvert, le SCP local est démarré et écoute les associations DICOM entrantes sur l'adresse sélectionnée, le port spécifié et le titre AE.</li>
+					<li>Le SCP local acceptera les associations de <b><i>tout</i></b> SCU distant appelant le titre AE spécifié.</li>
+					<li>Lorsqu'un projet est fermé, le SCP du serveur local est arrêté.</li>
+					<li>Le SCU du serveur local se voit attribuer des ports par le système d'exploitation pour les associations DICOM sortantes mais utilise la même adresse et le même titre AE que le SCP.</li>
+				</ul>
+
+				<h4>Serveur de Requête</h4>
+				<img src="assets/locales/en_US/html/images/QueryServer.png"/>
+				<ul>	
+					<li>Le serveur de requête est le fournisseur de services DICOM (SCP) distant que l'Anonymiseur interrogera et à partir duquel il récupérera les fichiers DICOM.</li>
+					<li>Si nécessaire et pris en charge par l'architecture réseau, l'adresse du serveur de requête peut être trouvée en utilisant son nom de domaine via une recherche DNS.</li>
+					<li>L'adresse du serveur de requête, le port et le titre AE spécifient comment le SCP de requête écoute les associations DICOM entrantes.</li> 
+					<li>Les détails du SCU local de l'Anonymiseur devront généralement être ajoutés aux tables SCU DICOM autorisées du serveur distant pour permettre l'accès.</li>
+					<li>Le serveur de requête doit être configuré pour permettre au SCU Anonymiseur d'exécuter les requêtes C-ECHO, C-FIND et C-MOVE.</li>
+					<li>Le serveur de requête doit être configuré avec les détails de destination du SCP Anonymiseur (adresse, port, titre AE).</li>
+					<li>Le SCU local de l'Anonymiseur récupère les études DICOM et leurs fichiers associés du serveur de requête en émettant des requêtes DICOM C-MOVE à un niveau spécifié par l'utilisateur.</li>
+					<li>Le SCP local de l'Anonymiseur reçoit les fichiers du serveur de requête sur une association distincte de celle à partir de laquelle la demande a été faite (conformément au protocole C-MOVE).</li>
+					<li>Les détails du processus de requête et d'importation peuvent être trouvés dans la section <i>Vue de Requête, Récupération et Importation</i> ci-dessous.</li>
+				</ul>
+
+				<h4>Serveur d'Exportation</h4>
+				<img src="assets/locales/en_US/html/images/ExportServer.png"/>
+				<ul>	
+					<li>Le serveur d'exportation est le fournisseur de services DICOM (SCP) distant auquel l'Anonymiseur enverra les fichiers DICOM.</li>
+					<li>Si nécessaire et pris en charge par l'architecture réseau, l'adresse du serveur d'exportation peut être trouvée en utilisant son nom de domaine via une recherche DNS.</li>
+					<li>L'adresse du serveur d'exportation, le port et le titre AE spécifient comment le SCP d'exportation écoute les associations DICOM entrantes.</li> 
+					<li>Les détails du SCU local de l'Anonymiseur devront généralement être ajoutés aux tables SCU DICOM autorisées du serveur d'exportation distant pour permettre l'accès.</li>
+					<li>Le serveur d'exportation doit être configuré pour permettre au SCU Anonymiseur d'exécuter les requêtes C-ECHO, C-FIND et C-SEND.</li>
+					<li>Le SCU de l'Anonymiseur envoie les études DICOM et leurs fichiers associés au serveur d'exportation en émettant des requêtes DICOM C-SEND à un niveau spécifié par l'utilisateur.</li>
+					<li>Les détails du processus d'exportation peuvent être trouvés dans la section <i>Vue d'Exportation</i> ci-dessous.</li>
+				</ul>
+				
+			<h3>Serveur AWS S3</h3>
+			<img src="assets/locales/en_US/html/images/AWSCognitoCredentials.png"/>
+			<ul>
+				<li>La boîte de dialogue des informations d'identification AWS Cognito capture les paramètres nécessaires pour que l'Anonymiseur envoie les études anonymisées à un bucket de stockage AWS S3 en tant qu'utilisateur d'application AWS Cognito.</li>
+				<li>Les valeurs par défaut, sauf pour le nom d'utilisateur et le mot de passe, sont les valeurs requises pour envoyer à l'Archive d'Imagerie RSNA.</li>
+				<li>Les paramètres d'identification sont :
+					<ul>
+						<li>ID du Client</li>
+						<li>Identifiant de la Région</li>
+						<li>ID du Pool Utilisateur</li>
+						<li>Nom d'utilisateur</li>
+						<li>Mot de passe</li>
+						<li>ID du Bucket</li>
+					</ul>
+				</li>
+				<li>La boîte de dialogue capture les paramètres nécessaires pour que l'Anonymiseur envoie des études anonymisées à un bucket de stockage AWS S3 en tant qu'utilisateur d'application AWS Cognito.</li>
+				<li>Les valeurs par défaut, sauf pour le nom d'utilisateur et le mot de passe, sont les valeurs requises pour envoyer à l'Archive d'Imagerie RSNA.</li>
+			</ul>
+
+			<h2>Gestion des Comptes Utilisateur</h2>
+			<ul>
+				<li>La boîte de dialogue des comptes utilisateur affiche une liste des utilisateurs autorisés et leur rôle dans l'Anonymiseur.</li>
+				<li>Un administrateur peut ajouter ou supprimer des utilisateurs, ainsi que modifier leurs rôles.</li>
+			</ul>
+			<img src="assets/locales/en_US/html/images/UserManagement.png"/>
+
+			<h3>Ajouter un Utilisateur</h3>
+			<ul>
+				<li>Cliquez sur le bouton <i>Ajouter un utilisateur</i> pour ouvrir une boîte de dialogue permettant de saisir le nom d'utilisateur, le mot de passe et le rôle du nouvel utilisateur.</li>
+				<li>Le mot de passe doit être confirmé pour garantir sa saisie correcte.</li>
+				<li>Les rôles disponibles sont :
+					<ul>
+						<li>Administrateur : a tous les droits</li>
+						<li>Utilisateur : peut visualiser les données mais ne peut pas les modifier</li>
+					</ul>
+				</li>
+			</ul>
+			
+			<h3>Modifier un Utilisateur</h3>
+			<ul>
+				<li>Sélectionnez un utilisateur dans la liste et cliquez sur <i>Modifier</i> pour ouvrir une boîte de dialogue permettant de modifier le nom d'utilisateur, le mot de passe et le rôle de l'utilisateur sélectionné.</li>
+			</ul>
+
+			<h3>Supprimer un Utilisateur</h3>
+			<ul>
+				<li>Sélectionnez un utilisateur dans la liste et cliquez sur <i>Supprimer</i> pour retirer l'utilisateur de la liste des utilisateurs autorisés.</li>
+				<li>Une confirmation est demandée pour éviter toute suppression accidentelle.</li>
+			</ul>
+
+</div>
+</body>
+</html>
