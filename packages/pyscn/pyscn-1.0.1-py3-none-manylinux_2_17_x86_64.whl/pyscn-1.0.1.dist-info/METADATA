@@ -1,0 +1,170 @@
+Metadata-Version: 2.1
+Name: pyscn
+Version: 1.0.1
+Summary: An intelligent Python code quality analyzer with architectural guidance
+Home-page: https://github.com/ludo-technologies/pyscn
+Author: DaisukeYoda
+Author-email: daisukeyoda@users.noreply.github.com
+License: MIT
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Quality Assurance
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+# pyscn - Python Code Quality Analyzer
+
+[![PyPI](https://img.shields.io/pypi/v/pyscn?style=flat-square&logo=pypi)](https://pypi.org/project/pyscn/)
+[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat-square&logo=go)](https://go.dev/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/badge/CI-Passing-brightgreen.svg)](https://github.com/ludo-technologies/pyscn/actions)
+
+## pyscn is a code quality analyzer for Python vibe coders.
+
+Building with Cursor, Claude, or ChatGPT? pyscn performs structural analysis to keep your codebase maintainable.
+
+## Quick Start
+
+```bash
+# Run analysis without installation
+uvx pyscn analyze .
+# or
+pipx run pyscn analyze .
+```
+
+## Demo
+
+https://github.com/user-attachments/assets/07f48070-c0dd-437b-9621-cb3963f863ff
+
+## Features
+
+- 🔍 **CFG-based dead code detection** – Find unreachable code after exhaustive if-elif-else chains
+- 📋 **Clone detection with APTED + LSH** – Identify refactoring opportunities with tree edit distance
+- 🔗 **Coupling metrics (CBO)** – Track architecture quality and module dependencies
+- 📊 **Cyclomatic complexity analysis** – Spot functions that need breaking down
+
+**100,000+ lines/sec** • Built with Go + tree-sitter
+
+
+## Common Commands
+
+### `pyscn analyze`
+Run comprehensive analysis with HTML report
+```bash
+pyscn analyze .                              # All analyses with HTML report
+pyscn analyze --json .                       # Generate JSON report
+pyscn analyze --select complexity .          # Only complexity analysis
+pyscn analyze --select deps .                # Only dependency analysis
+pyscn analyze --select complexity,deps,deadcode . # Multiple analyses
+```
+
+### `pyscn check`
+Fast CI-friendly quality gate
+```bash
+pyscn check .                      # Quick pass/fail check
+pyscn check --max-complexity 15 .  # Custom thresholds
+```
+
+### `pyscn init`
+Create configuration file
+```bash
+pyscn init                         # Generate .pyscn.toml
+```
+
+> 💡 Run `pyscn --help` or `pyscn <command> --help` for complete options
+
+## Configuration
+
+Create a `.pyscn.toml` file or add `[tool.pyscn]` to your `pyproject.toml`:
+
+```toml
+# .pyscn.toml
+[complexity]
+max_complexity = 15
+
+[dead_code]
+min_severity = "warning"
+
+[output]
+directory = "reports"
+```
+
+> ⚙️ Run `pyscn init` to generate a full configuration file with all available options
+
+## Installation
+
+```bash
+# Install with pipx (recommended)
+pipx install pyscn
+
+# Or run directly with uvx
+uvx pyscn
+```
+
+<details>
+<summary>Alternative installation methods</summary>
+
+### Build from source
+```bash
+git clone https://github.com/ludo-technologies/pyscn.git
+cd pyscn
+make build
+```
+
+### Go install
+```bash
+go install github.com/ludo-technologies/pyscn/cmd/pyscn@latest
+```
+
+</details>
+
+## CI/CD Integration
+
+```yaml
+# .github/workflows/code-quality.yml
+name: Code Quality
+on: [push, pull_request]
+
+jobs:
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install pyscn
+      - name: Quick quality check
+        run: pyscn check .
+      - name: Generate detailed report
+        run: pyscn analyze --json --select complexity,deadcode,deps src/
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-report
+          path: .pyscn/reports/
+```
+
+---
+
+## Documentation
+
+📚 **[Development Guide](docs/DEVELOPMENT.md)** • **[Architecture](docs/ARCHITECTURE.md)** • **[Testing](docs/TESTING.md)**
+
+## Enterprise Support
+
+For commercial support, custom integrations, or consulting services, contact us at contact@ludo-tech.org
+
+## License
+
+MIT License — see [LICENSE](LICENSE)
+
+---
+
+*Built with ❤️ using Go and tree-sitter*
