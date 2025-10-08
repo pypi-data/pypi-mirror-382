@@ -1,0 +1,253 @@
+# RAI Agent Functions API
+
+A Python SDK for Azure Functions API that provides Responsible AI (RAI) operations including prompt review and testcase generation.
+
+## Features
+
+- **Prompt Review**: Review and update prompts with AI-powered analysis
+- **Testcase Generation**: Generate comprehensive testcases from prompts
+- **Azure Integration**: Built for Azure Functions with proper authentication and error handling
+- **Async Support**: Full async/await support for non-blocking operations
+- **Type Safety**: Complete type hints and mypy compatibility
+
+## Installation
+
+Install the package using pip:
+
+```bash
+pip install rai-agent-functions-api
+```
+
+## Quick Start
+
+### Basic Usage
+
+```python
+from RAI_SDK.rai_agent_functions_api import RAIAgentFunctionsAPI
+
+# Initialize the client
+client = RAIAgentFunctionsAPI(
+    endpoint="https://your-function-app.azurewebsites.net/api"
+)
+
+# Review a prompt
+review_result = client.reviewer.post(
+    body={"prompt": "Generate a sales forecast for Q4"}
+)
+print(review_result)
+
+# Generate testcases
+testcase_result = client.testcase.generator_post(
+    body={
+        "prompt": "Create user authentication system",
+        "number_of_testcases": 5,
+        "user_categories": ["security", "usability", "performance"]
+    }
+)
+print(testcase_result)
+```
+
+### Async Usage
+
+```python
+from RAI_SDK.rai_agent_functions_api.aio import RAIAgentFunctionsAPI
+
+async def main():
+    async with RAIAgentFunctionsAPI(
+        endpoint="https://your-function-app.azurewebsites.net/api"
+    ) as client:
+        # Async operations
+        review_result = await client.reviewer.post(
+            body={"prompt": "Generate a sales forecast for Q4"}
+        )
+        print(review_result)
+
+import asyncio
+asyncio.run(main())
+```
+
+## API Reference
+
+### RAIAgentFunctionsAPI
+
+The main client class for interacting with the RAI Agent Functions API.
+
+#### Parameters
+
+- `endpoint` (str): The base URL of your Azure Functions API. Default: `"https://func-rai-agent-eus.azurewebsites.net/api"`
+
+#### Methods
+
+##### reviewer.post(body)
+
+Review and update a prompt using AI analysis.
+
+**Parameters:**
+- `body` (dict): Request payload containing:
+  - `prompt` (str): The prompt to review
+
+**Returns:**
+- dict: Response containing:
+  - `review_of_updated_prompt`: Analysis of the updated prompt
+  - `review_result`: Review findings and suggestions
+  - `updated_result`: The improved prompt
+
+##### testcase.generator_post(body)
+
+Generate testcases from a given prompt.
+
+**Parameters:**
+- `body` (dict): Request payload containing:
+  - `prompt` (str): The prompt to generate testcases for
+  - `number_of_testcases` (int): Number of testcases to generate
+  - `user_categories` (list[str]): Categories for testcase generation
+
+**Returns:**
+- dict: Response containing:
+  - `result`: Generated testcases and analysis
+
+## Configuration
+
+### Authentication
+
+The SDK uses Azure Core's authentication mechanisms. You can configure authentication using:
+
+```python
+from azure.identity import DefaultAzureCredential
+
+client = RAIAgentFunctionsAPI(
+    endpoint="https://your-function-app.azurewebsites.net/api",
+    credential=DefaultAzureCredential()
+)
+```
+
+### Custom Headers
+
+```python
+client = RAIAgentFunctionsAPI(
+    endpoint="https://your-function-app.azurewebsites.net/api",
+    headers={"Custom-Header": "value"}
+)
+```
+
+### Retry Policy
+
+```python
+from azure.core.pipeline.policies import RetryPolicy
+
+client = RAIAgentFunctionsAPI(
+    endpoint="https://your-function-app.azurewebsites.net/api",
+    retry_policy=RetryPolicy(retry_total=3)
+)
+```
+
+## Error Handling
+
+The SDK provides comprehensive error handling:
+
+```python
+from azure.core.exceptions import HttpResponseError, ClientAuthenticationError
+
+try:
+    result = client.reviewer.post(body={"prompt": "test"})
+except ClientAuthenticationError:
+    print("Authentication failed")
+except HttpResponseError as e:
+    print(f"HTTP error: {e.status_code} - {e.message}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+## Development
+
+### Prerequisites
+
+- Python 3.8+
+- Azure Functions Core Tools (for local development)
+
+### Installation for Development
+
+```bash
+git clone https://github.com/yourusername/rai-agent-functions-api.git
+cd rai-agent-functions-api
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+pytest
+```
+
+### Code Formatting
+
+```bash
+black .
+flake8 .
+mypy .
+```
+
+## Examples
+
+### Complete Example
+
+```python
+from RAI_SDK.rai_agent_functions_api import RAIAgentFunctionsAPI
+
+def main():
+    # Initialize client
+    client = RAIAgentFunctionsAPI()
+    
+    # Example 1: Review a business prompt
+    business_prompt = "Create a marketing strategy for our new product launch"
+    review_response = client.reviewer.post(body={"prompt": business_prompt})
+    
+    print("Original prompt:", business_prompt)
+    print("Review result:", review_response.get("review_result"))
+    print("Updated prompt:", review_response.get("updated_result"))
+    
+    # Example 2: Generate testcases for a technical requirement
+    technical_prompt = "Implement user authentication with multi-factor authentication"
+    testcase_response = client.testcase.generator_post(
+        body={
+            "prompt": technical_prompt,
+            "number_of_testcases": 3,
+            "user_categories": ["security", "usability", "edge-cases"]
+        }
+    )
+    
+    print("Generated testcases:", testcase_response.get("result"))
+
+if __name__ == "__main__":
+    main()
+```
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## Support
+
+For support and questions:
+
+- Create an issue on GitHub
+- Check the documentation
+- Review the examples
+
+## Changelog
+
+### 1.0.0
+
+- Initial release
+- Prompt review functionality
+- Testcase generation capabilities
+- Full async support
+- Comprehensive error handling
