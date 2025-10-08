@@ -1,0 +1,169 @@
+# regex-vault
+
+**regex-vault** is a general-purpose engine that detects and masks personal information (mobile phone numbers, social security numbers, email addresses, etc.) by **country and information type**, using a "pattern file-based + library + daemon (server)."
+
+## Features
+
+- 🌍 **Global Support**: Patterns organized by country (ISO2) and information type
+- 🔍 **Detection**: Find PII in text using multiple patterns
+- ✅ **Validation**: Validate text against specific patterns with optional verification functions
+- 🔒 **Redaction**: Mask, hash, or tokenize sensitive information
+- 🚀 **Multiple Interfaces**: Library API, CLI, and HTTP/gRPC server
+- ⚡ **High Performance**: p95 < 10ms for 1KB text (single namespace)
+- 🔄 **Hot Reload**: Non-disruptive pattern reloading
+- 📊 **Observability**: Prometheus metrics and health checks
+
+## Quick Start
+### Clone repository
+```bash
+git clone https://github.com/regex-vault.git
+```
+
+### Installation
+
+```bash
+pip install regex-vault
+```
+
+See [Installation Guide](docs/installation.md) for more options.
+
+### Library Usage
+
+```python
+from regexvault import Engine, load_registry
+
+# Load patterns from directory
+registry = load_registry(paths=["patterns/"])
+engine = Engine(registry)
+
+# Validate
+is_valid = engine.validate("010-1234-5678", "kr/mobile_01")
+
+# Find PII (searches all loaded patterns)
+results = engine.find("My phone: 01012345678, email: test@example.com")
+
+# Redact
+redacted = engine.redact("SSN: 900101-1234567", namespaces=["kr"])
+print(redacted.redacted_text)
+```
+
+### CLI Usage
+
+```bash
+# Find PII
+regex-vault find --text "010-1234-5678" --ns kr
+
+# Redact PII
+regex-vault redact --in input.log --out redacted.log --ns kr us
+
+# Start server
+regex-vault serve --port 8080
+```
+
+### REST API
+
+```bash
+# Start server
+regex-vault serve --port 8080
+
+# Find PII
+curl -X POST http://localhost:8080/find \
+  -H "Content-Type: application/json" \
+  -d '{"text": "010-1234-5678", "namespaces": ["kr"]}'
+```
+
+## Documentation
+
+- [Quick Start Guide](docs/quickstart.md) - Get started quickly
+- [Pattern Structure](docs/patterns.md) - Learn about pattern definitions
+- [Custom Patterns](docs/custom-patterns.md) - Create your own patterns
+- [Verification Functions](docs/verification.md) - Add custom validation logic
+- [Configuration](docs/configuration.md) - Server and registry configuration
+- [API Reference](docs/api-reference.md) - Complete API documentation
+- [Supported Patterns](docs/supported-patterns.md) - Built-in pattern catalog
+
+## Supported Pattern Types
+
+- 📱 Phone numbers (KR, US, TW, JP, CN, IN)
+- 🆔 National IDs (SSN, RRN, Aadhaar, etc.)
+- 📧 Email addresses
+- 🏦 Bank accounts & IBANs (with Mod-97 verification)
+- 💳 Credit cards (Visa, MasterCard, Amex, etc.)
+- 🛂 Passport numbers
+- 📍 Physical addresses
+- 🌐 IP addresses & URLs
+
+**Total**: 60+ patterns across 7 locations (Common, KR, US, TW, JP, CN, IN)
+
+See [Supported Patterns](docs/supported-patterns.md) for the complete list.
+
+## Verification Functions
+
+Patterns can include verification functions for additional validation beyond regex:
+
+```yaml
+- id: iban_01
+  category: iban
+  pattern: '[A-Z]{2}\d{2}[A-Z0-9]{11,30}'
+  verification: iban_mod97  # Validates IBAN checksum
+```
+
+Built-in verification functions:
+- `iban_mod97` - IBAN Mod-97 checksum validation
+- `luhn` - Luhn algorithm for credit cards
+
+You can also register custom verification functions. See [Verification Functions](docs/verification.md) for details.
+
+## Performance
+
+- **Latency**: p95 < 10ms for 1KB text with single namespace
+- **Throughput**: 500+ RPS on 1 vCPU, 512MB RAM
+- **Scalability**: Handles 1k+ patterns and 1k+ concurrent requests
+
+## Security & Privacy
+
+- No raw PII is logged (only hashes/metadata)
+- TLS support for server
+- Configurable rate limiting
+- GDPR/CCPA compliant operations
+
+## Development
+
+```bash
+# Install with dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Format code
+black src/ tests/
+ruff check src/ tests/
+
+# Validate patterns
+python -c "from regexvault import load_registry; load_registry(validate_examples=True)"
+```
+
+## Docker
+
+```bash
+# Build
+docker build -t regex-vault:latest .
+
+# Run
+docker run -p 8080:8080 -v ./patterns:/app/patterns regex-vault:latest
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please read our contributing guidelines and submit pull requests.
+
+## Support
+
+- 📖 [Documentation](docs/)
+- 🐛 [Issue Tracker](https://github.com/yourusername/regex-vault/issues)
+- 💬 [Discussions](https://github.com/yourusername/regex-vault/discussions)
