@@ -1,0 +1,2 @@
+class YiToolException(Exception):
+    pass
