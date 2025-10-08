@@ -1,0 +1,38 @@
+commands:
+  submit: sbatch
+  get_cpu_time: sacct -j -LEMMING-JOBID- --format=elapsed -n
+  dependency: "--dependency=afterany:"
+queues:
+  run:
+    # core_nb is a parameter REQUIRED BY LEMMINGS in order to correctly
+    # compute the elapsed CPU time during the chain
+    core_nb: 480            # core_nb = nodes*ntaks-per-node !!!
+    wall_time: '10:15:00'
+    header: |
+            #!/bin/bash
+            #SBATCH --nodes=20
+            #SBATCH --cpus-per-task=1
+            #SBATCH --exclusive
+            #SBATCH -J -LEMMING-JOB_NAME-
+            #SBATCH --time=-LEMMING-WALL-TIME-
+            #SBATCH --ntasks-per-node=24
+            #SBATCH --constraint=HSW24
+            MPI_TASKS_PER_NODE=24
+            MPI_TASKS_TOTAL=$((MPI_TASKS_PER_NODE*SLURM_NNODES))
+
+            -EXEC-
+  run_pj:
+    wall_time: 00:02:00
+    header: |
+            #!/bin/bash
+            #SBATCH --nodes=1
+            #SBATCH --cpus-per-task=1
+            #SBATCH --exclusive
+            #SBATCH -J -LEMMING-JOB_NAME-
+            #SBATCH --time=-LEMMING-WALL-TIME-
+            #SBATCH --ntasks-per-node=24
+            #SBATCH --constraint=HSW24
+            MPI_TASKS_PER_NODE=24
+            MPI_TASKS_TOTAL=$((MPI_TASKS_PER_NODE*SLURM_NNODES))
+
+            -EXEC_PJ-
