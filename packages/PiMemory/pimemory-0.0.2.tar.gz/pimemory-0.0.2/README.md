@@ -1,0 +1,1 @@
+Le puroguramu un gureto ze Pi rememba repertoire on god
