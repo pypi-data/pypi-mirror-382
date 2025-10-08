@@ -1,0 +1,35 @@
+"""Beamline names definitions."""
+
+from enum import Enum
+
+
+class BeamlineName(Enum):
+    """Beamline Names."""
+
+    ARIRANHA = "ARIRANHA"
+    CARCARA = "CARCARA"
+    CARNAUBA = "CARNAUBA"
+    CATERETE = "CATERETE"
+    CEDRO = "CEDRO"
+    EMA = "EMA"
+    IMBUIA = "IMBUIA"
+    INGA = "INGA"
+    IPE = "IPE"
+    JATOBA = "JATOBA"
+    HIBISCO = "HIBISCO"
+    MANACA = "MANACA"
+    MOGNO = "MOGNO"
+    PAINEIRA = "PAINEIRA"
+    PITANGA = "PITANGA"
+    QUATI = "QUATI"
+    QUIRIQUIRI = "QUIRIQUIRI"
+    SABIA = "SABIA"
+    SAGUI = "SAGUI"
+    SAPE = "SAPE"
+    SAPUCAIA = "SAPUCAIA"
+    SERIEMA = "SERIEMA"
+    SIBIPIRUNA = "SIBIPIRUNA"
+    SUSSUARANA = "SUSSUARANA"
+    TATU = "TATU"
+    TEIU = "TEIU"
+    TIMBO = "TIMBO"
