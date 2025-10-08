@@ -1,0 +1,3 @@
+from qtpy.QtCore import QByteArray
+from qtpy.QtGui import QPixmap
+def icon_base64_to_pixmap(icon_base64): ...

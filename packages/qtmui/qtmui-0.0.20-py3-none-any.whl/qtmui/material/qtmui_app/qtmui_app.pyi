@@ -1,0 +1,9 @@
+from qtpy.QtWidgets import QApplication
+from qtpy.QtCore import QThreadPool
+from qtpy.QtCore import Qt
+from qtmui.material.styles import store
+from qtmui.hooks.use_routes import location_provider
+class QtMuiApp:
+    def __init__(self, *args, **kwargs): ...
+    def focus_changed(self, old_widget, new_widget): ...
+    def close_all_widgets(self): ...

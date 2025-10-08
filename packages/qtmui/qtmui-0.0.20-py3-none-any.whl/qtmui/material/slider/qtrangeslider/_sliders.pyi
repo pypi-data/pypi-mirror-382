@@ -1,0 +1,13 @@
+from ._generic_range_slider import _GenericRangeSlider
+from ._generic_slider import _GenericSlider
+from qtpy.QtCore import Signal
+class _IntMixin:
+    def __init__(self, *args, **kwargs): ...
+    def _type_cast(self, value): ...
+class _FloatMixin:
+    def __init__(self, *args, **kwargs): ...
+    def _type_cast(self, value): ...
+class QDoubleSlider:
+class QIntSlider:
+class QRangeSlider:
+class QDoubleRangeSlider:

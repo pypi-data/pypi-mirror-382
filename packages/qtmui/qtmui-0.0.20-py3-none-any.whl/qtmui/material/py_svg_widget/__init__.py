@@ -1,0 +1,1 @@
+from .py_svg_widget import PySvgWidget

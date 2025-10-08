@@ -1,0 +1,26 @@
+from typing import Union, Callable
+import uuid
+from qtpy.QtWidgets import QFrame, QHBoxLayout
+from qtpy.QtCore import Signal
+from qtmui.hooks.use_state import useState
+from ...stack import Stack
+from ...collapse import Collapse
+from ..list import List
+from .nav_list import NavList
+from .styles import StyledSubheader
+from qtmui.qss_name import *
+from ..config import navVerticalConfig
+from .tree_model import TreeModel
+from qtmui.material.styles import useTheme
+from qtmui.material.styles.create_theme.components.get_qss_styles import get_qss_style
+from ....i18n.use_translation import translate, i18n
+class TreeWidget:
+    def __init__(self, model: TreeModel, config: bool, sx: dict, children: list, contentsMargins: int, borderLeft: int, *args, **kwargs): ...
+    def reTranslation(self): ...
+    def _set_stylesheet(self): ...
+    def initUI(self): ...
+    def clear_layouts(self): ...
+class Group:
+    def __init__(self, key, open: bool, items: Union[dict, list], config: object): ...
+    def handleToggle(self): ...
+    def renderContent(self): ...
