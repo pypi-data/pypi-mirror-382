@@ -1,0 +1,207 @@
+name: tests
+
+on:
+  push:
+    branches:
+    - main
+    tags:
+    - v*
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+
+  run-tests:
+    strategy:
+      matrix:
+        config:
+        # also add to test-version
+        # [Python version, tox env, OS]
+        - ["3.9",   "py39", "ubuntu-latest"]
+        - ["3.10",  "py310", "ubuntu-latest"]
+        - ["3.11",  "py311", "ubuntu-latest"]
+        - ["3.12",  "py312", "ubuntu-latest"]
+        - ["3.13",  "py313", "ubuntu-latest"]
+        - ["3.9",  "ruff", "ubuntu-latest"]
+        # - ["3.11",  "exe", "windows-latest"]
+
+    runs-on: ${{ matrix.config[2] }}
+    name: ${{ matrix.config[1] }}
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') && github.ref != 'refs/heads/main' }}
+    steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.config[0] }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install tox
+    - name: Test
+      run: |
+        tox -e ${{ matrix.config[1] }}
+
+  version:
+    # determine the new version and possibly switch to the new tag that we run on
+    name: "Determine a new version"
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    outputs:
+      # see https://docs.github.com/de/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#example-usage-of-the-jobs-context
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Get tags"
+        uses: actions-ecosystem/action-get-latest-tag@v1
+        id: get-latest-tag
+
+      - name: "Calculate new version"
+        uses: actions-ecosystem/action-bump-semver@v1
+        id: bump-semver
+        with:
+          current_version: ${{ steps.get-latest-tag.outputs.tag }}
+          level: patch
+      
+      - name: "Determine version to use"
+        id: version
+        run: |
+          if [ "$GITHUB_REF" == "refs/heads/main" ]; then
+            TAG="${{ steps.bump-semver.outputs.new_version }}"
+            echo "On branch main. Using new tag version $TAG."
+            git config user.name "${GITHUB_ACTOR}"
+            git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+            MESSAGE="${TAG}: automatic release"
+            git tag -a "${TAG}" -m "${MESSAGE}"
+            git push origin "${TAG}"
+          else
+            TAG="${{ steps.get-latest-tag.outputs.tag }}"
+            echo "On tag $TAG. Using that version."
+          fi
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+
+  test-version:
+    strategy:
+      matrix:
+        config:
+        # [Python version, tox env, OS]
+        - ["3.9",   "py39", "ubuntu-latest"]
+        - ["3.10",  "py310", "ubuntu-latest"]
+        - ["3.11",  "py311", "ubuntu-latest"]
+        - ["3.12",  "py312", "ubuntu-latest"]
+        - ["3.9",  "ruff", "ubuntu-latest"]
+        - ["3.11",  "exe", "windows-latest"]
+
+    runs-on: ${{ matrix.config[2] }}
+    name: release-${{ matrix.config[1] }}
+    needs:
+      - version
+    steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.config[0] }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install tox
+    - name: "Use version ${{ needs.version.outputs.version }}"
+      run: |
+        git fetch
+        git checkout ${{ needs.version.outputs.version }}
+    - name: Test
+      run: |
+        tox -e ${{ matrix.config[1] }}
+    - uses: actions/upload-artifact@v4
+      with:
+        name: dist-${{ matrix.config[1] }}-${{ matrix.config[2] }}  # dist-exe-windows-latest
+        path: dist
+        if-no-files-found: ignore
+        retention-days: 1
+        compression-level: 0
+
+  deploy-tag-to-pypi:
+    name: Publish Package on PyPI
+    # only deploy on tags, see https://stackoverflow.com/a/58478262/1320237
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
+    needs:
+    - test-version
+    - version
+    runs-on: ubuntu-latest
+    # This environment stores the TWINE_USERNAME and TWINE_PASSWORD
+    # see https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment
+    environment:
+      name: PyPI
+      url: https://pypi.org/project/ics-query/
+    # after using the environment, we need to make the secrets available
+    # see https://docs.github.com/en/actions/security-guides/encrypted-secrets#example-using-bash
+    env:
+      TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+      TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+    steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.14"
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade wheel twine build
+    - name: remove old files
+      run: rm -rf dist/*
+    - name: "Use version ${{ needs.version.outputs.version }}"
+      run: |
+        git fetch
+        git checkout ${{ needs.version.outputs.version }}
+    - name: build distribution files
+      run: python -m build
+    - name: deploy to pypi
+      run: |
+        # You will have to set the variables TWINE_USERNAME and TWINE_PASSWORD
+        # You can use a token specific to your project by setting the user name to
+        # __token__ and the password to the token given to you by the PyPI project.
+        # sources:
+        #   - https://shambu2k.hashnode.dev/gitlab-to-pypi
+        #   - http://blog.octomy.org/2020/11/deploying-python-pacakges-to-pypi-using.html?m=1
+        # Also, set the tags as protected to allow the secrets to be used.
+        # see https://docs.gitlab.com/ee/user/project/protected_tags.html
+        if [ -z "$TWINE_USERNAME" ]; then
+          echo "WARNING: TWINE_USERNAME not set!"
+        fi
+        if [ -z "$TWINE_PASSWORD" ]; then
+          echo "WARNING: TWINE_PASSWORD not set!"
+        fi
+        twine check dist/*
+        twine upload dist/*
+            
+  github-release:
+    name: "Publish GitHub Release"
+    # only deploy on tags, see https://stackoverflow.com/a/58478262/1320237
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
+    needs:
+      - test-version
+      - deploy-tag-to-pypi
+      - version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: dist-*
+          path: dist
+      - run: ls -R dist
+      - name: Debug
+        run: |
+          echo "Runnning for tag ${{ needs.version.outputs.version }}"
+          git status
+      - name: create release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          body: "For a list of changes, please refer to the [Changelog](https://github.com/niccokunzmann/ics-query#changelog)."
+          generateReleaseNotes: false
+          artifacts: "dist/dist-exe-windows-latest/ics-query.exe"
+          tag: ${{ needs.version.outputs.version }}
