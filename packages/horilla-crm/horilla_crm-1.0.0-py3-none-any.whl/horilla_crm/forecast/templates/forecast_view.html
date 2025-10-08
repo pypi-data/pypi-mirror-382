@@ -1,0 +1,121 @@
+{% extends "index.html" %}
+{% load static i18n horilla_tags %}
+{% block content %}
+<div class="modelcontent">
+    {% include "components/sub_sidebar.html" %}
+    {% has_perm "forecast.view_forecast" as can_view_forecast %}
+    {% has_perm "forecast.change_forecast" as can_change_forecast %}
+    {% if can_view_forecast or can_change_forecast %}
+        
+        <div id="mainContent" class="flex-[1_0] leftspace transition-all duration-300 ease-in-out pt-0">
+            <div class="bg-white px-5 border-b border-b-dark-50 fixed w-[-webkit-fill-available] z-20">
+              <div class="flex flex-wrap items-center gap-2 justify-between">
+                  <div class="flex items-center gap-4">
+                      <h3 class="text-md font-semibold">{% trans "Forecast" %}</h3>
+                      {% if type_count > 0 %}
+                          <select id="user-data"
+                              class="js-example-basic-single w-48" 
+                              hx-get="{% url 'forecast:forecast_view' %}?{% if not query_string %}{{ request.GET.urlencode }}{% endif %}"
+                              hx-push-url="true"
+                              hx-target="#forecast-tab-content"
+                              hx-include="#fiscal-year-data"
+                              hx-trigger="change"
+                              hx-select="#forecast-tab-content"
+                              hx-swap="outerHTML"
+                              name="user_id">
+                              <option value="">{% trans "All Users" %}</option>
+                              {% for user in users %}
+                                <option value="{{ user.pk }}"
+                                    data-img="{% if user.profile %}{{ user.profile.url }}{% else %}{{ user.get_avatar }}{% endif %}"
+                                    {% if request.GET.user_id == user.pk|stringformat:"s" %}selected{% endif %}>
+                                    {% if request.user == user %}
+                                      {% trans "My Forecast" %}
+                                    {% else %}
+                                      {{ user }}
+                                    {% endif %}
+                                </option>
+                              {% endfor %}
+                          </select>
+                      {% endif %}
+                  </div>
+
+                  <div class="flex items-center gap-8 h-[70px]">
+                      <div class="flex items-center gap-2 h-[70px]">
+                          {% if type_count > 0 %}
+                          <select 
+                              class="js-example-basic-single"
+                              hx-get="{% url 'forecast:forecast_view' %}?{% if not query_string %}{{ request.GET.urlencode }}{% endif %}"
+                              hx-vals='{"fiscal_year_id": this.value}'
+                              hx-target="#forecast-tab-content"
+                              hx-trigger="change"
+                              hx-include="#user-data"
+                              hx-push-url="true"
+                              id="fiscal-year-data"
+                              hx-select="#forecast-tab-content"
+                              hx-swap="outerHTML"
+                              name="fiscal_year_id">
+                              <option value="">{% trans "Select Fiscal Year" %}</option>
+                              {% for fiscal_year in fiscal_years %}
+                              <option value="{{ fiscal_year.id }}"
+                                  {% if fiscal_year.id == selected_instance.id %}selected{% endif %}>
+                                  {{ fiscal_year.name }} ({{ fiscal_year.start_date|date:"d/m/Y" }} - {{ fiscal_year.end_date|date:"d/m/Y" }})
+                                  {% if fiscal_year.id == current_instance.id %} {% trans "- Current" %}{% endif %}
+                                  {% if previous_instance and fiscal_year.id == previous_instance.id %} {% trans "- Previous" %}{% endif %}
+                                  {% if next_instance and fiscal_year.id == next_instance.id %} {% trans "- Next" %}{% endif %}
+                              </option>
+                              {% endfor %}
+                          </select>
+                          {% endif %}
+                      </div>
+                  </div>
+              </div>
+            </div>
+            <div class="p-5 pt-24">
+              <div class="relative h-[550px] [box-shadow:0px_0px_20px_0px_rgb(0_0_0_/_5%)] p-4 bg-white rounded-md">
+                {% if  request.active_company %}
+                {% if type_count > 0 %}
+                    <div id="forecast-tab-content" 
+                        hx-get="{% url 'forecast:forecast_tab_view' %}?{{ request.GET.urlencode }}"  
+                          hx-trigger="load">
+                    </div>
+                {% else %}
+                  <img
+                      src="{% static 'assets/img/not-found.svg' %}"
+                      alt="" 
+                      class="w-60 m-auto mb-4 mt-5"
+                  />
+                  <p class="text-sm text-center mb-3">
+                      {% trans 'No Forecast Type set. Set it from settings.' %}
+                  </p>
+                  <button
+                      onclick="window.location.href='/forecast/forecast-type-view/'"
+                      class="text-sm px-4 py-2 bg-primary-600 rounded-md hover:bg-primary-800 transition duration-300 text-[white] m-auto flex"
+                  >
+                      {% trans "Go To Forecast Type" %}
+                  </button>
+                {% endif %}
+                {% else %}
+                <div class="flex justify-between items-center h-20">
+                </div>
+                <img
+                    src="{% static 'assets/img/activate-company.svg' %}"
+                    alt="" class="w-60  m-auto mb-4 mt-5"
+                />
+                <p class="text-sm text-center mb-3">
+                    {% trans "Please create or activate your company." %}
+                </p> 
+                {% endif %}
+              </div>
+            </div>
+        </div>
+    {% else %}
+      <div class="flex-1 p-10 text-center">
+        <img src="{% static '/assets/img/permission.png' %}"  alt="" width="300" class="flex justify-center m-auto">
+        <h2 class="error-title">{% trans "Permission Denied" %}</h2>
+        <p class="error-description pb-3">
+            {% trans "You do not have permission to view this page." %}
+        </p> 
+      </div>
+    {% endif %}
+</div>
+{% endblock content %}

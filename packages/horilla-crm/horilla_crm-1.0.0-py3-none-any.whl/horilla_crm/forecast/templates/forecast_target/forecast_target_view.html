@@ -1,0 +1,99 @@
+
+{% extends "settings/settings.html" %}
+{% load static %}
+{% load i18n %}
+{% load horilla_tags %}
+
+{% block settings %}
+<div id="forecast-target-view">
+    {% if not has_company %}
+ 
+        <div class="flex justify-between items-center h-20">
+        </div>
+        <img
+            src="{% static 'assets/img/activate-company.svg' %}"
+            alt="" class="w-60  m-auto mb-4 mt-5"
+        />
+        <p class="text-sm text-center mb-3">
+            {% trans "Please create or activate your company." %}
+        </p> 
+    {% elif not has_forecast_types %}
+            <img
+            src="{% static 'assets/img/not-found.svg' %}"
+            alt="" 
+            class="w-60 m-auto mb-4 mt-5"
+        />
+        <p class="text-sm text-center mb-3">
+            {% trans 'No Forecast Type set. Set it from settings.' %}
+        </p>
+        <button
+            onclick="window.location.href='/forecast/forecast-type-view/'"
+            class="text-sm px-4 py-2 bg-primary-600 rounded-md hover:bg-primary-800 transition duration-300 text-[white] m-auto flex"
+        >
+            {% trans "Go To Forecast Type" %}
+        </button>
+    {% else %}
+    <div id="navBar" hx-get="{{ nav_url }}?{{ request.GET.urlencode }}" hx-trigger="load"></div>
+    {% has_perm "forecast.view_forecasttarget" as can_view_forecast_target %}
+    {% if can_view_forecast_target %}
+        <div class="grid grid-cols-2 gap-4 mb-3">
+            <div>
+                <div class="font-medium text-sm">{% trans "Forecast Type" %}</div>
+                <div>
+                    <select 
+                        name="forecast_type" 
+                        class="js-example-basic-single headselect w-full"
+                        hx-get="{{ main_url }}"
+                        hx-swap="outerHTML"
+                        hx-select="#mainSession"
+                        hx-target="#mainSession"
+                        hx-trigger="change"
+                        hx-include="[name='period']"
+                        hx-push-url="true"
+                    >
+                        {% for forecast_type in forecast_types %}
+                        <option 
+                            value="{{ forecast_type.pk }}"
+                            {% if current_forecast_type_id == forecast_type.pk|stringformat:"s" or forecast_type.pk == default_forecast_type.pk and not current_forecast_type_id %}selected{% endif %}
+                        >
+                            {{ forecast_type }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div>
+                <div class="font-medium text-sm">{% trans "Forecast Period" %}</div>
+                <div>
+                    <select 
+                        name="period" 
+                        class="js-example-basic-single headselect w-full"
+                        hx-get="{{ main_url }}"
+                        hx-swap="outerHTML"
+                        hx-select="#mainSession"
+                        hx-target="#mainSession"
+                        hx-trigger="change"
+                        hx-include="[name='forecast_type']"
+                        hx-push-url="true"
+                    >
+                        {% for period in periods %}
+                        <option 
+                            value="{{ period.pk }}"
+                            {% if current_period_id == period.pk|stringformat:"s" or period.pk == default_period.pk and not current_period_id %}selected{% endif %}
+                        >
+                            {{ period }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    
+    <div id="mainSession" 
+         hx-get="{{ list_url }}?forecast_type={{ current_forecast_type_id|default_if_none:default_forecast_type.pk|default_if_none:'' }}&period={{ current_period_id|default_if_none:default_period.pk|default_if_none:'' }}" 
+         hx-trigger="load">
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
