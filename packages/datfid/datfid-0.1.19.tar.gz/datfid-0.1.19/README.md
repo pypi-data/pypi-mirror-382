@@ -1,0 +1,129 @@
+# DATFID SDK
+
+A Python SDK to access the DATFID API to forecast your data.
+
+## Features
+
+- **Easy model fitting**: Build panel data models with time-dependent and static features.
+- **Flexible lag handling**: Specify lags for the dependent variable and selected features.
+- **Forecasting**: Generate future predictions with aligned timestamps and IDs.
+- **Statistical options**: Filter features by significance and apply mean-variance tests.
+- **White box full interpretability**: Get fully interpretable model with equation, estimated parameters, and standard errors.
+
+## Installation
+
+```bash
+pip install datfid
+```
+
+## Usage
+
+Before using the SDK, please request an access token by emailing **admin@datfid.com** or by visiting our website [datfid.com](https://datfid.com).
+
+```python
+from datfid import DATFIDClient
+
+# Initialize the client with your DATFID token
+client = DATFIDClient(token="your_DATFID_token")
+
+# Fit a model
+fit_result = client.fit_model(
+    df=dataframe,
+    id_col="name of id column",
+    time_col="name of time column",
+    y="name of dependent variable",
+    lag_y="starting lag : ending lag",
+    lagged_features={
+        "feature 1": "starting lag : ending lag",
+        "feature 2": "starting lag : ending lag"
+    },
+    current_features=["feature 3", "feature 4"],
+    filter_by_significance=True/False,
+    meanvar_test=True/False
+)
+
+# Generate forecasts
+forecast_df = client.forecast_model(
+    df_forecast=dataframe
+)
+
+# The forecast DataFrame contains the individual IDs and timestamps
+# from the original data plus a "forecast" column with predicted values.
+```
+
+## Example 1
+
+Sample dataset from GitHub (Food and Beverages demand forecasting):
+
+```python
+import pandas as pd
+from datfid import DATFIDClient
+
+# Initialize the client with your DATFID token
+client = DATFIDClient(token="your_DATFID_token")
+
+# Load dataset for model fitting
+url_fit = "https://raw.githubusercontent.com/datfid-valeriidashuk/sample-datasets/main/Food_Beverages.xlsx"
+df = pd.read_excel(url_fit)
+
+# Fit the model
+result = client.fit_model(df=df,
+                          id_col="Product",
+                          time_col="Time",
+                          y="Revenue",
+                          current_features='all',
+                          filter_by_significance=True
+                          )
+
+# Load dataset for forecasting
+url_forecast = "https://raw.githubusercontent.com/datfid-valeriidashuk/sample-datasets/main/Food_Beverages_forecast.xlsx"
+df_forecast = pd.read_excel(url_forecast)
+
+# Forecast revenue using the fitted model
+forecast = client.forecast_model(df_forecast=df_forecast)
+```
+
+## Example 2
+
+Slightly larger sample dataset from GitHub (Banking sector, forecasting loan probability):
+
+```python
+import pandas as pd
+from datfid import DATFIDClient
+
+# Initialize the client with your DATFID token
+client = DATFIDClient(token="your_DATFID_token")
+
+# Load dataset for model fitting
+url_fit = "https://raw.githubusercontent.com/datfid-valeriidashuk/sample-datasets/main/Banking_extended.xlsx"
+df = pd.read_excel(url_fit)
+
+# Fit the model
+result = client.fit_model(df=df,
+                          id_col="Individual",
+                          time_col="Time",
+                          y="Loan Probability",
+                          lag_y="1:3",
+                          lagged_features={"Income Level": "1:3"},
+                          filter_by_significance=True)
+
+# Load dataset for forecasting
+url_forecast = "https://raw.githubusercontent.com/datfid-valeriidashuk/sample-datasets/main/Banking_extended_forecast.xlsx"
+df_forecast = pd.read_excel(url_forecast)
+
+# Forecast loan probability using the fitted model
+forecast = client.forecast_model(df_forecast=df_forecast)
+```
+
+## API Reference
+
+### DATFIDClient
+
+#### `client = DATFIDClient(token: str)`
+Initialize the client with your DATFID token.
+
+#### `client.fit_model(df: pd.DataFrame, id_col: str, time_col: str, y: str, lag_y: Optional[Union[int, str, list[int]]] = None, lagged_features: Optional[Dict[str, int]] = None, current_features: Optional[list] = None, filter_by_significance: bool = False, meanvar_test: bool = False) -> SimpleNamespace`
+Fit a model using the provided dataset.
+
+#### `client.forecast_model(df_forecast: pd.DataFrame) -> pd.DataFrame`
+Generate forecasts using the fitted model.
