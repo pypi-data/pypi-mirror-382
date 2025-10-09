@@ -1,0 +1,141 @@
+{
+  "game_settings": {
+    "nprune_global": 50,
+    "nprune_answers": 50,
+    "max_depth": 7,
+    "game_number": null,
+    "initial_suggestion": ["TARES", 0]
+  },
+  "guesses": {
+    "class": "GetWordsWidget",
+    "backend_params": {
+      "savefile": "data/valid_guesses.txt",
+      "url": "https://gist.github.com/dracos/dd0668f281e685bad51479e5acaadb93/raw/6bfa15d263d6d5b63840a8e5b64e04b382fdb079/valid-wordle-words.txt",
+      "refetch": false,
+      "save": false,
+      "include_uppercase": false
+    },
+    "gui_params": {
+      "title": "Guesses"
+    }
+  },
+  "answers": {
+    "class": "GetWordsWidget",
+    "backend_params": {
+      "savefile": "data/valid_guesses.txt",
+      "url": "https://gist.github.com/dracos/dd0668f281e685bad51479e5acaadb93/raw/6bfa15d263d6d5b63840a8e5b64e04b382fdb079/valid-wordle-words.txt",
+      "refetch": false,
+      "save": false,
+      "include_uppercase": false
+    },
+    "gui_params": {
+      "title": "Answers"
+    }
+  },
+  "pattern_matrix": {
+    "class": "GetPatternMatrixWidget",
+    "backend_params": {
+      "savefile": "data/pattern_matrix.npz",
+      "recompute": false,
+      "save": false
+    },
+    "gui_params": {
+      "title": "Pattern Matrix",
+      "_arg_map": {
+        "refetch": "recompute"
+      }
+    }
+  },
+  "classifier": {
+    "enabled": true,
+    "class": "ClassifierSection",
+    "gui_params": {
+      "collapse_on_disable": false
+    },
+    "positive_words": {
+      "class": "DynamicCollapsibleList",
+      "items": [
+        {
+          "class": "GetWordsWidget",
+          "backend_params": {
+            "savefile": "data/original_answers.txt",
+            "url": "https://gist.github.com/cfreshman/a03ef2cba789d8cf00c08f767e0fad7b/raw/c46f451920d5cf6326d550fb2d6abb1642717852/wordle-answers-alphabetical.txt"
+          },
+          "gui_params": { "_title_override": "Original Answers" }
+        },
+        {
+          "class": "ScrapeWordsWidget",
+          "backend_params": {
+            "savefile": "data/past_answers.txt",
+            "url": "https://www.rockpapershotgun.com/wordle-past-answers",
+            "refetch": true,
+            "save": false
+          },
+          "gui_params": { "_title_override": "Past Answers" }
+        }
+      ],
+      "constructors": {
+        "Get Words": "GetWordsWidget",
+        "Scrape Words": "ScrapeWordsWidget"
+      },
+      "gui_params": {
+        "title": "Positive Words"
+      }
+    },
+    "word_features": {
+      "class": "GetWordFeaturesWidget",
+      "backend_params": { "savefile": "data/word_features.pkl" },
+      "gui_params": { "title": "Word Features" }
+    },
+    "load_model": {
+      "class": "LoadModelWidget",
+      "backend_params": { "savefile": "data/trained_classifier.pkl" },
+      "gui_params": { "title": "Load Model" }
+    }
+  },
+  "answer_filters": {
+    "class": "DynamicCollapsibleList",
+    "items": [
+      {
+        "class": "FilterProbabilityWidget",
+        "backend_params": {"threshold": 0.07},
+        "gui_params": { "_title_override": "Classifier Probability Filter" }
+      },
+      {
+        "class": "BlacklistFilterWidget",
+        "gui_params": {"_title_override": "Past Answers Blacklist"},
+        "backend_params": {},
+        "items": [
+          {
+            "class": "ScrapeWordsWidget",
+            "backend_params": {
+              "savefile": "data/past_answers.txt",
+              "url": "https://www.rockpapershotgun.com/wordle-past-answers",
+              "refetch": true,
+              "save": false
+            },
+            "gui_params": { "_title_override": "Past Answers" }
+          }
+        ]
+      }
+    ],
+    "constructors": {
+      "Suffix Filter": "FilterSuffixWidget",
+      "Frequency Filter": "FilterFrequencyWidget",
+      "POS Filter": "FilterPOSWidget",
+      "Classifier Probability Filter": "FilterProbabilityWidget",
+      "Whitelist Filter": "WhitelistFilterWidget", 
+      "Blacklist Filter": "BlacklistFilterWidget"
+    },
+    "gui_params": {}
+  },
+  "answer_sort": {
+    "class": "AnswerSortWidget",
+    "backend_params": {"sort": "classifier"},
+    "gui_params": {
+      "_arg_map": {
+        "default_selection": "sort"
+      }
+    }
+  }
+}
