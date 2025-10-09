@@ -1,0 +1,65 @@
+# Guide: https://docs.astral.sh/uv/guides/integration/gitlab/
+
+# Use uv's Python image.
+image: ghcr.io/astral-sh/uv:python3.11-trixie
+
+variables:
+  # Keep uv's cache in the project dir so we can persist it between jobs.
+  UV_CACHE_DIR: ".uv-cache"
+  # GitLab mounts the workspace on a separate FS; use copies instead of hardlinks.
+  UV_LINK_MODE: "copy"
+
+# Cache uv’s resolver + wheels between runs
+cache:
+  key:
+    files:
+      # Prefer uv.lock if you check it in; fall back to pyproject.toml
+      - uv.lock
+      - pyproject.toml
+  paths:
+    - .uv-cache
+
+before_script:
+  # For debugging / provenance.
+  - uv --version
+  # This is equivalent to: pip install -e ".[dev,pdf]".
+  - uv sync --locked --extra dev --extra pdf
+
+ruff-check:
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+
+pyright-check:
+  script:
+    - uv run pyright --version
+    - uv run pyright .
+
+unit-test:
+  script:
+    - uv run pytest .
+
+# TODO: Build docs with uv-managed tools (example)
+# pages:
+#   script:
+#     - uv run pip install sphinx sphinx-rtd-theme
+#     - cd doc
+#     - uv run make html
+#     - mv build/html/ ../public/
+#   artifacts:
+#     paths:
+#       - public
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+deploy:
+  stage: deploy
+  needs: ["ruff-check", "pyright-check", "unit-test"]
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+([abc]|rc|post|dev)?\d*$/'
+      when: on_success
+      allow_failure: false
+  script:
+    - echo "Deploying to production environment"
+    - uv build
+    - uv publish --token "$PYPI_API_TOKEN"
