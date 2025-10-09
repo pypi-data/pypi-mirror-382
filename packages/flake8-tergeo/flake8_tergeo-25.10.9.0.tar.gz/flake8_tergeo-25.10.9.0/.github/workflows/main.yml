@@ -1,0 +1,104 @@
+name: CI
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  pull-requests: write
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.14.0-beta.2
+      - name: Install mkdocs
+        run: pip install mkdocs
+      - name: run mkdocs
+        run: mkdocs build --strict
+  ci-pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.14.0-beta.2
+      - name: Install project
+        run: pip install --group dev --group test -e .
+      - name: run pre-commit
+        run: pre-commit run --all
+  ci-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', 3.14.0-beta.2]
+        flake8-version: [7.0.*, 7.*]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install project
+        run: pip install --group test -e .
+      - name: Install flake8
+        run: pip install -U flake8==${{ matrix.flake8-version }}
+      - name: run tests (with coverage)
+        run: pytest -n 8 --dist worksteal --cov --cov-report xml --cov-config pyproject.toml tests/
+      - name: run diff-cover
+        run: diff-cover --config-file pyproject.toml coverage.xml
+      - name: Rename coverage file
+        run: |
+          UUID=$(uuidgen)
+          echo "UUID=${UUID}" >> $GITHUB_ENV
+          mv .coverage .coverage.${UUID}
+      - name: upload coverage file
+        uses: actions/upload-artifact@v4
+        with:
+          name: .coverage.${{ env.UUID }}
+          path: .coverage.${{ env.UUID }}
+          if-no-files-found: error
+          include-hidden-files: true
+  ci-coverage-reporting:
+    needs: ci-test
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.14.0-beta.2
+      - name: Download coverage files
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: coverage_files
+      - name: Prepare coverage files
+        run: |
+          pip install coverage
+          cd coverage_files
+          coverage combine
+          mv .coverage ../.coverage
+          cd ..
+          coverage xml
+      - name: Upload to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: coverage.xml
