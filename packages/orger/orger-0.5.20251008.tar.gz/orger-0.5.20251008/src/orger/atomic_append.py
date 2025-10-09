@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import logging
+from os.path import lexists
+from pathlib import Path
+
+
+def atomic_append_raw(
+    path: Path | str,
+    data: str,
+) -> None:
+    path = Path(path)
+    # https://stackoverflow.com/a/13232181
+    enc = data.encode('utf8')
+    # TODO handle windows properly? https://www.notthewizard.com/2014/06/17/are-files-appends-really-atomic/
+    if len(enc) > 4096:
+        logging.warning("writing out %s might be non-atomic (see https://stackoverflow.com/a/1154599/706389)", data)  # noqa: LOG015
+    with path.open('ab') as fo:
+        fo.write(enc)
+
+
+# TODO might be useful in other projects?
+def assert_not_edited(path: Path) -> None:
+    vim = '.' + path.name + '.swp'
+    emacs = '.#' + path.name
+    for x in [vim, emacs]:
+        lf = path.parent / x
+        if lexists(lf):  # lexist is necessary because emacs uses symlink for lock file
+            raise RuntimeError(f'File is being edited: {lf}')
+
+
+def atomic_append_check(
+    path: Path | str,
+    data: str,
+) -> None:
+    """
+    This is editor (emacs/vim)-aware and checks for existence of swap file first.
+    Not fully atomic, but hopefully atomic enough for all practical purposes
+    TODO make it configurabe if user has different swap file patterns for some reason?
+    """
+    # may be a bit too paranoid, but perhaps doesn't hurt.
+    path = Path(path)
+    assert_not_edited(path)
+    atomic_append_raw(path, data)
+
+
+def test_atomic_append_check(tmp_path: Path) -> None:
+    import platform
+
+    import pytest
+
+    if platform.system() == 'Windows':
+        pytest.skip("this test doesn't work on windows for now")
+
+    of = tmp_path / 'test.org'
+    of.touch()
+
+    from contextlib import contextmanager
+    from subprocess import PIPE, Popen
+    from time import sleep
+
+    @contextmanager
+    def tmp_popen(*args, **kwargs):
+        with Popen(*args, **kwargs) as p:
+            try:
+                yield p
+            finally:
+                p.terminate()
+
+    atomic_append_check(of, 'data1')
+    atomic_append_check(of, 'data2')
+    assert of.read_text() == 'data1data2'
+
+    with tmp_popen(['vi', '-c', 'startinsert', str(of)], stdin=PIPE, stdout=PIPE, stderr=PIPE):  # enter insert mode
+        for _attempt in range(10):
+            # ugh, needs long pause for some reason
+            sleep(1)
+            swapfiles = list(tmp_path.glob('.*.swp'))
+            if len(swapfiles) > 0:
+                break
+        else:
+            raise AssertionError(f'Expected swapfiles in {tmp_path}')
+
+        with pytest.raises(Exception):
+            # Expected to raise due to being edited by vim
+            atomic_append_check(of, 'test')

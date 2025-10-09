@@ -1,0 +1,40 @@
+#!/bin/bash
+set -eu
+
+cd "$(dirname "$0")"
+cd .. # git root
+
+if ! command -v sudo; then
+    # CI or Docker sometimes doesn't have it, so useful to have a dummy
+    function sudo {
+        "$@"
+    }
+fi
+
+# --parallel-live to show outputs while it's running
+tox_cmd='run-parallel --parallel-live'
+if [ -n "${CI-}" ]; then
+    # install OS specific stuff here
+    case "$OSTYPE" in
+    darwin*) 
+        # macos
+        command -v vim    || brew install vim
+        command -v pandoc || brew install pandoc
+        ;;
+    cygwin* | msys* | win*)
+        # windows
+        # ugh. parallel stuff seems super flaky under windows, some random failures, "file used by other process" and crap like that
+        tox_cmd='run'
+        ;;
+    *)
+        # must be linux?
+        # vim is used in one of the tests
+        # we only run it on linux for simplicity
+        command -v vim    || sudo apt install vim
+        command -v pandoc || sudo apt install pandoc
+        ;;
+    esac
+fi
+
+# NOTE: expects uv installed
+uv tool run --with tox-uv tox $tox_cmd "$@"
