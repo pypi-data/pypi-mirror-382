@@ -1,0 +1,156 @@
+# xlcalcmodel
+
+**xlcalcmodel** is a high-performance, Python-based engine that transforms an Excel workbook into a dynamic, tokenized JSON model—essentially converting the spreadsheet into a set of rules. The process begins by loading an XLSX file and parsing all its formulas into tokens and abstract syntax trees (ASTs), capturing not only the formulas but also the cell dependencies and structure. This tokenized JSON model serves as a lightweight, memory-efficient representation of the original workbook.
+
+Once parsed, the engine executes the model in a rules engine–style fashion. It compiles the tokenized formulas and then evaluates them, closely emulating Microsoft Excel’s behavior—including support for iterative and circular calculations—without ever needing an Excel installation or COM Automation. This design not only mirrors Excel’s computational logic but also makes complex spreadsheet calculations scalable and adaptable for server-side or headless applications.
+
+In summary, xlcalcmodel takes the familiar world of Excel, disassembles it into a structured, tokenized JSON format, and then reassembles and executes that logic via a robust, extensible rules engine—delivering Excel-like computations in a high-performance, standalone Python environment.
+
+https://pypi.org/project/xlcalcmodel/
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+---
+
+## Overview
+
+The **xlcalcmodel** library is a high-performance, Python-based Excel calculation engine that transforms Excel workbooks into tokenized, JSON-based models for rapid, standalone computation. It achieves this by converting spreadsheet formulas into refined abstract syntax trees (ASTs) and executing them in a rules-engine fashion that faithfully mimics Microsoft Excel. Key features include:
+
+- A **sophisticated AST parser** that efficiently tokenizes and parses complex Excel formulas, laying the foundation for accurate and high-speed evaluations.
+- Comprehensive support for a **broad spectrum of Excel functions**—including statistical, text, mathematical, logical, financial, engineering, date/time, and information functions—ensuring that nearly every native Excel capability is replicated.
+- Complete handling of Excel-style cell references, encompassing absolute references (e.g. $A$1), range references (e.g. A1:B2), and even multi-sheet references, so that the spatial relationships within spreadsheets are preserved.
+- Advanced processing of **array formulas and multi-cell ranges**, enabling efficient evaluation of vectorized operations and matrix-based calculations.
+- Configurable **iterative calculation support** that mirrors Excel’s “Enable Iterative Calculation” option, allowing for convergence in workbooks with circular references.
+- **Optimized memory efficiency**  
+  Through two key innovations, overhead is minimized while performance is maximized:  
+
+  - **Custom NumPy‑backed Array types**  
+    -  Python lists or generic object arrays are replaced with tightly packed NumPy arrays, so every cell’s raw value, formula token, or intermediate result lives in a contiguous C‑style buffer rather than as dozens of small Python objects.
+    -  This slashes per‑element overhead (no Python headers, no pointer chasing), keeps data in L1/L2 cache longer, and lets us leverage vectorized operations when doing bulk updates or zero‑fill migrations.
+
+  - **Streamlined AST (Abstract Syntax Tree)**  
+    -  **What it is:** an AST is a tree‑structured, in‑memory representation of each formula’s syntax. Every node corresponds to an Excel operator (e.g. +, IF), function call, cell reference, or literal.
+    -  **What it does:** instead of storing a formula string and reparsing it on each evaluation, it is parsed once into this tree. Downstream components (compiler, dependency graph, evaluator) walk the nodes, resolve references, and generate or invoke the minimal operations needed.
+    -  **How it was streamlined:**
+        - Unused branches are pruned (e.g. arguments of a never‑hit IF) and repeated subexpressions are collapsed into shared nodes, cutting tree size.
+        - Tag each node with simple type metadata so that our compiler can emit direct NumPy indexing or in‑place arithmetic calls rather than slow Python dispatch.
+        - By stripping out syntactic “noise” (parentheses nodes, redundant grouping), we keep each AST as small and as shallow as possible—minimizing both memory footprint and traversal cost.
+
+    **Result**:  Together, these optimizations remove layers of Python object overhead, eliminate repeated parsing, and keep hot data in compact, cache‑friendly structures—so you get razor‑sharp performance on massive workbooks with minimal RAM usage.
+    
+---
+
+## Key Features
+
+### Extensive Function Support
+
+xlcalcmodel implements a massive list of Excel functions, including (but not limited to):
+
+- **Mathematical Functions:** `SUM`, `AVERAGE`, `COUNT`, `MIN`, `MAX`, `MOD`, `ROUND`, `ROUNDUP`, `ROUNDDOWN`, `POWER`, `SQRT`, `LN`, `LOG`, `EXP`, and more.
+- **Logical Functions:** `IF`, `IFERROR`, `AND`, `OR`, `NOT`, `TRUE`, `FALSE`, etc.
+- **Text Functions:** `CONCAT`, `CONCATENATE`, `EXACT`, `FIND`, `LEFT`, `RIGHT`, `MID`, `LEN`, `LOWER`, `UPPER`, `TRIM`, etc.
+- **Lookup Functions:** `VLOOKUP`, `MATCH`, `CHOOSE`, and others.
+- **Financial Functions:** `NPV`, `IRR`, `PMT`, `PV`, `SLN`, `VDB`, `XIRR`, `XNPV`, etc.
+- **Engineering Functions:** Base conversion functions such as `DEC2BIN`, `DEC2HEX`, `BIN2DEC`, etc.
+- **Date & Time Functions:** `DATE`, `DATEDIF`, `DAY`, `MONTH`, `YEAR`, `NOW`, `TODAY`, `WEEKDAY`, `EDATE`, `EOMONTH`, and more.
+- **Information Functions:** `ISBLANK`, `ISNUMBER`, `ISTEXT`, `ISERROR`, `ISERR`, `ISNA`, `ISODD`, `ISEVEN`, `ISBOOLEAN`
+> **Advanced Functionality:**
+> In addition to the standard Excel function set, xlcalcmodel offers advanced support for several specialized functions:
+> - `MROUND` Implements rounding of numbers to the nearest multiple, handling absolute references and error scenarios robustly.  
+> - `N` Converts values to numbers following Excel’s conventions—including support for error propagation and array inputs—ensuring that even non-numeric types are processed as Excel does.
+
+### Excel-Style Cell and Range Handling
+
+- **Absolute and Relative References:**  
+  The library fully supports Excel’s syntax for cell references—including absolute references (`$A$1`), relative references, and mixed references. Sheet names can be included in the reference, and ranges are parsed accurately.
+  
+- **Iterative Calculation Support:**  
+  For workbooks that require iterative calculations, xlcalcmodel can be configured (e.g., setting the maximum iteration count to 100) to mimic Excel’s iterative behavior.
+  
+### Advanced Parsing and AST Generation
+
+- **Robust Tokenization:**  
+  A comprehensive regular expression-based tokenizer handles cell references, ranges, operators (including support for the exponentiation operator `^`), and function names with high accuracy.
+  
+- **Refined AST Parser:**  
+  The parser builds an Abstract Syntax Tree (AST) representing the formula. It implements operator precedence (with dedicated levels for addition/subtraction, multiplication/division, exponentiation, unary, etc.) and ensures efficient evaluation.
+
+- **Performance Optimizations:**  
+  By converting plain Python lists to a custom, NumPy-backed `Array` type and performing minimal re-parsing (e.g., using a compiled AST), xlcalcmodel is designed to deliver efficient memory use and fast calculation speeds.
+
+### Dependency Graphs
+
+When you load or build a workbook, each cell formula is parsed into an Abstract
+Syntax Tree (AST). The function `extract_references_from_ast` recursively walks
+these AST nodes to gather every referenced cell. It handles individual
+references (`A1`, `Sheet2!B5`), ranges, and function arguments, returning each
+cell in canonical form (e.g., `Sheet1!A1`) with dollar signs stripped.
+
+During `Model.build_dependency_graph()` this function is invoked for every
+formula:
+
+```python
+self.dependency_graph.clear()
+...
+refs = extract_references_from_ast(cell_obj.parsed_ast, self, sheet_name)
+self.dependency_graph[this_canonical] = list(refs)
+```
+
+The resulting `dependency_graph` maps each cell to the list of cells it depends
+on. A companion `reverse_dependency_graph` is then derived for quick "who
+depends on me?" lookups:
+
+```python
+from .dependency import build_reverse_dependency_graph
+self.reverse_dependency_graph = build_reverse_dependency_graph(self)
+```
+
+By persisting these graphs with the model, xlcalcmodel can efficiently
+recalculate only the affected cells when a value changes, or detect cycles for
+iterative recalculations. This approach keeps dependency analysis lightweight
+and enables fast incremental updates without re-parsing formulas.
+
+### Compiled Formula Functions
+
+Model.build_code() converts each parsed AST into a Python function. The compiler attaches the resulting callable to `cell.compiled_func`:
+
+```python
+def build_code(self):
+    parser = FormulaParser()
+    from .compiler import compile_cell
+    for sheet_name, sheet_obj in self.sheets.items():
+        for local_key, cell_obj in sheet_obj.cells.items():
+            if cell_obj.formula:
+                ast_result = parser.parse(cell_obj.formula)
+                cell_obj.parsed_ast = ast_result
+                compile_cell(cell_obj, self)
+```
+
+`EvalContext.eval_cell_value` then invokes this precompiled function whenever it is available:
+
+```python
+# Evaluate formula using compiled function when available
+if getattr(cell, 'compiled_func', None):
+    val = cell.compiled_func(self)
+else:
+    ...
+```
+
+Using precompiled functions avoids repeated AST traversal and makes recalculation significantly faster.
+
+### Model Persistence
+
+For even faster reload times, persist the model is compressed to a
+pickle file after it is built:
+
+```python
+model.persist_to_pickle_file("model.pkl.gz")
+restored = Model.construct_from_pickle_file("model.pkl.gz", build_code=False)
+```
+---
+
+### Prerequisites
+
+- Python 3.7 or later
+- [pip](https://pip.pypa.io/en/stable/)
+  
