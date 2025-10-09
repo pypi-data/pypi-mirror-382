@@ -1,0 +1,1 @@
+from setuptools import setup;setup(name='bunkerstasa',version='0.0.0',packages=('bunkerstasa',))
