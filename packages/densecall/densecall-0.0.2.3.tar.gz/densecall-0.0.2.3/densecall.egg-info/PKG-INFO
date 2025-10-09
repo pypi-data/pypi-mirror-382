@@ -1,0 +1,175 @@
+Metadata-Version: 2.1
+Name: densecall
+Version: 0.0.2.3
+Home-page: https://github.com/n-damo/densecall
+Author: linlian
+Author-email: 21620151153308@stu.xmu.edu.cn
+Description-Content-Type: text/markdown
+License-File: LICENCE.txt
+
+# DenseCall2
+
+**DenseCall2: De Novo Base-Calling of DNA Modifications Using Nanopore Sequencing**
+
+## Contents
+- [DenseCall2](#densecall2)
+  - [Contents](#contents)
+  - [Requirements](#requirements)
+    - [Hardware](#hardware)
+    - [Software](#software)
+  - [Installation](#installation)
+    - [DenseCall2](#densecall2-1)
+    - [Basecalling of FAST5/Pod5 Files](#basecalling-of-fast5pod5-files)
+  - [Usage Notes](#usage-notes)
+    - [Training Your Own Basecalling Model (Optional)](#training-your-own-basecalling-model-optional)
+  - [Knowledge distilation](#knowledge-distilation)
+  - [Downstream Analysis](#downstream-analysis)
+  - [Citing](#citing)
+  - [License](#license)
+  - [Acknowledgement](#acknowledgement)
+
+
+DenseCall2 is an updated base-caller built on an optimized Conformer architecture for nanopore signal processing, enabling simultaneous base-calling and modification detection.
+
+![image1](./doc/image1.png)
+
+## Requirements
+
+### Hardware
+- **RAM**: 2 GB minimum; 16 GB or more recommended
+- **CPU**: 4 cores minimum, ≥ 2.3 GHz per core
+- **GPU**: NVIDIA RTX 4090 or newer (required for DenseCall2)
+
+Benchmarks were collected on an ASUSTeK SVR TS700-E9-RS8 workstation  
+(Xeon Silver 4214 @ 2.20 GHz, 64 GB RAM, RTX 4090 24 GB).
+
+### Software
+
+**Supported Operating Systems**
+- Linux: Ubuntu 22.04 or newer  
+- Windows and macOS are not yet supported
+
+**Python**
+- Version 3.10 or higher is required  
+  Install on Ubuntu with:
+  ```bash
+  sudo apt update
+  sudo apt install python3 python3-pip
+  ```
+
+## Installation
+
+### DenseCall2
+
+First, set up a new environment and install the necessary Python packages using conda and pip:
+
+```shell
+# Create a new conda environment
+conda create -n densecall python=3.10 -y
+conda activate densecall
+
+# Upgrade pip
+pip install --upgrade pip
+
+# Download and install 
+git clone https://github.com/LuChenLab/DENSECALL2.git
+cd DENSECALL2
+pip install -r requirements.txt
+pip install flash-attn==2.8.3 --no-build-isolation --no-cache-dir
+python setup.py develop
+```
+
+DenseCall2 is compatible with the basecaller of ont-bonito, allowing our trained models to be used for the basecalling process. Install ont-bonito as follows:
+
+```shell
+cd ont-bonito-0.7.3
+python setup.py develop
+```
+
+### Basecalling of FAST5\/Pod5 Files
+
+After installing DenseCall2, download the pre-trained models for human-specific models from [Pre-trained Basecalling Models](https://figshare.com/articles/dataset/Densecall_models/25712856). Available models include `dna_r9.4.1_hac_m5C@v1.0.tar.gz` for r9.4.1 data and `dna_r10.4.1_hac_m5C@v1.0.tar.gz` for r10.4.1 data.
+
+DenseCall2 provides a method for transforming `.fast5` files into `.fastq` format or `.sam` format. Follow the commands below to perform basecalling:
+
+```shell
+# Activate the DenseCall2 conda environment
+conda activate densecall2
+
+# Navigate to the directory where you want to download the models
+cd /path/to/Densecall2/densecall/models/
+
+# Download and extract the models
+# Note: Ensure you have already downloaded the .tar.gz files to this directory
+tar -xzvf dna_r9.4.1_hac_m5C@v1.0.tar.gz 
+
+# Perform basecalling on the .fast5 files to generate .fastq files 
+densecall basecaller dna_r9.4.1_hac_m5C@v1.0 /path/to/fast5_data/ --mod --chunksize 12000 --overlap 600 --reference chr22.mmi --recursive --alignment-threads 12 > mod.sam
+```
+
+If you are using the tool solely for standard basecalling, you can omit the --mod flag.
+```
+densecall basecaller dna_r9.4.1_hac_m5C@v1.0 /path/to/fast5_data/ --chunksize 12000 --overlap 600  > mod.fastq
+```
+
+## Usage Notes
+
+- **Modified-base calling**  
+  Add `--mod` together with `--reference` and ensure the output file has a `.sam` extension.  
+  DenseCall2 will perform Viterbi decoding and append MM/ML tags to the SAM output.
+
+- **Standard base calling**  
+  Omit `--mod` and set the output extension to `.fastq` or `.fq`.  
+  DenseCall2 will use beam-search decoding.
+
+### Training Your Own Basecalling Model (Optional)
+
+`densecall train` - train a DenseCall2 model
+
+To train a model using your own reads, first get a trained model from [Remora](https://github.com/nanoporetech/remora).
+
+```shell
+remora model download 
+```
+
+```shell
+densecall basecaller dna_r10.4.1_e8.2_400bps_hac@v3.5.2 ./chr1_fast5 --batchsize 64 --chunksize 5000  --overlap 100 \
+--reference chr1.mmi --recursive --save-ctc --min-accuracy-save-ctc 0.9 \
+--alphabet NACZGT \
+--modified-codes Z \
+--modified-base-model /path/to/dna_r10.4.1_e8.2_400bps_hac_v3.5.1_5mc_CG_v2.pt \
+--max-reads 100000 > r10_train_data/test.sam
+```
+
+Training a new model from scratch:
+
+```bash
+densecall train test --directory r10_train_data/ -f --batch 64 --epochs 30 \
+--no-quantile-grad-clip --lr 0.002 --alphabet NACZGT \
+--config conformer.toml --new --compile
+```
+
+
+## Knowledge distilation 
+To train a model using knowledge distilation, add the `--teacher` flag to the training command.
+
+```bash
+densecall train r10_student  --directory r10_train_data/ -f --batch 64  --epochs 20  --grad-accum-split 2 --no-quantile-grad-clip --lr 0.002    --alphabet NACZGT --config conformer_fast.toml   --new --compile --teacher r10_teacher/
+```
+
+All training calls use Automatic Mixed Precision to speed up training.
+
+## Downstream Analysis
+
+The results were analyzed using the ONT tool [modkit](https://github.com/nanoporetech/modkit), which processes BAM files containing MM/ML tags to generate comprehensive statistical reports. This study specifically employed modkit's "validate" and "pileup" functions.
+
+## Citing
+
+A pre-print will be uploaded soon.
+
+## License
+
+GNU General Public License v3.0
+
+## Acknowledgement
+We thank Bonito for making its source code available. DenseCall2 was built on Bonito’s framework: the save-CTC module, the training pipeline and the conversion of Conformer-based basecall outputs to base sequences have all been modified from Bonito’s original implementation. Bonito’s licence can be found [here](https://github.com/nanoporetech/bonito/blob/master/LICENCE.txt).
