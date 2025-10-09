@@ -1,0 +1,77 @@
+{% extends "wagtailadmin/shared/side_panels/checks.html" %}
+{% load static wagtailadmin_tags i18n %}
+
+{% block issues_section %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'wagtail_ai/content_feedback.css' %}" />
+    <script src="{% static 'wagtail_ai/content_feedback.js' %}"></script>
+
+    <div class="wai-feedback" data-controller="wai-feedback" data-wai-feedback-url-value="{% url 'wagtail_ai:content_feedback' %}">
+        <h2 class="wai-feedback__heading">
+            <span>{% translate 'Content feedback' %}</span>
+            <button type="button" class="wai-feedback__indicator" data-wai-feedback-target="status" data-controller="w-tooltip">
+                {% icon name="radio-full" classname="w-w-4 w-h-4" %}
+            </button>
+            <button type="button" data-action="wai-feedback#reset" class="button button-small button-secondary wai-feedback__clear">
+                {% translate 'Clear all' %}
+            </button>
+        </h2>
+
+        <button type="button" class="button button-secondary wai-feedback__get" data-action="wai-feedback#generate" data-wai-feedback-target="suggest">
+            {% icon name="wand" classname="w-w-4 w-h-4" %}
+            <span>{% translate 'Get content feedback' %}</span>
+        </button>
+
+        <div class="wai-feedback__intermediary">
+            <div>
+                {% icon name="spinner" classname="w-w-8 w-h-8" %}
+                {% icon name="warning" classname="w-w-8 w-h-8" %}
+            </div>
+            <div class="wai-feedback__loading-message">
+                {% translate 'Please wait…' %}
+            </div>
+            <div class="wai-feedback__error-message">
+                {% translate "An error occurred while processing your request. Please try again." %}
+            </div>
+            <button type="button" class="button button-secondary button-small" data-action="click->wai-feedback#reset">
+                {% translate "Cancel" %}
+            </button>
+        </div>
+
+        <div class="wai-feedback__overall">
+            <h3 class="w-font-semibold">{% translate 'Overall feedback' %}</h3>
+            <ul data-wai-feedback-target="feedback" class="wai-feedback__overall-list">
+            </ul>
+            <template data-wai-feedback-target="feedbackItemTemplate">
+                <li class="wai-feedback__overall-item">
+                    <p data-template-key="text" class="wai-feedback__overall-item-text"></p>
+                    <div class="wai-feedback__actions">
+                        <button data-action="wai-feedback#dismissItem" class="button button-small button-secondary wai-feedback__overall-dismiss" type="button">
+                            {% translate 'Dismiss' %}
+                        </button>
+                    </div>
+                </li>
+            </template>
+        </div>
+
+        <div class="wai-feedback__suggestions">
+            <h3 class="w-font-semibold">{% translate 'Suggested improvements' %}</h3>
+            <ul data-wai-feedback-target="suggestions" class="wai-feedback__suggestions-list">
+            </ul>
+            <template data-wai-feedback-target="suggestionItemTemplate">
+                <li class="wai-feedback__suggestions-item">
+                    <textarea class="wai-feedback__suggestions-text" data-controller="w-tooltip" data-template-key="suggested_text" readonly></textarea>
+                    <div class="wai-feedback__actions">
+                        <button data-suggestion-id="" data-action="wai-feedback#showSuggestion" class="button button-small" type="button">
+                            {% translate 'Show' %}
+                        </button>
+                        <button data-action="wai-feedback#dismissItem" class="button button-small button-secondary wai-feedback__suggestions-dismiss" type="button">
+                            {% translate 'Dismiss' %}
+                        </button>
+                    </div>
+                </li>
+            </template>
+        </div>
+
+    </div>
+{% endblock %}
