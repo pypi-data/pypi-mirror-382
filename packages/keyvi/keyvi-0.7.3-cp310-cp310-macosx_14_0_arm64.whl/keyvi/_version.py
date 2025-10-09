@@ -1,0 +1,5 @@
+
+# THIS FILE IS GENERATED FROM KEYVI SETUP.PY
+
+__version__ = '0.7.3'
+
