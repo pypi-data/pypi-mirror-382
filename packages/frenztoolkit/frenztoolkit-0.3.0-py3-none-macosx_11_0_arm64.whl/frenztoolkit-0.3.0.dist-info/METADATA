@@ -1,0 +1,374 @@
+Metadata-Version: 2.4
+Name: frenztoolkit
+Version: 0.3.0
+Summary: A toolkit for processing and analyzing physiological signals
+Home-page: https://github.com/earable/frenztoolkit
+Author: Frenz Team
+Author-email: Frenz Team <ml1@earable.ai>
+License: MIT
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy==1.26.4
+Requires-Dist: pandas>=2.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: bleak==1.0.1
+Requires-Dist: scipy>=1.11.0
+Requires-Dist: pyedflib>=0.1.20
+Requires-Dist: matplotlib>=3.5.0
+Requires-Dist: statsmodels>=0.14.0
+Requires-Dist: seaborn>=0.12.0
+Requires-Dist: tensorflow==2.19.0
+Requires-Dist: antropy>=0.1.6
+Requires-Dist: cryptography
+Requires-Dist: scikit-learn
+Requires-Dist: tqdm
+Requires-Dist: scikit-image
+Requires-Dist: cassandra-driver
+Requires-Dist: psutil
+Requires-Dist: boto3
+Requires-Dist: tzlocal
+Requires-Dist: pytz
+Provides-Extra: dev
+Requires-Dist: build>=0.10.0; extra == "dev"
+Requires-Dist: twine>=4.0.2; extra == "dev"
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: setuptools>=61.0; extra == "dev"
+Requires-Dist: wheel>=0.40.0; extra == "dev"
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# FRENZ TOOLKIT
+The Frenz Streaming Toolkit enables scientists to stream data from the Frenz Brainband to their laptop or PC, facilitating the development of custom applications. It provides access to distinct brain signals, offering a valuable alternative to PSG, the gold standard in brain signal recording. [1].
+
+NOTE: you can see some example programs here: https://github.com/earable/frenz_toolkit_example 
+
+### **I. Getting started**
+
+You can install the Frenz Streaming Toolkit on your PC using pip:
+
+```bash
+pip install frenztoolkit
+```
+
+Alternatively, you can download the package and build it from source.
+
+**Product Key Requirement**
+
+A valid product key is required to use the toolkit. Please contact our sales department to obtain your product key.
+
+**System Requirements**
+
+Before using the toolkit, ensure you have the following:
+
+- A Frenz Brainband
+- A laptop/desktop (MacOS, Windows 64) with Bluetooth and internet connectivity
+- A product key (contact Earable's sales department if you don't have one)
+- Python 3.9 environment:
+
+Goto page: https://www.python.org/downloads/release/python-3913/
+
+Choose your OS setup file:
+
+MacOS: https://www.python.org/ftp/python/3.9.13/python-3.9.13-macos11.pkg
+
+Windows 64: https://www.python.org/ftp/python/3.9.13/python-3.9.13-amd64.exe
+
+### Check if Python 3.9 is installed
+```bash
+python3.9 --version
+```
+or
+
+```bash
+python --version
+```
+
+Result:
+
+Python 3.9.xx
+
+### Create new virtual environment
+```bash
+python3.9 -m venv vir_name
+```
+or
+
+```bash
+python -m venv vir_name
+```
+
+### Environment activation:
+### MacOS
+```bash
+source vir_name/bin/activate  
+```
+
+### Windows 64 OS
+```bash
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+```
+
+```bash
+.\vir_name\Scripts\Activate.ps1
+```
+
+### **II. Connecting to Your Device**
+
+To connect your Frenz Brainband, you first need to identify its Bluetooth ID. The toolkit provides a `Scanner` utility to help you retrieve this ID.
+
+**Scanning for Available Devices**
+
+```python
+from frenztoolkit import Scanner
+
+scanner = Scanner()
+print(scanner.scan())
+```
+
+**Example Output:**
+
+```python
+["DEVICE_1", "DEVICE_2", "DEVICE_3"]
+```
+
+This function returns a list of available Frenz Brainbands that are not currently connected to any phone or laptop.
+
+### **III. Start your session**
+
+Once you have the band's Bluetooth ID, you can start your session.
+
+Refer to the following code snippets for guidance on how to:
+
+- Connect to a Frenz Brainband
+- Start a session
+- Access real-time data
+- Stop a session
+
+NOTE: Do not let your computer sleep while streaming data.
+
+```python
+import time
+from frenztoolkit import Streamer
+
+PRODUCT_KEY = "YOUR_PRODUCT_KEY" 
+DEVICE_ID = "YOUR_BRAIN_BAND_BLUETOOTH_ID" # ex: FRENZG15
+
+# START A SESSION
+# Config your streamer
+streamer = Streamer(
+		device_id = DEVICE_ID, 
+    product_key = PRODUCT_KEY,
+    data_folder = "./" # The folder stored your session data when it be completed
+    turn_off_light = True # Turn off the light on Frenz Band, default is True
+)
+
+# Start a session
+streamer.start()
+
+
+# ACCESS DATA
+# When the session successfully started, 
+# you can access the raw brain signals.
+# This is a array shape [N, 7] where stored
+# First is the timestamp of the corresponding data 
+# Data of 6 channels from the band with ordered
+# LF, OTEL, REF1, RF, OTER, REF2; and the data are continuously (REF1, REF2 not use)
+# added to the END of the array.
+streamer.DATA["RAW"]["EEG"]
+
+# You also can access to the filtered signals, which have
+# applied power-line noise, proprirate band-pass filter to 
+# remove noises from the signals. 
+# The filtered signals are much better for humans to read directly.
+# This is a array shape [4, N] where stored 
+# unit: uV (micro Volt)
+# channel: LF, OTEL, RF, OTER
+# The data are continuously added to the END of the array.
+streamer.DATA["FILTERED"]["EEG"]
+streamer.DATA["FILTERED"]["EOG"]
+streamer.DATA["FILTERED"]["EMG"]
+
+# Similarly, you can access to the IMU signals, 
+# which is recorded from the IMU sensor.
+# The data have a shape of [M, 3]
+# First is the timestamp of the corresponding data
+# Stored 3 channels of, data accordingly: x, y, z; 
+# where x, y, z: accelerometers
+# The data are continuously added to the END of the array.
+streamer.DATA["RAW"]["IMU"]
+
+# You can access to the PPG signals:
+# which have shape [K, 4]
+# First is the timestamp of the corresponding data
+# Stored data of 3 channel:
+# GREEN, RED, INFRARED
+# The data are continuously added to the END of the array.
+streamer.DATA["RAW"]["PPG"]
+
+# You also can access to the calculated scores
+# from our machine learning models:
+
+# CURRENT STATES: you can access to the latest scores by:
+
+# Session Start time:
+# Time stamp
+streamer.SCORES.get("start_time")
+
+# Sleep stage 
+# Calculated for every 30 seconds
+# The data are continuously added to the END of the array. 
+# value < 0: undefined, value = 0: awake, value = 1: light, value = 2: deep, value = 3: REM
+streamer.SCORES.get("sleep_stage")
+
+# POAS: probability of falling asleep
+# Calculated for every 30 seconds
+# Value: from 0-1
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("poas")
+
+# Posture
+# Calculated for every 5 seconds
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("posture")
+
+# FOCUS
+# Calculated for every 2 seconds
+# Value: from 1-100
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("focus_score")
+
+# Signal quality
+# Shape: (LF, OTEL, RF, OTER), calculated for every 5 seconds
+# The data are continuously added to the END of the array.
+# value 0 - not good; value 1 - good
+streamer.SCORES.get("sqc_scores")
+
+# Alpha Power
+# Shape: (LF, OTEL, RF, OTER, AVG), calculated for every 2 seconds
+# The data are continuously added to the END of the array.
+# unit: dB (Decibel)
+streamer.SCORES.get("alpha")
+# Beta Power
+# Shape: (LF, OTEL, RF, OTER, AVG), calculated for every 2 seconds
+# The data are continuously added to the END of the array.
+# unit: dB (Decibel)
+streamer.SCORES.get("beta")
+
+# Gamma Power
+# Shape: (LF, OTEL, RF, OTER, AVG), calculated for every 2 seconds
+# The data are continuously added to the END of the array.
+# unit: dB (Decibel)
+streamer.SCORES.get("gamma")
+
+# Theta Power
+# Shape: (LF, OTEL, RF, OTER, AVG), calculated for every 2 seconds
+# The data are continuously added to the END of the array.
+# unit: dB (Decibel)
+streamer.SCORES.get("theta")
+
+# Delta Power
+# Shape: (LF, OTEL, RF, OTER, AVG), calculated for every 2 seconds
+# The data are continuously added to the END of the array.
+# unit: dB (Decibel)
+streamer.SCORES.get("delta")
+
+# HISTORICAL STATES: you also can access to the historical scores
+# by adding `array__` to the scores 
+
+# POAS: probability of falling asleep
+# List of POAS
+# Value: from 0-1
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("array__poas")
+
+# Posture:
+# List of posture
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("array__posture")
+
+# Sleep stage
+# List of Sleep Stage
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("array__sleep_stage")
+
+
+# Signal quality
+# List of Signal Quality
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("array__sqc_scores")
+
+# FOCUS
+# List of focus score
+# Value: from 1-100
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("array__focus_score")
+
+# Alpha Power
+# List of alpha power
+# unit: dB
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("array__alpha")
+
+# beta Power
+# List of beta power
+# unit: dB
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("array__beta")
+
+# Gamma Power
+# List of gamma power
+# unit: dB
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("array__gamma")
+
+# Delta Power
+# List of delta power
+# unit: dB
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("array__delta")
+
+# Theta Power
+# List of theta power
+# unit: dB
+# The data are continuously added to the END of the array.
+streamer.SCORES.get("array__theta")
+
+# To be updated: We still have many more scores.
+
+# STOP YOUR SESSION
+# Limit your session by duration
+try:
+    while True:
+       if streamer.session_dur > 10000:
+        	streamer.stop()
+        	break 
+    	# YOUR CAN DO SOMETHING WITH THE REAL TIME STREAMING DATA HERE
+       time.sleep(5)
+
+except KeyboardInterrupt:
+    print("Keyboard interrupt")
+    streamer.stop()
+except Exception as e:
+    print(f"Error: {e}")
+    streamer.stop()
+
+# Or press [Ctrl+C] For Mac to quit the session.
+# When the session stopped, raw signals and scores will be stored in the 
+# data_folder folder.
+
+```
+
+# RELEASE NOTES
+
+**Ver 0.3.0** <br>
+Date: 10-09-25 <br>
+Notes:
+- Improve performance and fix bugs 
+
+### **Reference**
+
+[[1](https://doi.org/10.1038/s41598-023-43975-1)] Nguyen, A., Pogoncheff, G., Dong, B.X. et al. A comprehensive study on the efficacy of a wearable sleep aid device featuring closed-loop real-time acoustic stimulation. Sci Rep 13, 17515 (2023). https://doi.org/10.1038/s41598-023-43975-1
