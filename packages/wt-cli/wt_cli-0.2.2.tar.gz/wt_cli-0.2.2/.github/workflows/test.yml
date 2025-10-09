@@ -1,0 +1,74 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install pre-commit
+        run: uv tool install pre-commit
+
+      - name: Run pre-commit hooks
+        run: uvx pre-commit run --all-files
+
+      - name: Send Pushover notification
+        if: failure()
+        run: |
+          curl -s -F "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            -F "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            -F "message=Build failed: pre-commit checks in ${{ github.repository }}" \
+            -F "title=GitHub Actions Failure" \
+            -F "url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            https://api.pushover.net/1/messages.json
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install package and dev dependencies
+        run: uv sync --dev
+        env:
+          UV_INDEX_URL: https://pypi.org/simple
+
+      - name: Run tests
+        run: uv run pytest tests/ -v --tb=short
+
+      - name: Send Pushover notification
+        if: failure()
+        run: |
+          curl -s -F "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            -F "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            -F "message=Tests failed on ${{ matrix.os }} / Python ${{ matrix.python-version }} in ${{ github.repository }}" \
+            -F "title=GitHub Actions Failure" \
+            -F "url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            https://api.pushover.net/1/messages.json
