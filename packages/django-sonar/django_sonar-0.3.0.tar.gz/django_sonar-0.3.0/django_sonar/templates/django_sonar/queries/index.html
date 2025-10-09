@@ -1,0 +1,43 @@
+<div class="card shadow-sm  border-light" hx-get="{% url 'sonar_queries' %}" hx-trigger="every 5s" hx-swap="outerHTML">
+    <div class="card-header">
+        <h5 class="card-title">Queries</h5>
+    </div>
+    <div class="card-body">
+
+
+        {% if not queries %}
+            <div class="text-light-grey">No queries found</div>
+        {% else %}
+            <table class="table table-dashed table-hover">
+                <thead>
+                <tr>
+                    <th scope="col">Query</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col">Happened</th>
+                    <th class="w-50px">&nbsp;</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for query in queries %}
+                <tr {% if query.index == 0 %}class="bg-light"{% endif %}>
+                    <td>
+                        <code>{{ query.sql|truncatechars:90 }}</code></td>
+                    <td>{{ query.time }}ms</td>
+                    <td>{{ query.created_at|timesince }}</td>
+                    <td>
+                        <a class="btn btn-sm btn-icon btn-primary"
+                           href="{% url 'sonar_queries_detail' uuid=query.sonar_request_id index=query.index %}"
+                           hx-get="{% url 'sonar_queries_detail' uuid=query.sonar_request_id index=query.index %}"
+                           hx-swap="innerHTML"
+                           hx-target="#main-content">
+                            <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+
+    </div>
+</div>
