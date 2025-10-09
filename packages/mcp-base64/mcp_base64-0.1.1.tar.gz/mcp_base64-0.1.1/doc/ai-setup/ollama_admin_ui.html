@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ollama Admin UI</title>
+<style>
+  :root { --gap: 10px; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2em; background: #fafafa; }
+  h1 { font-size: 1.4em; margin-bottom: 0.2em; }
+  .muted { color: #555; font-size: 0.9em; }
+  .row { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: center; }
+  .stack { display: grid; gap: var(--gap); }
+  button { margin: 0; padding: 0.45em 0.8em; border-radius: 8px; border: 1px solid #ccc; background: white; cursor: pointer; }
+  button:hover { background: #f3f3f3; }
+  input, textarea { padding: 0.45em 0.6em; border-radius: 8px; border: 1px solid #ccc; }
+  label { font-size: 0.9em; color: #333; }
+  fieldset { border: 1px solid #ddd; border-radius: 10px; padding: 12px; background: #fff; }
+  legend { color: #333; padding: 0 6px; }
+  pre { background: #eee; padding: 1em; border-radius: 10px; white-space: pre-wrap; }
+  #output { margin-top: 1em; }
+  .danger { border-color: #f0b; background: #fff; }
+  .danger:hover { background: #ffe9f7; }
+</style>
+</head>
+<body>
+<h1>🦙 Ollama Admin UI</h1>
+<p class="muted">Quick controls for system-level endpoints (`/api/version`, `/api/tags`, `/api/ps`, model admin like pull/push/copy/delete) and a RAM unload helper.</p>
+
+<!-- Base URL controls -->
+<fieldset class="stack">
+  <legend>🔗 Connection</legend>
+  <div class="row">
+    <label for="baseUrl">Base URL</label>
+    <input id="baseUrl" size="40" value="http://127.0.0.1:11434" />
+    <button id="applyBase">Apply</button>
+    <button id="testConn">Test Connection</button>
+  </div>
+  <p class="muted">Tip: you can start this page with <code>?baseUrl=http://10.7.2.100:11434</code> to set it automatically.</p>
+</fieldset>
+
+<!-- System endpoints -->
+<fieldset class="stack">
+  <legend>⚙️ System Methods (no model required)</legend>
+  <div class="row">
+    <button onclick="fetchJSON('/api/version')">Get Version</button>
+    <button onclick="fetchJSON('/api/tags')">List Models (Disk)</button>
+    <button onclick="fetchJSON('/api/ps')">List Loaded Models (RAM)</button>
+  </div>
+</fieldset>
+
+<!-- Model admin -->
+<fieldset class="stack">
+  <legend>📦 Model Admin</legend>
+  <div class="row">
+    <input id="modelName" placeholder="Model (e.g. llama3.2)" size="28">
+    <button class="danger" onclick="confirmAndDelete()">Delete Model (disk)</button>
+    <button onclick="showModel()">Show Details</button>
+  </div>
+  <div class="row">
+    <input id="pullName" placeholder="Pull model (e.g. llama3.2)" size="28">
+    <button onclick="pullModel()">Pull</button>
+    <input id="pushName" placeholder="Push model (e.g. mymodel:latest)" size="28">
+    <button onclick="confirmAndPush()">Push</button>
+  </div>
+  <div class="row">
+    <input id="copySrc" placeholder="Copy from (e.g. llama3.2)" size="24">
+    <input id="copyDst" placeholder="Copy to (e.g. llama3.2-q5)" size="24">
+    <button onclick="confirmAndCopy()">Copy</button>
+  </div>
+</fieldset>
+
+<!-- RAM unload helper -->
+<fieldset class="stack">
+  <legend>🧠 RAM Unload</legend>
+  <div class="row">
+    <input id="unloadModel" placeholder="Model to unload (e.g. llama3.2)" size="28">
+    <button class="danger" onclick="confirmAndUnload()">Unload from RAM</button>
+  </div>
+  <p class="muted">This sends a <code>POST /api/generate</code> with <code>{ keep_alive: 0 }</code> to request immediate unload.</p>
+</fieldset>
+
+<div id="output"></div>
+
+<script>
+// ---------- helpers ----------
+const $ = (id) => document.getElementById(id);
+const output = () => document.getElementById('output');
+let BASE = 'http://127.0.0.1:11434';
+
+function setBase(url) {
+  if (!url) return;
+  BASE = url.replace(/\/$/, '');
+}
+
+function initBaseFromParams() {
+  const sp = new URLSearchParams(location.search);
+  const u = sp.get('baseUrl') || sp.get('ollama') || sp.get('url');
+  if (u) { setBase(u); $('baseUrl').value = BASE; }
+}
+
+function fmtJSON(text) {
+  try { return JSON.stringify(JSON.parse(text), null, 2); } catch { return text; }
+}
+
+async function fetchJSON(endpoint, init, customBase) {
+  try {
+    const base = customBase || BASE;
+    const res = await fetch(base + endpoint, init);
+    const text = await res.text();
+    output().innerHTML = `<h3>${endpoint}</h3><pre>${fmtJSON(text)}</pre>`;
+  } catch (e) {
+    output().innerHTML = `<h3>Error</h3><pre>${e}</pre>`;
+  }
+}
+
+async function fetchJSONBody(endpoint, bodyObj) {
+  return fetchJSON(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(bodyObj)
+  });
+}
+
+// ---------- connection actions ----------
+$('applyBase').addEventListener('click', () => {
+  const val = $('baseUrl').value.trim();
+  if (!val) return alert('Enter a base URL');
+  setBase(val);
+  output().innerHTML = `<pre>Base set to ${BASE}</pre>`;
+});
+
+$('testConn').addEventListener('click', () => {
+  const val = $('baseUrl').value.trim() || BASE;
+  fetchJSON('/api/version', undefined, val);
+});
+
+// ---------- model admin ----------
+async function showModel() {
+  const model = $('modelName').value.trim();
+  if (!model) return alert('Enter model');
+  await fetchJSONBody('/api/show', { model });
+}
+
+async function pullModel() {
+  const name = $('pullName').value.trim();
+  if (!name) return alert('Enter model to pull');
+  if (!confirm(`Pull model \"${name}\" from registry?`)) return;
+  await fetchJSONBody('/api/pull', { name, stream: false });
+}
+
+async function confirmAndPush() {
+  const name = $('pushName').value.trim();
+  if (!name) return alert('Enter model to push');
+  if (!confirm(`Push model \"${name}\" to registry?`)) return;
+  await fetchJSONBody('/api/push', { name, stream: false });
+}
+
+async function confirmAndCopy() {
+  const src = $('copySrc').value.trim();
+  const dst = $('copyDst').value.trim();
+  if (!src || !dst) return alert('Enter both source and destination');
+  if (!confirm(`Copy model \"${src}\" to \"${dst}\"?`)) return;
+  await fetchJSONBody('/api/copy', { source: src, destination: dst });
+}
+
+async function confirmAndDelete() {
+  const model = $('modelName').value.trim();
+  if (!model) return alert('Enter model');
+  if (!confirm(`DELETE model from disk: \"${model}\"? This cannot be undone.`)) return;
+  await fetchJSONBody('/api/delete', { name: model });
+}
+
+async function confirmAndUnload() {
+  const model = $('unloadModel').value.trim();
+  if (!model) return alert('Enter model to unload');
+  if (!confirm(`Request unload from RAM for \"${model}\"?`)) return;
+  await fetchJSONBody('/api/generate', { model, keep_alive: 0, prompt: '' });
+}
+
+// ---------- boot ----------
+initBaseFromParams();
+$('baseUrl').value = BASE;
+</script>
+</body>
+</html>
