@@ -1,0 +1,93 @@
+//! # Typst Compilation
+//!
+//! This module compiles Typst documents to output formats (PDF and SVG).
+//!
+//! ## Functions
+//!
+//! - [`compile_to_pdf()`] - Compile Typst to PDF format
+//! - [`compile_to_svg()`] - Compile Typst to SVG format (one file per page)
+//!
+//! ## Quick Example
+//!
+//! ```no_run
+//! use quillmark_typst::compile::compile_to_pdf;
+//! use quillmark_core::Quill;
+//!
+//! let quill = Quill::from_path("path/to/quill")?;
+//! let typst_content = "#set document(title: \"Test\")\n= Hello";
+//!
+//! let pdf_bytes = compile_to_pdf(&quill, typst_content)?;
+//! std::fs::write("output.pdf", pdf_bytes)?;
+//! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+//! ```
+//!
+//! ## Process
+//!
+//! 1. Creates a `QuillWorld` with the quill's assets and packages
+//! 2. Compiles the Typst document using the Typst compiler
+//! 3. Converts to target format (PDF or SVG)
+//! 4. Returns output bytes
+//!
+//! The output bytes can be written to a file or returned directly to the caller.
+
+use typst::diag::Warned;
+use typst::layout::PagedDocument;
+use typst_pdf::PdfOptions;
+
+use crate::error_mapping::map_typst_errors;
+use crate::world::QuillWorld;
+use quillmark_core::{Quill, RenderError};
+
+/// Compiles a Typst document to PDF format.
+pub fn compile_to_pdf(quill: &Quill, glued_content: &str) -> Result<Vec<u8>, RenderError> {
+    println!("Using quill: {}", quill.name);
+    let world = QuillWorld::new(quill, glued_content).map_err(|e| {
+        RenderError::Internal(anyhow::anyhow!("Failed to create Typst world: {}", e))
+    })?;
+
+    let document = compile_document(&world)?;
+
+    let pdf = typst_pdf::pdf(&document, &PdfOptions::default())
+        .map_err(|e| RenderError::Internal(anyhow::anyhow!("PDF generation failed: {:?}", e)))?;
+
+    Ok(pdf)
+}
+
+/// Compiles a Typst document to SVG format (one file per page).
+pub fn compile_to_svg(quill: &Quill, glued_content: &str) -> Result<Vec<Vec<u8>>, RenderError> {
+    let world = QuillWorld::new(quill, glued_content).map_err(|e| {
+        RenderError::Internal(anyhow::anyhow!("Failed to create Typst world: {}", e))
+    })?;
+
+    let document = compile_document(&world)?;
+
+    let mut pages = Vec::new();
+    for page in &document.pages {
+        let svg = typst_svg::svg(page);
+        pages.push(svg.into_bytes());
+    }
+
+    Ok(pages)
+}
+
+/// Internal compilation function
+fn compile_document(world: &QuillWorld) -> Result<PagedDocument, RenderError> {
+    let Warned {
+        output,
+        warnings: _,
+    } = typst::compile::<PagedDocument>(world);
+
+    match output {
+        Ok(doc) => {
+            // TODO: Capture and propagate warnings to RenderResult
+            Ok(doc)
+        }
+        Err(errors) => {
+            let diagnostics = map_typst_errors(&errors, world);
+            Err(RenderError::CompilationFailed(
+                diagnostics.len(),
+                diagnostics,
+            ))
+        }
+    }
+}
