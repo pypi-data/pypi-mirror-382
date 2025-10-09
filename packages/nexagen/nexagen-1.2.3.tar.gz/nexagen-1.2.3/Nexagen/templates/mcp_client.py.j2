@@ -1,0 +1,181 @@
+import asyncio
+import sys
+import json
+from typing import Optional, Dict, Any
+from contextlib import AsyncExitStack
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+import logging
+
+# 设置日志记录
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+class MCPClient:
+    def __init__(self):
+        self.session: Optional[ClientSession] = None
+        self.exit_stack = AsyncExitStack()
+        self.connected = False
+
+    async def connect_to_server(self, agent_name: str, command: str, args: list):
+        """连接到 MCP agent server"""
+        logger.info(f"Connecting to agent server: {agent_name}")
+
+        server_params = StdioServerParameters(
+            command=command,
+            args=args,
+            env=None
+        )
+
+        try:
+            # 建立连接
+            stdio_transport = await self.exit_stack.enter_async_context(
+                stdio_client(server_params)
+            )
+            self.stdio, self.write = stdio_transport
+            
+            # 创建会话
+            self.session = await self.exit_stack.enter_async_context(
+                ClientSession(self.stdio, self.write)
+            )
+            
+            # 初始化会话
+            await self.session.initialize()
+            self.connected = True
+            logger.info(f"Successfully connected to {agent_name}")
+            
+            # 增加稳定性延迟
+            await asyncio.sleep(1.0)
+            
+        except Exception as e:
+            logger.error(f"Error connecting to server {agent_name}: {str(e)}")
+            self.connected = False
+            raise
+
+    async def call_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> Any:
+        """调用工具"""
+        if not self.session or not self.connected:
+            raise RuntimeError("Not connected to server")
+
+        try:
+            logger.info(f"Calling tool: {tool_name} with args: {tool_args}")
+            
+            # 设置超时时间为 60 秒
+            result = await asyncio.wait_for(
+                self.session.call_tool(tool_name, tool_args),
+                timeout=60.0
+            )
+            
+            logger.info(f"Tool {tool_name} returned successfully")
+            return result.content
+            
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout calling tool {tool_name}")
+            return f"Error: Tool {tool_name} timed out after 60 seconds"
+        except Exception as e:
+            logger.error(f"Error calling tool {tool_name}: {str(e)}")
+            return f"Error calling tool {tool_name}: {str(e)}"
+    
+    async def cleanup(self):
+        """清理连接"""
+        try:
+            if self.exit_stack:
+                await self.exit_stack.aclose()
+            self.connected = False
+            logger.info("Connection cleaned up")
+        except Exception as e:
+            logger.error(f"Error during cleanup: {str(e)}")
+
+
+async def async_main(agent_name: str, tool_name: str, tool_args: Dict[str, Any]) -> str:
+    """异步主函数，接收参数并执行"""
+    client = MCPClient()
+    
+    try:
+        # 从配置文件加载服务器配置
+        with open("./mcp.json", "r") as fh:
+            agent_info = json.load(fh)
+
+        if agent_name not in agent_info["mcpServers"]:
+            return f"Error: Agent '{agent_name}' not found in mcp.json"
+
+        command = agent_info["mcpServers"][agent_name]["command"]
+        args = agent_info["mcpServers"][agent_name]["args"]
+
+        # 连接到服务器
+        await client.connect_to_server(agent_name, command, args)
+        
+        # 调用工具
+        result = await client.call_tool(tool_name, tool_args)
+        
+        return str(result)
+        
+    except Exception as e:
+        logger.error(f"Error in async_main: {str(e)}")
+        return f"Error: {str(e)}"
+    finally:
+        # 清理连接
+        await client.cleanup()
+
+
+def run(agent_name: str, tool_name: str, tool_args: Dict[str, Any]) -> str:
+    """
+    同步入口函数，智能处理事件循环
+    """
+    try:
+        # 尝试获取当前事件循环
+        loop = asyncio.get_running_loop()
+        # 如果成功，说明在异步环境中
+        raise RuntimeError("Cannot use sync run() in async context. Use async_run() instead.")
+    except RuntimeError as e:
+        if "no running event loop" in str(e).lower():
+            # 没有运行中的循环，可以创建新循环
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(async_main(agent_name, tool_name, tool_args))
+                return result
+            except Exception as e:
+                logger.error(f"Error in event loop: {str(e)}")
+                return f"Error in event loop: {str(e)}"
+            finally:
+                # 清理事件循环
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+        else:
+            raise
+
+
+async def async_run(agent_name: str, tool_name: str, tool_args: Dict[str, Any]) -> str:
+    """
+    异步入口函数，在已有事件循环中运行
+    用于从异步代码中调用
+    """
+    return await async_main(agent_name, tool_name, tool_args)
+
+
+def main(agent_name, tool_name, tool_args):
+    """命令行入口点，解析参数并调用同步函数"""
+    try:
+        # 解析JSON格式的参数
+        if isinstance(tool_args, str):
+            tool_args = json.loads(tool_args)
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON format for tool_args")
+        return "Error: Invalid JSON format for tool_args"
+
+    result = run(agent_name, tool_name, tool_args)
+    return result
+
+
+if __name__ == "__main__":
+    # 测试代码
+    agent_name = "chart"
+    tool_name = "draw_chart"
+    tool_args = {"data": [1, 2, 3, 4, 5], "title": "销售数据"}
+
+    r = main(agent_name, tool_name, tool_args)
+    print(r)
