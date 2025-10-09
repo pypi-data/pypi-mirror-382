@@ -1,0 +1,79 @@
+###
+# #%L
+# aiSSEMBLE::Test::MDA::Machine Learning::Inference
+# %%
+# Copyright (C) 2021 Booz Allen
+# %%
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# #L%
+###
+"""
+Models the request/response message envelopes utilized to expose inference analytics as a
+REST API. The classes defined here should align with the message envelopes defined in the corresponding
+inference_api.proto definition, which supports concurrently exposing inference analyics as a
+gRPC API.
+
+GENERATED CODE - DO NOT MODIFY (specify inference analytic inputs/outputs in validation/inference_payload_definition.py).
+
+Generated from: templates/inference/inference.payload.rest.py.vm
+"""
+
+from typing import List
+
+from pydantic import BaseModel
+
+from ....validation.inference_payload_definition import Record, Inference
+
+
+class InferenceRequest(Record):
+    """
+    Defines the required request message elements needed to perform inferencing against a single input data record.
+    """
+    pass
+
+
+class InferenceResponse(Inference):
+    """
+    Defines the response message containing the results of performing inferencing against a single data record.
+    """
+    pass
+
+
+class RecordRowIdAndInferenceResultPair(BaseModel):
+    """
+    Helper transfer object container that links an inference result with the ID of its corresponding input data record.
+    """
+    row_id: str
+    result: Inference
+
+
+class BatchInferenceRequest(BaseModel):
+    """
+    Defines the required request message elements needed to perform inferencing against a batch of multiple
+    input data records.  The row_id_key is utilized to specify the attribute within the given input data records
+    that should be embedded alongside inference results to allow invoking clients to understand to which data record
+    the inference result correlates.
+    """
+    row_id_key: str
+    data: List[Record]
+
+
+class BatchInferenceResponse(BaseModel):
+    """
+    Defines the response message containing the results of performing inferencing against the provided batch of multiple
+    data records.  Each inference result is linked to its corresponding input data record via the row_id attribute value,
+    which aligns with the attribute from the original input data record that was specified in the BatchInferenceRequest.
+    """
+    results: List[RecordRowIdAndInferenceResultPair]
+
+
