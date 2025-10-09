@@ -1,0 +1,98 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:genericsetup="http://namespaces.zope.org/genericsetup"
+    xmlns:i18n="http://namespaces.zope.org/i18n"
+    xmlns:plone="http://namespaces.plone.org/plone"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    i18n_domain="collective.collectionfilter"
+    >
+
+  <i18n:registerTranslations directory="locales" />
+  <include
+      package=".portlets"
+      zcml:condition="installed plone.app.portlets"
+      />
+  <include
+      package=".tiles"
+      zcml:condition="installed plone.tiles"
+      />
+
+  <include file="upgrades.zcml" />
+
+  <plone:static
+      directory="static"
+      name="collectionfilter"
+      type="plone"
+      />
+
+  <adapter
+      factory=".validator.TargetCollectionValidator"
+      provides="z3c.form.interfaces.IValidator"
+      />
+
+  <utility
+      factory=".vocabularies.GroupByCriteria"
+      provides=".interfaces.IGroupByCriteria"
+      />
+
+  <utility
+      name="collective.collectionfilter.GroupByCriteria"
+      component=".vocabularies.GroupByCriteriaVocabulary"
+      />
+  <utility
+      name="collective.collectionfilter.ListScaling"
+      component=".vocabularies.ListScalingVocabulary"
+      />
+  <utility
+      name="collective.collectionfilter.FilterType"
+      component=".vocabularies.FilterTypeVocabulary"
+      />
+  <utility
+      name="collective.collectionfilter.InputType"
+      component=".vocabularies.InputTypeVocabulary"
+      />
+  <utility
+      name="collective.collectionfilter.SortOnIndexes"
+      component=".vocabularies.SortOnIndexesVocabulary"
+      />
+
+  <adapter
+      factory=".filteritems.CollectionishCollection"
+      provides="collective.collectionfilter.interfaces.ICollectionish"
+      for="plone.app.contenttypes.interfaces.ICollection"
+      />
+
+  <subscriber
+      for="Products.CMFPlone.interfaces.IPloneSiteRoot
+           zope.traversing.interfaces.IBeforeTraverseEvent"
+      handler=".contentfilter.set_content_filter"
+      />
+
+  <browser:page
+      name="geodata.json"
+      for="*"
+      class=".baseviews.GeoJSON"
+      permission="zope2.View"
+      zcml:condition="installed collective.geolocationbehavior"
+      />
+
+  <genericsetup:registerProfile
+      name="default"
+      title="collective.collectionfilter base"
+      description="Extension profile for Plone."
+      provides="Products.GenericSetup.interfaces.EXTENSION"
+      directory="profiles/default"
+      />
+  <genericsetup:registerProfile
+      name="uninstall"
+      title="collective.collectionfilter base uninstall"
+      description="Extension profile for Plone."
+      provides="Products.GenericSetup.interfaces.EXTENSION"
+      directory="profiles/uninstall"
+      />
+  <utility
+      factory=".setuphandlers.HiddenProfiles"
+      name="collective.collectionfilter-hiddenprofiles"
+      />
+</configure>
