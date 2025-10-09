@@ -1,0 +1,756 @@
+# Smart Bot Factory
+
+Современная библиотека для создания умных чат-ботов на Python с использованием OpenAI, Telegram и Supabase.
+
+## 🚀 Возможности
+
+- **🤖 AI Integration** - Полная интеграция с OpenAI GPT для умных диалогов
+- **📱 Telegram Bot API** - Поддержка через aiogram 3.x
+- **💾 Supabase Backend** - Хранение данных, сессий и аналитики
+- **🎯 Router System** - Модульная система обработчиков событий
+- **⏰ Smart Scheduler** - Умное планирование задач с проверкой активности пользователей
+- **🌍 Global Handlers** - Массовые рассылки и глобальные события
+- **🧪 Testing Suite** - Встроенная система тестирования ботов
+- **🛠️ CLI Tools** - Удобный интерфейс командной строки
+- **👥 Admin Panel** - Система администрирования через Telegram
+- **📊 Analytics** - Встроенная аналитика и отчеты
+
+## 📦 Установка
+
+### Системные требования
+
+Перед установкой убедитесь, что у вас установлено:
+
+- **Python 3.9+** (рекомендуется 3.11+)
+- **pip** или **uv** для управления пакетами
+- Доступ к интернету для установки зависимостей
+
+### Из PyPI (рекомендуется)
+
+```bash
+pip install smart_bot_factory
+```
+
+### С помощью uv (современный менеджер пакетов)
+
+```bash
+uv add smart_bot_factory
+```
+
+### Из исходников (для разработки)
+
+```bash
+# Клонируйте репозиторий
+git clone https://github.com/yourusername/chat-bots.git
+cd chat-bots
+
+# Установите зависимости через uv
+uv sync
+
+# Или через pip
+pip install -e .
+```
+
+### Установка определенной версии
+
+```bash
+pip install smart_bot_factory==0.1.8
+```
+
+### Проверка установки
+
+После установки проверьте доступность CLI:
+
+```bash
+sbf --help
+```
+
+Вы должны увидеть список доступных команд.
+
+### Настройка внешних сервисов
+
+Для работы бота вам понадобятся:
+
+1. **Telegram Bot Token**
+   - Создайте бота через [@BotFather](https://t.me/botfather)
+   - Получите токен вида `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`
+
+2. **OpenAI API Key**
+   - Зарегистрируйтесь на [platform.openai.com](https://platform.openai.com)
+   - Создайте API ключ в разделе API Keys
+   - Ключ имеет вид `sk-...`
+
+3. **Supabase Project**
+   - Создайте проект на [supabase.com](https://supabase.com)
+   - Получите URL проекта и `anon` ключ в Project Settings → API
+   - Импортируйте SQL схему из `smart_bot_factory/database/schema.sql`
+
+## ⚡ Быстрый старт
+
+### 1. Создайте нового бота
+
+```bash
+sbf create my-bot
+```
+
+Это создаст:
+- 📁 `bots/my-bot/` - папка с конфигурацией бота
+- 📄 `my-bot.py` - основной файл запуска
+- ⚙️ `bots/my-bot/.env` - конфигурация окружения
+- 📝 `bots/my-bot/prompts/` - промпты для AI
+- 🧪 `bots/my-bot/tests/` - тестовые сценарии
+
+### 2. Настройте переменные окружения
+
+Отредактируйте `bots/my-bot/.env`:
+
+```env
+# Telegram
+TELEGRAM_BOT_TOKEN=your_bot_token
+
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_supabase_key
+
+# OpenAI
+OPENAI_API_KEY=sk-your-openai-key
+OPENAI_MODEL=gpt-4o-mini
+
+# Администраторы
+ADMIN_TELEGRAM_IDS=123456789,987654321
+```
+
+### 3. Запустите бота
+
+```bash
+sbf run my-bot
+```
+
+## 📚 Архитектура
+
+### Router System
+
+Smart Bot Factory использует **два типа роутеров** для организации обработчиков:
+
+1. **EventRouter** - для бизнес-логики (события, задачи, глобальные обработчики)
+2. **TelegramRouter** - для Telegram команд, сообщений и callback'ов
+
+```python
+from smart_bot_factory.router import EventRouter, TelegramRouter
+from smart_bot_factory.message import send_message_by_human
+from smart_bot_factory.creation import BotBuilder
+from aiogram import F
+from aiogram.filters import Command
+from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+
+# EventRouter - для бизнес-логики
+event_router = EventRouter("my_bot_events")
+
+@event_router.event_handler("appointment_booking", notify=True)
+async def handle_booking(user_id: int, event_data: str):
+    """Обработчик записи на прием"""
+    await send_message_by_human(
+        user_id=user_id,
+        message_text=f"✅ Запись подтверждена! {event_data}"
+    )
+    return {"status": "success"}
+
+# TelegramRouter - для Telegram команд и сообщений
+telegram_router = TelegramRouter("my_bot_telegram")
+
+@telegram_router.router.message(Command("price", "цена"))
+async def handle_price(message: Message, state: FSMContext):
+    """Обработчик команды /price"""
+    await message.answer("💰 Наши цены...")
+
+@telegram_router.router.message(F.text.contains("помощь"))
+async def handle_help(message: Message, state: FSMContext):
+    """Обработчик запросов помощи"""
+    await message.answer("📖 Чем могу помочь?")
+
+# Запуск бота
+async def main():
+    bot = BotBuilder("my-bot")
+    
+    # Регистрируем роутеры (можно по одному или несколько сразу)
+    bot.register_routers(event_router)  # EventRouter
+    bot.register_telegram_routers(telegram_router)  # TelegramRouter
+    
+    await bot.build()
+    await bot.start()
+```
+
+### TelegramRouter - Обработчики Telegram
+
+**TelegramRouter** позволяет добавлять пользовательские команды и обработчики сообщений в Telegram бота, используя стандартный aiogram API:
+
+#### Команды
+
+```python
+from smart_bot_factory.router import TelegramRouter
+from aiogram.filters import Command
+from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+
+telegram_router = TelegramRouter("my_commands")
+
+@telegram_router.router.message(Command("start", "старт"))
+async def cmd_start(message: Message, state: FSMContext):
+    """Обработчик команды /start"""
+    await message.answer("👋 Привет!")
+
+@telegram_router.router.message(Command("price"))
+async def cmd_price(message: Message, state: FSMContext):
+    """Обработчик команды /price"""
+    await message.answer("💰 Цены:\n1. Базовый - 1000₽\n2. Премиум - 5000₽")
+```
+
+#### Фильтры по тексту
+
+```python
+from aiogram import F
+
+@telegram_router.router.message(F.text.lower().contains("цена"))
+async def handle_price_question(message: Message, state: FSMContext):
+    """Когда пользователь спрашивает о цене"""
+    await message.answer("💡 Используйте /price для просмотра цен")
+
+@telegram_router.router.message(F.text.startswith("!"))
+async def handle_commands(message: Message, state: FSMContext):
+    """Обработка кастомных команд с !"""
+    command = message.text[1:]
+    await message.answer(f"Выполняю команду: {command}")
+```
+
+#### Callback Query
+
+```python
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+
+@telegram_router.router.callback_query(F.data.startswith("buy_"))
+async def handle_buy(callback: CallbackQuery, state: FSMContext):
+    """Обработка покупки"""
+    product_id = callback.data.split("_")[1]
+    await callback.answer("Оформляем...")
+    await callback.message.answer(f"✅ Товар {product_id} добавлен в корзину")
+
+@telegram_router.router.message(Command("catalog"))
+async def show_catalog(message: Message, state: FSMContext):
+    """Показывает каталог с кнопками"""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Купить товар 1", callback_data="buy_1")],
+        [InlineKeyboardButton(text="Купить товар 2", callback_data="buy_2")]
+    ])
+    await message.answer("🛍️ Каталог товаров:", reply_markup=keyboard)
+```
+
+#### Регистрация нескольких роутеров
+
+```python
+# Создаем несколько TelegramRouter для разных модулей
+commands_router = TelegramRouter("commands")
+admin_router = TelegramRouter("admin_commands")
+callbacks_router = TelegramRouter("callbacks")
+
+# Регистрируем все сразу
+bot_builder.register_telegram_routers(
+    commands_router,
+    admin_router,
+    callbacks_router
+)
+```
+
+**Важно:** TelegramRouter - это обертка над aiogram Router, предоставляющая доступ к полному функционалу aiogram через свойство `.router`.
+
+### EventRouter - Типы обработчиков событий
+
+#### 1. Event Handlers - Обработчики событий
+
+Немедленная обработка событий от AI:
+
+```python
+@router.event_handler("phone_collected", notify=True, once_only=True)
+async def handle_phone(user_id: int, event_data: str):
+    """Вызывается когда AI собирает номер телефона"""
+    # event_data содержит данные от AI
+    phone = parse_phone(event_data)
+    
+    # Сохраняем в CRM
+    await save_to_crm(user_id, phone)
+    
+    return {"status": "saved", "phone": phone}
+```
+
+**Параметры:**
+- `notify` - уведомлять админов (default: False)
+- `once_only` - выполнить только один раз (default: True)
+
+#### 2. Scheduled Tasks - Запланированные задачи
+
+Задачи с отложенным выполнением для конкретного пользователя:
+
+```python
+@router.schedule_task("send_reminder", delay="2h", smart_check=True)
+async def send_reminder(user_id: int, reminder_text: str):
+    """Отправит напоминание через 2 часа"""
+    await send_message_by_human(
+        user_id=user_id,
+        message_text=f"🔔 {reminder_text}"
+    )
+    return {"status": "sent"}
+```
+
+**Параметры:**
+- `delay` - задержка (обязательно): `"1h"`, `"30m"`, `"2h 15m"`, `3600`
+- `smart_check` - умная проверка активности (default: True)
+- `once_only` - выполнить только один раз (default: True)
+- `event_type` - привязка к событию для напоминаний
+
+**Smart Check:**
+- Отменяет задачу если пользователь перешел на другой этап
+- Переносит выполнение если пользователь был активен недавно
+- Сохраняет session_id для точного отслеживания
+
+#### 3. Global Handlers - Глобальные обработчики
+
+Массовые действия для всех пользователей:
+
+```python
+@router.global_handler("mass_notification", delay="1h", notify=True)
+async def send_announcement(announcement_text: str):
+    """Отправит анонс всем пользователям через 1 час"""
+    from smart_bot_factory.message import send_message_to_users_by_stage
+    
+    await send_message_to_users_by_stage(
+        stage="introduction",
+        message_text=announcement_text,
+        bot_id="my-bot"
+    )
+    
+    return {"status": "completed"}
+```
+
+**Параметры:**
+- `delay` - задержка (обязательно)
+- `notify` - уведомлять админов (default: False)
+- `once_only` - выполнить только один раз (default: True)
+
+### Event-Based Reminders
+
+Напоминания о событиях за определенное время:
+
+```python
+# Сначала создаем обработчик события
+@router.event_handler("appointment_booking")
+async def handle_booking(user_id: int, event_data: str):
+    """Сохраняет запись: имя, телефон, дата, время"""
+    return {"status": "saved", "data": event_data}
+
+# Затем создаем напоминание
+@router.schedule_task(
+    "appointment_reminder",
+    delay="2h",
+    event_type="appointment_booking"  # Привязка к событию
+)
+async def remind_about_appointment(user_id: int, reminder_text: str):
+    """Отправит напоминание за 2 часа до записи"""
+    await send_message_by_human(
+        user_id=user_id,
+        message_text=f"⏰ Напоминание о записи через 2 часа!"
+    )
+    return {"status": "sent"}
+```
+
+Система автоматически:
+1. Извлечет дату/время из события `appointment_booking`
+2. Вычислит время напоминания (за 2 часа до записи)
+3. Запланирует отправку в правильное время
+
+## 🛠️ CLI Команды
+
+```bash
+# Создание и управление ботами
+sbf create <bot-id>              # Создать нового бота
+sbf create <bot-id> <template>   # Создать из шаблона
+sbf copy <source> <new-id>       # Копировать существующего бота
+sbf list                         # Показать всех ботов
+sbf rm <bot-id>                  # Удалить бота
+
+# Запуск
+sbf run <bot-id>                 # Запустить бота
+
+# Тестирование
+sbf test <bot-id>                # Запустить все тесты
+sbf test <bot-id> --file quick_scenarios.yaml
+sbf test <bot-id> -v             # Подробный вывод
+sbf test <bot-id> --max-concurrent 10
+
+# Промпты
+sbf prompts <bot-id>             # Список промптов
+sbf prompts <bot-id> --edit welcome_message
+sbf prompts <bot-id> --add new_prompt
+
+# Конфигурация
+sbf config <bot-id>              # Редактировать .env
+sbf path                         # Показать путь к проекту
+sbf link                         # Генератор UTM-ссылок
+```
+
+## 📝 Система промптов
+
+Промпты хранятся в `bots/<bot-id>/prompts/`:
+
+- `welcome_message.txt` - Приветственное сообщение
+- `help_message.txt` - Справка для пользователя
+- `1sales_context.txt` - Контекст продаж
+- `2product_info.txt` - Информация о продукте
+- `3objection_handling.txt` - Работа с возражениями
+- `final_instructions.txt` - Финальные инструкции для AI
+
+AI автоматически получает доступ к зарегистрированным обработчикам через промпт.
+
+## 🧪 Тестирование
+
+Создайте тестовые сценарии в YAML:
+
+```yaml
+# bots/my-bot/tests/scenarios.yaml
+scenarios:
+  - name: "Запись на прием"
+    steps:
+      - user: "Привет!"
+        expect_stage: "introduction"
+      
+      - user: "Хочу записаться на прием"
+        expect_stage: "qualification"
+        expect_events:
+          - type: "appointment_request"
+      
+      - user: "Меня зовут Иван, +79991234567, завтра в 15:00"
+        expect_events:
+          - type: "appointment_booking"
+          - type: "appointment_reminder"  # Должно запланироваться
+        expect_quality: ">= 8"
+```
+
+Запуск:
+```bash
+sbf test my-bot --file scenarios.yaml -v
+```
+
+## 💬 Отправка сообщений
+
+### Отправка пользователю
+
+```python
+from smart_bot_factory.message import send_message_by_human
+
+await send_message_by_human(
+    user_id=123456789,
+    message_text="Привет! Это сообщение от системы",
+    session_id="optional-session-id"
+)
+```
+
+### Массовая рассылка по этапу
+
+```python
+from smart_bot_factory.message import send_message_to_users_by_stage
+
+await send_message_to_users_by_stage(
+    stage="introduction",
+    message_text="📢 Важное объявление!",
+    bot_id="my-bot"
+)
+```
+
+## 🗄️ База данных
+
+Smart Bot Factory использует Supabase со следующими таблицами:
+
+- `sales_users` - Пользователи
+- `sales_chat_sessions` - Сессии диалогов
+- `sales_chat_messages` - История сообщений
+- `scheduled_events` - Запланированные события и задачи
+- `admin_sessions` - Сессии администраторов
+
+SQL схема доступна в `smart_bot_factory/database/`.
+
+## 👥 Система администрирования
+
+Добавьте ID администраторов в `.env`:
+
+```env
+ADMIN_TELEGRAM_IDS=123456789,987654321
+ADMIN_SESSION_TIMEOUT_MINUTES=30
+```
+
+Админы получают:
+- 📊 Статистику и аналитику
+- 🔔 Уведомления о важных событиях (если `notify=True`)
+- 🛠️ Доступ к специальным командам
+
+## 🔧 Продвинутое использование
+
+### Множественные роутеры
+
+#### Регистрация нескольких EventRouter
+
+```python
+# handlers/main.py
+main_router = EventRouter("main")
+
+# handlers/admin.py
+admin_router = EventRouter("admin")
+
+# handlers/payments.py
+payments_router = EventRouter("payments")
+
+# app.py
+bot = BotBuilder("my-bot")
+
+# Можно по одному
+bot.register_router(main_router)
+bot.register_router(admin_router)
+
+# Или все сразу
+bot.register_routers(main_router, admin_router, payments_router)
+```
+
+#### Регистрация нескольких TelegramRouter
+
+```python
+# telegram/commands.py
+commands_router = TelegramRouter("commands")
+
+@commands_router.router.message(Command("start"))
+async def start(message: Message, state: FSMContext):
+    await message.answer("Привет!")
+
+# telegram/callbacks.py
+callbacks_router = TelegramRouter("callbacks")
+
+@callbacks_router.router.callback_query(F.data.startswith("action_"))
+async def handle_action(callback: CallbackQuery, state: FSMContext):
+    await callback.answer("Выполнено!")
+
+# app.py
+bot = BotBuilder("my-bot")
+
+# Регистрируем несколько Telegram роутеров сразу
+bot.register_telegram_routers(commands_router, callbacks_router)
+```
+
+#### Комбинирование EventRouter и TelegramRouter
+
+```python
+# Создаем роутеры для разных целей
+event_router = EventRouter("events")
+telegram_router = TelegramRouter("telegram_handlers")
+
+# EventRouter - бизнес-логика
+@event_router.event_handler("payment_success")
+async def handle_payment(user_id: int, event_data: str):
+    await send_message_by_human(user_id, "✅ Оплата получена!")
+    return {"status": "success"}
+
+# TelegramRouter - пользовательские команды
+@telegram_router.router.message(Command("balance"))
+async def check_balance(message: Message, state: FSMContext):
+    await message.answer("💰 Ваш баланс: 1000₽")
+
+# Регистрируем оба типа роутеров
+bot_builder.register_routers(event_router)
+bot_builder.register_telegram_routers(telegram_router)
+```
+
+### Вложенные роутеры (EventRouter)
+
+```python
+main_router = EventRouter("main")
+payments_router = EventRouter("payments")
+
+# Включаем роутер платежей в основной
+main_router.include_router(payments_router)
+
+bot.register_router(main_router)
+```
+
+### Работа с клиентами
+
+```python
+from smart_bot_factory.supabase import SupabaseClient
+
+# Создаем клиент для вашего бота
+supabase = SupabaseClient("my-bot")
+
+# Используем напрямую
+users = supabase.client.table('sales_users').select('*').eq('bot_id', 'my-bot').execute()
+```
+
+## 📊 Структура проекта
+
+```
+my-project/
+├── bots/                      # Папка с ботами
+│   ├── my-bot/
+│   │   ├── .env              # Конфигурация
+│   │   ├── prompts/          # AI промпты
+│   │   ├── tests/            # Тестовые сценарии
+│   │   ├── files/            # Файлы бота
+│   │   ├── welcome_files/    # Приветственные файлы
+│   │   └── reports/          # Отчеты тестов
+│   └── another-bot/
+│       └── ...
+├── my-bot.py                 # Основной файл запуска
+├── another-bot.py
+└── .env                      # Глобальная конфигурация (опционально)
+```
+
+## 🔄 Примеры
+
+### Полный пример бота
+
+```python
+import asyncio
+
+from smart_bot_factory.router import EventRouter, TelegramRouter
+from smart_bot_factory.message import send_message_by_human, send_message_to_users_by_stage
+from smart_bot_factory.supabase import SupabaseClient
+from smart_bot_factory.creation import BotBuilder
+from aiogram import F
+from aiogram.filters import Command
+from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+
+# Инициализация
+event_router = EventRouter("medical_bot_events")
+telegram_router = TelegramRouter("medical_bot_telegram")
+supabase_client = SupabaseClient("medical-bot")
+
+# Пользовательские команды (TelegramRouter)
+@telegram_router.router.message(Command("appointment", "запись"))
+async def cmd_appointment(message: Message, state: FSMContext):
+    """Команда для записи на прием"""
+    await message.answer(
+        "📅 Для записи на прием укажите:\n"
+        "- Ваше имя\n"
+        "- Телефон\n"
+        "- Желаемая дата и время"
+    )
+
+@telegram_router.router.message(F.text.lower().contains("цена"))
+async def handle_price_question(message: Message, state: FSMContext):
+    """Вопросы о ценах"""
+    await message.answer("💰 Используйте /appointment для записи и уточнения стоимости")
+
+# Обработчик записи на прием (EventRouter)
+@event_router.event_handler("appointment_booking", notify=True)
+async def handle_appointment(user_id: int, event_data: str):
+    """Обрабатывает запись на прием к врачу"""
+    # event_data: "имя: Иван, телефон: +79991234567, дата: 2025-10-15, время: 14:00"
+    
+    await send_message_by_human(
+        user_id=user_id,
+        message_text="✅ Запись подтверждена! Ждем вас."
+    )
+    
+    return {"status": "success", "data": event_data}
+
+# Напоминание за 2 часа до приема (EventRouter)
+@event_router.schedule_task(
+    "appointment_reminder",
+    delay="2h",
+    event_type="appointment_booking"
+)
+async def remind_before_appointment(user_id: int, reminder_text: str):
+    """Напоминание о записи"""
+    await send_message_by_human(
+        user_id=user_id,
+        message_text="⏰ Напоминаем о вашей записи через 2 часа!"
+    )
+    return {"status": "sent"}
+
+# Ночной дайджест для всех (EventRouter)
+@event_router.global_handler("daily_digest", delay="24h")
+async def send_daily_digest(digest_text: str):
+    """Отправляет ежедневный дайджест всем активным пользователям"""
+    await send_message_to_users_by_stage(
+        stage="active",
+        message_text=f"📊 Дайджест дня:\n\n{digest_text}",
+        bot_id="medical-bot"
+    )
+
+# Запуск
+async def main():
+    bot = BotBuilder("medical-bot")
+    
+    # Регистрируем роутеры
+    bot.register_routers(event_router)  # EventRouter
+    bot.register_telegram_routers(telegram_router)  # TelegramRouter
+    
+    await bot.build()
+    await bot.start()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## 🐛 Отладка
+
+Включите режим отладки в `.env`:
+
+```env
+DEBUG_MODE=true
+LOG_LEVEL=DEBUG
+```
+
+Это покажет:
+- JSON ответы от AI
+- Детальные логи обработки
+- Информацию о роутерах и обработчиках
+
+## 📋 Требования
+
+### Системные
+- Python 3.9+ (рекомендуется 3.11+)
+- pip или uv для управления пакетами
+
+### Основные зависимости
+- aiogram 3.4.1+ - Telegram Bot API
+- supabase 2.3.4+ - База данных
+- openai 1.12.0+ - AI модель
+- click 8.0.0+ - CLI интерфейс
+- python-dotenv 1.0.1+ - Управление переменными окружения
+
+Все зависимости устанавливаются автоматически при установке библиотеки.
+
+### Внешние сервисы
+- Telegram Bot Token ([@BotFather](https://t.me/botfather))
+- OpenAI API Key ([platform.openai.com](https://platform.openai.com))
+- Supabase Project ([supabase.com](https://supabase.com))
+
+Подробнее см. раздел [Установка](#-установка).
+
+## 🤝 Вклад в проект
+
+Мы приветствуем вклад в развитие проекта! 
+
+## 📄 Лицензия
+
+MIT License - см. [LICENSE](LICENSE)
+
+## 🔗 Полезные ссылки
+
+- [Документация Supabase](https://supabase.com/docs)
+- [Документация OpenAI](https://platform.openai.com/docs)
+- [Документация aiogram](https://docs.aiogram.dev/)
+
+## 💡 Поддержка
+
+Если у вас возникли вопросы или проблемы, создайте issue в репозитории.
+
+---
+
+Сделано с ❤️ для создания умных ботов
