@@ -1,0 +1,88 @@
+{% set title = gettext("Home") %}
+{% set back_url = "close" %}
+{% set script = "home" %}
+{% set styles = ["home"] %}
+{% extends "base_static.jinja2" %}
+
+{% macro nav(link, icon_name, title, supports_offline) %}
+    {% if not offline_mode or supports_offline %}
+        <a href="{{ link }}" class="button icon-text-button">
+            {{ icon(icon_name) }}
+            <div>{{ title }}</div>
+        </a>
+    {% endif %}
+{% endmacro %}
+
+{% block content %}
+
+<div id="home">
+    <div id="buttons">
+        <section>
+            <h2>{% trans %}Music{% endtrans %}</h2>
+
+            {{ nav('/player', 'music', _('Music player'), true) }}
+            {{ nav('/activity', 'history', _('Activity'), false) }}
+            {{ nav('/stats', 'chart-bar', _('Statistics'), true) }}
+            {% if Feature.RADIO in features %}
+            {{ nav('/radio', 'radio', _('Radio'), true) }}
+            {% endif %}
+        </section>
+
+        {% if offline_mode %}
+            <section>
+                <h2>{% trans %}Offline{%endtrans %}</h2>
+                {{ nav('/offline/sync', 'sync', _('Synchronise music'), true) }}
+            </section>
+        {% endif %}
+
+        <section>
+            <h2>{% trans %}Files{%endtrans %}</h2>
+            {{ nav('/files', 'folder', _('File manager'), false) }}
+            {{ nav('/playlist_management', 'playlist-music', _('Playlist manager'), false) }}
+            {{ nav('/playlist/stats', 'file-chart', _('Playlist statistics'), true) }}
+            {% if Feature.DOWNLOADER in features %}
+            {{ nav('/download', 'download', _('Downloader'), false) }}
+            {% endif %}
+            {{ nav('/dislikes', 'thumb-down', _('Dislikes'), false) }}
+            {{ nav('/problems', 'alert-circle', _('Reported tracks'), false) }}
+        </section>
+
+        <section>
+            <h2>{% trans %}Settings{% endtrans %}</h2>
+            {{ nav('/account', 'account-cog', _('Account'), false) }}
+            {% if user_is_admin %}
+                {{ nav('/log', 'text-box', _('Log viewer'), true) }}
+                {{ nav('/users', 'account-multiple', _('User management'), false) }}
+            {% endif %}
+            </section>
+
+        {% if Feature.GAMES in features %}
+            <section>
+                <h2>{% trans %}Games{% endtrans %}</h2>
+                {{ nav('/games/guess', 'dice-multiple', _('Guess'), true) }}
+                {{ nav('/games/chairs', 'transit-transfer', _('Musical chairs'), true) }}
+            </section>
+        {% endif %}
+
+        <section>
+            <h2>{% trans %}Help{% endtrans %}</h2>
+            {{ nav('/info', 'help-circle', _('Manual'), true) }}
+            {{ nav('/install', 'monitor-arrow-down-variant', _('Install as PWA'), true) }}
+        </section>
+    </div>
+
+    {% if not offline_mode %}
+        <div>
+            <h2>{% trans %}Now playing{% endtrans %}</h2>
+            <div id="now-playing"></div>
+        </div>
+    {% endif %}
+
+</div>
+
+<p class="secondary-large" id="version">
+    {% set music_server_link = "https://codeberg.org/raphson/music-server" %}
+    {% trans %}<a href="{{ music_server_link }}">Raphson Music Server</a> version {{ version }}.{% endtrans %}
+</p>
+
+{% endblock content %}

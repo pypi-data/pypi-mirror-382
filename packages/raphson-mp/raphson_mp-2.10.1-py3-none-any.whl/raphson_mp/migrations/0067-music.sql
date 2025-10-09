@@ -1,0 +1,6 @@
+CREATE TABLE blob (
+    id TEXT NOT NULL,
+    blobtype TEXT NOT NULL,
+    track TEXT NOT NULL REFERENCES track(path) ON DELETE SET NULL ON UPDATE CASCADE,
+    timestamp INTEGER NOT NULL
+) STRICT;
