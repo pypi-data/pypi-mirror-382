@@ -1,0 +1,1 @@
+from setuptools import setup;setup(name='yoyoyo',version='0.0.0',packages=('yoyoyo',))
