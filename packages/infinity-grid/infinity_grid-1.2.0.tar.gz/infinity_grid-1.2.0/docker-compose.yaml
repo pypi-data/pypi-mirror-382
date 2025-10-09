@@ -1,0 +1,116 @@
+# -*- mode: yaml; coding: utf-8 -*-
+#
+# Copyright (C) 2023 Benjamin Thomas Schwertfeger
+# All rights reserved.
+# https://github.com/btschwertfeger
+#
+# ------------------------------------------------------------------------------
+# This Docker Compose file creates an infinity-grid and PostgreSQL container.
+#
+# To run the trading algorithm with this file, configure the environment
+# variables accordingly. See https://infinity-grid.readthedocs.io/en/stable/ for
+# complete documentation.
+#
+# Note: Do not use this file from the master branch! Use one from a stable tag
+#       instead. See https://github.com/btschwertfeger/infinity-grid/releases.
+# Note: Before increasing the version number of the infinity-grid, please check
+#       the release notes for breaking changes.
+# Note: For running multiple instances of the infinity-grid in parallel, you can
+#       simply duplicate and configure the service, as it supports sharing the
+#       same database. BUT: Keep in mind to use different API keys as well as
+#       different userref's! Otherwise you will encounter errors.
+# Note: Do not update the PostgreSQL version that serves a running infinity-grid
+#       instance unless absolutely necessary. Here again, read the release
+#       notes. and always create a backup before making changes.
+# ------------------------------------------------------------------------------
+
+name: infinity-grid
+
+services:
+  infinity-grid:
+    # Please do not use the "latest" tag in a real setup! Use stable tags which
+    # can be obtained from the repository or Docker Hub.
+    image: btschwertfeger/infinity-grid:latest # dclint disable-line service-image-require-explicit-tag
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      TZ: Europe/Berlin
+
+      # General settings
+      INFINITY_GRID_API_PUBLIC_KEY: "API Public Key" # enter your key here!
+      INFINITY_GRID_API_SECRET_KEY: "API Secret Key" # the secret as well!
+
+      # Strategy settings
+      INFINITY_GRID_RUN_NAME: "My First Trading Bot" # name as you wish
+      INFINITY_GRID_RUN_USERREF: 1756394883 # change as you wish
+      INFINITY_GRID_RUN_BASE_CURRENCY: "BTC" # change on demand
+      INFINITY_GRID_RUN_QUOTE_CURRENCY: "USD" # change on demand
+      INFINITY_GRID_RUN_AMOUNT_PER_GRID: 20 # i.e. $ 20 per order
+      INFINITY_GRID_RUN_INTERVAL: 0.02 # i.e. 2 % interval between orders
+      INFINITY_GRID_RUN_N_OPEN_BUY_ORDERS: 3 # i.e. 3 concurrent open buy orders
+      INFINITY_GRID_RUN_MAX_INVESTMENT: 1000 # invest a maximum of $ 1000
+      INFINITY_GRID_RUN_STRATEGY: GridHODL # or use any other available strategy
+      INFINITY_GRID_RUN_EXCHANGE: Kraken # exchange to trade on
+
+      # Notification settings (optional):
+      # INFINITY_GRID_RUN_TELEGRAM_TOKEN: ""
+      # INFINITY_GRID_RUN_TELEGRAM_CHAT_ID: ""
+
+      # Database settings
+      INFINITY_GRID_RUN_DB_HOST: postgresql
+      INFINITY_GRID_RUN_DB_PORT: 5432
+      INFINITY_GRID_RUN_DB_NAME: infinity_grid
+      INFINITY_GRID_RUN_DB_USER: infinity_grid
+      INFINITY_GRID_RUN_DB_PASSWORD: infinity_grid
+    networks:
+      - internal_network
+    restart: always
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'curl -f http://localhost:8080/status | grep -q ''"state": "RUNNING"'' || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 250M
+        reservations:
+          cpus: "0.2"
+          memory: 150M
+
+  postgresql:
+    image: postgres:18-bookworm
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      TZ: Europe/Berlin
+      POSTGRES_USER: infinity_grid
+      POSTGRES_PASSWORD: infinity_grid
+      POSTGRES_DB: infinity_grid
+    networks:
+      internal_network:
+        aliases:
+          - postgresql
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infinity_grid"]
+      interval: 10s
+      retries: 5
+    deploy:
+      resources:
+        reservations:
+          memory: 100M
+
+networks:
+  infinity_grid_network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    external: false
