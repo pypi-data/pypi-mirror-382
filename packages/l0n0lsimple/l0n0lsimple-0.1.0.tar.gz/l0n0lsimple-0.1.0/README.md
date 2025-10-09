@@ -1,0 +1,62 @@
+# 介绍
+一些简单好用的命令
+
+# 1. l0n0lsimplehttpserver
+```bash
+l0n0lsimplehttpserver -h
+usage: l0n0lsimplehttpserver [-h] [--host HOST] [--port PORT] [-s] directory
+
+启动一个 aiohttp 静态文件服务器。
+
+positional arguments:
+  directory         要提供静态文件的目录路径。
+
+options:
+  -h, --help        show this help message and exit
+  --host HOST       服务器绑定的主机地址（默认：127.0.0.1）。
+  --port PORT       服务器绑定的端口号（默认：8080）。
+  -s, --show-index  显示索引目录
+```
+
+## 1.1 实例
+```bash
+l0n0lsimplehttpserver ./ -s
+======== Running on http://0.0.0.0:8080 ========
+(Press CTRL+C to quit)
+```
+## 1.2 浏览器访问
+![alt text](image.png)
+
+
+# 2. l0n0lsimplekvserver
+
+```bash
+l0n0lsimplekvserver -h
+usage: l0n0lsimplekvserver [-h] [--host HOST] [--port PORT]
+
+aiohttp Key-Value 服务器
+
+options:
+  -h, --help   show this help message and exit
+  --host HOST  监听地址
+  --port PORT  监听端口
+ ```
+
+# 2.1 实例
+```bash
+l0n0lsimplekvserver 
+[INFO] 已创建 tokens.json，令牌: 8f35f0178c5596773f4e95459545f175c483e05b809181c136f95a2eda573f7d
+[INFO] 已加载 tokens.json: ['8f35f0178c5596773f4e95459545f175c483e05b809181c136f95a2eda573f7d']
+======== Running on http://0.0.0.0:8080 ========
+(Press CTRL+C to quit)
+```
+## 2.2 存值
+```bash
+curl -X POST http://127.0.0.1:8080/set -H "Authorization: Bearer 8f35f0178c5596773f4e95459545f175c483e05b809181c136f95a2eda573f7d" -H "Content-Type: application/json"   -d '{"键":"年龄","值":28}'
+{"状态": "ok"}
+```
+## 2.3 取值
+```bash
+curl -X POST http://127.0.0.1:8080/get -H "Authorization: Bearer 8f35f0178c5596773f4e95459545f175c483e05b809181c136f95a2eda573f7d" -H "Content-Type: application/json"   -d '{"键":"年龄"}'
+{"键": "年龄", "类型": "int", "值": 28}
+```
