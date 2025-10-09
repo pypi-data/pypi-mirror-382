@@ -1,0 +1,184 @@
+[tool.black]
+extend_exclude = '\.tox/|_pb2(_grpc)?\.(py|pyi)$|ni_measurement_plugin_sdk_generator/|examples/|third_party/'
+line-length = 100
+
+[tool.ni-python-styleguide]
+extend_exclude = '.tox/,*_pb2_grpc.py,*_pb2_grpc.pyi,*_pb2.py,*_pb2.pyi,ni_measurement_plugin_sdk_generator/,examples/,third_party/'
+
+[tool.poetry]
+name = "ni_measurement_plugin_sdk_service"
+version = "3.0.1"
+description = "Measurement Plug-In Support for Python"
+authors = ["NI <opensource@ni.com>"]
+readme = "README.md" # apply the repo readme to the package as well
+repository = "https://github.com/ni/measurement-plugin-python/"
+license = "MIT"
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Manufacturing",
+  "Intended Audience :: Science/Research",
+  "Operating System :: Microsoft :: Windows",
+  # Poetry automatically adds classifiers for the license and the supported Python versions.
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Scientific/Engineering",
+  "Topic :: System :: Hardware",
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+# This package includes gRPC stubs that were generated with the version of grpcio-tools specified
+# below. Please keep the minimum grpcio version in sync with the grpcio-tools version. Otherwise,
+# the generated gRPC stubs may not work with the minimum grpcio version.
+grpcio = "^1.49.1"
+protobuf = ">=4.21"
+pywin32 = { version = ">=303", platform = "win32" }
+deprecation = ">=2.1"
+traceloggingdynamic = { version = ">=1.0", platform = "win32" }
+python-decouple = ">=3.8"
+nidaqmx = { version = ">=0.8.0", extras = ["grpc"], optional = true }
+nidcpower = { version = ">=1.4.4", extras = ["grpc"], optional = true }
+nidigital = { version = ">=1.4.4", extras = ["grpc"], optional = true }
+nidmm = { version = ">=1.4.4", extras = ["grpc"], optional = true }
+nifgen = { version = ">=1.4.4", extras = ["grpc"], optional = true }
+niscope = { version = ">=1.4.4", extras = ["grpc"], optional = true }
+niswitch = { version = ">=1.4.4", extras = ["grpc"], optional = true }
+ni-grpc-extensions =  { version = "^1.0.0" }
+ni-measurementlink-discovery-v1-client = { version = "^1.0.0" }
+ni-measurementlink-measurement-v1-proto = { version = "^1.0.0" }
+ni-measurementlink-measurement-v2-proto = { version = "^1.0.0" }
+ni-measurementlink-pinmap-v1-client = { version = "^1.0.0" }
+ni-measurementlink-sessionmanagement-v1-client = { version = "^1.0.0" }
+ni-protobuf-types = { version = "^1.0.0" }
+
+
+[tool.poetry.extras]
+drivers = [
+  "nidaqmx",
+  "nidcpower",
+  "nidigital",
+  "nidmm",
+  "nifgen",
+  "niscope",
+  "niswitch",
+]
+nidaqmx = ["nidaqmx"]
+nidcpower = ["nidcpower"]
+nidigital = ["nidigital"]
+nidmm = ["nidmm"]
+nifgen = ["nifgen"]
+niscope = ["niscope"]
+niswitch = ["niswitch"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=7.2.0"
+ni-python-styleguide = ">=0.4.1"
+# When you update the grpcio-tools version, you should update the minimum grpcio version
+# and regenerate gRPC stubs.
+grpcio-tools = [
+  { version = "1.49.1", python = ">=3.9,<3.12" },
+  { version = "1.59.0", python = ">=3.12,<3.13" },
+  { version = "1.67.0", python = "^3.13" },
+]
+pytest-cov = ">=3.0.0"
+pytest-mock = ">=3.0"
+tox = ">=4.0"
+mypy = ">=1.0"
+mypy-protobuf = ">=3.4"
+types-protobuf = ">=4.21"
+types-setuptools = "*"
+types-pywin32 = ">=304"
+types-grpcio = ">=1.0"
+psutil = ">=6.0"
+types-psutil = ">=6.0"
+# NumPy dropped support for Python 3.8 before adding support for Python 3.12, so
+# we need to include multiple NumPy versions in poetry.lock.
+numpy = [
+  { version = ">=1.22", python = ">=3.9,<3.12"},
+  { version = ">=1.26", python = ">=3.12,<3.13"},
+  { version = ">=2.1", python = "^3.13"},
+]
+bandit = { version = ">=1.7", extras = ["toml"] }
+# Install traceloggingdynamic on Linux for type checking.
+traceloggingdynamic = { version = ">=1.0", platform = "linux" }
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+# The latest Sphinx requires a recent Python version.
+Sphinx = [
+  { version = "<8.0", python = ">=3.9,<3.11" },
+  { version = ">=8.2", python = ">=3.11,<3.13" },
+]
+sphinx-rtd-theme = ">=1.0.0"
+sphinx-autoapi = ">=1.8.4"
+m2r2 = ">=0.3.2"
+toml = ">=0.10.2"
+sphinx-click = ">=4.1.0"
+# Workaround to docutils error with 0.21.post1 release
+docutils = ">=0.16, !=0.21.post1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules --strict-markers"
+filterwarnings = ["always::ImportWarning", "always::ResourceWarning"]
+testpaths = ["tests"]
+markers = [
+  "disable_feature_toggle: specifies a feature toggle to disable for the test function/module.",
+  "enable_feature_toggle: specifies a feature toggle to enable for the test function/module.",
+  "service_class: specifies which test service to use.",
+  "use_code_readiness: specifies a code readiness level to use for the test function/module.",
+]
+
+[tool.mypy]
+files = "ni_measurement_plugin_sdk_service/,tests/"
+exclude = "^tests/assets/"
+disallow_untyped_defs = true
+namespace_packages = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+  # https://github.com/HBNetwork/python-decouple/issues/122 - Add support for type stubs
+  "decouple.*",
+  # https://github.com/briancurtin/deprecation/issues/56 - Add type information (PEP 561)
+  "deprecation.*",
+  "grpc.framework.foundation.*",
+  # https://github.com/ni/hightime/issues/4 - Add type annotations
+  "hightime.*",
+  # https://github.com/ni/nidaqmx-python/issues/209 - Support type annotations
+  "nidaqmx",
+  # https://github.com/ni/nimi-python/issues/1887 - Support type annotations
+  "nidcpower",
+  "nidigital",
+  "nidmm",
+  "nifgen",
+  "niscope",
+  "niswitch",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# mypy-protobuf codegen has some unused ignores.
+module = [
+  "ni_measurement_plugin_sdk_service._internal.stubs.*",
+  "tests.utilities.stubs.*",
+]
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+# The tests are not yet ready for --disallow-untyped-defs (or even --disallow-incomplete-defs)
+module = ["tests.*"]
+check_untyped_defs = true
+disallow_untyped_defs = false
+
+[tool.bandit]
+skips = [
+  "B101", # assert_used
+]
