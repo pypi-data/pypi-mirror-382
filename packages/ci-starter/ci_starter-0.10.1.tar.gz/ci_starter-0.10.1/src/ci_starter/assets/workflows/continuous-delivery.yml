@@ -1,0 +1,155 @@
+name: Continuous Delivery
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+
+env:
+  PACKAGE_NAME: "ci-starter"
+  DISTRIBUTION_FILE_INCIPIT: "ci_starter"
+  TEST_DEPENDENCY_GROUP: "test"
+  RUN_TEST_COMMAND: "uv run -- pytest --verbose"
+  SEMANTIC_RELEASE_CONFIG_FILE: "./semantic-release.toml"
+  DISTRIBUTION_ARTIFACTS_NAME: "dist"
+  DISTRIBUTION_ARTIFACTS_DIR: "dist"
+  LOCKFILE_ARTIFACT: "uv.lock"
+
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - !step
+        name: Setup | Checkout Repository
+        uses: actions/checkout@0000000000000000000000000000000000000000  # v0.0.0
+
+      - !step
+        name: Lint
+        uses: astral-sh/ruff-action@0000000000000000000000000000000000000000  # v0.0.0
+
+
+  variables:
+    name: Variables
+    needs: lint
+    runs-on: ubuntu-latest
+    outputs:
+      semantic-release-config-file: ${{ steps.set-variables.outputs.semantic-release-config-file }}
+      package-name: ${{ steps.set-variables.outputs.package-name }}
+      distribution-file-incipit: ${{ steps.set-variables.outputs.distribution-file-incipit }}
+      test-dependency-group: ${{ steps.set-variables.outputs.test-dependency-group }}
+      run-test-command: ${{ steps.set-variables.outputs.run-test-command }}
+      distribution-artifacts-name: ${{ steps.set-variables.outputs.distribution-artifacts-name }}
+      distribution-artifacts-dir: ${{ steps.set-variables.outputs.distribution-artifacts-dir }}
+      lockfile-artifact: ${{ steps.set-variables.outputs.lockfile-artifact }}
+      publish-data: ${{ steps.define-publish-data.outputs.data }}
+    steps:
+      - name: Setup | Set Variables for Reusable Workflows
+        id: set-variables
+        run: |
+          echo "semantic-release-config-file=${SEMANTIC_RELEASE_CONFIG_FILE}" >> $GITHUB_OUTPUT
+          echo "package-name=${PACKAGE_NAME}" >> $GITHUB_OUTPUT
+          echo "distribution-file-incipit=${DISTRIBUTION_FILE_INCIPIT}" >> $GITHUB_OUTPUT
+          echo "test-dependency-group=${TEST_DEPENDENCY_GROUP}" >> $GITHUB_OUTPUT
+          echo "run-test-command=${RUN_TEST_COMMAND}" >> $GITHUB_OUTPUT
+          echo "distribution-artifacts-name=${DISTRIBUTION_ARTIFACTS_NAME}" >> $GITHUB_OUTPUT
+          echo "distribution-artifacts-dir=${DISTRIBUTION_ARTIFACTS_DIR}" >> $GITHUB_OUTPUT
+          echo "lockfile-artifact=${LOCKFILE_ARTIFACT}" >> $GITHUB_OUTPUT
+      - name: Setup | Define Publishing Matrix
+        id: define-publish-data
+        run: |
+          echo 'data=[{"registry":"TestPyPI","environment-name":"testpypi","hostname":"test.pypi.org","publish-api-url":"https://test.pypi.org/legacy/"},{"registry":"PyPI","environment-name":"pypi","hostname":"pypi.org","publish-api-url":"https://upload.pypi.org/legacy/"}]' >> $GITHUB_OUTPUT
+
+
+  build:
+    name: Build
+    needs: variables
+    uses: ./.github/workflows/build.yml
+    with:
+      semantic-release-config-file: ${{ needs.variables.outputs.semantic-release-config-file }}
+      distribution-artifacts-name: ${{ needs.variables.outputs.distribution-artifacts-name }}
+      distribution-artifacts-dir: ${{ needs.variables.outputs.distribution-artifacts-dir }}
+      lockfile-artifact: ${{ needs.variables.outputs.lockfile-artifact }}
+
+
+  test-e2e:
+    name: End-to-End Test
+    needs:
+      - variables
+      - build
+    uses: ./.github/workflows/test-e2e.yml
+    with:
+      new-release-detected: ${{ needs.build.outputs.new-release-detected }}
+      distribution-artifacts-name: ${{ needs.variables.outputs.distribution-artifacts-name }}
+      distribution-artifacts-dir: ${{ needs.variables.outputs.distribution-artifacts-dir }}
+      package-name: ${{ needs.variables.outputs.package-name }}
+      distribution-file-incipit: ${{ needs.variables.outputs.distribution-file-incipit }}
+      test-dependency-group: ${{ needs.variables.outputs.test-dependency-group }}
+      run-test-command: ${{ needs.variables.outputs.run-test-command }}
+
+
+  release:
+    name: Release
+    needs:
+      - variables
+      - build
+      - test-e2e
+    uses: ./.github/workflows/release.yml
+    with:
+      new-release-detected: ${{ needs.build.outputs.new-release-detected }}
+      semantic-release-config-file: ${{ needs.variables.outputs.semantic-release-config-file }}
+      distribution-artifacts-name: ${{ needs.variables.outputs.distribution-artifacts-name }}
+      distribution-artifacts-dir: ${{ needs.variables.outputs.distribution-artifacts-dir }}
+      lockfile-artifact: ${{ needs.variables.outputs.lockfile-artifact }}
+    secrets: inherit
+    permissions:
+      contents: write
+
+
+  # PyPI does not support publishing from reusable workflows yet. Subscribe to:
+  #  https://github.com/pypi/warehouse/issues/11096
+  #  https://github.com/pypa/gh-action-pypi-publish/issues/166
+  publish:
+    needs:
+      - variables
+      - release
+
+    strategy:
+      matrix:
+        publish-data: ${{ fromJSON(needs.variables.outputs.publish-data) }}
+
+    name: Publish on ${{ matrix.publish-data.registry }}
+    runs-on: ubuntu-latest
+
+    if: ${{ needs.release.outputs.new-version-released == 'true' }}
+
+    environment:
+      name: ${{ matrix.publish-data.environment-name }}
+      url: https://${{ matrix.publish-data.hostname }}/p/${{ inputs.package-name }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - !step
+        name: Setup | Download Build Artifacts
+        uses: actions/download-artifact@0000000000000000000000000000000000000000  # v0.0.0
+        id: artifact-download
+        with:
+          name: ${{ inputs.distribution-artifacts-name }}
+          path: ${{ inputs.distribution-artifacts-dir }}
+
+      - !step
+        name: Publish Package Distributions to ${{ matrix.publish-data.registry }}
+        uses: pypa/gh-action-pypi-publish@0000000000000000000000000000000000000000  # v0.0.0
+        with:
+          packages-dir: ${{ inputs.distribution-artifacts-dir }}
+          print-hash: true
+          verbose: true
+          repository-url: ${{ matrix.publish-data.publish-api-url }}
