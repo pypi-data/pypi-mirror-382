@@ -1,0 +1,162 @@
+Metadata-Version: 2.4
+Name: anchorax
+Version: 0.1.0
+Summary: Fixed-point solvers and differentiation utilities for implicit neural networks in JAX/Equinox.
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: einops>=0.8.1
+Requires-Dist: equinox>=0.12.1
+Requires-Dist: jax>=0.6.0
+Requires-Dist: jaxlib>=0.6.0
+Dynamic: license-file
+
+# anchorax
+
+Fixed-point solvers and differentiation utilities for implicit neural networks in JAX/Equinox.
+
+- Solvers: Picard, Anderson acceleration, and limited-memory Broyden.
+- Backpropagation: JFB (Jacobian-Free Backprop) and GDEQ-style adjoint preconditioning.
+
+## Install
+
+```bash
+pip install anchorax
+```
+
+## Requirements
+
+- einops>=0.8.1
+- equinox>=0.12.1
+- jax>=0.6.0
+
+## Quickstart
+
+Define your implicit update `f(u, Qd)` as an Equinox module. The solvers will call it as `f(u, Qd, inference=..., key=...)`.
+
+```python
+import equinox as eqx
+import jax
+import jax.numpy as jnp
+
+class ImplicitBlock(eqx.Module):
+    w: jnp.ndarray
+    b: jnp.ndarray
+
+    def __call__(self, u, Qd, *, inference: bool = False, key=None):
+        # example: contractive residual layer
+        return jnp.tanh(u @ self.w + Qd + self.b)
+
+# Instantiate and partition into trainable params and static parts
+model = ImplicitBlock(
+    w=jax.random.normal(jax.random.PRNGKey(0), (128, 128)) * 0.1,
+    b=jnp.zeros((128,)),
+)
+params, static = eqx.partition(model, eqx.is_array)
+Qd = jnp.zeros((128,))
+```
+
+Solve with any solver (same API and outputs):
+
+```python
+from anchorax.solvers import broyden, picard, anderson
+
+key = jax.random.PRNGKey(42)
+
+u_star, u_prev, tnstep = broyden(params, static, Qd, inference=True, key=key)
+# Or:
+u_star, u_prev, tnstep = picard(params, static, Qd, inference=True, key=key)
+u_star, u_prev, tnstep = anderson(params, static, Qd, inference=True, key=key)
+```
+
+Train end-to-end with GDEQ or JFB:
+
+```python
+import optax
+from anchorax.backprop import gdeq, jfb
+
+opt = optax.adam(1e-3)
+opt_state = opt.init(eqx.filter(params, eqx.is_array))
+
+def loss_fn(train_params, key):
+    u_star, _, _ = gdeq((train_params, Qd), static, solver=broyden, inference=False, key=key)
+    return jnp.mean(u_star**2)
+
+loss_and_grad = eqx.filter_value_and_grad(loss_fn)
+
+for step in range(1000):
+    key, key_step = jax.random.split(key)
+    loss, grads = loss_and_grad(params, key_step)
+    updates, opt_state = opt.update(grads, opt_state, params)
+    params = eqx.apply_updates(params, updates)
+```
+
+## API summary
+
+All solvers share the same signature and semantics:
+
+```python
+u_star, u_prev, tnstep = solver(
+    params,
+    static,
+    Qd,
+    *,
+    u0=None,
+    eps=1e-3,
+    max_depth=100,
+    stop_mode="abs",        # "abs" or "rel", on residual g(u)=f(u)-u
+    LBFGS_thres=3,          # used by broyden; accepted by others for API uniformity
+    ls=False,               # Armijo line search (broyden only)
+    return_final=False,     # if False, return best-so-far; if True, last iterate
+    return_B=False,         # if True, also return (Us, VTs, valid_mask)
+    inference=False,
+    key=...,
+    **kwargs,
+)
+```
+
+- Returns:
+  - `u_star`: final implicit state (best-so-far unless `return_final=True`)
+  - `u_prev`: the iterate immediately preceding `u_star` (used for accurate autodiff)
+  - `tnstep`: total forward evaluations of `f` performed by the solver
+  - Optionally `(Us, VTs, valid_mask)` when `return_B=True` (Broyden’s limited-memory inverse-Jacobian factors)
+
+Backprop wrappers:
+
+```python
+# JFB: last-step VJP only (baseline)
+u_star, u_prev, tnstep = jfb((params, Qd), static, solver=picard, inference=False, key=key)
+
+# GDEQ: last-step VJP + adjoint preconditioning with inverse-Jacobian factors
+u_star, u_prev, tnstep = gdeq((params, Qd), static, solver=broyden, inference=False, key=key)
+```
+
+- With Picard/Anderson plus `gdeq`, the stored factors act as a no-op preconditioner (degrades to JFB), ensuring compatibility.
+
+## Design notes
+
+- Residual and stopping:
+  - Residual is `g(u) = f(u, Qd) - u`.
+  - `stop_mode="abs"` uses `||g(u)|| < eps`.
+  - `stop_mode="rel"` uses `||g(u)|| / (||g(u)+u|| + 1e-9) < eps`.
+- Determinism and randomness:
+  - Each solver accepts `key` and folds in the iteration index for every call to `f`. This ensures deterministic behavior of stochastic layers per-iteration.
+- JIT and static args:
+  - The following are treated as static for compilation: `static`, `eps`, `max_depth`, `stop_mode`, `LBFGS_thres`, `ls`, `return_final`, `return_B`. Changing them triggers recompilation.
+- Autodiff accuracy:
+  - Both `jfb` and `gdeq` recompute the final explicit step as `u_star = f(stop_gradient(u_prev), Qd)` under inference mode and use its VJP for gradients. This aligns training and inference and avoids off-by-one iteration effects.
+
+## References
+
+- Broyden, C. G. (1965). "A Class of Methods for Solving Nonlinear Simultaneous Equations". Mathematics of Computation. 19 (92). American Mathematical Society: 577–593. doi:10.1090/S0025-5718-1965-0198670-6. JSTOR 2003941.
+- Anderson, Donald G. (October 1965). "Iterative Procedures for Nonlinear Integral Equations". Journal of the ACM. 12 (4): 547–560. doi:10.1145/321296.321305.
+- Fung et al. (2021). "JFB: Jacobian-Free Backpropagation for Implicit Networks". arXiv:2103.12803.
+- Nguyen, B. et al. (2023). "Efficient Training of Deep Equilibrium Models". arXiv:2304.11663.
