@@ -1,0 +1,73 @@
+name: End-to-End Test
+
+on:
+  workflow_call:
+    inputs:
+      new-release-detected:
+        required: true
+        type: string
+      distribution-artifacts-name:
+        required: true
+        type: string
+      distribution-artifacts-dir:
+        required: true
+        type: string
+      package-name:
+        required: true
+        type: string
+      distribution-file-incipit:
+        required: true
+        type: string
+      test-dependency-group:
+        required: true
+        type: string
+      run-test-command:
+        required: true
+        type: string
+
+
+jobs:
+  test-e2e:
+    name: End-to-End Test
+    runs-on: ubuntu-latest
+    steps:
+      - !step
+        name: Setup | Checkout Repository
+        uses: actions/checkout@0000000000000000000000000000000000000000  # v0.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - !step
+        name: Setup | Download Distribution Artifacts
+        uses: actions/download-artifact@0000000000000000000000000000000000000000  # v0.0.0
+        if: ${{ inputs.new-release-detected == 'true' }}
+        id: artifact-download
+        with:
+          name: ${{ inputs.distribution-artifacts-name }}
+          path: ${{ inputs.distribution-artifacts-dir }}
+
+      - !step
+        name: Setup | Install Python
+        uses: actions/setup-python@0000000000000000000000000000000000000000  # v0.0.0
+        with:
+          python-version-file: .python-version
+
+      - !step
+        name: Setup | Install uv
+        uses: astral-sh/setup-uv@0000000000000000000000000000000000000000  # v0.0.0
+
+      - name: Setup | Install Project Dependencies for Test
+        env:
+          UV_NO_MANAGED_PYTHON: true
+        run: uv sync --group ${{ inputs.test-dependency-group }}
+
+      - name: Setup | Install distribution artifact
+        if: ${{ steps.artifact-download.outcome == 'success' }}
+        run: |
+          uv pip uninstall ${{ inputs.package-name }}
+          uv pip install ${{ inputs.distribution-artifacts-dir}}/${{ inputs.distribution-file-incipit }}-*.whl
+
+      - name: Test | Run pytest
+        run: ${{ inputs.run-test-command }}
+
