@@ -1,0 +1,100 @@
+[project]
+name = "fast_dynamic_batcher"
+version = "1.1.0"
+description = "FastDynamicBatcher is a library for batching inputs across requests to accelerate machine learning workloads."
+authors = [{name = "Jeffrey Wigger"}]
+readme = "README.rst"
+license = "MIT"
+keywords = ["machine-learning", "batching"]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.urls]
+repository = "https://github.com/JeffWigger/FastDynamicBatcher"
+homepage = "https://github.com/JeffWigger/FastDynamicBatcher"
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fast_dynamic_batcher"]
+
+[dependency-groups]
+dev = [
+  "ruff ~= 0.14.0",
+  "mypy ~= 1.18.0",
+  "pytest ~= 8.4.2",
+  "pytest-asyncio ~= 1.2.0",
+  "pytest-retry ~= 1.7.0",
+  "asgi-lifespan ~= 2.1.0",
+  "fastapi ~= 0.118.2",
+  "httpx ~= 0.28.1",
+]
+test = [
+    "torch",
+    "torchvision",
+]
+
+[tool.mypy]
+files = "setup.py"
+python_version = "3.11"
+strict = true
+show_error_codes = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["ninja"]
+ignore_missing_imports = true
+
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = ["error"]
+testpaths = ["tests"]
+
+[tool.cibuildwheel]
+test-command = "pytest {project}/tests"
+test-extras = ["test"]
+test-skip = ["*universal2:arm64"]
+# Setuptools bug causes collision between pypy and cpython artifacts
+before-build = "rm -rf {project}/build"
+
+[tool.ruff]
+extend-select = [
+  "B",    # flake8-bugbear
+  "B904",
+  "I",    # isort
+  "PGH",  # pygrep-hooks
+  "RUF",  # Ruff-specific
+  "UP",   # pyupgrade
+]
+extend-ignore = [
+  "E501",   # Line too long
+]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = []
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.uv.sources]
+torch = { url = "https://download.pytorch.org/whl/cpu/torch-2.3.1%2Bcpu-cp312-cp312-linux_x86_64.whl" }
+torchvision = { url = "https://download.pytorch.org/whl/cpu/torchvision-0.18.1%2Bcpu-cp312-cp312-linux_x86_64.whl" }
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+lines-between-types = 1
+known-first-party = ["fast_dynamic_batcher"]
