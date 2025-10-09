@@ -1,0 +1,61 @@
+Metadata-Version: 2.1
+Name: asim
+Version: 25.10.1
+Summary: Automatic simulation system powered by neural networks
+Author: SHUniversity
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch >=2.8.0
+Requires-Dist: lightning >=2.5.5
+
+# Automatic simulation system powered by neural networks
+
+## Installation
+
+```bash
+pip install asim
+```
+
+## What is asim
+
+- Physical field modeling with automatic constraint enforcement
+- Flexible data grouping and normalization
+- Built-in support for recurrent architectures
+- Export/import of trained models
+
+## Using asim
+
+```python
+import pandas as pd
+from asim.dataset import TimeSeriesDataGroup, Ts, Fi, Fo
+from asim.model import PhysicalFieldModel
+from asim.trainer import Trainer
+
+df = pd.read_csv("demo.csv")
+cols = [
+    Ts(label="ts"),
+    Fi(group="boiler", label="power1", min=0.0, union="a"),
+    Fi(group="boiler", label="power2", min=0.0, union="a"),
+    Fo(group="boiler", label="temperature", rnn=True),
+]
+
+dm = TimeSeriesDataGroup(df, columns=cols, batch_size=64)
+fm = PhysicalFieldModel(dm, lr=0.003)
+
+trainer = Trainer(max_epochs=100, enable_progress_bar=False, enable_checkpointing=False, logger=None)
+trainer.fit(fm.model, datamodule=dm.datamodule)
+
+fm.export("demo.pkl")
+```
+
+```python
+from asim.simulator import PhysicalSimulator
+import matplotlib.pyplot as plt
+
+simulator = PhysicalSimulator("demo.pkl", x_names=dm.x_names, y_names=dm.y_names)
+x, y, y_ = simulator.steps(dm.df[100:1000], y0=[100])
+plt.plot(y)
+plt.plot(y_)
+plt.show()
+```
