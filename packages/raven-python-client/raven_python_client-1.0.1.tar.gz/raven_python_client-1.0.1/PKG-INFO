@@ -1,0 +1,358 @@
+Metadata-Version: 2.4
+Name: raven-python-client
+Version: 1.0.1
+Summary: A Python client library for the Raven Captcha API with sync and async support
+Home-page: https://github.com/ravens-best/raven-python-client
+Author: Raven Team
+Author-email: support@ravens.best
+License: MIT
+Project-URL: Bug Tracker, https://github.com/ravens-best/raven-python-client/issues
+Project-URL: Documentation, https://ai.ravens.best/docs
+Project-URL: Source Code, https://github.com/ravens-best/raven-python-client
+Project-URL: Homepage, https://ai.ravens.best
+Keywords: captcha,recaptcha,google,automation,api,client,async,sync,raven,solver
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Security
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Classifier: Typing :: Typed
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.28.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=22.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: flake8>=5.0.0; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=5.0.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.0.0; extra == "docs"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Raven Captcha Solver
+
+A Python client library for the Raven Captcha API, providing both synchronous and asynchronous interfaces for solving Google reCAPTCHA v2 and v3 challenges.
+
+## Features
+
+- 🔄 **Dual Interface**: Both sync and async clients available
+- 🛡️ **Google reCAPTCHA Support**: v2 and v3 variants
+- 🌐 **Proxy Support**: Full proxy configuration options
+- ⚡ **Type Safety**: Fully typed with comprehensive error handling
+- 🔧 **Configurable**: Timeout, retry, and polling customization
+- 📦 **Clean Architecture**: Modular design with clear separation of concerns
+
+## Installation
+
+Install from PyPI:
+
+```bash
+pip install raven-captcha-solver
+```
+
+## Quick Start
+
+### Async Usage (Recommended)
+
+```python
+import asyncio
+from raven import AsyncRavenClient
+
+async def solve_captcha():
+    client = AsyncRavenClient(api_key="your-api-key")
+    
+    # Solve reCAPTCHA v2
+    result = await client.google.RecaptchaV2(
+        website_url="https://example.com",
+        website_key="6Le-wvkSAAAAAPBMRTvw0Q4Muexq9bi0DJwx_mJ-"
+    )
+    
+    print(f"Solution token: {result.solution.token}")
+
+# Run the async function
+asyncio.run(solve_captcha())
+```
+
+### Sync Usage
+
+```python
+from raven import RavenClient
+
+client = RavenClient(api_key="your-api-key")
+
+# Solve reCAPTCHA v3
+result = client.google.RecaptchaV3(
+    website_url="https://example.com",
+    website_key="6Le-wvkSAAAAAPBMRTvw0Q4Muexq9bi0DJwx_mJ-",
+    action="submit"
+)
+
+print(f"Solution token: {result.solution.token}")
+```
+
+## API Reference
+
+### Client Initialization
+
+#### AsyncRavenClient
+
+```python
+client = AsyncRavenClient(
+    api_key="your-api-key",
+    base_url="https://ai.ravens.best",  # Optional, default shown
+    timeout=30.0  # Optional, request timeout in seconds
+)
+```
+
+#### RavenClient
+
+```python
+client = RavenClient(
+    api_key="your-api-key",
+    base_url="https://ai.ravens.best",  # Optional, default shown
+    timeout=30.0  # Optional, request timeout in seconds
+)
+```
+
+### Google reCAPTCHA Methods
+
+Both async and sync clients provide the same methods under `client.google`:
+
+#### RecaptchaV2
+
+Solves Google reCAPTCHA v2 challenges.
+
+```python
+# Async
+result = await client.google.RecaptchaV2(
+    website_url="https://example.com",
+    website_key="site-key",
+    invisible=None,  # Optional: True for invisible captcha
+    enterprise=None,  # Optional: True for enterprise mode
+    action=None,  # Optional: action string
+    proxy_scheme=None,  # Optional: "http" or "https"
+    proxy_host=None,  # Optional: proxy hostname
+    proxy_port=None,  # Optional: proxy port
+    proxy_username=None,  # Optional: proxy auth username
+    proxy_password=None,  # Optional: proxy auth password
+    max_retry=None,  # Optional: max retry attempts
+    poll_interval=1.0,  # Optional: polling interval in seconds
+    timeout=None  # Optional: max wait time, None = indefinite
+)
+
+# Sync - same parameters
+result = client.google.RecaptchaV2(...)
+```
+
+#### RecaptchaV3
+
+Solves Google reCAPTCHA v3 challenges.
+
+```python
+# Async
+result = await client.google.RecaptchaV3(
+    website_url="https://example.com",
+    website_key="site-key",
+    action=None,  # Optional: action for v3 scoring
+    enterprise=None,  # Optional: True for enterprise mode
+    proxy_scheme=None,  # Optional: "http" or "https"
+    proxy_host=None,  # Optional: proxy hostname
+    proxy_port=None,  # Optional: proxy port
+    proxy_username=None,  # Optional: proxy auth username
+    proxy_password=None,  # Optional: proxy auth password
+    max_retry=None,  # Optional: max retry attempts
+    poll_interval=1.0,  # Optional: polling interval in seconds
+    timeout=None  # Optional: max wait time, None = indefinite
+)
+
+# Sync - same parameters
+result = client.google.RecaptchaV3(...)
+```
+
+### Response Format
+
+All methods return a `TaskStatusResponse` object:
+
+```python
+@dataclass
+class TaskStatusResponse:
+    success: bool  # Whether the task completed successfully
+    status: str  # Task status: "completed", "processing", "failed"
+    created_at: Optional[str]  # Task creation timestamp
+    task_id: str  # Unique task identifier
+    solution: Solution  # Contains the captcha solution
+
+@dataclass
+class Solution:
+    token: Optional[str]  # The captcha solution token
+    duration: Optional[Any]  # Time taken to solve
+```
+
+### Cloudflare Turnstile
+
+Solves Cloudflare Turnstile challenges. This provider supports proxy configuration only; no additional `options` are sent.
+
+```python
+# Async
+result = await client.cloudflare.Turnstile(
+    website_url="https://example.com",
+    website_key="site-key",
+    proxy_scheme=None,  # Optional: "http" or "https"
+    proxy_host=None,    # Optional: proxy hostname
+    proxy_port=None,    # Optional: proxy port
+    proxy_username=None,# Optional: proxy auth username
+    proxy_password=None,# Optional: proxy auth password
+    max_retry=None,     # Optional: max retry attempts
+    poll_interval=1.0,  # Optional: polling interval in seconds
+    timeout=None        # Optional: max wait time, None = indefinite
+)
+
+print(result.solution.token)
+
+# Sync - same parameters
+result = client.cloudflare.Turnstile(
+    website_url="https://example.com",
+    website_key="site-key"
+)
+```
+
+## Configuration Examples
+
+### Using Proxies
+
+```python
+result = await client.google.RecaptchaV2(
+    website_url="https://example.com",
+    website_key="site-key",
+    proxy_scheme="http",
+    proxy_host="proxy.example.com",
+    proxy_port="8080",
+    proxy_username="user",
+    proxy_password="pass"
+)
+```
+
+### Custom Timeouts and Polling
+
+```python
+result = await client.google.RecaptchaV3(
+    website_url="https://example.com",
+    website_key="site-key",
+    poll_interval=2.0,  # Check every 2 seconds
+    timeout=120.0,  # Give up after 2 minutes
+    max_retry=3  # Retry failed tasks up to 3 times
+)
+```
+
+### Enterprise reCAPTCHA
+
+```python
+result = await client.google.RecaptchaV2(
+    website_url="https://example.com",
+    website_key="enterprise-site-key",
+    enterprise=True
+)
+```
+
+## Error Handling
+
+The library provides specific exceptions for different error conditions:
+
+```python
+from raven.exceptions import (
+    RavenError,  # Base exception
+    InvalidApiKeyError,
+    TaskFailedError,
+    MaxConcurrencyReachedError,
+    # ... and many more specific exceptions
+)
+
+try:
+    result = await client.google.RecaptchaV2(
+        website_url="https://example.com",
+        website_key="invalid-key"
+    )
+except InvalidApiKeyError:
+    print("API key is invalid")
+except TaskFailedError:
+    print("Captcha solving failed")
+except RavenError as e:
+    print(f"Other Raven error: {e}")
+```
+
+### Common Exceptions
+
+- `InvalidApiKeyError`: API key is invalid or missing
+- `TaskFailedError`: Task failed during processing or timed out
+- `MaxConcurrencyReachedError`: Account concurrency limit reached
+- `WebsiteUrlRequiredError`: Website URL parameter missing
+- `WebsiteKeyRequiredError`: Website key parameter missing
+- `InvalidCaptchaTypeError`: Unsupported captcha type requested
+
+## Parameter Defaults
+
+| Parameter | Default Value | Description |
+|-----------|---------------|-------------|
+| `base_url` | `"https://ai.ravens.best"` | API endpoint URL |
+| `timeout` | `30.0` | HTTP request timeout (seconds) |
+| `poll_interval` | `1.0` | Status polling interval (seconds) |
+| `invisible` | `None` | Auto-detect invisible captcha mode |
+| `enterprise` | `None` | Auto-detect enterprise mode |
+| `action` | `None` | No action specified (v3 uses default) |
+| `max_retry` | `None` | Use service default retry policy |
+| `proxy_*` | `None` | No proxy configuration |
+
+## Architecture
+
+The library is structured with clean separation of concerns:
+
+- **Clients** (`raven.clients`): User-facing sync/async interfaces
+- **Providers** (`raven.providers.google`): Service-specific implementations
+- **Services** (`raven.services.captcha_service`): Core business logic
+- **HTTP Client** (`raven.http.client`): Low-level HTTP communication
+- **Models** (`raven.models`): Data structures and serialization
+- **Exceptions** (`raven.exceptions`): Error handling and mapping
+
+## Requirements
+
+- Python 3.7+
+- `requests >= 2.28.0`
+
+## License
+
+This project is licensed under the MIT License.
+
+## Support
+
+For issues and questions:
+- Check the [GitHub Issues](https://github.com/ravens-best/raven-python-client/issues)
+- Review the API documentation at [Raven API Docs](https://ai.ravens.best/docs)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
