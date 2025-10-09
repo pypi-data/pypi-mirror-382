@@ -1,0 +1,235 @@
+# 📝 mynotes-cli — Simple Terminal Notes Manager
+
+> Manage colorful notes with tags, export to TXT/MD/PDF, and enjoy autocompletion in your terminal.
+
+---
+
+## 🚀 Installation
+
+### 1️⃣ Clone or unpack the project
+```bash
+git clone https://github.com/antoninsiska/mynotes-cli.git
+cd mynotes-cli
+```
+Or if you have a ZIP file:
+```bash
+unzip mynotes-cli.zip
+cd mynotes-cli
+```
+
+---
+
+### 2️⃣ Install locally
+```bash
+pip install -e .
+```
+This command makes the `mynotes` command available in your Python environment.
+
+> 💡 Optional (for PDF export):
+> ```bash
+> pip install reportlab
+> ```
+
+---
+
+## ⚙️ Enable autocompletion
+
+`mynotes` uses **argcomplete**, which allows shell autocompletion by pressing `TAB`.
+
+### 🐚 Bash
+Run:
+```bash
+python -m argcomplete.global
+```
+Then restart your shell or reload it:
+```bash
+source ~/.bashrc
+```
+
+### 🌀 Zsh
+```bash
+autoload -U bashcompinit && bashcompinit
+eval "$(register-python-argcomplete --shell zsh mynotes)"
+```
+To make it persistent, add the last line to your `~/.zshrc`.
+
+### 🐟 Fish
+```bash
+register-python-argcomplete --shell fish mynotes | source
+```
+Or permanently:
+```bash
+register-python-argcomplete --shell fish mynotes > ~/.config/fish/completions/mynotes.fish
+```
+
+---
+
+## ⚡ Shortcut alias `my`
+If you prefer shorter commands:
+```bash
+alias my="mynotes"
+```
+To make it persistent:
+```bash
+echo 'alias my="mynotes"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+---
+
+## 🧠 Basic usage
+
+### Add a note
+```bash
+mynotes add "Buy milk"
+mynotes add "Finish presentation" --tags school fll
+```
+
+### List notes
+```bash
+mynotes list
+mynotes list --tag school
+```
+> `list` shows a colorful table with tags (using **Rich**).  
+> Use `--plain` for plain text output.
+
+### Edit a note
+```bash
+mynotes edit 2 --text "Buy milk and eggs"
+mynotes edit 2 --add-tags ftc --remove-tags school
+```
+
+### Delete a note
+```bash
+mynotes delete 1
+```
+
+---
+
+## 🏷️ Tags
+
+### List all tags
+```bash
+mynotes tag list
+```
+
+### Add a new tag
+```bash
+mynotes tag add school --color bright_blue
+```
+
+### Edit a tag
+```bash
+mynotes tag edit school --new-name School --color yellow
+```
+
+### Delete a tag
+```bash
+mynotes tag delete fll
+```
+
+> Available colors:  
+> `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`  
+> + bright variants such as `bright_blue`, `bright_yellow`.
+
+Tags are automatically styled for contrast:  
+- light colors → black text  
+- dark colors → white text
+
+---
+
+## 📤 Export
+
+### To TXT
+```bash
+mynotes export --format txt --out notes.txt
+```
+
+### To Markdown
+```bash
+mynotes export --format md --out notes.md --tag ftc
+```
+
+### To PDF
+```bash
+mynotes export --format pdf --out notes.pdf
+```
+
+> PDF export uses `reportlab` (if installed). Otherwise, a simple fallback is used.
+
+---
+
+## 📦 Storage
+
+- Notes: `~/.mynotes.json`  
+- Tags: `~/.mynotes_tags.json`
+
+You can override paths:
+```bash
+MYNOTES_PATH=/custom/path/notes.json MYNOTES_TAGS_PATH=/custom/path/tags.json mynotes list
+```
+
+---
+
+## 🧩 Autocomplete examples
+
+Try pressing `TAB`:
+```bash
+mynotes [TAB]          # → add, list, edit, delete, tag, export
+mynotes tag [TAB]      # → list, add, edit, delete
+mynotes list --tag [TAB]  # → shows existing tags
+mynotes edit [TAB]        # → offers existing note IDs
+```
+
+---
+
+## 💡 Tips
+
+- `mynotes --l` is a shortcut for `mynotes list`
+- `mynotes --a "text"` adds a note
+- `mynotes --d 3` deletes note with ID 3
+
+---
+
+## 🧰 Troubleshooting
+
+### ❌ `mynotes: command not found`
+- Make sure your virtual environment is active  
+- Reinstall:
+  ```bash
+  pip install -e .
+  ```
+- Or run manually:
+  ```bash
+  python -m mynotes.cli
+  ```
+
+### ❌ Autocompletion not working
+- Run:
+  ```bash
+  python -m argcomplete.global
+  ```
+- Then restart your terminal.
+
+---
+
+## 🎨 Example output
+
+```
+📒 mynotes
+┏━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
+┃ ID┃ Note               ┃ Tags       ┃ Created      ┃ Updated      ┃
+┣━━━╋━━━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━╋━━━━━━━━━━━━━━╋━━━━━━━━━━━━━━┫
+┃ 1 ┃ Buy milk           ┃ school fll ┃ 5 min ago    ┃ -            ┃
+┃ 2 ┃ Finish presentation┃ ftc        ┃ 1 h ago      ┃ 10 min ago   ┃
+┗━━━┻━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━┻━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━┛
+```
+
+---
+
+## 🧡 Author
+**Antonín Šiška**  
+CLI utility built in Python using `argparse`, `rich`, `argcomplete`, and `reportlab`.  
+Version: 0.3.0
+
+© 2025 Antonín Šiška — Licensed under the MIT License.
