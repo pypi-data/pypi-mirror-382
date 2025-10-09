@@ -1,0 +1,156 @@
+[project]
+name = "pysmartmeter"
+dynamic = ["version"]
+description = "Collect data from Hichi Smartmeter and expose it via MQTT"
+license = {text = "GPL-3.0-or-later"}
+readme = "README.md"
+authors = [
+    {name = 'Jens Diemer', email = 'pysmartmeter@jensdiemer.de'}
+]
+requires-python = ">=3.11"
+dependencies = [
+    "ha-services>=2.15.0", # https://github.com/jedie/ha-services
+    "cli-base-utilities",  # https://github.com/jedie/cli-base-utilities
+
+    "pyserial",  # https://github.com/pyserial/pyserial
+    "paho-mqtt",  # https://pypi.org/project/paho-mqtt/
+
+    # TODO: Use keyring for store MQTT credentials:
+    #"keyring",  # https://github.com/jaraco/keyring
+
+    "cli-base-utilities>=0.17.0",  # https://github.com/jedie/cli-base-utilities
+    "bx_py_utils",  # https://github.com/boxine/bx_py_utils
+    "tyro",  # https://github.com/brentyi/tyro
+    "rich",  # https://github.com/Textualize/rich
+]
+
+[dependency-groups]
+dev = [
+    "freezegun",  # https://github.com/spulec/freezegun
+    "manageprojects",  # https://github.com/jedie/manageprojects
+    "urllib3", # for bx_py_utils.test_utils.deny_requests.deny_any_real_request() in tests
+    "uv",  # https://github.com/astral-sh/uv
+    "hatchling",  # https://github.com/pypa/hatch/tree/master/backend
+    "nox",  # https://github.com/wntrblm/nox
+    "coverage",  # https://github.com/nedbat/coveragepy
+    "ruff", # https://github.com/astral-sh/ruff
+    "codespell",  # https://github.com/codespell-project/codespell
+    "EditorConfig",  # https://github.com/editorconfig/editorconfig-core-py
+    "pip-audit",  # https://github.com/pypa/pip-audit
+    "mypy",  # https://github.com/python/mypy
+    "twine",  # https://github.com/pypa/twine
+    "pre-commit",  # https://github.com/pre-commit/pre-commit
+    "typeguard",  # https://github.com/agronholm/typeguard/
+]
+
+[project.urls]
+Documentation = "https://github.com/jedie/pysmartmeter"
+Source = "https://github.com/jedie/pysmartmeter"
+
+[project.scripts]
+pysmartmeter_app = "pysmartmeter.__main__:main"
+pysmartmeter_dev = "pysmartmeter.cli_dev:main"
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pysmartmeter"]
+
+[tool.hatch.version]
+path = "pysmartmeter/__init__.py"
+
+
+[tool.cli_base.pip_audit]
+requirements=["requirements.dev.txt"]
+strict=true
+require_hashes=true
+ignore-vuln=[
+    'GHSA-4xh5-x5gv-qwph', # https://github.com/advisories/GHSA-4xh5-x5gv-qwph
+]
+
+
+[tool.cli_base]
+version_module_name = "pysmartmeter"  # Used by "update-readme-history" git hook
+
+
+[tool.ruff]
+# https://docs.astral.sh/ruff/configuration/
+line-length = 120
+exclude = [
+  ".*/",
+]
+
+[tool.ruff.lint]
+preview = true  # Needed for some of the rules
+extend-select = [
+    "E", # pycodestyle: https://docs.astral.sh/ruff/rules/#error-e
+    "I", # isort: https://docs.astral.sh/ruff/rules/#isort-i
+]
+ignore = [
+    "E402", # https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file/
+    "E731", # https://docs.astral.sh/ruff/rules/lambda-assignment/
+]
+
+[tool.ruff.lint.isort]
+# https://docs.astral.sh/ruff/settings/#lintisort
+lines-after-imports = 2
+
+[tool.ruff.format]
+quote-style = "single"
+
+
+[tool.coverage.run]
+branch = true
+parallel = true
+concurrency = ["multiprocessing"]
+source = ['.']
+command_line = '-m unittest --verbose --locals --buffer'
+
+[tool.coverage.report]
+omit = ['.*', '*/tests/*']
+skip_empty = true
+fail_under = 30
+show_missing = true
+exclude_lines = [
+    'if self.debug:',
+    'pragma: no cover',
+    'raise NotImplementedError',
+    'if __name__ == .__main__.:',
+]
+
+
+[tool.mypy]
+warn_unused_configs = true
+ignore_missing_imports = true
+allow_redefinition = true  # https://github.com/python/mypy/issues/7165
+show_error_codes = true
+plugins = []
+exclude = ['.venv', 'tests']
+
+
+[manageprojects] # https://github.com/jedie/manageprojects
+initial_revision = "e826e73"
+initial_date = 2022-11-14T08:20:55+01:00
+cookiecutter_template = "https://github.com/jedie/cookiecutter_templates/"
+cookiecutter_directory = "uv-python"
+applied_migrations = [
+    "d970456", # 2023-02-20T16:19:35+01:00
+    "56c0eb7", # 2023-12-22T08:36:44+01:00
+    "7271d4c", # 2023-12-29T21:57:47+01:00
+    "4662321", # 2025-04-22T20:40:34+02:00
+]
+
+[manageprojects.cookiecutter_context.cookiecutter]
+full_name = "Jens Diemer"
+github_username = "jedie"
+author_email = "pysmartmeter@jensdiemer.de"
+package_name = "pysmartmeter"
+package_version = "0.6.0"
+package_description = "Collect data from Hichi Smartmeter and expose it via MQTT"
+package_url = "https://github.com/jedie/pysmartmeter"
+issues_url = "https://github.com/jedie/pysmartmeter/issues"
+license = "GPL-3.0-or-later"
+_template = "https://github.com/jedie/cookiecutter_templates/"
