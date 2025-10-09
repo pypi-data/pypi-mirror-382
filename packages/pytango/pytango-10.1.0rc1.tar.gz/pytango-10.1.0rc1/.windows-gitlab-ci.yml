@@ -1,0 +1,157 @@
+.win:setup-micromamba:
+  script:
+    - |
+      if ( $CI_RUNNER_TAGS.Contains("desy") ) {
+        . C:\Windows\System32\WindowsPowerShell\v1.0\Microsoft.PowerShell_profile.ps1
+      } else {
+        Invoke-Webrequest -URI https://micro.mamba.pm/api/micromamba/win-64/latest -OutFile micromamba.tar.bz2
+        7z x micromamba.tar.bz2 -aoa
+        7z x micromamba.tar -aoa -ttar -r Library\bin\micromamba.exe
+        MOVE -Force Library\bin\micromamba.exe micromamba.exe
+        .\micromamba.exe shell init -s powershell -p "C:\\micromambaenv\\"
+        . C:\Users\gitlab_runner\Documents\WindowsPowerShell\profile.ps1
+      }
+
+.matrix-wheel-win:
+  tags:
+    - windows
+    - desy
+  parallel:
+    matrix:
+        - PYTHON_VERSION: ["3.10", "3.11", '3.12', '3.13', '3.14']
+          ARCH: ["Win32", "x64"]
+
+win:build-wheel:
+  extends: [.matrix-wheel-win, .build-wheel]
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+    CMAKE_ARGS: "--preset=ci-Windows -A ${ARCH}"
+    MSVC_VERSION: "v143"
+    CPP_TANGO_PROJECT_ID:  "tango-controls%2FcppTango"
+    CPP_TANGO_BUILD_TYPE: "shared_release"
+  before_script:
+    - $PythonTag = ${PYTHON_VERSION}.replace(".", "")
+    - $PythonPath = "${PythonTag}"
+    # DESY runner is shell-runner, so we have to reset env and use pre-installed python
+    - |
+      if ( $CI_RUNNER_TAGS.Contains("desy") ) {
+        $env:PATH = Get-Content -Path c:\gitlab-runner\deactivated_mamba_path.txt
+        if ($ARCH -eq "Win32") { $PythonPath = "${PythonPath}-32" }
+      } else {
+        if ($ARCH -eq "Win32") { $Forcex86 = "--x86" }
+        choco install -y python --version=${PYTHON_VERSION} $Forcex86
+      }
+    - $env:PATH = "C:\Python${PythonPath};C:\Python${PythonPath}\Scripts;" + $env:PATH
+    - python -m pip install -U delvewheel build
+
+    - $DEPARCH = if ($ARCH -eq "Win32") { "x86" } else { "x64" }
+    - $LibTango = "libtango_${CPP_TANGO_VERSION_TAG}_${MSVC_VERSION}_${DEPARCH}_${CPP_TANGO_BUILD_TYPE}"
+    - $LibTango
+
+    - $DependenciesPath = "C:\dependencies\${PythonPath}"
+    # Make sure there are no old dependencies
+    - Get-ChildItem -Path "${DependenciesPath}" -Recurse | Remove-Item -force -recurse
+    - mkdir -Force "${DependenciesPath}"
+
+    # Find the cppTango asset for the CPP_TANGO_VERSION_TAG we are targeting use gitlab's REST API
+    - $TangoReleases = Invoke-Webrequest -UseBasicParsing "${CI_API_V4_URL}/projects/${CPP_TANGO_PROJECT_ID}/releases" | Select-Object -Expand Content | ConvertFrom-Json
+    - $TangoAssetLinks = ($TangoReleases | Where-Object { $_.tag_name -eq "$CPP_TANGO_VERSION_TAG" }).assets.links
+    - $TangoAssetLinks
+    - $TangoAsset = $TangoAssetLinks | Where-Object { $_.name -eq "${LibTango}.zip" }
+    - $TangoAsset
+    - $TangoUrl = $TangoAsset.url
+
+    # Get cppTango
+    - Invoke-WebRequest -URI $TangoUrl -OutFile libtango.zip
+    - Expand-Archive -Path libtango.zip -DestinationPath "${DependenciesPath}" -Force
+
+    # Setup environment
+    - $env:TANGO_ROOT = "${DependenciesPath}\$LibTango"
+    - $env:PYTHON_ROOT = "C:\Python${PythonPath}"
+    - $env:PATH += ";$env:TANGO_ROOT\bin"
+  script:
+    - $WheelArch = if ($ARCH -eq "Win32") { "win32" } else { "win_amd64" }
+    - $WheelGlob = "pytango*cp$PythonTag-cp$PythonTag*$WheelArch*"
+    - python -m build --wheel
+    - delvewheel show $(Get-ChildItem -Path dist -Filter $WheelGlob | Select -Expand FullName)
+    - delvewheel repair -v $(Get-ChildItem -Path dist -Filter $WheelGlob | Select -Expand FullName)
+    - Remove-Item dist\$WheelGlob
+    - Move-Item wheelhouse\$WheelGlob dist\
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /.*windows.*/
+    - !reference [.rules-wheel, rules]
+
+.win-test-wheel:
+  stage: test
+  extends: .matrix-wheel-win
+  needs: [win:build-wheel]
+  before_script:
+    - !reference [.win:setup-micromamba, script]
+    - micromamba install -y -n base -c conda-forge tango-test=$env:TANGO_TEST_VERSION
+    - micromamba activate base
+    - $PythonTag = ${PYTHON_VERSION}.replace(".", "")
+    - $PythonPath = "${PythonTag}"
+    - |
+      if ( $CI_RUNNER_TAGS.Contains("desy") ) {
+        $env:PATH = Get-Content -Path c:\gitlab-runner\activated_mamba_path.txt
+        if ($ARCH -eq "Win32") { $PythonPath = "${PythonPath}-32" }
+      } else {
+        if ($ARCH -eq "Win32") { $Forcex86 = "--x86" }
+        choco install -y python --version=${PYTHON_VERSION} $Forcex86
+      }
+    - $env:PATH = "C:\Python${PythonPath};C:\Python${PythonPath}\Scripts;" + $env:PATH
+    - $WheelArch = if ($ARCH -eq "Win32") { "win32" } else { "win_amd64" }
+    - $WheelGlob = "pytango*cp$PythonTag-cp$PythonTag*$WheelArch*"
+    - python -m pip install --force-reinstall "$(Get-ChildItem -Path dist -Filter $WheelGlob | Select -Expand FullName)[tests]"
+  script:
+    - set "TANGO_TELEMETRY_ENABLE=on"
+    - pytest --collect-only -q -k "telemetry"
+    - .\tests\run_tests_win.bat
+    - set TANGO_TELEMETRY_ENABLE=
+    - pytest --collect-only -q -k "not test_client.py and not gevent and not test_event"  # test most with telemetry disabled (default)
+    - .\tests\run_tests_win.bat
+  after_script:
+    - |
+      if ( $CI_RUNNER_TAGS.Contains("desy") ) {
+        $PythonPath = ${PYTHON_VERSION}.replace(".", "")
+        if ($ARCH -eq "Win32") { $PythonPath = "${PythonPath}-32" }
+        $env:PATH = "C:\Python${PythonPath};C:\Python${PythonPath}\Scripts;" + $env:PATH
+        python -m pip uninstall -y pytango
+      }
+    - set TANGO_TELEMETRY_ENABLE=
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /.*windows.*/
+    - !reference [.rules-wheel, rules]
+
+# All windows wheels need to be built to trigger those jobs
+win:test-wheel:
+  extends: .win-test-wheel
+
+# Only wait on win wheel for x64 python 3.14
+win:test-wheel:x64:3.14:
+  extends: .win-test-wheel
+  when: manual
+  parallel:
+    matrix:
+      - PYTHON_VERSION: "3.14"
+        ARCH: "x64"
+  needs:
+    - job: win:build-wheel
+      parallel:
+        matrix:
+          - PYTHON_VERSION: "3.14"
+            ARCH: "x64"
+
+windows:test-pixi:
+  extends: .test-pixi
+  tags:
+    - windows
+    - desy
+  before_script:
+    - iwr -useb https://pixi.sh/install.ps1 | iex
+    - $env:PATH = "C:\windows\system32\config\systemprofile\.pixi\bin;" + $env:PATH
+    - pixi global install --expose git=git git
+  after_script:
+    - $env:PATH = "C:\windows\system32\config\systemprofile\.pixi\bin;" + $env:PATH
+    - pixi global uninstall git
+    - pixi run clean-all

@@ -1,0 +1,20 @@
+```{highlight} python
+:linenothreshold: 4
+```
+
+(itango)=
+
+# ITango
+
+ITango is a PyTango CLI based on [IPython](https://ipython.org). It is designed to be used as an
+IPython profile.
+
+> ```{image} ../_static/itango00.png
+> ```
+
+ITango is available since PyTango 7.1.2 and has been moved to a separate
+project since PyTango 9.2.0:
+
+- [package and instructions on PyPI](http://pypi.python.org/pypi/itango)
+- [sources on GitLab](https://gitlab.com/tango-controls/itango)
+- [documentation on pythonhosted](http://pythonhosted.org/itango)

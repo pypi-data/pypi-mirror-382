@@ -1,0 +1,94 @@
+.macos:setup-micromamba:
+  script:
+    # Default shell is zsh on macOS but gitlab-runners are starting a bash shell
+    - curl -L micro.mamba.pm/install.sh | bash
+    - source /Users/gitlab/.bash_profile
+    - micromamba config set channel_priority flexible
+
+.matrix-wheel-macos:
+  image: macos-14-xcode-15
+  tags:
+    - saas-macos-medium-m1
+  parallel:
+    matrix:
+      - PLATFORM: ["osx-arm64", "osx-64"]
+        PYTHON_VERSION: ["3.10", "3.11", '3.12', '3.13', '3.14']
+
+macos:build-wheel:
+  extends: [.matrix-wheel-macos, .build-wheel]
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  before_script:
+    - !reference [.macos:setup-micromamba, script]
+    - export MACOSX_DEPLOYMENT_TARGET="12.0"
+    - >
+      micromamba install -y -n base -c conda-forge
+      -c conda-forge/label/python_rc
+      -c conda-forge/label/cpptango_rc
+      --platform $PLATFORM
+      cpptango=${CPP_TANGO_VERSION} "pybind11>=3.0.1" cppzmq cxx-compiler pkg-config
+      python=${PYTHON_VERSION} pip python-build wheel delocate cmake ninja
+    - micromamba activate base
+  script:
+    - python -m build --wheel --config-setting=cmake.args="--preset=ci-macOS-wheel"
+    # Include dependencies in wheel
+    - delocate-wheel -v dist/*.whl
+
+.macos-test-wheel:
+  stage: test
+  extends: .matrix-wheel-macos
+  needs: [macos:build-wheel]
+  before_script:
+    - !reference [.macos:setup-micromamba, script]
+    - ABI_TAG=$(echo "cp${PYTHON_VERSION}" | sed "s/\.//")
+    - |
+      if [[ "$PLATFORM" == "osx-arm64" ]]; then
+        WHEEL_FILE=$(ls dist/pytango-*-${ABI_TAG}-macosx_*_arm64.whl)
+      else
+        WHEEL_FILE=$(ls dist/pytango-*-${ABI_TAG}-macosx_*_x86_64.whl)
+      fi
+    - micromamba install -y -n base -c conda-forge -c conda-forge/label/python_rc --platform $PLATFORM python=${PYTHON_VERSION} pip
+    # Install TangoTest in a separate env to make sure the wheel isn't using
+    # the tango libraries installed with it
+    - micromamba create -y -n tango -c conda-forge --platform $PLATFORM tango-test=${TANGO_TEST_VERSION}
+    - ln -s ~/micromamba/envs/tango/bin/TangoTest ~/micromamba/bin/TangoTest
+    - micromamba activate base
+    - echo "Testing $WHEEL_FILE"
+    - python -m pip install ${WHEEL_FILE}[tests,telemetry]
+  script:
+    # run telemetry-specific tests with telemetry enabled, then full test suite with it disabled (default)
+    - TANGO_TELEMETRY_ENABLE=on pytest -k telemetry
+    - pytest || pytest --lf
+  rules:
+    - !reference [.rules-wheel, rules]
+
+# All macos wheels need to be built to trigger those jobs
+macos:test-wheel:
+  extends: .macos-test-wheel
+
+# Only wait on macos wheel for osx-arm64 python 3.14
+macos:test-wheel:arm64:3.14:
+  extends: .macos-test-wheel
+  when: manual
+  parallel:
+    matrix:
+      - PLATFORM: "osx-arm64"
+        PYTHON_VERSION: "3.14"
+  needs:
+    - job: macos:build-wheel
+      parallel:
+        matrix:
+          - PLATFORM: "osx-arm64"
+            PYTHON_VERSION: "3.14"
+
+macos:test-pixi:
+  extends: .test-pixi
+  parallel:
+    matrix:
+      - PIXI_ARCH: ["aarch64", "x86_64"]
+  image: macos-14-xcode-15
+  tags:
+    - saas-macos-medium-m1
+  before_script:
+    - curl -fsSL https://pixi.sh/install.sh | bash
+    - export PATH=~/.pixi/bin:$PATH

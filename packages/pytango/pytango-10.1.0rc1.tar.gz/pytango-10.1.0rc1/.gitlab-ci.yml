@@ -1,0 +1,192 @@
+---
+stages:
+  - check
+  - build
+  - image
+  - test
+  - release
+
+default:
+  interruptible: false
+
+include:
+  - local: '.windows-gitlab-ci.yml'
+  - local: '.macos-gitlab-ci.yml'
+  - local: '.linux-gitlab-ci.yml'
+  - project: 'tango-controls/gitlab-ci-templates'
+    file: 'ArchiveWithSubmodules.gitlab-ci.yml'
+
+variables:
+  CPP_TANGO_VERSION: "10.1.1"
+  CPP_TANGO_VERSION_TAG: "10.1.1"
+  LINUX_WHEEL_DOCKER_IMAGE_VERSION: "2.1.1-1"
+  TANGO_TEST_VERSION: "3.12"
+  PYTHONUNBUFFERED: "1"
+  FF_USE_WINDOWS_JOB_OBJECT: 1
+
+.rules-wheel:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - if: '$CI_COMMIT_TAG'
+    - if: $CI_JOB_NAME =~ /.*win:.*-wheel.*/ && $CPP_TANGO_VERSION =~ /.*dev.*/ && $CI_PIPELINE_SOURCE != "merge_request_event"
+      when: manual
+      allow_failure: true
+    - if: $CI_JOB_NAME =~ /.*macos:.*-wheel.*/ && $CPP_TANGO_VERSION =~ /.*dev.*/ && $CI_PIPELINE_SOURCE != "merge_request_event"
+      when: manual
+      allow_failure: true
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE != "merge_request_event"
+      when: manual
+      allow_failure: true
+
+.build-wheel:
+  stage: build
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - dist/
+      - debug_dist/
+  rules:
+    - !reference [.rules-wheel, rules]
+
+.test-pixi:
+  stage: test
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  script:
+    - pixi info
+    - pixi run install
+    - pixi run check
+    - pixi run pytest -v -k "test_state_status"
+    - pixi run install-cpptango-and-tangotest
+  dependencies: [ ]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - if: $CI_PIPELINE_SOURCE != "merge_request_event"
+      when: manual
+      allow_failure: true
+
+run-triage:
+  stage: check
+  image: ruby:3.3-slim
+  tags:
+    - linux
+    - docker
+    - amd64
+  script:
+    - gem install gitlab-triage
+    - gitlab-triage --token $GITLAB_TRIAGE_API_TOKEN --source-id $CI_PROJECT_PATH
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+run-pre-commit:
+  stage: check
+  image: registry.gitlab.com/tango-controls/docker/pre-commit
+  tags:
+    - linux
+    - docker
+    - amd64
+  variables:
+    PRE_COMMIT_HOME: ${CI_PROJECT_DIR}/.cache/pre-commit
+  cache:
+    key: pre-commit-cache
+    paths:
+      - ${PRE_COMMIT_HOME}
+  script:
+    - pre-commit run --all-files
+
+test-docs:
+  # official build is on https://readthedocs.org/projects/pytango/ but we test doc generation
+  stage: test
+  image: ghcr.io/prefix-dev/pixi:latest
+  tags:
+    - linux
+    - docker
+    - amd64
+  # Avoid job to wait on wheels building
+  needs: [linux:build-sdist]
+  script:
+    - pixi run doc
+    - echo "Documentation can be found at https://$CI_PROJECT_NAMESPACE.gitlab.io/-/$CI_PROJECT_NAME/-/jobs/$CI_JOB_ID/artifacts/build/sphinx/index.html"
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - build/sphinx
+  environment:
+    name: Docs-dev/$CI_COMMIT_REF_SLUG
+    auto_stop_in: 1 week
+    url: "https://$CI_PROJECT_NAMESPACE.gitlab.io/-/$CI_PROJECT_NAME/-/jobs/$CI_JOB_ID/artifacts/build/sphinx/index.html"
+
+release-pypi-package:
+  stage: release
+  image: quay.io/condaforge/miniforge3:latest
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: pypi
+  before_script:
+    - apt update && apt install -y jq curl
+    - python -m pip install -U twine id
+  script:
+    # Retrieve the OIDC token from GitLab CI/CD, and exchange it for a PyPI API token
+    # See https://docs.pypi.org/trusted-publishers/using-a-publisher/#gitlab-cicd
+    - oidc_token=$(python -m id PYPI)
+    - resp=$(curl -X POST https://pypi.org/_/oidc/mint-token -d "{\"token\":\"${oidc_token}\"}")
+    - api_token=$(jq --raw-output '.token' <<< "${resp}")
+    - twine upload -u __token__ -p "${api_token}" dist/pytango-*
+  environment:
+    name: release
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+
+release-debug-packages:
+  stage: release
+  variables:
+    PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${CI_PROJECT_NAME}/${CI_COMMIT_TAG}"
+    RELEASE_API_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases"
+  image:
+    name: alpine/httpie
+    entrypoint: [""]
+  needs: [linux:build-wheel]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+      allow_failure: true
+  script:
+    - echo "Releasing debug packages for $CI_COMMIT_TAG"
+    - |
+      for file in debug_dist/pytango-*.whl; do
+        PACKAGE=$(basename "$file")
+
+        echo "Uploading to ${PACKAGE_REGISTRY_URL}/${PACKAGE}"
+        http --verify=no --ignore-stdin PUT "${PACKAGE_REGISTRY_URL}/${PACKAGE}" \
+          JOB-TOKEN:"${CI_JOB_TOKEN}" \
+          @"$file"
+
+        if http --verify=no --quiet --check-status --ignore-stdin "${RELEASE_API_URL}/${CI_COMMIT_TAG}" \
+            JOB-TOKEN:"${CI_JOB_TOKEN}"
+        then
+          echo "Release already exists. Add new asset link."
+          http --verify=no --ignore-stdin "${RELEASE_API_URL}/${CI_COMMIT_TAG}/assets/links" \
+            JOB-TOKEN:"${CI_JOB_TOKEN}" \
+            name="Debug build: ${PACKAGE}" \
+            url="${PACKAGE_REGISTRY_URL}/${PACKAGE}" \
+            direct_asset_path="/${PACKAGE}"
+        else
+          echo "No release found. Create it."
+          http --verify=no --ignore-stdin "${RELEASE_API_URL}" \
+            JOB-TOKEN:"${CI_JOB_TOKEN}" \
+            name="${CI_COMMIT_TAG}" \
+            tag_name="${CI_COMMIT_TAG}" \
+            assets[links][0][name]="Debug build: ${PACKAGE}" \
+            assets[links][0][url]="${PACKAGE_REGISTRY_URL}/${PACKAGE}" \
+            assets[links][0][direct_asset_path]="/${PACKAGE}"
+        fi
+      done

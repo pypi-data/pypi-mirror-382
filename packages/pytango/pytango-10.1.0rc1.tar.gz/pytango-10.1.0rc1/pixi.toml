@@ -1,0 +1,309 @@
+[project]
+name = "pytango"
+channels = ["conda-forge", "conda-forge/label/python_rc", "conda-forge/label/cpptango_rc", "conda-forge/label/tango-test_rc", "tango-controls/label/dev", "tango-controls/label/tango-test_dev"]
+platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64"]
+
+[feature.base.tasks]
+clean = { cmd = "rm -rf build/$PIXI_ENVIRONMENT_NAME", depends-on = [
+    "uninstall",
+] }
+clean-all = { cmd = "rm -rf build .tmpbuild dist", depends-on = ["uninstall"] }
+_build-sdist = { cmd = "python -m build --sdist", outputs = [
+    "dist/pytango*.tar.gz",
+] }
+_build-wheel = { cmd = "python -m build --wheel --outdir dist/$PIXI_ENVIRONMENT_NAME", outputs = [
+    "dist/$PIXI_ENVIRONMENT_NAME/pytango*.whl",
+] }
+build = { depends-on = ["_build-sdist", "_build-wheel"] }
+install = { cmd = [
+    "pip",
+    "install",
+    "--no-build-isolation",
+    "--config-settings=cmake.build-type=\"Debug\"",
+    "--config-settings=build-dir=\"build/$PIXI_ENVIRONMENT_NAME/{wheel_tag}_{build_type}\"",
+    "-v",
+    "-e",
+    ".",
+], env = { CXXFLAGS = "$CXXFLAGS -O0" } }
+uninstall = "pip uninstall -y -v pytango"
+pytest = { cmd = "pytest" }
+test = { depends-on = ["pytest"] }
+check = "python -c 'import tango; print(tango.utils.info())'"
+
+[feature.base.target.linux.tasks]
+wheel = { cmd = "auditwheel repair dist/$PIXI_ENVIRONMENT_NAME/pytango*.whl && mv wheelhouse/*.whl dist/", depends-on = [
+    "_build-wheel",
+] }
+
+[feature.base.target.osx.tasks]
+generate-debug-symbols = "dsymutil .pixi/envs/$PIXI_ENVIRONMENT_NAME/lib/python*/site-packages/tango/_tango.so"
+wheel = { cmd = "delocate-wheel -v dist/$PIXI_ENVIRONMENT_NAME/pytango*.whl --wheel-dir dist", depends-on = [
+    "_build-wheel",
+] }
+
+[feature.base.target.win-64.tasks]
+# overwrite install command on windows as we can't compile in debug mode (no 'python3XX_d.lib')
+install = { cmd = [
+    "pip",
+    "install",
+    "--no-build-isolation",
+    "--config-settings=build-dir=\"build/$PIXI_ENVIRONMENT_NAME/{wheel_tag}_{build_type}\"",
+    "-v",
+    "-e",
+    ".",
+] }
+_collect-tests = { cmd = "pytest --collect-only -q -k \"not test_client.py and not gevent and not test_event\"", inputs = [
+    "tests/*.py",
+], outputs = [
+    "tests/run_tests_win.bat",
+] }
+test = { cmd = "tests/run_tests_win.bat", depends-on = [
+    "_collect-tests",
+], env = { PATH = "$PIXI_PROJECT_ROOT\\.pixi\\envs\\tangotest\\Library\\bin;$PATH" } }
+pytest = { cmd = "pytest -c pytest_win_config.toml", env = { PATH = "$PIXI_PROJECT_ROOT\\.pixi\\envs\\tangotest\\Library\\bin;$PATH" } }
+wheel = { cmd = "delvewheel repair dist/$PIXI_ENVIRONMENT_NAME/pytango*.whl; mv wheelhouse/*.whl dist", depends-on = [
+    "_build-wheel",
+] }
+
+[dependencies]
+# These are default dependencies, so not included if `no-default-feature = true`
+# (E.g., when we build cpptango from source, we don't want these conda packages)
+cpptango = { version = ">=10.1.1,<10.2" }
+tango-test = { version = "==3.12" }
+
+[feature.base.dependencies]
+# build dependencies
+cmake = ">=3.18"
+ninja = ">=1.11"
+cppzmq = ">=4.10.0"
+pybind11 = ">=3.0.1"
+python = ">=3.10"
+pip = "*"
+docstring_parser = "*"
+scikit-build-core = ">=0.10.0"
+pybind11-stubgen = "*"
+numpy = ">=1.19.3"
+ruff = "*"
+# run dependencies
+packaging = ">=24.0"
+psutil = ">=5.9"
+typing_extensions = ">=4.5.0"
+# opentelemetry
+opentelemetry-api = "*"
+opentelemetry-sdk = "*"
+# test dependencies
+gevent = ">=20.0"
+pytest = "*"
+pytest-asyncio = ">=0.24"
+pytest-cov = ">=7.0.0"
+pytest-env = "*"
+pytest-forked = "*"
+pytest-timeout = "*"
+# build sdist and wheel
+python-build = "*"
+wheel = "*"
+# developer tool dependencies
+pixi-pycharm = ">=0.0.8,<0.0.9"
+
+[feature.base.target.unix.dependencies]
+cxx-compiler = "*"
+pkg-config = "*"
+
+[feature.base.target.linux.dependencies]
+auditwheel = "*"
+
+[feature.base.target.osx.dependencies]
+delocate = "*"
+
+[feature.base.target.win-64.dependencies]
+# cxx-compiler still installs vs2019 on windows
+vs2022_win-64 = "*"
+delvewheel = "*"
+
+[feature.otel-exporter.dependencies]
+# Not available as conda packages for python 3.14 yet (due to protobuf)
+opentelemetry-exporter-otlp-proto-grpc = "*"
+opentelemetry-exporter-otlp-proto-http = "*"
+
+[feature.py310.dependencies]
+python = "~=3.10.0"
+
+[feature.py311.dependencies]
+python = "~=3.11.0"
+
+[feature.py312.dependencies]
+python = "~=3.12.0"
+
+[feature.py313.dependencies]
+python = "~=3.13.0"
+
+[feature.py314.dependencies]
+python = "~=3.14.0rc2"
+# Needed by opentelemetry-exporter-otlp-proto-http
+requests = "*"
+
+[feature.py314.pypi-dependencies]
+# Not available as conda packages for python 3.14 yet (due to protobuf)
+opentelemetry-exporter-otlp-proto-grpc = "*"
+opentelemetry-exporter-otlp-proto-http = "*"
+
+# Separate env to build the documentation
+[feature.doc]
+channels = ["conda-forge"]
+
+[feature.doc.tasks]
+_install = { cmd = [
+    "pip",
+    "install",
+    "--no-build-isolation",
+    "--config-settings=build-dir=\"build/$PIXI_ENVIRONMENT_NAME/{wheel_tag}_{build_type}\"",
+    "-v",
+    "-e",
+    ".",
+] }
+doc = { cmd = "python -m sphinx -W doc build/sphinx", depends-on = ["_install",]}
+doc_no_cache = { cmd = "python -m sphinx -W -a -E doc build/sphinx", depends-on = ["_install",]}
+doc_live = { cmd = "sphinx-autobuild -W doc build/sphinx", depends-on = ["_install",]}
+
+[feature.doc.dependencies]
+# sphinx
+pillow = "*"
+sphinx = "8.1.*"
+sphinx-book-theme = "*"
+sphinx-copybutton = "*"
+sphinx-design = "*"
+sphinx-togglebutton = "*"
+sphinxcontrib-mermaid = "*"
+myst-parser = "*"
+sphinx-autobuild = "*"
+
+# Env to compile cpptango from a specific branch
+[feature.cpptango]
+channels = [
+    # conda-forge omniorb package for osx-arm64 doesn't contain omniidl
+    # due to cross-compilation
+    { channel = "tango-controls/label/omniorb_osx_arm64", priority = 1 },
+    "conda-forge",
+]
+
+[feature.cpptango.dependencies]
+omniorb = ">=4.3.0"
+zeromq = ">=4.0.5"
+libjpeg-turbo = ">=1.5.2"
+tango-idl = "==6.0.2"
+libopentelemetry-cpp = ">=1.11.0"
+
+[feature.cpptango.target.win-64.dependencies]
+pthreads-win32 = "*"
+
+[feature.cpptango.tasks]
+_create-tmp-build-dir = "mkdir -p .tmpbuild"
+_clean-cpptango = "rm -rf .tmpbuild/cpptango"
+_clone-cpptango = { cmd = "git clone --recurse-submodules --depth 1 -b $CPPTANGO_BRANCH https://gitlab.com/tango-controls/cpptango.git", cwd = ".tmpbuild", depends-on = [
+    "_create-tmp-build-dir",
+], outputs = [
+    ".tmpbuild/cpptango/CMakeLists.txt",
+], env = { CPPTANGO_BRANCH = "main" } }
+_configure-cpptango = { cmd = [
+    "cmake",
+    "$CMAKE_ARGS",
+    "-GNinja",
+    "-DCMAKE_VERBOSE_MAKEFILE=ON",
+    "-DBUILD_TESTING=OFF",
+    "-DTANGO_USE_TELEMETRY=ON",
+    "-DCMAKE_BUILD_TYPE=Debug",
+    "-DCMAKE_INSTALL_PREFIX=\"$CONDA_PREFIX\"",
+    "-S.",
+    "-Bbuild",
+], cwd = ".tmpbuild/cpptango", inputs = [
+    ".tmpbuild/cpptango/CMakeLists.txt",
+    ".tmpbuild/cpptango/configure/",
+    ".tmpbuild/cpptango/TangoCmakeModules/",
+], outputs = [
+    ".tmpbuild/cpptango/build/CMakeFiles/",
+], depends-on = [
+    "_clone-cpptango",
+] }
+_build-cpptango = { cmd = "cmake --build build", cwd = ".tmpbuild/cpptango", depends-on = [
+    "_configure-cpptango",
+] }
+_install-cpptango = { cmd = "cmake --install build", cwd = ".tmpbuild/cpptango", depends-on = [
+    "_build-cpptango",
+] }
+_clean-tangotest = "rm -rf .tmpbuild/TangoTest"
+_clone-tangotest = { cmd = "git clone --recurse-submodules --depth 1 -b $TANGO_TEST_VERSION https://gitlab.com/tango-controls/TangoTest.git", cwd = ".tmpbuild", depends-on = [
+    "_create-tmp-build-dir",
+], outputs = [
+    ".tmpbuild/TangoTest/CMakeLists.txt",
+], env = { TANGO_TEST_VERSION = "3.11" } }
+_configure-tangotest = { cmd = [
+    "cmake",
+    "$CMAKE_ARGS",
+    "-GNinja",
+    "-DCMAKE_VERBOSE_MAKEFILE=ON",
+    "-DCMAKE_BUILD_TYPE=Debug",
+    "-DCMAKE_INSTALL_PREFIX=\"$CONDA_PREFIX\"",
+    "-S.",
+    "-Bbuild",
+], cwd = ".tmpbuild/TangoTest", depends-on = [
+    "_clone-tangotest", "_install-cpptango"
+] }
+_build-tangotest = { cmd = "cmake --build build", cwd = ".tmpbuild/TangoTest", depends-on = [
+    "_configure-tangotest",
+] }
+_install-tangotest = { cmd = "cmake --install build", cwd = ".tmpbuild/TangoTest", depends-on = [
+    "_build-tangotest",
+] }
+install-cpptango-and-tangotest = { depends-on = ["_install-cpptango", "_install-tangotest"] }
+clean-cpptango-and-tangotest = { depends-on = ["_clean-cpptango", "_clean-tangotest"] }
+
+[feature.cpptango.target.win-64.tasks]
+_configure-cpptango = { cmd = [
+    "cmake",
+    "-G",
+    "NMake Makefiles",
+    "-DBUILD_SHARED_LIBS=ON",
+    "-DBUILD_TESTING=OFF",
+    "-DTANGO_USE_TELEMETRY=OFF",
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DCMAKE_INSTALL_PREFIX=\"$CONDA_PREFIX/Library\"",
+    "-DCMAKE_CXX_FLAGS_RELEASE=/MD",
+    "-S.",
+    "-Bbuild",
+], cwd = ".tmpbuild/cpptango", inputs = [
+    ".tmpbuild/cpptango/CMakeLists.txt",
+    ".tmpbuild/cpptango/configure/",
+    ".tmpbuild/cpptango/TangoCmakeModules/",
+], outputs = [
+    ".tmpbuild/cpptango/build/CMakeFiles/",
+], depends-on = [
+    "_clone-cpptango",
+] }
+_configure-tangotest = { cmd = [
+    "cmake",
+    "-GNMake Makefiles",
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DCMAKE_INSTALL_PREFIX=\"$CONDA_PREFIX/Library\"",
+    "-S.",
+    "-Bbuild",
+], cwd = ".tmpbuild/TangoTest", depends-on = [
+    "_clone-tangotest", "_install-cpptango",
+] }
+
+[feature.cpptango.system-requirements]
+linux = "4.18"
+macos = "12.0"
+
+[system-requirements]
+linux = "4.18"
+macos = "12.0"
+
+[environments]
+default = ["base", "otel-exporter"]
+py310 = ["base", "otel-exporter", "py310"]
+py311 = ["base", "otel-exporter", "py311"]
+py312 = ["base", "otel-exporter","py312"]
+py313 = ["base", "otel-exporter", "py313"]
+py314 = ["base", "py314"]
+doc = ["base", "otel-exporter", "doc"]
+cpptango = { features = ["base", "otel-exporter", "cpptango"], no-default-feature = true }
