@@ -1,0 +1,177 @@
+{% macro io(node,theio) -%}
+{% if node.isDuplicateNode %} 
+{{node.nodeName}}{% else %}
+{% if not node.hasManySlots %}{{node.nodeID}}:i{% else %}{{node.nodeID}}:{{theio.name}}{% endif %}
+{% endif %}
+{%- endmacro %}
+
+{% macro ievio(node,theio) -%}
+{% if not node.hasManySlots %}{{node.nodeID}}:i{% else %}{{node.nodeID}}:iev{{theio.name}}{% endif %}
+{%- endmacro %}
+
+{% macro oevio(node,theio) -%}
+{% if not node.hasManySlots %}{{node.nodeID}}:i{% else %}{{node.nodeID}}:oev{{theio.name}}{% endif %}
+{%- endmacro %}
+
+{% macro edgelabel(ioport,name) -%}
+{% if not ioport.owner.isDuplicateNode and ioport.hasMoreThanOneSample %}
+,{{name}}=<<TABLE BORDER="0" CELLPADDING="4"><TR><TD><FONT COLOR="{{style.port_sample_color(ioport.nbSamples)}}" POINT-SIZE="{{style.port_sample_font_size(ioport.nbSamples)}}" >{{ioport.nbSamples}}</FONT>
+</TD></TR></TABLE>>{% endif %}
+{%- endmacro %}
+
+{% macro constdst(theID) -%}
+{{constEdges[theID][1].owner.nodeID}}:{{constEdges[theID][1].name}}
+{% endmacro -%}
+
+{% macro delayBoxID(id) -%}{{fifos[id].src.owner.nodeID}}{{fifos[id].dst.owner.nodeID}}Delay{%- endmacro %}
+
+{% macro delayBox(edge) -%}
+{% if fifos[edge].hasDelay %}
+{{delayBoxID(edge)}} [label=<
+<TABLE color="{{style.delay_boundary_color(fifos[edge].delay)}}" bgcolor="{{style.delay_color(fifos[edge].delay)}}" BORDER="0" CELLBORDER="{{style.delay_border(fifos[edge].delay)}}" CELLSPACING="0" CELLPADDING="4">
+  <TR>
+    <TD ALIGN="CENTER" PORT="i"><FONT COLOR="{{style.delay_label_color(fifos[edge].delay)}}" POINT-SIZE="{{style.delay_label_size(fifos[edge].delay)}}">{{fifos[edge].delay}}</FONT></TD>
+  </TR>
+</TABLE>>];
+{% endif %}
+{%- endmacro %}
+
+digraph structs {
+    bgcolor = "{{style['graph_background']}}"
+    node [shape=plaintext,color="{{style['node_boundary_color']}}",fontcolor="{{style['node_label_color']}}",fontname="{{style['graph_font']}}"]
+{% if config.horizontal %}
+    rankdir=LR
+{% endif %}
+    edge [arrowsize="{{style['arrow_size']}}",color="{{style['edge_color']}}",fontcolor="{{style['edge_label_color']}}",fontname="{{style['graph_font']}}"]
+
+{% for item in nodes %}
+
+{% if item.isDuplicateNode %}
+{{item.nodeID}} [shape=point,label="{{item.nodeName}}"]
+{% else %}
+{% if not item.hasManySlots %}
+{{item.nodeID}} [label=<
+<TABLE color="{{style.node_boundary_color(item)}}" bgcolor="{{style.node_color(item)}}" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+  <TR>
+    <TD ALIGN="CENTER" PORT="i"><FONT COLOR="{{style.node_label_color(item)}}" POINT-SIZE="{{style.node_label_size(item)}}">{{ style.node_label(item) }}</FONT></TD>
+  </TR>
+</TABLE>>];
+{% else %}
+
+{% if not config.horizontal %}
+
+{{item.nodeID}} [label=<
+<TABLE color="{{style.node_boundary_color(item)}}" bgcolor="{{style.node_color(item)}}" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+  <TR>
+    {% for id in range(0,item.maxSlots) -%}
+    {% if item.slotInputNames[id] -%}
+    {% set input %}{{item.slotInputNames[id]}}{% endset %}
+    <TD PORT="{{input}}"><FONT POINT-SIZE="{{style.port_font_size(item,id,input=True)}}" COLOR="{{style.port_font_color(item,id,input=True)}}">{{item.slotGraphvizInputNames[id]}}</FONT></TD>
+    {% else %}
+    <TD></TD>
+    {%- endif %}
+    {%- endfor %}
+  </TR>
+  <TR>
+    <TD ALIGN="CENTER" COLSPAN="{{item.maxSlots}}"><FONT COLOR="{{style.node_label_color(item)}}" POINT-SIZE="{{style.node_label_size(item)}}">{{ style.node_label(item) }}</FONT></TD>
+  </TR>
+  <TR>
+    {% for id in range(0,item.maxSlots) -%}
+    {% if item.slotOutputNames[id] -%}
+    {% set output %}{{item.slotOutputNames[id]}}{% endset %}
+    <TD PORT="{{output}}"><FONT POINT-SIZE="{{style.port_font_size(item,id)}}" COLOR="{{style.port_font_color(item,id)}}">{{item.slotGraphvizOutputNames[id]}}</FONT></TD>
+    {% else %}
+    <TD></TD>
+    {%- endif %}
+    {%- endfor %}
+  </TR>
+</TABLE>>];
+{% else %}
+{{item.nodeID}} [label=<
+<TABLE color="{{style.node_boundary_color(item)}}" bgcolor="{{style.node_color(item)}}" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+  <TR>
+{% if item.slotInputNames[0] is defined %}
+    <TD PORT="{{item.slotInputNames[0]}}"><FONT POINT-SIZE="{{style.port_font_size(item,0,input=True)}}" COLOR="{{style.port_font_color(item,0,input=True)}}">{{item.slotGraphvizInputNames[0]}}</FONT></TD>
+{% else %}
+    <TD></TD>
+{% endif %}
+    <TD ALIGN="CENTER" ROWSPAN="{{item.maxSlots}}"><FONT COLOR="{{style.node_label_color(item)}}" POINT-SIZE="{{style.node_label_size(item)}}">{{ style.node_label(item) }}</FONT></TD>
+{% if item.slotOutputNames[0] is defined %}
+    <TD PORT="{{item.slotOutputNames[0]}}"><FONT POINT-SIZE="{{style.port_font_size(item,0)}}" COLOR="{{style.port_font_color(item,0)}}">{{item.slotGraphvizOutputNames[0]}}</FONT></TD>
+{% else %}
+    <TD></TD>
+{% endif %}
+  </TR>
+{% for id in range(1,item.maxSlots) -%}
+<TR>
+{% if item.slotInputNames[id] -%}
+{% set input %}{{item.slotInputNames[id]}}{% endset %}
+<TD PORT="{{input}}"><FONT POINT-SIZE="{{style.port_font_size(item,id,input=True)}}" COLOR="{{style.port_font_color(item,id,input=True)}}">{{item.slotGraphvizInputNames[id]}}</FONT></TD>
+{% else %} 
+<TD></TD>
+{%- endif %}
+
+{% if item.slotOutputNames[id] -%}
+{% set output %}{{item.slotOutputNames[id]}}{% endset %}
+<TD PORT="{{output}}"><FONT POINT-SIZE="{{style.port_font_size(item,id)}}" COLOR="{{style.port_font_color(item,id)}}">{{item.slotGraphvizOutputNames[id]}}</FONT></TD>
+{% else %} 
+<TD></TD>
+{%- endif %}
+</TR>
+{%- endfor %}
+
+
+</TABLE>>];
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}
+
+
+{% for id in range(nbFifos) %}
+{{delayBox(id)}}
+{% if fifos[id].hasDelay %}
+
+{{io(fifos[id].src.owner,fifos[id].src)}} -> {{delayBoxID(id)}}:i [style="{{style.delay_edge_style(fifos[id].src,fifos[id].delay)}}",color="{{style.delay_edge_color(fifos[id].src,fifos[id].delay)}}",label=""{{edgelabel(fifos[id].src,"taillabel")}}]
+
+{% if config.displayFIFOBuf %}
+{{delayBoxID(id)}}:i -> {{io(fifos[id].dst.owner,fifos[id].dst)}} [style="{{style.edge_style(fifos[id])}}",color="{{style.edge_color(fifos[id])}}",fontsize="{{style.edge_label_size(fifos[id])}}",fontcolor="{{style.edge_label_color(fifos[id])}}",label="buf{{fifos[id].bufferID}}"
+{{edgelabel(fifos[id].src,"headlabel")}}]
+{% else %}
+{{delayBoxID(id)}}:i -> {{io(fifos[id].dst.owner,fifos[id].dst)}} [style="{{style.edge_style(fifos[id])}}",color="{{style.edge_color(fifos[id])}}",fontsize="{{style.edge_label_size(fifos[id])}}",fontcolor="{{style.edge_label_color(fifos[id])}}",label=<{{style.edge_label(fifos[id],fifos[id].theType.graphViztype,fifos[id].length)}}>
+{{edgelabel(fifos[id].dst,"headlabel")}}]
+{% endif %}
+
+{% else %}
+{% if config.displayFIFOBuf %}
+{{io(fifos[id].src.owner,fifos[id].src)}} -> {{io(fifos[id].dst.owner,fifos[id].dst)}} [style="{{style.edge_style(fifos[id])}}",color="{{style.edge_color(fifos[id])}}",fontsize="{{style.edge_label_size(fifos[id])}}",fontcolor="{{style.edge_label_color(fifos[id])}}",label="buf{{fifos[id].bufferID}}"
+{{edgelabel(fifos[id].dst,"headlabel")}}
+{{edgelabel(fifos[id].src,"taillabel")}}]
+{% else %}
+{{io(fifos[id].src.owner,fifos[id].src)}} -> {{io(fifos[id].dst.owner,fifos[id].dst)}} [style="{{style.edge_style(fifos[id])}}",color="{{style.edge_color(fifos[id])}}",fontsize="{{style.edge_label_size(fifos[id])}}",fontcolor="{{style.edge_label_color(fifos[id])}}",label=<{{style.edge_label(fifos[id],fifos[id].theType.graphViztype,fifos[id].length)}}>
+{{edgelabel(fifos[id].dst,"headlabel")}}
+{{edgelabel(fifos[id].src,"taillabel")}}]
+{% endif %}
+{% endif %}
+{% endfor %}
+
+{% for c in constObjs %}
+{{c.name}} [label=<
+<TABLE color="{{style.const_boundary_color(c.name)}}" bgcolor="{{style.const_color(c.name)}}" BORDER="0" CELLBORDER="{{style.const_border(c.name)}}" CELLSPACING="0" CELLPADDING="4">
+  <TR>
+    <TD ALIGN="CENTER" PORT="i"><FONT COLOR="{{style.const_label_color(c.name)}}" POINT-SIZE="{{style.const_label_size(c.name)}}">{{c.name}}</FONT></TD>
+  </TR>
+</TABLE>>];
+{% endfor %}
+
+{% for edgeID in range(nbConstEdges) %}
+{{constEdges[edgeID][0].name}}:i -> {{constdst(edgeID)}} [style="{{style.const_edge_style(constEdges[edgeID][0].name,constEdges[edgeID][1])}}",color="{{style.const_edge_color(constEdges[edgeID][0].name,constEdges[edgeID][1])}}"]
+{% endfor %}
+
+{% for id in range(nbEventEdges) %}
+{{oevio(events[id][0].owner,events[id][0])}} -> {{ievio(events[id][1].owner,events[id][1])}} [style="{{style.event_edge_style(events[id])}}",color="{{style.edge_color(events[id])}}",fontsize="{{style.event_edge_label_size(events[id])}}",fontcolor="{{style.event_edge_label_color(events[id])}}",label=<{{style.event_edge_label(events[id])}}>
+{{edgelabel(events[id][1],"headlabel")}}
+{{edgelabel(events[id][0],"taillabel")}}]
+{% endfor %}
+
+}
