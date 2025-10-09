@@ -1,0 +1,97 @@
+# <span class="badge package-variant-dataquery"></span> azuremonitor
+
+## Objects
+
+ * <span class="badge object-type-class"></span> [AppInsightsGroupByQuery](./object-AppInsightsGroupByQuery.md)
+ * <span class="badge object-type-class"></span> [AppInsightsMetricNameQuery](./object-AppInsightsMetricNameQuery.md)
+ * <span class="badge object-type-class"></span> [AzureLogsQuery](./object-AzureLogsQuery.md)
+ * <span class="badge object-type-class"></span> [AzureMetricDimension](./object-AzureMetricDimension.md)
+ * <span class="badge object-type-class"></span> [AzureMetricQuery](./object-AzureMetricQuery.md)
+ * <span class="badge object-type-class"></span> [AzureMonitorQuery](./object-AzureMonitorQuery.md)
+ * <span class="badge object-type-class"></span> [AzureMonitorResource](./object-AzureMonitorResource.md)
+ * <span class="badge object-type-enum"></span> [AzureQueryType](./object-AzureQueryType.md)
+ * <span class="badge object-type-class"></span> [AzureResourceGraphQuery](./object-AzureResourceGraphQuery.md)
+ * <span class="badge object-type-class"></span> [AzureTracesFilter](./object-AzureTracesFilter.md)
+ * <span class="badge object-type-class"></span> [AzureTracesQuery](./object-AzureTracesQuery.md)
+ * <span class="badge object-type-class"></span> [BaseGrafanaTemplateVariableQuery](./object-BaseGrafanaTemplateVariableQuery.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorColumnsExpression](./object-BuilderQueryEditorColumnsExpression.md)
+ * <span class="badge object-type-enum"></span> [BuilderQueryEditorExpressionType](./object-BuilderQueryEditorExpressionType.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorFunctionParameterExpression](./object-BuilderQueryEditorFunctionParameterExpression.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorGroupByExpression](./object-BuilderQueryEditorGroupByExpression.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorGroupByExpressionArray](./object-BuilderQueryEditorGroupByExpressionArray.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorOperator](./object-BuilderQueryEditorOperator.md)
+ * <span class="badge object-type-disjunction"></span> [BuilderQueryEditorOperatorType](./object-BuilderQueryEditorOperatorType.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorOrderByExpression](./object-BuilderQueryEditorOrderByExpression.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorOrderByExpressionArray](./object-BuilderQueryEditorOrderByExpressionArray.md)
+ * <span class="badge object-type-enum"></span> [BuilderQueryEditorOrderByOptions](./object-BuilderQueryEditorOrderByOptions.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorProperty](./object-BuilderQueryEditorProperty.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorPropertyExpression](./object-BuilderQueryEditorPropertyExpression.md)
+ * <span class="badge object-type-enum"></span> [BuilderQueryEditorPropertyType](./object-BuilderQueryEditorPropertyType.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorReduceExpression](./object-BuilderQueryEditorReduceExpression.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorReduceExpressionArray](./object-BuilderQueryEditorReduceExpressionArray.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorWhereExpression](./object-BuilderQueryEditorWhereExpression.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorWhereExpressionArray](./object-BuilderQueryEditorWhereExpressionArray.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryEditorWhereExpressionItems](./object-BuilderQueryEditorWhereExpressionItems.md)
+ * <span class="badge object-type-class"></span> [BuilderQueryExpression](./object-BuilderQueryExpression.md)
+ * <span class="badge object-type-disjunction"></span> [GrafanaTemplateVariableQuery](./object-GrafanaTemplateVariableQuery.md)
+ * <span class="badge object-type-enum"></span> [GrafanaTemplateVariableQueryType](./object-GrafanaTemplateVariableQueryType.md)
+ * <span class="badge object-type-enum"></span> [LogsEditorMode](./object-LogsEditorMode.md)
+ * <span class="badge object-type-class"></span> [MetricDefinitionsQuery](./object-MetricDefinitionsQuery.md)
+ * <span class="badge object-type-class"></span> [MetricNamesQuery](./object-MetricNamesQuery.md)
+ * <span class="badge object-type-class"></span> [MetricNamespaceQuery](./object-MetricNamespaceQuery.md)
+ * <span class="badge object-type-class"></span> [ResourceGroupsQuery](./object-ResourceGroupsQuery.md)
+ * <span class="badge object-type-class"></span> [ResourceNamesQuery](./object-ResourceNamesQuery.md)
+ * <span class="badge object-type-enum"></span> [ResultFormat](./object-ResultFormat.md)
+ * <span class="badge object-type-class"></span> [SelectableValue](./object-SelectableValue.md)
+ * <span class="badge object-type-class"></span> [SubscriptionsQuery](./object-SubscriptionsQuery.md)
+ * <span class="badge object-type-class"></span> [UnknownQuery](./object-UnknownQuery.md)
+ * <span class="badge object-type-class"></span> [WorkspacesQuery](./object-WorkspacesQuery.md)
+## Builders
+
+ * <span class="badge builder"></span> [AppInsightsGroupByQuery](./builder-AppInsightsGroupByQuery.md)
+ * <span class="badge builder"></span> [AppInsightsMetricNameQuery](./builder-AppInsightsMetricNameQuery.md)
+ * <span class="badge builder"></span> [AzureLogsQuery](./builder-AzureLogsQuery.md)
+ * <span class="badge builder"></span> [AzureMetricDimension](./builder-AzureMetricDimension.md)
+ * <span class="badge builder"></span> [AzureMetricQuery](./builder-AzureMetricQuery.md)
+ * <span class="badge builder"></span> [AzureMonitorQuery](./builder-AzureMonitorQuery.md)
+ * <span class="badge builder"></span> [AzureMonitorResource](./builder-AzureMonitorResource.md)
+ * <span class="badge builder"></span> [AzureResourceGraphQuery](./builder-AzureResourceGraphQuery.md)
+ * <span class="badge builder"></span> [AzureTracesFilter](./builder-AzureTracesFilter.md)
+ * <span class="badge builder"></span> [AzureTracesQuery](./builder-AzureTracesQuery.md)
+ * <span class="badge builder"></span> [BaseGrafanaTemplateVariableQuery](./builder-BaseGrafanaTemplateVariableQuery.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorColumnsExpression](./builder-BuilderQueryEditorColumnsExpression.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorFunctionParameterExpression](./builder-BuilderQueryEditorFunctionParameterExpression.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorGroupByExpression](./builder-BuilderQueryEditorGroupByExpression.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorGroupByExpressionArray](./builder-BuilderQueryEditorGroupByExpressionArray.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorOperator](./builder-BuilderQueryEditorOperator.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorOrderByExpression](./builder-BuilderQueryEditorOrderByExpression.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorOrderByExpressionArray](./builder-BuilderQueryEditorOrderByExpressionArray.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorProperty](./builder-BuilderQueryEditorProperty.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorPropertyExpression](./builder-BuilderQueryEditorPropertyExpression.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorReduceExpression](./builder-BuilderQueryEditorReduceExpression.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorReduceExpressionArray](./builder-BuilderQueryEditorReduceExpressionArray.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorWhereExpression](./builder-BuilderQueryEditorWhereExpression.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorWhereExpressionArray](./builder-BuilderQueryEditorWhereExpressionArray.md)
+ * <span class="badge builder"></span> [BuilderQueryEditorWhereExpressionItems](./builder-BuilderQueryEditorWhereExpressionItems.md)
+ * <span class="badge builder"></span> [BuilderQueryExpression](./builder-BuilderQueryExpression.md)
+ * <span class="badge builder"></span> [MetricDefinitionsQuery](./builder-MetricDefinitionsQuery.md)
+ * <span class="badge builder"></span> [MetricNamesQuery](./builder-MetricNamesQuery.md)
+ * <span class="badge builder"></span> [MetricNamespaceQuery](./builder-MetricNamespaceQuery.md)
+ * <span class="badge builder"></span> [ResourceGroupsQuery](./builder-ResourceGroupsQuery.md)
+ * <span class="badge builder"></span> [ResourceNamesQuery](./builder-ResourceNamesQuery.md)
+ * <span class="badge builder"></span> [SelectableValue](./builder-SelectableValue.md)
+ * <span class="badge builder"></span> [SubscriptionsQuery](./builder-SubscriptionsQuery.md)
+ * <span class="badge builder"></span> [UnknownQuery](./builder-UnknownQuery.md)
+ * <span class="badge builder"></span> [WorkspacesQuery](./builder-WorkspacesQuery.md)
+## Functions
+
+### <span class="badge function"></span> variant_config
+
+variant_config returns the configuration related to grafana-azure-monitor-datasource data queries.
+
+This configuration describes how to unmarshal it, convert it to code, …
+
+```python
+def variant_config() -> variants.DataqueryConfig
+```
+
