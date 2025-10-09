@@ -1,0 +1,163 @@
+# Changelog
+
+## [2.0.17](github.com/rfp-byte/RikPy/compare/v2.0.16...v2.0.17) (2025-10-09)
+
+
+### Bug Fixes
+
+* better send mail response ([92ae5da](github.com/rfp-byte/RikPy/commit/92ae5dac31873a4c67ea2e30f85976f46ac43587))
+
+## [2.0.16](github.com/rfp-byte/RikPy/compare/v2.0.15...v2.0.16) (2025-10-06)
+
+
+### Bug Fixes
+
+* deprecated shopify fields 7 ([b42e06e](github.com/rfp-byte/RikPy/commit/b42e06ee0eefb8c7c9badeb546a4cf00508600c2))
+
+## [2.0.15](github.com/rfp-byte/RikPy/compare/v2.0.14...v2.0.15) (2025-10-06)
+
+
+### Bug Fixes
+
+* deprecated shopify fields 6 ([3170169](github.com/rfp-byte/RikPy/commit/3170169e97edb042a494aabb3de24a0ccc200d7e))
+
+## [2.0.14](github.com/rfp-byte/RikPy/compare/v2.0.13...v2.0.14) (2025-10-06)
+
+
+### Bug Fixes
+
+* deprecated shopify fields 5 ([98a2649](github.com/rfp-byte/RikPy/commit/98a2649fa868f90b8ce4b1fd16eddc40fe59cc55))
+
+## [2.0.13](github.com/rfp-byte/RikPy/compare/v2.0.12...v2.0.13) (2025-10-06)
+
+
+### Bug Fixes
+
+* deprecated shopify fields 4 & new api version ([c439b01](github.com/rfp-byte/RikPy/commit/c439b016adabcc4103614d4f3a8ad97a5e2cab52))
+
+## [2.0.12](github.com/rfp-byte/RikPy/compare/v2.0.11...v2.0.12) (2025-10-06)
+
+
+### Bug Fixes
+
+* deprecated shopify fields 2 ([0a07fc8](github.com/rfp-byte/RikPy/commit/0a07fc8f0f496318660114bd08ec9009cdc74c0f))
+
+## [2.0.11](github.com/rfp-byte/RikPy/compare/v2.0.10...v2.0.11) (2025-10-06)
+
+
+### Bug Fixes
+
+* deprecated shopify fields ([f8ee919](github.com/rfp-byte/RikPy/commit/f8ee919a0fe0a150134a8a3e291a755672c5606d))
+
+## [2.0.10](github.com/rfp-byte/RikPy/compare/v2.0.9...v2.0.10) (2025-06-18)
+
+
+### Bug Fixes
+
+* new openai method ([03c250b](github.com/rfp-byte/RikPy/commit/03c250b09107ad1dc2d78be1a60e89b9c8b08b15))
+
+## [2.0.9](github.com/rfp-byte/RikPy/compare/v2.0.8...v2.0.9) (2025-06-18)
+
+
+### Bug Fixes
+
+* new openai variables and models ([0fb2fec](github.com/rfp-byte/RikPy/commit/0fb2fec1980b92ef951609215422e4c358ab0d0f))
+
+## [2.0.8](github.com/rfp-byte/RikPy/compare/v2.0.7...v2.0.8) (2025-05-07)
+
+
+### Bug Fixes
+
+* increase shopify product limit ([dcd51e8](github.com/rfp-byte/RikPy/commit/dcd51e858f6b5b0575d7509d3baaf33b5bf4858a))
+
+## [2.0.7](github.com/rfp-byte/RikPy/compare/v2.0.6...v2.0.7) (2025-05-07)
+
+
+### Bug Fixes
+
+* rate limit in shopify get products ([9b6360a](github.com/rfp-byte/RikPy/commit/9b6360a65daf231781f932c596580309cd50f7da))
+
+## [2.0.6](github.com/rfp-byte/RikPy/compare/v2.0.5...v2.0.6) (2025-04-13)
+
+
+### Bug Fixes
+
+* stop printing mutation ([b44f752](github.com/rfp-byte/RikPy/commit/b44f7529178163079f91f3af181c8c481bf5cced))
+
+## [2.0.5](github.com/rfp-byte/RikPy/compare/v2.0.4...v2.0.5) (2025-04-13)
+
+
+### Bug Fixes
+
+* stop printing shopify updates ([ef5f2d1](github.com/rfp-byte/RikPy/commit/ef5f2d12ac0caf46e1702a3ed9ca3d32e044f3ae))
+
+## [2.0.4](github.com/rfp-byte/RikPy/compare/v2.0.3...v2.0.4) (2025-04-13)
+
+
+### Bug Fixes
+
+* adjustments to throttling ([9df99e5](github.com/rfp-byte/RikPy/commit/9df99e55bb850bfc812be514f530d1e623ec76ea))
+
+## [2.0.3](github.com/rfp-byte/RikPy/compare/v2.0.2...v2.0.3) (2025-04-12)
+
+
+### Bug Fixes
+
+* rate limit ([d216ea0](github.com/rfp-byte/RikPy/commit/d216ea069ad06086cbcb559a187e228081b02d00))
+
+## [2.0.2](github.com/rfp-byte/RikPy/compare/v2.0.1...v2.0.2) (2025-04-12)
+
+
+### Bug Fixes
+
+* logging in shopify ([b4d2d82](github.com/rfp-byte/RikPy/commit/b4d2d8241395055c1d7d4e2bc10291ad10cfd0cf))
+
+## [2.0.1](github.com/rfp-byte/RikPy/compare/v2.0.0...v2.0.1) (2025-04-12)
+
+
+### Bug Fixes
+
+* change to pypi-publish ([a942819](github.com/rfp-byte/RikPy/commit/a9428196ab9a13006b1ecaceaca12488b1ec32c7))
+
+## [2.0.0](github.com/rfp-byte/RikPy/compare/v1.0.0...v2.0.0) (2025-04-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* force new release to try auto 3
+* force new release to try auto 2
+* force new release to try auto
+
+### Features
+
+* force new release to try auto ([d0fb6b6](github.com/rfp-byte/RikPy/commit/d0fb6b6394e20107d3f38c7cc416f0235c97beb6))
+* force new release to try auto 2 ([cd35c13](github.com/rfp-byte/RikPy/commit/cd35c1346aedd323f117690ac5c7b64fbc863e5c))
+* force new release to try auto 3 ([fddcc47](github.com/rfp-byte/RikPy/commit/fddcc477747def4b34d4f35e39962de5de7be7f1))
+* support auto-publish to Test PyPI ([ba2a89a](github.com/rfp-byte/RikPy/commit/ba2a89a18870ec4e0c9c9246c2f8cba3c4d4d24e))
+* testing auto publish ([0d55ad4](github.com/rfp-byte/RikPy/commit/0d55ad40412decbd29ea9e3517082aab1a045462))
+* testing auto publish 2 ([71d90a3](github.com/rfp-byte/RikPy/commit/71d90a36a4929a12bc0b4aae334bb51dfc3e64c1))
+* testing auto publish 3 ([ca3cf1a](github.com/rfp-byte/RikPy/commit/ca3cf1a9280e981b95852a96d92c4177b1c2eee9))
+* testing auto publish 4 ([aa807ea](github.com/rfp-byte/RikPy/commit/aa807ea59743d43699581f99b82802c8c4fd0f41))
+
+
+### Bug Fixes
+
+* force new release from v1.0.0 ([35c6c82](github.com/rfp-byte/RikPy/commit/35c6c8279a269de3de22c188ea27cb1264586fd4))
+
+## [1.0.0](https://github.com/rfp-byte/RikPy/compare/v0.5.7...v1.0.0) (2025-04-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* Major update to version 0.6.0
+
+### Features
+
+* Major update to version 0.6.0 ([7db6035](https://github.com/rfp-byte/RikPy/commit/7db6035851bd2ae944854c9780b3e9a1304e438a))
+
+## [0.5.7](https://github.com/rfp-byte/RikPy/compare/v0.5.6...v0.5.7) (2025-04-12)
+
+
+### Bug Fixes
+
+* release ([ec33760](https://github.com/rfp-byte/RikPy/commit/ec33760511aebfc7374e075e8815416853176dcc))
