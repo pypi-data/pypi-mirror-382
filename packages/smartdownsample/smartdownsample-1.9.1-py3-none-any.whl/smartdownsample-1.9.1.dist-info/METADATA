@@ -1,0 +1,134 @@
+Metadata-Version: 2.4
+Name: smartdownsample
+Version: 1.9.1
+Summary: Smart image downsampling for image classification datasets
+Author: Peter van Lunteren
+License: MIT
+Project-URL: Homepage, https://github.com/PetervanLunteren/smartdownsample
+Project-URL: Repository, https://github.com/PetervanLunteren/smartdownsample
+Project-URL: Issues, https://github.com/PetervanLunteren/smartdownsample/issues
+Project-URL: Documentation, https://github.com/PetervanLunteren/smartdownsample#readme
+Keywords: image,downsampling,camera-trap,machine-learning,computer-vision,diversity,deduplication
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Scientific/Engineering :: Image Processing
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.21.0
+Requires-Dist: Pillow>=8.0.0
+Requires-Dist: imagehash>=4.2.0
+Requires-Dist: tqdm>=4.62.0
+Requires-Dist: natsort>=8.0.0
+Requires-Dist: matplotlib>=3.5.0
+Requires-Dist: plotly>=5.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0; extra == "dev"
+Requires-Dist: black>=22.0; extra == "dev"
+Requires-Dist: flake8>=4.0; extra == "dev"
+Requires-Dist: mypy>=0.900; extra == "dev"
+Dynamic: license-file
+
+# smartdownsample  
+
+**Fast and lightweight downsampling for large image datasets**  
+
+`smartdownsample` is built for image collections that:  
+1. Contains more images than you need for training, and  
+2. Has a high level of redundancy
+
+The tool selects representative subsets while preserving diversity by distilling images to tiny signatures of visual features. In many ML workflows, majority classes can have hundreds of thousands of images. These often need to be reduced for efficiency or class balance—without discarding too much valuable variation.  
+
+Perfect deduplication would require heavy computations and isn’t feasible at scale. Instead, `smartdownsample` offers a practical compromise: fast downsampling that keeps diversity with minimal overhead, cutting processing time from hours (or days) to minutes.  
+
+If you need mathematically optimal results, this isn’t the right fit. But if you want a simple, effective alternative that outperforms random sampling, `smartdownsample` is designed for you.  
+
+## Installation
+
+```bash
+pip install smartdownsample
+```
+
+## Usage
+
+```python
+from smartdownsample import sample_diverse
+
+# List of image paths
+my_image_list = [
+    "path/to/img1.jpg",
+    "path/to/img2.jpg",
+    "path/to/img3.jpg",
+    # ...
+]
+
+# Basic usage
+selected = sample_diverse(
+    image_paths=my_image_list,
+    target_count=50000
+)
+```
+
+## Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `image_paths` | Required | List of image file paths (str or Path objects) |
+| `target_count` | Required | Exact number of images to select |
+| `hash_size` | `8` | Perceptual hash size (8 recommended) |
+| `n_workers` | `4` | Number of parallel workers for hash computation |
+| `show_progress` | `True` | Display progress bars during processing |
+| `show_summary` | `True` | Print bucket statistics and distribution summary |
+| `save_distribution` | `None` | Path to save distribution chart as PNG (creates directories if needed) |
+| `save_thumbnails` | `None` | Path to save thumbnail grids as PNG (creates directories if needed) |
+| `image_loading_errors` | `"raise"` | How to handle image loading errors: `"raise"` (fail immediately) or `"skip"` (continue with remaining images) |
+| `return_indices` | `False` | Return 0-based indices instead of paths (refers to original input list order) |
+
+## How it works
+
+The algorithm balances speed and diversity in four steps:
+
+1. **Feature extraction**  
+   Each image is reduced to a compact set of visual features:  
+   - DHash (`2 bits`) → structure/edges  
+   - AHash (`1 bit`) → brightness/contrast  
+   - Color variance (`1 bit`) → grayscale vs. color  
+   - Overall brightness (`1 bit`) → dark vs. bright  
+   - Average color (`2 bits`) → dominant scene color (red/green/blue/neutral)  
+
+2. **Bucket grouping**  
+   Images are sorted into "similarity buckets" based on the visual features extracted at step 1.  
+   - At most 128 buckets are possible (4×2×2×2×4 feature splits).  
+   - In practice, most datasets produce only a few dozen buckets, depending on their diversity.  
+
+3. **Selection across buckets**  
+   - Ensure at least one image per bucket (diversity first)  
+   - Fill the remaining quota proportionally from larger buckets  
+
+4. **Within-bucket selection**  
+   - Buckets are kept in their natural folder order to preserve any inherent structure in the dataset (e.g., locations, events, sequences, etc)  
+   - Images are then sampled at regular intervals (every stride-th image) until the target count is reached, ensuring a systematic spread across the bucket  
+
+5. **Save distribution chart** (optional)
+   - Vertical bar chart of kept vs. excluded images per bucket  
+<img src="https://github.com/PetervanLunteren/EcoAssist-metadata/blob/main/smartdown-sample/bar.png" width="100%">
+
+
+6. **Save thumbnail grids** (optional)
+   - 5×5 grids from each bucket, for quick visual review  
+<img src="https://github.com/PetervanLunteren/EcoAssist-metadata/blob/main/smartdown-sample/grid.png" width="100%">
+
+
+## License
+
+MIT License → see [LICENSE file](https://github.com/PetervanLunteren/smartdownsample/blob/main/LICENSE).
