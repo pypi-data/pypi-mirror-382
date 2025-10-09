@@ -1,0 +1,536 @@
+# GeomKit
+
+A comprehensive Python library for mathematical geometrical functionalities. GeomKit provides easy-to-use classes and functions for working with 2D and 3D geometric primitives, making it perfect for computational geometry, computer graphics, game development, and mathematical applications.
+
+## Features
+
+### Primitives
+- **2D and 3D Points**: Point manipulation, distance calculations, transformations
+- **Vectors**: Vector operations including dot product, cross product, normalization
+- **Lines**: Infinite lines and line segments with intersection detection
+- **Transformation Matrices**: 2D and 3D transformation matrices for rotation, scaling, translation, and shearing
+
+### 2D Shapes
+- **Circles and Ellipses**: Circle and ellipse operations, intersections, tangent calculations
+- **Polygons**: General polygons, triangles, rectangles, squares, and regular polygons with area and perimeter calculations
+- **Bounding Boxes**: AABB2D for efficient collision detection and spatial queries
+
+### 3D Shapes
+- **Sphere**: Volume, surface area, and point containment
+- **Cube**: Cubic geometry operations
+- **Rectangular Prism**: 3D box operations
+- **Bounding Boxes**: AABB3D for 3D spatial queries
+
+### Curves
+- **Bézier Curves**: Quadratic and cubic Bézier curves with evaluation and splitting
+
+### Algorithms
+- **Convex Hull**: Graham scan algorithm for 2D point sets
+- **Line Segment Intersection**: Detection and calculation of intersection points
+- **Utility Functions**: Distance calculations, angle measurements, collinearity tests
+
+## Installation
+
+### From PyPI (once published)
+
+```bash
+pip install geomkit
+```
+
+### From Source
+
+```bash
+git clone https://github.com/yourusername/geomkit.git
+cd geomkit
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from geomkit import (
+    Point2D, Point3D, Vector2D, Circle, Triangle, Sphere,
+    Matrix2D, QuadraticBezier, convex_hull
+)
+
+# 2D Points and shapes
+p1 = Point2D(0, 0)
+p2 = Point2D(3, 4)
+distance = p1.distance_to(p2)  # 5.0
+
+circle = Circle(center=Point2D(0, 0), radius=5)
+area = circle.area()  # 78.54...
+
+# 3D Shapes
+sphere = Sphere(center=Point3D(0, 0, 0), radius=5)
+volume = sphere.volume()  # 523.59...
+
+# Transformation matrices
+matrix = Matrix2D.rotation(math.pi / 4)  # 45 degree rotation
+transformed = matrix.transform_point(Point2D(1, 0))
+
+# Bézier curves
+curve = QuadraticBezier(Point2D(0, 0), Point2D(1, 2), Point2D(2, 0))
+point = curve.point_at(0.5)  # Point on curve at t=0.5
+
+# Convex hull
+points = [Point2D(0, 0), Point2D(1, 1), Point2D(2, 0), Point2D(0.5, 0.5)]
+hull = convex_hull(points)  # Returns convex hull vertices
+```
+
+## Documentation
+
+### Points
+
+#### Point2D
+
+```python
+from geomkit import Point2D
+
+# Create a point
+p = Point2D(3, 4)
+
+# Distance to another point
+distance = p.distance_to(Point2D(0, 0))  # 5.0
+
+# Midpoint
+mid = p.midpoint(Point2D(1, 2))  # Point2D(2.0, 3.0)
+
+# Translate
+translated = p.translate(1, 1)  # Point2D(4.0, 5.0)
+
+# Rotate around origin
+import math
+rotated = p.rotate(math.pi / 2)  # Rotate 90 degrees
+```
+
+#### Point3D
+
+```python
+from geomkit import Point3D
+
+# Create a 3D point
+p = Point3D(1, 2, 3)
+
+# Distance in 3D space
+distance = p.distance_to(Point3D(4, 6, 8))
+
+# Operations
+translated = p.translate(1, 1, 1)
+mid = p.midpoint(Point3D(5, 6, 7))
+```
+
+### Vectors
+
+#### Vector2D
+
+```python
+from geomkit import Vector2D
+
+v1 = Vector2D(3, 4)
+v2 = Vector2D(1, 0)
+
+# Magnitude
+magnitude = v1.magnitude()  # 5.0
+
+# Normalize
+unit = v1.normalize()  # Vector2D(0.6, 0.8)
+
+# Dot product
+dot = v1.dot(v2)  # 3.0
+
+# Cross product (returns scalar for 2D)
+cross = v1.cross(v2)  # -4.0
+
+# Angle between vectors
+angle = v1.angle_to(v2)  # in radians
+
+# Rotate
+import math
+rotated = v1.rotate(math.pi / 4)  # Rotate 45 degrees
+
+# Arithmetic operations
+v3 = v1 + v2
+v4 = v1 - v2
+v5 = v1 * 2
+v6 = v1 / 2
+```
+
+#### Vector3D
+
+```python
+from geomkit import Vector3D
+
+v1 = Vector3D(1, 2, 3)
+v2 = Vector3D(4, 5, 6)
+
+# All Vector2D operations plus:
+cross = v1.cross(v2)  # Returns Vector3D for 3D cross product
+```
+
+### Lines
+
+#### Line2D
+
+```python
+from geomkit import Line2D, Point2D
+
+# Create a line from two points
+line = Line2D(Point2D(0, 0), Point2D(1, 1))
+
+# Check if point is on line
+on_line = line.contains_point(Point2D(2, 2))  # True
+
+# Check parallelism
+line2 = Line2D(Point2D(0, 1), Point2D(1, 2))
+parallel = line.is_parallel(line2)  # True
+
+# Check perpendicularity
+line3 = Line2D(Point2D(0, 0), Point2D(1, -1))
+perpendicular = line.is_perpendicular(line3)  # True
+
+# Find intersection
+intersection = line.intersection(line3)  # Point2D(0.0, 0.0)
+
+# Distance from point to line
+distance = line.distance_to_point(Point2D(1, 0))
+```
+
+#### LineSegment2D
+
+```python
+from geomkit import LineSegment2D, Point2D
+
+# Create a line segment
+segment = LineSegment2D(Point2D(0, 0), Point2D(4, 3))
+
+# Length
+length = segment.length()  # 5.0
+
+# Midpoint
+mid = segment.midpoint()  # Point2D(2.0, 1.5)
+
+# Check if point is on segment
+on_segment = segment.contains_point(Point2D(2, 1.5))  # True
+
+# Check intersection with another segment
+segment2 = LineSegment2D(Point2D(0, 3), Point2D(4, 0))
+intersects = segment.intersects(segment2)  # True
+intersection_point = segment.intersection_point(segment2)
+```
+
+### Circles and Ellipses
+
+#### Circle
+
+```python
+from geomkit import Circle, Point2D
+
+# Create a circle
+circle = Circle(center=Point2D(0, 0), radius=5)
+
+# Area and circumference
+area = circle.area()  # 78.54...
+circumference = circle.circumference()  # 31.41...
+
+# Check if point is inside
+inside = circle.contains_point(Point2D(3, 4))  # True
+
+# Get point on circle at angle
+import math
+point = circle.point_on_circle(math.pi / 4)  # 45 degrees
+
+# Check intersection with another circle
+circle2 = Circle(center=Point2D(8, 0), radius=5)
+intersects = circle.intersects_circle(circle2)  # True
+points = circle.intersection_points(circle2)  # List of intersection points
+
+# Tangent points from external point
+tangents = circle.tangent_points_from_point(Point2D(10, 0))
+```
+
+#### Ellipse
+
+```python
+from geomkit import Ellipse, Point2D
+import math
+
+# Create an ellipse
+ellipse = Ellipse(
+    center=Point2D(0, 0),
+    semi_major_axis=5,
+    semi_minor_axis=3,
+    rotation=math.pi / 4  # 45 degrees rotation
+)
+
+# Area and perimeter
+area = ellipse.area()  # 47.12...
+perimeter = ellipse.perimeter()  # 25.53... (approximate)
+
+# Eccentricity
+ecc = ellipse.eccentricity()  # 0.8
+
+# Check if point is inside
+inside = ellipse.contains_point(Point2D(2, 1))
+
+# Get point on ellipse at parametric angle
+point = ellipse.point_on_ellipse(math.pi / 3)
+
+# Get focal points
+f1, f2 = ellipse.focal_points()
+```
+
+### Polygons
+
+#### Polygon
+
+```python
+from geomkit import Polygon, Point2D
+
+# Create a polygon
+vertices = [
+    Point2D(0, 0),
+    Point2D(4, 0),
+    Point2D(4, 3),
+    Point2D(0, 3)
+]
+polygon = Polygon(vertices)
+
+# Area and perimeter
+area = polygon.area()  # 12.0
+perimeter = polygon.perimeter()  # 14.0
+
+# Centroid
+centroid = polygon.centroid()
+
+# Check if point is inside
+inside = polygon.contains_point(Point2D(2, 1))  # True
+
+# Check if convex
+convex = polygon.is_convex()  # True
+```
+
+#### Triangle
+
+```python
+from geomkit import Triangle, Point2D
+
+# Create a triangle
+triangle = Triangle(
+    Point2D(0, 0),
+    Point2D(4, 0),
+    Point2D(2, 3)
+)
+
+# Side lengths
+sides = triangle.side_lengths()  # (length_a, length_b, length_c)
+
+# Angles (in radians)
+angles = triangle.angles()  # (angle_a, angle_b, angle_c)
+
+# Check if right triangle
+is_right = triangle.is_right_triangle()  # False
+
+# Inherited from Polygon
+area = triangle.area()
+perimeter = triangle.perimeter()
+centroid = triangle.centroid()
+```
+
+#### Rectangle
+
+```python
+from geomkit import Rectangle, Point2D
+
+# Create a rectangle
+rect = Rectangle(
+    bottom_left=Point2D(0, 0),
+    width=4,
+    height=3
+)
+
+# Area
+area = rect.area()  # 12.0
+
+# Diagonal length
+diagonal = rect.diagonal_length()  # 5.0
+
+# Inherited from Polygon
+perimeter = rect.perimeter()  # 14.0
+centroid = rect.centroid()  # Point2D(2.0, 1.5)
+```
+
+#### Square
+
+```python
+from geomkit import Square, Point2D
+
+# Create a square
+square = Square(
+    bottom_left=Point2D(0, 0),
+    side_length=5
+)
+
+# Area
+area = square.area()  # 25.0
+
+# Diagonal length
+diagonal = square.diagonal_length()  # 7.07...
+
+# Inherited from Polygon
+perimeter = square.perimeter()  # 20.0
+centroid = square.centroid()  # Point2D(2.5, 2.5)
+```
+
+#### RegularPolygon
+
+```python
+from geomkit import RegularPolygon, Point2D
+import math
+
+# Create a regular hexagon
+hexagon = RegularPolygon(
+    center=Point2D(0, 0),
+    num_sides=6,
+    radius=5,
+    rotation=0
+)
+
+# Area and perimeter
+area = hexagon.area()  # 64.95...
+perimeter = hexagon.perimeter()  # 30.0
+
+# Side length
+side = hexagon.side_length()  # 5.0
+
+# Apothem (distance from center to side midpoint)
+apothem = hexagon.apothem()  # 4.33...
+
+# Interior and exterior angles
+interior = hexagon.interior_angle()  # 2.09... radians (120°)
+exterior = hexagon.exterior_angle()  # 1.05... radians (60°)
+
+# Inherited from Polygon
+centroid = hexagon.centroid()
+inside = hexagon.contains_point(Point2D(2, 1))
+```
+
+### Utility Functions
+
+```python
+from geomkit import distance, angle_between, collinear, triangle_area
+from geomkit import Point2D, Vector2D
+import math
+
+# Distance between points
+dist = distance(Point2D(0, 0), Point2D(3, 4))  # 5.0
+
+# Angle between vectors
+v1 = Vector2D(1, 0)
+v2 = Vector2D(0, 1)
+angle_rad = angle_between(v1, v2)  # π/2 radians
+angle_deg = angle_between(v1, v2, degrees=True)  # 90.0
+
+# Check collinearity
+p1, p2, p3 = Point2D(0, 0), Point2D(1, 1), Point2D(2, 2)
+are_collinear = collinear(p1, p2, p3)  # True
+
+# Triangle area from three points
+area = triangle_area(Point2D(0, 0), Point2D(4, 0), Point2D(2, 3))  # 6.0
+```
+
+## Examples
+
+### Example 1: Find Circle Intersections
+
+```python
+from geomkit import Circle, Point2D
+
+circle1 = Circle(Point2D(0, 0), 5)
+circle2 = Circle(Point2D(8, 0), 5)
+
+if circle1.intersects_circle(circle2):
+    points = circle1.intersection_points(circle2)
+    print(f"Circles intersect at: {points}")
+```
+
+### Example 2: Check if Point is Inside Triangle
+
+```python
+from geomkit import Triangle, Point2D
+
+triangle = Triangle(
+    Point2D(0, 0),
+    Point2D(5, 0),
+    Point2D(2.5, 4)
+)
+
+test_point = Point2D(2, 2)
+if triangle.contains_point(test_point):
+    print("Point is inside the triangle")
+```
+
+### Example 3: Vector Projection
+
+```python
+from geomkit import Vector2D
+
+v1 = Vector2D(3, 4)
+v2 = Vector2D(1, 0)
+
+# Project v1 onto v2
+projection_length = v1.dot(v2) / v2.magnitude()
+projection = v2.normalize() * projection_length
+print(f"Projection: {projection}")
+```
+
+## Publishing to PyPI
+
+To publish this library to PyPI:
+
+1. Install build tools:
+```bash
+pip install build twine
+```
+
+2. Build the package:
+```bash
+python -m build
+```
+
+3. Upload to PyPI:
+```bash
+python -m twine upload dist/*
+```
+
+For testing, use TestPyPI first:
+```bash
+python -m twine upload --repository testpypi dist/*
+```
+
+## Requirements
+
+- Python >= 3.8
+- No external dependencies (uses only Python standard library)
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Author
+
+Mohamed Sajith (mmssajith@gmail.com)
+
+## Changelog
+
+### Version 0.1.0 (Initial Release)
+- 2D and 3D point operations
+- 2D and 3D vector operations
+- Line and line segment operations
+- Circle operations
+- Polygon, triangle, and rectangle operations
+- Utility functions for common geometric calculations
