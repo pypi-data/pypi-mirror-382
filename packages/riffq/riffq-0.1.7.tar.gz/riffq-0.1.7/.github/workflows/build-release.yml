@@ -1,0 +1,58 @@
+name: build-release
+
+on:
+  push:
+    tags:
+      - 'release-*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: PyO3/maturin-action@v1
+      with:
+        command: build
+        args: --release
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wheels-${{ matrix.os }}
+        path: target/wheels/*.whl
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: PyO3/maturin-action@v1
+      with:
+        command: sdist
+    - uses: actions/upload-artifact@v4
+      with:
+        name: sdist
+        path: target/wheels/*.tar.gz
+
+  publish-pypi:
+    needs: [build, sdist]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: wheels-*
+        merge-multiple: true
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: sdist
+        merge-multiple: true
+    - run: |
+        mkdir dist
+        find . -name '*.whl' -exec cp {} dist/ \;
+        find . -name '*.tar.gz' -exec cp {} dist/ \;
+    - uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        skip-existing: true

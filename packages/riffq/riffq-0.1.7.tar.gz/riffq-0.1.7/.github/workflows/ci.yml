@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request: 
+    branches: ["**"]
+
+jobs:
+  unit-tests:
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - uses: Swatinem/rust-cache@v2
+      - name: Run Rust tests
+        run: cargo test --verbose
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      - name: Install maturin
+        run: pip install maturin
+      - name: Install wheel
+        run: pip install .
+      - name: Install teleduck
+        run: pip install ./teleduck
+      - name: Run Python unit tests
+        run: python -m unittest discover -s tests
+      - name: Run concurrency unit tests
+        run: python -m unittest discover -s test_concurrency
+      - name: Run teleduck unit tests
+        run: python -m unittest discover -s teleduck/tests -p 'test_*.py'
+
