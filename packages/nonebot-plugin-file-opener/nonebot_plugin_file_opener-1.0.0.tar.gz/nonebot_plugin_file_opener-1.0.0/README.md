@@ -1,0 +1,108 @@
+# 文件打开插件
+
+通过检测特定私聊关键词来打开对应文件的 NoneBot 插件。
+
+
+## 快速开始
+
+1. **配置管理员** - 在 `.env` 文件中设置你的QQ号
+2. **设置关键词** - 配置关键词和对应的文件路径
+3. **开始使用** - 私聊机器人发送关键词即可打开文件
+
+### 最小配置示例
+```bash
+# 在 .env 文件中添加
+file_opener_admins=["你的QQ号"]
+file_opener_keywords={"打开日志": "debug.log", "打开崩铁": "C:/Program Files/miHoYo Launcher/launcher.exe"}
+```
+
+## 功能特性
+
+- **权限控制**: 只有配置的管理员QQ号可以使用
+- **关键词匹配**: 支持自定义关键词和文件路径映射
+- **路径支持**: 支持相对路径和绝对路径
+- **跨平台**: 支持 Windows、macOS 和 Linux
+- **日志记录**: 可选的操作日志记录
+- **即时反馈**: 操作成功或失败都会有消息反馈
+
+## 配置说明
+
+在 `.env` 文件中添加以下配置：
+
+```bash
+# 文件打开插件配置
+# 启用插件
+file_opener_enable=true
+
+# 管理员QQ号列表（只有这些用户可以私聊使用文件打开功能）
+file_opener_admins=["3498923240", "1234567890"]
+
+# 关键词到文件路径的映射（JSON格式）
+# 支持相对路径（相对于项目根目录）和绝对路径
+file_opener_keywords={"打开日志": "debug.log", "打开配置": ".env", "打开记录": "data/record.json", "打开笔记": "C:/Users/YourName/Documents/notes.txt"}
+
+# 是否记录操作日志
+file_opener_log_enabled=true
+```
+
+### 配置项说明
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `file_opener_enable` | bool | true | 是否启用插件 |
+| `file_opener_admins` | List[str] | [] | 管理员QQ号列表 |
+| `file_opener_keywords` | Dict[str, str] | {} | 关键词到文件路径的映射 |
+| `file_opener_log_enabled` | bool | true | 是否记录操作日志 |
+
+## 使用方法
+
+1. **配置管理员**: 在 `file_opener_admins` 中添加你的QQ号
+2. **设置关键词**: 在 `file_opener_keywords` 中配置关键词和对应的文件路径
+3. **私聊触发**: 使用配置的管理员QQ号私聊机器人，发送包含关键词的消息
+
+### 示例
+
+假设配置了以下关键词映射：
+```json
+{
+  "打开日志": "debug.log",
+  "打开配置": ".env",
+  "查看记录": "data/record.json"
+}
+```
+
+那么在私聊中发送：
+- "帮我打开日志" → 会打开 `debug.log` 文件
+- "打开配置文件" → 会打开 `.env` 文件  
+- "我要查看记录" → 会打开 `data/record.json` 文件
+
+## 路径说明
+
+### 相对路径
+相对路径是相对于项目根目录（包含 `pyproject.toml` 的目录）：
+- `"debug.log"` → `项目根目录/debug.log`
+- `"data/record.json"` → `项目根目录/data/record.json`
+
+### 绝对路径
+可以使用完整的文件路径：
+- Windows: `"C:/Users/YourName/Documents/notes.txt"`
+- macOS/Linux: `"/home/username/documents/notes.txt"`
+
+## 故障排除
+
+### 文件打开失败
+1. 检查文件路径是否正确
+（注意：路径应使用"/"，而并非默认复制的”\“）
+2. 确认文件确实存在
+3. 检查文件权限
+4. 查看日志获取详细错误信息
+
+### 关键词不生效
+1. 确认QQ号在管理员列表中
+2. 检查关键词配置格式是否正确
+3. 确认是在私聊中发送消息
+
+### 配置问题
+1. 检查 `.env` 文件格式
+2. 确认JSON格式的关键词映射是否正确
+3. 重启机器人使配置生效
