@@ -1,0 +1,19 @@
+<script src="https://www.google.com/recaptcha/api.js?render={{ config["RECAPTCHA_SITE_KEY"] }}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    function executeRecaptcha(callback) {
+      grecaptcha.ready(() => grecaptcha.execute('{{ config["RECAPTCHA_SITE_KEY"] }}', {action: 'submit'}).then(callback));
+    }
+    document.querySelectorAll('form').forEach((el) => {
+      el.addEventListener('submit', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        executeRecaptcha((token) => {
+          el.insertAdjacentHTML('beforeend', `<input type="hidden" name="recaptcha_token" value="${token}">`);
+          el.submit();
+        });
+      });
+    });
+  });
+</script>
