@@ -1,0 +1,109 @@
+Metadata-Version: 2.4
+Name: rebel-forge
+Version: 0.2.0
+Summary: Config-driven QLoRA/LoRA fine-tuning toolkit for Rebel Forge
+Author: Rebel AI
+License-Expression: LicenseRef-Proprietary
+Keywords: qlora,lora,fine-tuning,transformers,rebel
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: accelerate>=0.34.2
+Requires-Dist: datasets>=3.0.1
+Requires-Dist: numpy<2.4.0,>=2.3.0
+Requires-Dist: peft>=0.12.0
+Requires-Dist: sentencepiece>=0.2.0
+Requires-Dist: transformers>=4.44.2
+Provides-Extra: cpu
+Requires-Dist: torch>=2.3.0; extra == "cpu"
+Provides-Extra: cuda
+Requires-Dist: torch>=2.3.0; extra == "cuda"
+Requires-Dist: bitsandbytes>=0.45.0; extra == "cuda"
+Provides-Extra: dev
+Requires-Dist: build>=1.3.0; extra == "dev"
+Requires-Dist: twine>=5.1.1; extra == "dev"
+Dynamic: license-file
+
+# rebel-forge
+
+`rebel-forge` is a config-driven QLoRA/LoRA fine-tuning toolkit that runs smoothly on the Nebius GPU stack. It wraps the Hugging Face Transformers + PEFT workflow so teams can fine-tune hosted or user-provided models with a single command.
+
+## Installation
+
+### Minimal install
+
+```bash
+pip install rebel-forge
+```
+
+This pulls in the core trainer toolkit (Transformers, Accelerate, Datasets, PEFT, etc.). Install a compatible PyTorch build yourself or pick one of the extras below when you know your runtime.
+
+### Optional extras
+
+```bash
+# CPU-only wheels from PyPI
+pip install rebel-forge[cpu]
+
+# CUDA wheels (override the index if you want the official PyTorch CUDA wheels)
+pip install rebel-forge[cuda] --extra-index-url https://download.pytorch.org/whl/cu124
+```
+
+### From source
+
+```bash
+git clone <repo-url>
+cd rebel-forge
+pip install -e .
+```
+
+## Usage
+
+Prepare an INI/`.conf` file that names your base model, datasets, and training preferences. Then launch training with:
+
+```bash
+rebel-forge --config path/to/run.conf
+```
+
+The CLI infers sensible defaults (epochs, LoRA hyperparameters, dataset splits, etc.) and stores summaries plus adapter checkpoints inside the configured `output_dir`.
+
+## Example configuration
+
+```ini
+[model]
+base_model = meta-llama/Llama-3.1-8B
+output_dir = /mnt/checkpoints/llama-3.1-chat
+quant_type = nf4
+
+[data]
+format = plain
+train_data = /mnt/datasets/fta/train.jsonl
+eval_data = /mnt/datasets/fta/val.jsonl
+text_column = text
+
+[training]
+batch_size = 2
+epochs = 3
+learning_rate = 2e-4
+warmup_ratio = 0.05
+save_steps = 250
+
+[lora]
+lora_r = 64
+lora_alpha = 16
+lora_dropout = 0.05
+```
+
+## Key features
+
+- Optional 4-bit QLoRA via bitsandbytes (install `rebel-forge[cuda]` or `bitsandbytes` manually to enable)
+- Dataset auto-loading for JSON/JSONL/CSV/TSV/local directories and Hugging Face Hub references
+- Configurable LoRA target modules, quantization type, and training hyperparameters
+- Summary JSON + adapter checkpoints emitted for downstream pipelines (Convex sync, artifact uploads, etc.)
+
+## Development
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
+```
