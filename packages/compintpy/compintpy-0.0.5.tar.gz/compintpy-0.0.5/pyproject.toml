@@ -1,0 +1,91 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    "wheel",
+    "ninja",
+    "cmake>=3.12",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.poetry]
+name = "compintpy"
+version = "0.0.5"
+description = "Python bindings for compintc: A variable length compression algorithm."
+authors = ["Jeffrey Wigger"]
+license = "BSD-3-Clause"
+readme = "README.md"
+repository = "https://github.com/JeffWigger/FastDynamicBatcher"
+homepage = "https://github.com/JeffWigger/FastDynamicBatcher"
+keywords = ["compression", "integer"]
+
+[tool.poetry.group.dev.dependencies]
+sphinx = "^7.2.6"
+ruff = "^0.1.11"
+matplotlib = "^3.8.2"
+pandas = "^2.1.4"
+
+[tool.poetry.dependencies]
+python = ">=3.11"
+numpy = "^2.3.0"
+
+[tool.mypy]
+files = "setup.py"
+python_version = "3.12"
+strict = true
+show_error_codes = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["ninja"]
+ignore_missing_imports = true
+
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = ["error"]
+testpaths = ["tests"]
+
+[tool.cibuildwheel]
+test-command = "pytest {project}/tests"
+test-extras = ["test"]
+test-skip = ["*universal2:arm64"]
+# Setuptools bug causes collision between pypy and cpython artifacts
+before-build = "rm -rf {project}/build"
+
+[tool.ruff]
+extend-select = [
+  "B",    # flake8-bugbear
+  "B904",
+  "I",    # isort
+  "PGH",  # pygrep-hooks
+  "RUF",  # Ruff-specific
+  "UP",   # pyupgrade
+]
+extend-ignore = [
+  "E501",   # Line too long
+]
+target-version = "py312"
+line-length = 120
+exclude = ["pybind11", "build"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = ["UP007"]
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+lines-between-types = 1
+known-first-party = ["commpy", "_compintpy"]
