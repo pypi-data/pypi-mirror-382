@@ -1,0 +1,349 @@
+Metadata-Version: 2.4
+Name: llm-provider
+Version: 1.0.0
+Summary: A unified interface for multiple LLM providers
+Home-page: https://github.com/sadikhanecioglu/llm-provider
+Author: Sadık Hanecioglu
+Author-email: Sadık Hanecioglu <sadikhanecioglu@example.com>
+Maintainer-email: Sadık Hanecioglu <sadikhanecioglu@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/sadikhanecioglu/llm-provider
+Project-URL: Documentation, https://github.com/sadikhanecioglu/llm-provider#readme
+Project-URL: Repository, https://github.com/sadikhanecioglu/llm-provider
+Project-URL: Bug Tracker, https://github.com/sadikhanecioglu/llm-provider/issues
+Keywords: llm,openai,anthropic,gemini,ai,machine learning
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.25.0
+Requires-Dist: typing-extensions>=4.0.0; python_version < "3.10"
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0; extra == "dev"
+Requires-Dist: pytest-cov>=2.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.18.0; extra == "dev"
+Requires-Dist: black>=21.0; extra == "dev"
+Requires-Dist: isort>=5.0; extra == "dev"
+Requires-Dist: flake8>=3.8; extra == "dev"
+Requires-Dist: mypy>=0.910; extra == "dev"
+Requires-Dist: pre-commit>=2.15; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=4.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.0; extra == "docs"
+Requires-Dist: myst-parser>=0.17; extra == "docs"
+Provides-Extra: all
+Requires-Dist: llm-provider[dev,docs]; extra == "all"
+
+# LLM Provider Factory
+
+A unified, extensible interface for multiple Large Language Model providers. Built with clean architecture principles and SOLID design patterns.
+
+## Features
+
+- 🏭 **Factory Pattern**: Clean, consistent interface across providers
+- 🔌 **Extensible**: Easy to add new LLM providers
+- 🛡️ **Type Safe**: Full TypeScript-style typing support
+- 🚀 **Production Ready**: Comprehensive error handling and logging
+- 📦 **Zero Dependencies**: Only requires `requests` for HTTP calls
+- 🎯 **SOLID Principles**: Clean, maintainable architecture
+
+## Supported Providers
+
+- **OpenAI** (GPT-3.5, GPT-4, etc.)
+- **Anthropic** (Claude models)
+- **Google Gemini** (Gemini Pro, Flash, etc.)
+
+## Installation
+
+```bash
+pip install llm-provider
+```
+
+## Quick Start
+
+### Method 1: Using Provider Instance (Recommended)
+
+```python
+from llm_provider import LLMProviderFactory, OpenAI
+
+# Initialize with provider instance
+provider = LLMProviderFactory(OpenAI(api_key="your-openai-key"))
+
+# Generate response
+response = provider.generate(
+    prompt="Hello, how are you?",
+    history=[]
+)
+
+print(response.content)
+```
+
+### Method 2: Using Factory Method
+
+```python
+from llm_provider import LLMProviderFactory
+
+# Create provider using factory method
+provider = LLMProviderFactory.create_provider(
+    "openai", 
+    api_key="your-openai-key"
+)
+
+response = provider.generate(prompt="Hello", history=[])
+print(response.content)
+```
+
+## Advanced Usage
+
+### Working with Conversation History
+
+```python
+from llm_provider import LLMProviderFactory, OpenAI, Message
+
+provider = LLMProviderFactory(OpenAI(api_key="your-key"))
+
+# Using Message objects
+history = [
+    Message(role="user", content="What's the capital of France?"),
+    Message(role="assistant", content="The capital of France is Paris."),
+]
+
+response = provider.generate(
+    prompt="What's its population?",
+    history=history
+)
+
+# Or using dictionaries
+history_dict = [
+    {"role": "user", "content": "What's the capital of France?"},
+    {"role": "assistant", "content": "The capital of France is Paris."},
+]
+
+response = provider.generate(
+    prompt="What's its population?",
+    history=history_dict
+)
+```
+
+### Custom Generation Parameters
+
+```python
+response = provider.generate(
+    prompt="Write a creative story",
+    temperature=0.9,
+    max_tokens=500,
+    top_p=0.95
+)
+```
+
+### Using Different Providers
+
+```python
+from llm_provider import LLMProviderFactory, OpenAI, Anthropic, Gemini
+
+# OpenAI
+openai_provider = LLMProviderFactory(OpenAI(api_key="openai-key"))
+
+# Anthropic
+anthropic_provider = LLMProviderFactory(Anthropic(api_key="anthropic-key"))
+
+# Gemini
+gemini_provider = LLMProviderFactory(Gemini(api_key="gemini-key"))
+
+# Switch between providers
+factory = LLMProviderFactory(openai_provider.provider)
+factory.switch_provider(anthropic_provider.provider)
+```
+
+### Error Handling
+
+```python
+from llm_provider import (
+    LLMProviderFactory, 
+    OpenAI, 
+    APIError, 
+    RateLimitError, 
+    AuthenticationError
+)
+
+try:
+    provider = LLMProviderFactory(OpenAI(api_key="your-key"))
+    response = provider.generate("Hello")
+    
+except AuthenticationError as e:
+    print(f"Authentication failed: {e}")
+    
+except RateLimitError as e:
+    print(f"Rate limit exceeded: {e}")
+    
+except APIError as e:
+    print(f"API error: {e}")
+```
+
+### Getting Available Models
+
+```python
+provider = LLMProviderFactory(OpenAI(api_key="your-key"))
+models = provider.get_available_models()
+print(f"Available models: {models}")
+```
+
+### Provider Information
+
+```python
+provider = LLMProviderFactory(OpenAI(api_key="your-key"))
+info = provider.get_provider_info()
+print(f"Provider: {info['name']}")
+print(f"Class: {info['class']}")
+```
+
+## Extending with Custom Providers
+
+```python
+from llm_provider import BaseLLMProvider, LLMResponse, LLMProviderFactory
+
+class CustomProvider(BaseLLMProvider):
+    def _validate_config(self):
+        if not self.config.get('api_key'):
+            raise ConfigurationError("API key required")
+    
+    def generate(self, prompt, history=None, **kwargs):
+        # Your custom implementation
+        return LLMResponse(
+            content="Custom response",
+            model="custom-model",
+            metadata={"provider": "custom"}
+        )
+    
+    def get_available_models(self):
+        return ["custom-model-1", "custom-model-2"]
+
+# Register the custom provider
+LLMProviderFactory.register_provider("custom", CustomProvider)
+
+# Use it
+provider = LLMProviderFactory.create_provider("custom", api_key="test")
+```
+
+## Configuration
+
+### Environment Variables
+
+```bash
+export LLM_PROVIDER_TIMEOUT=30
+export LLM_PROVIDER_MAX_RETRIES=3
+export LLM_PROVIDER_LOG_LEVEL=INFO
+```
+
+### Custom Configuration
+
+```python
+from llm_provider import Config, LLMProviderFactory, OpenAI
+
+config = Config(
+    default_timeout=60,
+    default_max_retries=5,
+    log_level="DEBUG"
+)
+
+provider = LLMProviderFactory(
+    OpenAI(api_key="your-key"), 
+    config=config
+)
+```
+
+## API Reference
+
+### LLMProviderFactory
+
+- `__init__(provider, config=None)`: Initialize with provider instance
+- `generate(prompt, history=None, **kwargs)`: Generate response
+- `get_available_models()`: Get available models
+- `get_provider_info()`: Get provider information
+- `switch_provider(provider)`: Switch to different provider
+- `create_provider(name, **kwargs)`: Class method to create provider
+- `register_provider(name, class)`: Class method to register custom provider
+
+### LLMResponse
+
+- `content`: Generated text content
+- `model`: Model used for generation
+- `usage`: Usage statistics (tokens, etc.)
+- `metadata`: Additional metadata
+
+### Message
+
+- `role`: Message role ('user', 'assistant', 'system')
+- `content`: Message content
+- `to_dict()`: Convert to dictionary
+
+## Development
+
+### Setup Development Environment
+
+```bash
+git clone https://github.com/sadikhanecioglu/llm-provider
+cd llm-provider
+pip install -e ".[dev]"
+```
+
+### Run Tests
+
+```bash
+pytest
+```
+
+### Code Formatting
+
+```bash
+black src/ tests/
+isort src/ tests/
+```
+
+### Type Checking
+
+```bash
+mypy src/
+```
+
+## Architecture
+
+This package follows SOLID principles:
+
+- **S**ingle Responsibility: Each class has one reason to change
+- **O**pen/Closed: Open for extension, closed for modification  
+- **L**iskov Substitution: Providers are interchangeable
+- **I**nterface Segregation: Minimal, focused interfaces
+- **D**ependency Inversion: Depend on abstractions, not concretions
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Run the test suite
+6. Submit a pull request
+
+## Changelog
+
+### v1.0.0
+- Initial release
+- Support for OpenAI, Anthropic, and Gemini
+- Factory pattern implementation
+- Comprehensive error handling
+- Full test coverage
