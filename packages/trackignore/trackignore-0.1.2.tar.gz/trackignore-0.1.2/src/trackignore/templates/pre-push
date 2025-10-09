@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# trackignore pre-push hook
+# Intercepts pushes to public remotes and runs `trackignore push`
+# before cancelling the original push attempt.
+
+if [[ "${TRACKIGNORE_SKIP_HOOK:-}" == "1" ]]; then
+  exit 0
+fi
+
+remote_name="${1:-}"
+remote_url="${2:-}"
+
+# Fallbacks if Git does not supply remote URL.
+if [[ -z "${remote_url}" && -n "${remote_name}" ]]; then
+  remote_url="$(git remote get-url "${remote_name}" 2>/dev/null || true)"
+fi
+
+public_remotes_default="origin"
+private_remotes_default="origin-private"
+
+# Space-separated lists, override via environment if desired.
+public_remotes="${TRACKIGNORE_PUBLIC_REMOTES:-$public_remotes_default}"
+private_remotes="${TRACKIGNORE_PRIVATE_REMOTES:-$private_remotes_default}"
+
+repo_root="$(git rev-parse --show-toplevel)"
+config_file="${repo_root}/.trackignore.d/config.sh"
+if [[ -f "${config_file}" ]]; then
+  # shellcheck disable=SC1090
+  source "${config_file}"
+  public_remotes="${TRACKIGNORE_PUBLIC_REMOTES:-$public_remotes}"
+  private_remotes="${TRACKIGNORE_PRIVATE_REMOTES:-$private_remotes}"
+fi
+
+# Skip hook if remote is explicitly marked as private.
+for allowed in ${private_remotes}; do
+  if [[ -n "${allowed}" && "${remote_name}" == "${allowed}" ]]; then
+    exit 0
+  fi
+done
+
+# Determine if remote should trigger trackignore push.
+should_run=0
+for candidate in ${public_remotes}; do
+  if [[ -n "${candidate}" && "${remote_name}" == "${candidate}" ]]; then
+    should_run=1
+    break
+  fi
+done
+
+if [[ ${should_run} -eq 0 ]]; then
+  exit 0
+fi
+
+if ! command -v trackignore >/dev/null 2>&1; then
+  cat >&2 <<'EOF'
+trackignore hook: 'trackignore' CLI not found on PATH.
+Install via `pipx install trackignore` or rerun `trackignore init`.
+EOF
+  exit 1
+fi
+
+# Collect branches from stdin.
+branches=()
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # Skip blank lines (can occur when hook invoked without refs).
+  if [[ -z "${local_ref:-}" ]]; then
+    continue
+  fi
+  # Skip deletions.
+  if [[ "${local_sha}" == "0000000000000000000000000000000000000000" ]]; then
+    continue
+  fi
+  if [[ "${local_ref}" == refs/heads/* ]]; then
+    branch="${local_ref#refs/heads/}"
+    branches+=("${branch}")
+  fi
+done
+
+# If no branches detected, fall back to current branch.
+if [[ ${#branches[@]:-0} -eq 0 ]]; then
+  current_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+  branches+=("${current_branch}")
+fi
+
+# Deduplicate branches.
+unique_branches=()
+for branch in "${branches[@]-}"; do
+  skip=0
+  for existing in "${unique_branches[@]-}"; do
+    if [[ "${existing}" == "${branch}" ]]; then
+      skip=1
+      break
+    fi
+  done
+  if [[ ${skip} -eq 0 ]]; then
+    unique_branches+=("${branch}")
+  fi
+done
+
+autorun="${TRACKIGNORE_AUTORUN:-}"
+if [[ -n "${CI:-}" ]]; then
+  autorun=1
+fi
+
+if [[ -z "${autorun}" ]]; then
+  prompt="Run trackignore push before publishing to ${remote_name:-remote}? [Y/n] "
+  read -r -p "${prompt}" reply || reply="n"
+  reply="${reply:-y}"
+  if [[ ! "${reply}" =~ ^[Yy]$ ]]; then
+    cat >&2 <<'EOF'
+trackignore hook: push blocked. Run `trackignore push` manually to strip protected paths.
+EOF
+    exit 1
+  fi
+else
+  echo "trackignore hook: autorun enabled; invoking trackignore push..." >&2
+fi
+
+cmd=(trackignore push --repo-root "${repo_root}" --yes)
+if [[ -n "${remote_name}" ]]; then
+  cmd+=(--remote "${remote_name}")
+fi
+if [[ -n "${remote_url}" ]]; then
+  cmd+=(--remote-url "${remote_url}")
+fi
+if [[ ${#unique_branches[@]:-0} -gt 0 ]]; then
+  cmd+=(--branches "${unique_branches[@]}")
+fi
+if [[ "${TRACKIGNORE_PUSH_FORCE:-0}" == "1" ]]; then
+  cmd+=(--force)
+fi
+if [[ "${TRACKIGNORE_PUSH_SKIP_STATE:-0}" == "1" ]]; then
+  cmd+=(--skip-state)
+fi
+if [[ "${TRACKIGNORE_PUSH_DRY_RUN:-0}" == "1" ]]; then
+  cmd+=(--dry-run)
+fi
+
+export TRACKIGNORE_SKIP_HOOK=1
+set +e
+output="$("${cmd[@]}" 2>&1)"
+status=$?
+set -e
+echo "${output}"
+
+case "${status}" in
+  0)
+    echo "trackignore hook: sanitized push complete; original git push canceled." >&2
+    exit 1
+    ;;
+  2)
+    echo "trackignore hook: cleanup required. Resolve issues then retry." >&2
+    exit 1
+    ;;
+  *)
+    echo "trackignore hook: trackignore push failed (exit ${status})." >&2
+    exit "${status}"
+    ;;
+esac
