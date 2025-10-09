@@ -1,0 +1,1 @@
+LG_API_DTO="{lg.com.br/api/dto/v1}"
