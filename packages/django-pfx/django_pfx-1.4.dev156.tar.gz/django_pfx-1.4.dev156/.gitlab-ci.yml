@@ -1,0 +1,125 @@
+image: python:3.13
+# Python 3.14 was released the 7 October 2025, but there is an incompatibility
+# with Django, this will be probably fixed in Django 5.2.
+
+services:
+  - postgres:latest
+
+variables:
+  POSTGRES_DB: database_name
+
+cache:
+  paths:
+    - .cache/pip/
+
+before_script:
+  - python -V  # Print out python version for debugging
+  - pip install --upgrade pip wheel setuptools
+  - '[ -z "$DJANGO_VERSION" ] || pip install "$DJANGO_VERSION"'
+  - pip install -r requirements.txt
+  - pip install -e .
+
+
+stages:
+  - test
+  - build
+  - package
+
+quality check:
+  variables:
+    DJANGO_VERSION: 'django==4.2.*'  # LTS
+  script:
+    - apt-get update
+    - apt-get install -y gettext
+    - flake8 .
+    - isort . -c
+    - ./make_messages
+    - git diff --exit-code  # exit if messages changed
+    - python manage.py makemigrations --check --dry-run
+    - python manage.py makemigrations tests_base_user --check --dry-run
+    - python manage.py makemigrations tests_custom_user --check --dry-run
+
+test:
+  image: $IMAGE
+  variables:
+    POSTGRES_DB: ci
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+  script:
+    - apt-get update
+    - apt-get install -y gettext
+    - python manage.py compilemessages -i venv
+    - coverage run -a --source='.' manage.py test
+    - coverage run -a --source='.' manage.py test tests_base_user
+    - coverage run -a --source='.' manage.py test tests_custom_user
+    - coverage report
+    - coverage xml
+    - coverage html
+  coverage: '/TOTAL.*\s([.\d]+)%/'
+  artifacts:
+    when: always
+    paths:
+      - htmlcov/**
+    expire_in: 7 day
+    reports:
+      junit: testreport.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  parallel:
+    matrix:
+    - DJANGO_VERSION: 'django==4.2.*'
+      IMAGE: python:3.13
+    - DJANGO_VERSION: 'django==5.2.*'
+      IMAGE: python:3.13  # until Django is compatible with python 3.14
+
+
+build doc:
+  stage: build
+  needs: []
+  interruptible: true
+  script:
+    - cd doc
+    - make html
+  artifacts:
+    when: always
+    paths:
+      - doc/_build/**
+    expire_in: 7 day
+
+pages:
+  stage: package
+  needs:
+    - job: build doc
+      artifacts: true
+    - job: test
+      artifacts: true
+  script:
+    - mkdir public
+    - mv doc/_build/html public/doc
+    - mv htmlcov public/coverage
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
+
+package:
+  stage: package
+  needs:
+    - job: quality check
+    - job: test
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^\d+\.\d+$/
+      when: on_success
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: on_success
+  script:
+    - apt-get update
+    - apt-get install -y gettext
+    - git fetch --prune --unshallow
+    - pip install --upgrade twine
+    - pip install -r requirements.txt
+    - ./manage.py compilemessages -i venv -i tests
+    - python3 -m build
+    - TWINE_PASSWORD=${PYPI_DEPLOY_TOKEN} TWINE_USERNAME=__token__ python3 -m twine upload dist/*

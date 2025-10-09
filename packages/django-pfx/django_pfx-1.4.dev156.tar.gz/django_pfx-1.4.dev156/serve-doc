@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# A script to build and serve HTML doc.
+# Auto rebuild on file change and auto reload web page.
+
+ERROR='\033[0;91m'
+WARN='\033[0;93m'
+INFO='\033[0;96m'
+NC='\033[0m' # No Color
+MISSING_COMMAND=false
+
+PORT=${1:-3000}
+
+if ! command -v inotifywait &> /dev/null
+then
+    echo -e \
+"""${ERROR}inotifywait not found!${NC} Please install it:
+${INFO}> sudo apt install inotify-tools${NC}"""
+    MISSING_COMMAND=true
+fi
+if ! command -v browser-sync &> /dev/null
+then
+    echo -e \
+"""${ERROR}browser-sync not found!${NC} Please install it:
+${INFO}> npm install -g browser-sync${NC}"""
+    MISSING_COMMAND=true
+fi
+$MISSING_COMMAND && exit 1
+
+function build_doc() {
+    (cd doc && make html)
+}
+
+function ctrl_c() {
+    echo -e "\nExiting…"
+    pkill -P $$
+    exit 0
+}
+
+(cd doc && make clean)
+build_doc
+browser-sync --port $PORT doc/_build/html/ &
+trap ctrl_c INT
+
+while :
+do
+    inotifywait -q -r -e modify doc/source doc/index.rst pfx
+    build_doc
+    browser-sync --port $PORT reload
+done
+
+pkill -P $$
