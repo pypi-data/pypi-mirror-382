@@ -1,0 +1,107 @@
+name: CD (Docs)
+
+# Limit concurrent deployments to ensure sequential processing
+concurrency:
+  group: "pages"
+  cancel-in-progress: false # Queue deployments instead of canceling in-progress ones
+
+on:
+  # Trigger when CI workflow completes on main branch
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types:
+      - completed
+
+  # Custom event from release workflow (triggered after PyPI release)
+  repository_dispatch:
+    types: [deploy-docs]
+
+  # Allow manual triggering
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-docs:
+    runs-on: ubuntu-latest
+    # Run for successful CI on main, repository_dispatch events, or manual triggers
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'repository_dispatch' ||
+      github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Generate App token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.FACTRAINER_GITHUB_APP_ID }}
+          private-key: ${{ secrets.FACTRAINER_GITHUB_APP_PRIVATE_KEY }}
+      
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # Required for mike to work properly with version history
+          # Checkout the tag for repository_dispatch events
+          ref: ${{ github.event_name == 'repository_dispatch' && format('refs/tags/v{0}', github.event.client_payload.version) || '' }}
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --all-extras --all-groups
+
+      - name: Set up Git user
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy documentation (main branch)
+        if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
+        run: |
+          # Deploy the latest development version
+          uv run mike deploy --push --update-aliases latest
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+
+      - name: Deploy documentation (release)
+        if: github.event_name == 'repository_dispatch' && github.event.client_payload.version != ''
+        run: |
+          # Get version from payload
+          VERSION="${{ github.event.client_payload.version }}"
+
+          # Extract major.minor version (e.g., 1.2.3 -> 1.2)
+          MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
+
+          # Deploy version with update-aliases to handle patch updates
+          uv run mike deploy --push --update-aliases $MAJOR_MINOR
+
+          # Get the highest major.minor version from all releases
+          HIGHEST_MAJOR_MINOR=$(gh release list --json tagName --exclude-drafts --exclude-pre-releases | \
+                               jq -r '.[].tagName' | \
+                               sed 's/^v//' | \
+                               awk -F. '{print $1"."$2}' | \
+                               sort -V | \
+                               tail -n1)
+
+          echo "Current version: $MAJOR_MINOR, Highest version: $HIGHEST_MAJOR_MINOR"
+
+          # Set as default only if this is the highest major.minor version
+          if [[ "$MAJOR_MINOR" == "$HIGHEST_MAJOR_MINOR" ]]; then
+            echo "Setting $MAJOR_MINOR as the stable version and making stable the default"
+            # First createupdate the stable alias to point to this version
+            uv run mike alias --push $MAJOR_MINOR stable
+            # Then set stable as the default (for root URL redirect)
+            uv run mike set-default --push stable
+          else
+            echo "Not setting as default because $HIGHEST_MAJOR_MINOR is the highest version (current is $MAJOR_MINOR)"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}

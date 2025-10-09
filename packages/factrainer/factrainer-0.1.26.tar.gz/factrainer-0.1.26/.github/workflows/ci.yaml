@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "release/**/*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to checkout"
+        required: false
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test-all:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version:
+          - "3.12"
+    steps:
+      - name: Install libomp on macOS
+        if: matrix.os == 'macos-latest'
+        run: brew update && brew install libomp
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.ref }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+            **/requirements*.txt
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project
+        run: uv sync --all-extras --locked --all-groups
+
+      - name: Run tests
+        run: |
+          uv run mypy
+          uv run pytest -v --cov --cov-report=xml
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        if: github.ref == 'refs/heads/main' && matrix.os == 'ubuntu-latest'
+        with:
+          use_oidc: true
+          fail_ci_if_error: true
+
+  test-package:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 2
+      matrix:
+        package: [sklearn, lightgbm, xgboost, catboost]
+        python-version: ["3.12", "3.13", "3.14"]
+        exclude:
+          - package: catboost
+            python-version: "3.14"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.ref }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+            **/requirements*.txt
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project
+        run: uv sync --extra ${{ matrix.package }} --locked --all-groups
+
+      - name: Run tests
+        run: uv run pytest -v tests/${{ matrix.package }}

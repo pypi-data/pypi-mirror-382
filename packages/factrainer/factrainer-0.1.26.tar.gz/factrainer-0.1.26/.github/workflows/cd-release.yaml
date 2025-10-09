@@ -1,0 +1,231 @@
+name: CD (Release)
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: ["release/**/*"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  approval:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'release/') }}
+    environment: release-approval
+    steps:
+      - name: Approval check
+        run: echo "Release approved!"
+
+  build:
+    needs: approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate App token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.FACTRAINER_GITHUB_APP_ID }}
+          private-key: ${{ secrets.FACTRAINER_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Checkout release branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Extract version from branch name
+        id: extract_version
+        run: |
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          VERSION="${BRANCH#release/}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Build the project
+        run: uv build --all-packages
+
+      - name: Sign the dists with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v3.0.1
+        with:
+          inputs: >-
+            ./dist/*.tar.gz
+            ./dist/*.whl
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-files
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          retention-days: 1
+
+      - name: Save version
+        run: echo "${{ steps.extract_version.outputs.version }}" > version.txt
+
+      - name: Upload version info
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-info
+          path: version.txt
+          retention-days: 1
+
+  publish-test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: dist-files
+          path: dist/
+
+      - name: Publish to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          repository-url: https://test.pypi.org/legacy/
+          verbose: true
+          print-hash: true
+
+  git-tag:
+    needs: publish-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate App token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.FACTRAINER_GITHUB_APP_ID }}
+          private-key: ${{ secrets.FACTRAINER_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Checkout release branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Download version info
+        uses: actions/download-artifact@v5
+        with:
+          name: version-info
+
+      - name: Set version
+        id: set_version
+        run: echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Create & push Git tag
+        run: |
+          git tag -a "v${{ steps.set_version.outputs.version }}" -m "AUTO COMMIT BY GITHUB ACTIONS: Release v${{ steps.set_version.outputs.version }}"
+          git push origin "refs/tags/v${{ steps.set_version.outputs.version }}"
+
+  github-release:
+    needs: git-tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download version info
+        uses: actions/download-artifact@v5
+        with:
+          name: version-info
+
+      - name: Set version
+        id: set_version
+        run: echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: dist-files
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ steps.set_version.outputs.version }}"
+          name: "Release v${{ steps.set_version.outputs.version }}"
+          body: "This is an automated release created by GitHub Actions. If detailed information is needed, it will be added manually later. Please wait for updates."
+          files: dist/*.whl dist/*.tar.gz
+
+  publish-pypi:
+    needs: github-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: dist-files
+          path: dist/
+
+      - name: Download version info
+        uses: actions/download-artifact@v5
+        with:
+          name: version-info
+
+      - name: Set version
+        id: set_version
+        run: echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          verbose: true
+          print-hash: true
+
+      - name: Trigger Documentation Deployment
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ github.token }}
+          event-type: deploy-docs
+          client-payload: '{"version": "${{ steps.set_version.outputs.version }}"}'
+
+  create-pr:
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate App token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.FACTRAINER_GITHUB_APP_ID }}
+          private-key: ${{ secrets.FACTRAINER_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Checkout release branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Download version info
+        uses: actions/download-artifact@v5
+        with:
+          name: version-info
+
+      - name: Set version
+        id: set_version
+        run: echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request to main
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          gh pr create --base main --head "${{ github.event.workflow_run.head_branch }}" \
+            --title "Release v${{ steps.set_version.outputs.version }}" \
+            --body "Automatically generated release PR (Version: v${{ steps.set_version.outputs.version }})"
