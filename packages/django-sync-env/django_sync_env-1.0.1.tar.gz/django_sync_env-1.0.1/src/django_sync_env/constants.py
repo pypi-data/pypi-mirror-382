@@ -1,0 +1,3 @@
+BACKUP_DATABASE_MANAGEMENT_COMMAND_NAME = 'sync_env_backup_db'
+BACKUP_LISTING_MANAGEMENT_COMMAND_NAME = 'sync_env_list_db_backups'
+BACKUP_MEDIA_MANAGEMENT_COMMAND_NAME = 'sync_env_backup_media'
