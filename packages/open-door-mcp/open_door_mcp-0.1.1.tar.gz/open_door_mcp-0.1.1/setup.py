@@ -1,0 +1,5 @@
+from setuptools import setup,find_packages
+setup(name='open_door_mcp',
+      version='0.1.1',
+      packages=find_packages(),
+      )
