@@ -1,0 +1,1 @@
+(()=>{"use strict";const t=document.querySelector("#wagtail-ai-config");if(!t||!t.textContent)throw new Error("No wagtail-ai configuration found.");try{const o=JSON.parse(t.textContent);window.wagtailAI={...window.wagtailAI,config:o}}catch(t){throw new SyntaxError(`Error parsing wagtail-ai configuration: ${t.message}`)}})();
