@@ -1,0 +1,47 @@
+## Sentence Transformer Server
+
+Lightweight FastAPI wrapper that exposes any `sentence-transformers` model over HTTP for easy embedding generation.
+
+### Quick Start
+
+1. Install the package from PyPI (Python 3.13+):
+   ```bash
+   pip install stserve
+   ```
+2. Launch the server with the default MiniLM model (choose your preferred runner):
+   ```bash
+   stserve
+   # or via uvx
+   uvx stserve
+   ```
+3. Request embeddings from another terminal:
+   ```bash
+   curl -X POST http://127.0.0.1:8501/embed \
+     -H "Content-Type: application/json" \
+     -d '{"texts": ["hello world", "how are you?"]}'
+   ```
+
+### Configuration
+
+- `--model`: sentence-transformers model name or local path (defaults to `all-MiniLM-L6-v2`).
+- `--device`: target Torch device; auto-detects CUDA.
+- `--batch-size`: batches encode calls for throughput.
+- `--normalize`: toggles L2 normalization on embeddings.
+- `--show-progress`: prints encode progress in the server logs.
+- `--host` / `--port`: Uvicorn bind address (defaults `127.0.0.1:8501`).
+
+Example with GPU and normalization:
+```bash
+uvx stserve --model sentence-transformers/all-MiniLM-L12-v2 --device cuda --normalize
+```
+
+### API
+
+- `POST /embed`: Body `{ "texts": [str, ...] }` → `{ "embeddings": [[float, ...], ...] }`.
+- `GET /health`: Returns current configuration (model, device, batch size, etc.).
+
+### Development Notes
+
+- The CLI entry point is `stserve.app:main`.
+- Embedding work happens in a thread pool so the event loop stays responsive.
+- CUDA usage requires PyTorch with GPU support.
