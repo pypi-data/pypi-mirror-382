@@ -1,0 +1,133 @@
+# DEVELOPER GUIDE: services
+
+## Quick Summary
+The `services` directory contains the business logic layer for the HTTP SSE Gateway. It provides high-level services for agent management (discovering and retrieving A2A agents), user identity operations (searching for users), and task management (cancelling A2A tasks). These services abstract the complexities of interacting with agent registries, identity providers, and A2A messaging protocols.
+
+## Files Overview
+- `__init__.py` - Package initialization file marking the directory as a Python package
+- `agent_service.py` - Service for retrieving information about discovered A2A agents from the registry
+- `people_service.py` - Service for searching users via configured identity services
+- `task_service.py` - Service for handling A2A task cancellation operations
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Marks the services directory as a Python package
+**Import:** N/A - No public interfaces
+
+### agent_service.py
+**Purpose:** Provides methods for accessing information about discovered A2A agents from the shared AgentRegistry
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService`
+
+**Classes:**
+- `AgentService(agent_registry: AgentRegistry)` - Service for accessing discovered A2A agent information
+  - `get_all_agents() -> List[AgentCard]` - Retrieves all currently discovered and registered agent cards
+  - `get_agent_by_name(agent_name: str) -> Optional[AgentCard]` - Retrieves a specific agent card by name, returns None if not found
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService
+from solace_agent_mesh.common.agent_registry import AgentRegistry
+
+# Initialize with shared agent registry
+agent_registry = AgentRegistry()  # Usually injected as shared instance
+agent_service = AgentService(agent_registry=agent_registry)
+
+# Get all available agents
+all_agents = agent_service.get_all_agents()
+print(f"Found {len(all_agents)} agents")
+
+# Get specific agent by name
+agent = agent_service.get_agent_by_name("data-processor")
+if agent:
+    print(f"Found agent: {agent.name}")
+else:
+    print("Agent not found")
+```
+
+### people_service.py
+**Purpose:** Provides user search functionality via configured identity services
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService`
+
+**Classes:**
+- `PeopleService(identity_service: Optional[BaseIdentityService])` - Service for searching and retrieving user information
+  - `search_for_users(query: str, limit: int = 10) -> List[Dict[str, Any]]` - Asynchronously searches for users, returns empty list if no identity service configured or query too short
+
+**Usage Examples:**
+```python
+import asyncio
+from solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService
+from solace_agent_mesh.common.services.identity_service import BaseIdentityService
+
+# Initialize with identity service
+identity_service = SomeIdentityService()  # Your identity service implementation
+people_service = PeopleService(identity_service=identity_service)
+
+async def search_users():
+    # Search for users
+    users = await people_service.search_for_users("john", limit=5)
+    for user in users:
+        print(f"User: {user.get('name')} - {user.get('email')}")
+
+# Initialize without identity service (graceful degradation)
+people_service_no_id = PeopleService(identity_service=None)
+# search_for_users will return empty list
+
+asyncio.run(search_users())
+```
+
+### task_service.py
+**Purpose:** Handles A2A task operations, specifically task cancellation using CoreA2AService and message publishing
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.task_service import TaskService, PublishFunc`
+
+**Type Aliases:**
+- `PublishFunc: Callable[[str, Dict, Optional[Dict]], None]` - Function type for publishing messages (topic, payload, user_properties)
+
+**Classes:**
+- `TaskService(core_a2a_service: CoreA2AService, publish_func: PublishFunc, namespace: str, gateway_id: str, sse_manager: SSEManager, task_context_map: Dict[str, Dict], task_context_lock: threading.Lock, app_name: str)` - Service for managing A2A task operations
+  - `cancel_task(agent_name: str, task_id: str, client_id: str, user_id: str = "web_user") -> None` - Asynchronously cancels a task by publishing A2A CancelTaskRequest message
+
+**Usage Examples:**
+```python
+import asyncio
+import threading
+from solace_agent_mesh.gateway.http_sse.services.task_service import TaskService, PublishFunc
+from solace_agent_mesh.core_a2a.service import CoreA2AService
+from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
+
+# Define publish function
+def my_publish_func(topic: str, payload: dict, user_properties: dict = None):
+    print(f"Publishing to {topic}: {payload}")
+    # Your actual message publishing logic here
+
+# Initialize dependencies
+core_a2a_service = CoreA2AService()  # Your core A2A service
+sse_manager = SSEManager()
+task_context_map = {}
+task_context_lock = threading.Lock()
+
+# Create task service
+task_service = TaskService(
+    core_a2a_service=core_a2a_service,
+    publish_func=my_publish_func,
+    namespace="my-namespace",
+    gateway_id="gateway-01",
+    sse_manager=sse_manager,
+    task_context_map=task_context_map,
+    task_context_lock=task_context_lock,
+    app_name="my-app"
+)
+
+async def cancel_task_example():
+    # Cancel a task
+    await task_service.cancel_task(
+        agent_name="data-processor",
+        task_id="task-123",
+        client_id="client-456",
+        user_id="user@example.com"
+    )
+
+asyncio.run(cancel_task_example())
+```
+
+# content_hash: 83ddf6b403dc50598ed550e4b3a5445f832b3956dad75f7a3fbbb7e6e5c6c115
