@@ -1,0 +1,39 @@
+# SubscriptionTaxationItem
+
+
+## Properties
+
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**exempt_amount** | **float** | The calculated tax amount excluded due to the exemption.  | [optional] 
+**jurisdiction** | **str** | The jurisdiction that applies the tax or VAT. This value is typically a state, province, county, or city.  | [optional] 
+**location_code** | **str** | The identifier for the location based on the value of the taxCode field.  | [optional] 
+**name** | **str** | The name of the taxation item.  | [optional] 
+**tax_amount** | **float** | The tax amount of the invoice item.  | [optional] 
+**tax_code** | **str** | The tax code identifies which tax rules and tax rates to apply to a specific invoice.  | [optional] 
+**tax_code_description** | **str** | The description of the tax code.  | [optional] 
+**tax_date** | **str** | The date when the tax is applied to the invoice.  | [optional] 
+**tax_rate** | **float** | The tax rate applied to the invoice.  | [optional] 
+**tax_rate_description** | **str** | The description of the tax rate.  | [optional] 
+**tax_rate_type** | [**TaxRateType**](TaxRateType.md) |  | [optional] 
+
+## Example
+
+```python
+from zuora_sdk.models.subscription_taxation_item import SubscriptionTaxationItem
+
+# TODO update the JSON string below
+json = "{}"
+# create an instance of SubscriptionTaxationItem from a JSON string
+subscription_taxation_item_instance = SubscriptionTaxationItem.from_json(json)
+# print the JSON string representation of the object
+print(SubscriptionTaxationItem.to_json())
+
+# convert the object into a dict
+subscription_taxation_item_dict = subscription_taxation_item_instance.to_dict()
+# create an instance of SubscriptionTaxationItem from a dict
+subscription_taxation_item_from_dict = SubscriptionTaxationItem.from_dict(subscription_taxation_item_dict)
+```
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+

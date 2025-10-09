@@ -1,0 +1,57 @@
+# OrderActionTermsAndConditions
+
+Information about an order action of type `TermsAndConditions`. 
+
+## Properties
+
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**auto_renew** | **bool** |  | [optional] 
+**bill_to_contact_id** | **str** | The ID of the bill-to contact associated with the subscription.  n**Note**:    - If you have the &lt;a href&#x3D;\&quot;https://knowledgecenter.zuora.com/Zuora_Billing/Bill_your_customers/Bill_customers_at_subscription_level/Flexible_Billing_Attributes\&quot; target&#x3D;\&quot;_blank\&quot;&gt;Flexible Billing Attributes&lt;/a&gt; feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body.    - If you have the Flexible Billing Attributes feature enabled, and you do not specify this field in the request or you select **Default Contact from Account** for this field during subscription creation, the value of this field is automatically set to &#x60;null&#x60; in the response body.  | [optional] 
+**clearing_existing_bill_to_contact** | **bool** | Whether to clear the existing bill-to contact ID at the subscription level. This field is mutually exclusive with the &#x60;billToContactId&#x60; field.  **Note**: If you have the [Flexible Billing Attributes](https://knowledgecenter.zuora.com/Billing/Subscriptions/Flexible_Billing_Attributes) feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body.  | [optional] [default to False]
+**clearing_existing_invoice_group_number** | **bool** | Whether to clear the existing invoice group number at the subscription level. This field is mutually exclusive with the &#x60;invoiceGroupNumber&#x60; field.   **Note**: If you have the [Flexible Billing Attributes](https://knowledgecenter.zuora.com/Billing/Subscriptions/Flexible_Billing_Attributes) feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body. | [optional] [default to False]
+**clearing_existing_invoice_template** | **bool** | Whether to clear the existing invoice template ID at the subscription level. This field is mutually exclusive with the &#x60;invoiceTemplateId&#x60; field.  **Note**: If you have the [Flexible Billing Attributes](https://knowledgecenter.zuora.com/Billing/Subscriptions/Flexible_Billing_Attributes) feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body.  | [optional] [default to False]
+**clearing_existing_payment_term** | **bool** | Whether to clear the existing payment term at the subscription level. This field is mutually exclusive with the &#x60;paymentTerm&#x60; field.  **Note**: If you have the [Flexible Billing Attributes](https://knowledgecenter.zuora.com/Billing/Subscriptions/Flexible_Billing_Attributes) feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body.  | [optional] [default to False]
+**clearing_existing_sequence_set** | **bool** | Whether to clear the existing sequence set ID at the subscription level. This field is mutually exclusive with the &#x60;sequenceSetId&#x60; field.  **Note**: If you have the [Flexible Billing Attributes](https://knowledgecenter.zuora.com/Billing/Subscriptions/Flexible_Billing_Attributes) feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body.  | [optional] [default to False]
+**clearing_existing_sold_to_contact** | **bool** | Whether to clear the existing sold-to contact ID at the subscription level. This field is mutually exclusive with the &#x60;soldToContactId&#x60; field.  **Note**: If you have the [Flexible Billing Attributes](https://knowledgecenter.zuora.com/Billing/Subscriptions/Flexible_Billing_Attributes) feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body.  | [optional] [default to False]
+**initial_term** | [**InitialTerm**](InitialTerm.md) |  | [optional] 
+**invoice_separately** | **bool** | Specifies whether the subscription appears on a separate invoice when Zuora generates invoices. | [optional] 
+**invoice_group_number** | **str** | The number of invoice group associated with the subscription.  **Note**: This field is available only if you have the &lt;a href&#x3D;\&quot;https://knowledgecenter.zuora.com/Zuora_Billing/Bill_your_customers/Bill_customers_at_subscription_level/Flexible_Billing_Attributes\&quot; target&#x3D;\&quot;_blank\&quot;&gt;Flexible Billing Attributes&lt;/a&gt; feature enabled.  | [optional] 
+**invoice_template_id** | **str** | The ID of the invoice template associated with the subscription.  n**Note**:    - If you have the &lt;a href&#x3D;\&quot;https://knowledgecenter.zuora.com/Zuora_Billing/Bill_your_customers/Bill_customers_at_subscription_level/Flexible_Billing_Attributes\&quot; target&#x3D;\&quot;_blank\&quot;&gt;Flexible Billing Attributes&lt;/a&gt; feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body.    - If you have the Flexible Billing Attributes feature enabled, and you do not specify this field in the request or you select **Default Template from Account** for this field during subscription creation, the value of this field is automatically set to &#x60;null&#x60; in the response body.  | [optional] 
+**payment_term** | **str** | The name of the payment term associated with the subscription. For example, &#x60;Net 30&#x60;. The payment term determines the due dates of invoices.  n**Note**:    - If you have the &lt;a href&#x3D;\&quot;https://knowledgecenter.zuora.com/Zuora_Billing/Bill_your_customers/Bill_customers_at_subscription_level/Flexible_Billing_Attributes\&quot; target&#x3D;\&quot;_blank\&quot;&gt;Flexible Billing Attributes&lt;/a&gt; feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body.    - If you have the Flexible Billing Attributes feature enabled, and you do not specify this field in the request or you select **Default Term from Account** for this field during subscription creation, the value of this field is automatically set to &#x60;null&#x60; in the response body.  | [optional] 
+**renewal_setting** | [**RenewalSetting**](RenewalSetting.md) |  | [optional] 
+**renewal_terms** | [**List[RenewalTerm]**](RenewalTerm.md) |  | [optional] 
+**scheduled_cancel_date** | **date** | The date when the subscription is scheduled to be canceled. The subscription is not canceled until the date specified in this field.  | [optional] 
+**scheduled_suspend_date** | **date** | The date when the subscription is scheduled to be suspended. The subscription is not suspended until the date specified in this field.   | [optional] 
+**scheduled_resume_date** | **date** | The date when the subscription is scheduled to be resumed. The subscription is not resumed until the date specified in this field.   | [optional] 
+**clearing_scheduled_cancel_date** | **bool** | Whether to clear the scheduled cancel date at the subscription level. This field is mutually exclusive with the scheduledCancelDate field.   | [optional] 
+**clearing_scheduled_suspend_date** | **bool** | Whether to clear the scheduled suspend date at the subscription level. This field is mutually exclusive with the scheduledSuspendDate field.   | [optional] 
+**clearing_scheduled_resume_date** | **bool** | Whether to clear the scheduled resume date at the subscription level. This field is mutually exclusive with the scheduledResumeDate field.   | [optional] 
+**sequence_set_id** | **str** | The ID of the sequence set associated with the subscription.   **Note**:    - If you have the &lt;a href&#x3D;\&quot;https://knowledgecenter.zuora.com/Zuora_Billing/Bill_your_customers/Bill_customers_at_subscription_level/Flexible_Billing_Attributes\&quot; target&#x3D;\&quot;_blank\&quot;&gt;Flexible Billing Attributes&lt;/a&gt; feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body.    - If you have the Flexible Billing Attributes feature enabled, and you do not specify this field in the request or you select **Default Set from Account** for this field during subscription creation, the value of this field is automatically set to &#x60;null&#x60; in the response body.  | [optional] 
+**sold_to_contact_id** | **str** | The ID of the sold-to contact associated with the subscription.  n**Note**:    - If you have the &lt;a href&#x3D;\&quot;https://knowledgecenter.zuora.com/Zuora_Billing/Bill_your_customers/Bill_customers_at_subscription_level/Flexible_Billing_Attributes\&quot; target&#x3D;\&quot;_blank\&quot;&gt;Flexible Billing Attributes&lt;/a&gt; feature disabled, this field is unavailable in the request body and the value of this field is &#x60;null&#x60; in the response body.    - If you have the Flexible Billing Attributes feature enabled, and you do not specify this field in the request or you select **Default Contact from Account** for this field during subscription creation, the value of this field is automatically set to &#x60;null&#x60; in the response body.  | [optional] 
+**ship_to_contact_id** | **str** | The ID of the ship-to contact associated with the subscription. | [optional] 
+**clearing_existing_ship_to_contact** | **bool** | Whether to clear the existing ship-to contact ID at the subscription level. This field is mutually exclusive with the &#x60;shipToContactId&#x60; field. | [optional] 
+**payment_profile** | [**PaymentProfile**](PaymentProfile.md) |  | [optional] 
+**communication_profile_id** | **str** | The ID of the communication profile associated with the subscription.  **Note**: This field is available only if you have the &lt;a href&#x3D;\&quot;https://knowledgecenter.zuora.com/Zuora_Billing/Bill_your_customers/Bill_customers_at_subscription_level/Flexible_Billing_Attributes\&quot; target&#x3D;\&quot;_blank\&quot;&gt;Flexible Billing Attributes&lt;/a&gt; feature enabled.  | [optional] 
+**clearing_existing_communication_profile** | **bool** | Whether to clear the existing communication profile at the subscription level. This field is mutually exclusive with the &#x60;communicationProfileId&#x60; field. | [optional] 
+
+## Example
+
+```python
+from zuora_sdk.models.order_action_terms_and_conditions import OrderActionTermsAndConditions
+
+# TODO update the JSON string below
+json = "{}"
+# create an instance of OrderActionTermsAndConditions from a JSON string
+order_action_terms_and_conditions_instance = OrderActionTermsAndConditions.from_json(json)
+# print the JSON string representation of the object
+print(OrderActionTermsAndConditions.to_json())
+
+# convert the object into a dict
+order_action_terms_and_conditions_dict = order_action_terms_and_conditions_instance.to_dict()
+# create an instance of OrderActionTermsAndConditions from a dict
+order_action_terms_and_conditions_from_dict = OrderActionTermsAndConditions.from_dict(order_action_terms_and_conditions_dict)
+```
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+
