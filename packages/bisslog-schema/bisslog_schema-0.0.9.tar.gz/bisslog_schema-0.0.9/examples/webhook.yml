@@ -1,0 +1,196 @@
+---
+name: "webhook receiver"
+type: "microservice"
+description: "receives events from external platforms and converts them to company events and inserts them into the corresponding queue"
+service_type: "functional"
+team: "code-infrastructure"
+tags:
+  service: "webhook-receptor"
+
+use_cases:
+  notifyEventFromWebhookDynamicPlatform:
+    name: "notify external event from external platform"
+    description: "Receives events from external platform and converts them to company events and inserts them into the corresponding queue for further internal processing through the queue"
+    actor: "external platform"
+    type: "transfer data"
+    criticality: "high"
+    triggers:
+      - options:
+          method: "post"
+          path: "/webhook-receptor/{platform}/{token}"
+          apigw: "webhook-receptor"
+    tags:
+      accessibility: "private"
+  deleteWebhookEventType:
+    name: "delete webhook event type"
+    type: "delete functional data"
+    description: "Deletes a webhook event type in database"
+    actor: "webhook event type modifier"
+    criticality: "medium"
+    triggers:
+      - options:
+          method: "delete"
+          authenticator: "employee"
+          path: "/webhook/event-type/{uid}"
+          apigw: "internal"
+    tags:
+      accessibility: "private"
+  getAllWebhookEventType:
+    name: "get all webhook event types"
+    actor: "webhook event type modifier"
+    description: "Gets all webhook event types in database"
+    triggers:
+      - type: "http"
+        options:
+          method: "get"
+          path: "/webhook/event-type"
+          cacheable: true
+          apigw: "internal"
+    tags:
+      accessibility: "public"
+    criticality: "medium"
+    type: "read list functional data"
+  getWebhookEventType:
+    name: "get webhook event type"
+    description: "Gets a webhook event type in database"
+    triggers:
+      - type: "http"
+        options:
+          path: "/webhook/event-type/{uid}"
+          cacheable: true
+          method: "get"
+          apigw: "internal"
+    tags:
+      accessibility: "public"
+    criticality: 90
+    type: "read functional data"
+    actor: "webhook event type modifier"
+  registerWebhookEventType:
+    name: "register webhook event type"
+    description: "Registers or creates a webhook event type in database"
+    triggers:
+      - type: "http"
+        options:
+          path: "/webhook/event-type"
+          apigw: "internal"
+          authenticator: "employee"
+          method: "post"
+          mapper:
+            body: data
+            headers.user: creator
+    tags:
+      accessibility: "private"
+    criticality: "medium"
+    type: "create functional data"
+    actor: "webhook event type modifier"
+  addEventAdmitted:
+    name: "add event type admitted to platform"
+    description: "Updates adding event type admitted to platform if not exists, otherwise updates"
+    triggers:
+      - type: "http"
+        options:
+          path: "/webhook/event-type-admitted/{uid}"
+          apigw: "internal"
+          authenticator: "employee"
+          method: "post"
+          mapper:
+            path_query.uid: uid
+            body: data
+            headers.user: creator
+    tags:
+      accessibility: "private"
+    criticality: "medium"
+    type: "create functional data"
+    actor: "webhook event type modifier"
+  updateWebhookEventType:
+    name: "update webhook event type"
+    description: "Update a webhook event type in database"
+    triggers:
+      - type: "http"
+        options:
+          path: "/webhook/event-type/{uid}"
+          apigw: "internal"
+          method: "update"
+          authenticator: "employee"
+          mapper:
+            path_query.uid: uid
+    tags:
+      accessibility: "private"
+    criticality: "medium"
+    type: "update functional data"
+    actor: "webhook event type modifier"
+  deleteWebhookPlatformReceiver:
+    name: "delete webhook platform receiver"
+    description: "Deletes a webhook platform in database"
+    triggers:
+      - type: "http"
+        options:
+          path: "/webhook/platform-receiver/{uid}"
+          authenticator: "employee"
+          apigw: "internal"
+          method: "delete"
+    tags:
+      accessibility: "private"
+    criticality: "medium"
+    type: "delete functional data"
+    actor: "webhook event type modifier"
+  getAllWebhookPlatformReceiver:
+    name: "get all webhook platforms"
+    description: "Gets all webhook platforms in database"
+    triggers:
+      - type: "http"
+        options:
+          path: "/webhook/platform"
+          cacheable: true
+          apigw: "internal"
+          method: "get"
+    tags:
+      accessibility: "public"
+    criticality: "medium"
+    type: "read list functional data"
+    actor: "webhook event type modifier"
+  getWebhookPlatformReceiver:
+    name: "get webhook platform receiver"
+    description: "Gets a webhook platform in database"
+    triggers:
+      - type: "http"
+        options:
+          path: "/webhook/platform-receiver/{uid}"
+          cacheable: true
+          method: "get"
+          apigw: "internal"
+    tags:
+      accessibility: "public"
+    criticality: "medium"
+    type: "read functional data"
+    actor: "webhook event type modifier"
+  registerWebhookPlatformReceiver:
+    name: "register webhook platform receiver"
+    description: "Registers or creates a webhook platform in database"
+    triggers:
+      - type: "http"
+        options:
+          path: "/webhook/platform"
+          authenticator: "employee"
+          apigw: "internal"
+          method: "post"
+    tags:
+      accessibility: "private"
+    criticality: "medium"
+    type: "create functional data"
+    actor: "webhook event type modifier"
+  updateWebhookPlatformReceiver:
+    name: "update webhook platform receiver"
+    description: "Update a webhook platform in database"
+    triggers:
+      - type: "http"
+        options:
+          path: "/webhook/platform-receiver/{uid}"
+          method: "update"
+          apigw: "internal"
+          authenticator: "employee"
+    tags:
+      accessibility: "private"
+    criticality: "medium"
+    type: "update functional data"
+    actor: "webhook event type modifier"

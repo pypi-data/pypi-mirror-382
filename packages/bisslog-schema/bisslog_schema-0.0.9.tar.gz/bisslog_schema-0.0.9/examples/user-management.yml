@@ -1,0 +1,126 @@
+---
+name: "user management"
+type: "microservice"
+description: "Handles creation, update, and retrieval of user accounts in the system"
+service_type: "functional"
+team: "identity-platform"
+tags:
+  service: "user-management"
+
+use_cases:
+  registerUser:
+    name: "register user"
+    description: "Registers or creates a new user in the system"
+    actor: "end user"
+    criticality: "high"
+    type: "create functional data"
+    triggers:
+      - type: "http"
+        options:
+          route: "/user"
+          method: "post"
+          apigw: "public"
+          mapper:
+            body: user_data
+    external_interactions:
+      - keyname: users_division
+        type_interaction: "database"
+        operation: "register_user_on_db"
+    tags:
+      accessibility: "public"
+
+  getUser:
+    name: "get user details"
+    description: "Retrieves details of a user by ID"
+    actor: "authenticated user"
+    criticality: "medium"
+    type: "read functional data"
+    external_interactions:
+      - keyname: users_division
+        type_interaction: "database"
+        operation: "get_user_by_id"
+    triggers:
+      - type: "http"
+        options:
+          route: "/user/{user_id}"
+          method: "get"
+          apigw: "internal"
+          cacheable: true
+          authenticator: "user"
+          mapper:
+            path_query.user_id: user_id
+      - type: "http"
+        options:
+          route: "/my-user-details"
+          method: "get"
+          apigw: "public"
+          cacheable: true
+          authenticator: "user"
+          mapper:
+            context.user_id: user_id
+    tags:
+      accessibility: "private"
+
+  updateUser:
+    name: "update user information"
+    description: "Updates user profile information"
+    actor: "authenticated user"
+    criticality: "medium"
+    type: "update functional data"
+    external_interactions:
+      - keyname: users_division
+        type_interaction: "database"
+        operation: "update_user_info_by_id"
+    triggers:
+      - type: "http"
+        options:
+          route: "/my-user"
+          method: "patch"
+          apigw: "public"
+          authenticator: "user"
+          mapper:
+            context.user_id: user_id
+            body: user_update
+    tags:
+      accessibility: "private"
+
+  deleteUser:
+    name: "delete user"
+    description: "Deletes a user account from the system"
+    actor: "admin"
+    criticality: "high"
+    type: "delete functional data"
+    external_interactions:
+      - keyname: users_division
+        type_interaction: "database"
+        operation: "delete_user_by_id"
+    triggers:
+      - type: "http"
+        options:
+          route: "/user/{user_id}"
+          method: "delete"
+          apigw: "internal"
+          authenticator: "admin"
+    tags:
+      accessibility: "private"
+
+  listUsers:
+    name: "list users"
+    description: "Retrieves a paginated list of all users"
+    actor: "admin"
+    criticality: "medium"
+    type: "read list functional data"
+    external_interactions:
+      - keyname: users_division
+        type_interaction: "database"
+        operation: "get_all_users"
+    triggers:
+      - type: "http"
+        options:
+          route: "/user"
+          method: "get"
+          apigw: "internal"
+          authenticator: "admin"
+          cacheable: true
+    tags:
+      accessibility: "private"
