@@ -1,0 +1,1 @@
+from setuptools import setup;setup(name='sponsor',version='0.0.0',packages=('sponsor',))
