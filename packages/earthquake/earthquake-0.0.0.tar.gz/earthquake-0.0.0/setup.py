@@ -1,0 +1,1 @@
+from setuptools import setup;setup(name='earthquake',version='0.0.0',packages=('earthquake',))
