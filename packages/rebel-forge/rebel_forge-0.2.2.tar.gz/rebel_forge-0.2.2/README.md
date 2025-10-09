@@ -1,0 +1,85 @@
+# rebel-forge
+
+`rebel-forge` is a config-driven QLoRA/LoRA fine-tuning toolkit that runs smoothly on the Nebius GPU stack. It wraps the Hugging Face Transformers + PEFT workflow so teams can fine-tune hosted or user-provided models with a single command.
+
+## Installation
+
+`rebel-forge` targets Python 3.9 and newer. The base install ships just the configuration and dataset tooling so you can bring the exact PyTorch build you need.
+
+### Minimal install
+
+```bash
+pip install rebel-forge
+```
+
+This installs the config/CLI plumbing plus `transformers`, `peft`, and `datasets`. Choose a runtime extra (or your own PyTorch wheel) when you know whether you need CPU-only or CUDA acceleration.
+
+### Optional extras
+
+```bash
+# CPU-only wheels from PyPI
+pip install rebel-forge[cpu]
+
+# CUDA wheels (use the official PyTorch index if desired)
+pip install rebel-forge[cuda] --extra-index-url https://download.pytorch.org/whl/cu124
+```
+
+### From source
+
+```bash
+git clone <repo-url>
+cd rebel-forge
+pip install -e .
+```
+
+## Usage
+
+Prepare an INI/`.conf` file that names your base model, datasets, and training preferences. Then launch training with:
+
+```bash
+rebel-forge --config path/to/run.conf
+```
+
+The CLI infers sensible defaults (epochs, LoRA hyperparameters, dataset splits, etc.) and stores summaries plus adapter checkpoints inside the configured `output_dir`.
+
+## Example configuration
+
+```ini
+[model]
+base_model = meta-llama/Llama-3.1-8B
+output_dir = /mnt/checkpoints/llama-3.1-chat
+quant_type = nf4
+
+[data]
+format = plain
+train_data = /mnt/datasets/fta/train.jsonl
+eval_data = /mnt/datasets/fta/val.jsonl
+text_column = text
+
+[training]
+batch_size = 2
+epochs = 3
+learning_rate = 2e-4
+warmup_ratio = 0.05
+save_steps = 250
+
+[lora]
+lora_r = 64
+lora_alpha = 16
+lora_dropout = 0.05
+```
+
+## Key features
+
+- Optional 4-bit QLoRA via bitsandbytes (install `rebel-forge[cuda]` or add `bitsandbytes` manually)
+- Dataset auto-loading for JSON/JSONL/CSV/TSV/local directories and Hugging Face Hub references
+- Configurable LoRA target modules, quantization type, and training hyperparameters
+- Summary JSON + adapter checkpoints emitted for downstream pipelines (Convex sync, artifact uploads, etc.)
+
+## Development
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
+```
