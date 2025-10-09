@@ -1,0 +1,298 @@
+#pragma once
+
+#include <nanobind/eigen/dense.h>
+#include <nanobind/nanobind.h>
+#include <nanobind/stl/optional.h>
+#include <nanobind/stl/string.h>
+#include <nanobind/stl/vector.h>
+
+#include <stdexcept>  // For std::invalid_argument
+#include <vinecopulib.hpp>
+
+#include "docstr.hpp"
+#include "misc/helpers.hpp"
+
+namespace nb = nanobind;
+using namespace nb::literals;
+using namespace vinecopulib;
+
+inline void vinecop_plot_wrapper(const Vinecop& cop, nb::object tree,
+                                 bool add_edge_labels,
+                                 const std::string& layout,
+                                 nb::object vars_names) {
+  // Import the vinecop helper Python module
+  auto mod = nb::module_::import_("pyvinecopulib._python_helpers.vinecop");
+
+  // Import the Python plotting function
+  auto vinecop_plot = mod.attr("vinecop_plot");
+
+  // Call the Python function with the C++ object and additional
+  // arguments
+  vinecop_plot(nb::cast(cop), tree, add_edge_labels, layout, vars_names);
+}
+
+// Factory function to create a Vinecop from dimensionality
+inline Vinecop vc_from_dimension(const size_t d) { return Vinecop(d); }
+
+inline Vinecop vc_from_structure(
+    std::optional<RVineStructure> structure = std::nullopt,
+    std::optional<Eigen::Matrix<size_t, Eigen::Dynamic, Eigen::Dynamic>>
+        matrix = std::nullopt,
+    const std::vector<std::vector<Bicop>>& pair_copulas = {},
+    const std::vector<std::string>& var_types = {}) {
+  if (structure && matrix) {
+    throw std::invalid_argument(
+        "Only one of 'structure' or 'matrix' can be provided, not both.");
+  } else if (structure) {
+    // Use the structure-based constructor
+    return Vinecop(*structure, pair_copulas, var_types);
+  } else if (matrix) {
+    // Use the matrix-based constructor
+    return Vinecop(*matrix, pair_copulas, var_types);
+  } else {
+    throw std::invalid_argument(
+        "Either 'structure' or 'matrix' must be provided.");
+  }
+}
+
+inline Vinecop vc_from_data(
+    const Eigen::MatrixXd& data,
+    std::optional<RVineStructure> structure = std::nullopt,
+    std::optional<Eigen::Matrix<size_t, Eigen::Dynamic, Eigen::Dynamic>>
+        matrix = std::nullopt,
+    const std::vector<std::string>& var_types = {},
+    const FitControlsVinecop& controls = FitControlsVinecop()) {
+  if (structure && matrix) {
+    throw std::invalid_argument(
+        "Only one of 'structure' or 'matrix' can be provided, not both.");
+  } else if (structure) {
+    // Use the structure-based constructor
+    return Vinecop(data, *structure, var_types, controls);
+  } else if (matrix) {
+    // Use the matrix-based constructor
+    return Vinecop(data, *matrix, var_types, controls);
+  } else {
+    // Use the default constructor
+    return Vinecop(data, RVineStructure(), var_types, controls);
+  }
+}
+
+// Factory function to create a Vinecop from a file
+inline Vinecop vc_from_file(const std::string& filename, bool check = true) {
+  return Vinecop(filename, check);
+}
+
+// Factory function to create a Vinecop from a JSON string
+inline Vinecop vc_from_json(const std::string& json, bool check = true) {
+  nlohmann::json json_obj = nlohmann::json::parse(json);
+  return Vinecop(json_obj, check);
+}
+
+inline void init_vinecop_class(nb::module_& module) {
+  constexpr auto& vinecop_doc = pyvinecopulib_doc.vinecopulib.Vinecop;
+
+  const char* default_constructor_doc =
+      R"""(Default constructor for the ``Vinecop`` class.
+
+The default constructor uses ``Vinecop.from_dimension()`` to instantiate an
+empty vine copula of a given dimension. It can then be used to select a model from data using ``Vinecop.select()``. Alternatives to instantiate vine copulas
+are:
+
+- ``Vinecop.from_data()``: Instantiate from data, as well as an optional ``FitControlsVinecop``, an ``RVineStructure`` or matrix, and variable types.
+- ``Vinecop.from_structure()``: Instantiate from an ``RVineStructure`` or matrix, as well as optional pair-copulas and variable types.
+- ``Vinecop.from_file()``: Instantiate from a file.
+- ``Vinecop.from_json()``: Instantiate from a JSON string.
+)""";
+
+  const char* from_data_doc = R"""(
+  Factory function to create a Vinecop from data.
+
+  Parameters
+  ----------
+  data :
+      Input data matrix.
+
+  structure :
+      An ``RVineStructure``. Provide either this or `matrix`, but not both.
+
+  matrix :
+      RVine matrix. Provide either this or `structure`, but not both.
+
+  var_types :
+      Variable types for each variable (e.g., 'c' for continuous, 'd' for discrete). Defaults to all continuous.
+
+  controls :
+      Fit controls for the vinecop. Defaults to the default constructor.
+  )""";
+
+  const char* from_structure_doc = R"""(
+  Factory function to create a Vinecop using either a structure or a matrix.
+
+  Parameters
+  ----------
+  structure :
+      An ``RVineStructure``. Provide either this or `matrix`, but not both.
+
+  matrix :
+      Vinecop matrix. Provide either this or `structure`, but not both.
+
+  pair_copulas :
+      Pairwise copulas for each edge in the vine. Defaults to an empty list.
+
+  var_types :
+      Variable types for each variable (e.g., 'c' for continuous, 'd' for discrete). Defaults to all continuous.
+  )""";
+
+  nb::class_<Vinecop>(module, "Vinecop", vinecop_doc.doc)
+      .def(nb::init<const size_t>(), default_constructor_doc, "d"_a,
+           nb::call_guard<nb::gil_scoped_release>())
+      .def_static("from_dimension", &vc_from_dimension, "d"_a,
+                  vinecop_doc.ctor.doc_1args_d,
+                  nb::call_guard<nb::gil_scoped_release>())
+      .def_static("from_structure", &vc_from_structure,
+                  "structure"_a = std::nullopt, "matrix"_a = std::nullopt,
+                  "pair_copulas"_a = std::vector<std::vector<Bicop>>(),
+                  "var_types"_a = std::vector<std::string>(),
+                  from_structure_doc, nb::call_guard<nb::gil_scoped_release>())
+      .def_static(
+          "from_data", &vc_from_data, "data"_a, "structure"_a = std::nullopt,
+          "matrix"_a = std::nullopt, "var_types"_a = std::vector<std::string>(),
+          "controls"_a.sig("FitControlsVinecop()") = FitControlsVinecop(),
+          from_data_doc, nb::call_guard<nb::gil_scoped_release>())
+      .def_static("from_file", &vc_from_file, "filename"_a, "check"_a = true,
+                  vinecop_doc.ctor.doc_2args_filename_check,
+                  nb::call_guard<nb::gil_scoped_release>())
+      .def_static("from_json", &vc_from_json, "json"_a, "check"_a = true,
+                  vinecop_doc.ctor.doc_2args_input_check,
+                  nb::call_guard<nb::gil_scoped_release>())
+      .def("to_file", &Vinecop::to_file, "filename"_a, vinecop_doc.to_file.doc,
+           nb::call_guard<nb::gil_scoped_release>())
+      .def(
+          "to_json",
+          [](Vinecop& self) -> std::string { return self.to_json().dump(); },
+          vinecop_doc.to_json.doc, nb::call_guard<nb::gil_scoped_release>())
+      .def_prop_rw("var_types", &Vinecop::get_var_types,
+                   &Vinecop::set_var_types, "The types of each variables.",
+                   nb::call_guard<nb::gil_scoped_release>())
+      .def_prop_ro("trunc_lvl", &Vinecop::get_trunc_lvl,
+                   "The truncation level.")
+      .def_prop_ro("dim", &Vinecop::get_dim, "The dimension.")
+      .def("get_pair_copula", &Vinecop::get_pair_copula, "Gets a pair-copula.",
+           "tree"_a, "edge"_a, nb::call_guard<nb::gil_scoped_release>())
+      .def("get_family", &Vinecop::get_family,
+           "Gets the family of a pair-copula.", "tree"_a, "edge"_a)
+      .def("get_rotation", &Vinecop::get_rotation,
+           "Gets the rotation of a pair-copula.", "tree"_a, "edge"_a)
+      .def("get_parameters", &Vinecop::get_parameters,
+           "Gets the parameters of a pair-copula.", "tree"_a, "edge"_a)
+      .def("get_tau", &Vinecop::get_tau,
+           "Gets the kendall's tau of a pair-copula.", "tree"_a, "edge"_a)
+      .def_prop_ro("pair_copulas", &Vinecop::get_all_pair_copulas,
+                   "All pair-copulas.",
+                   nb::call_guard<nb::gil_scoped_release>())
+      .def_prop_ro("families", &Vinecop::get_all_families,
+                   "Families of all pair-copulas.",
+                   nb::call_guard<nb::gil_scoped_release>())
+      .def_prop_ro("rotations", &Vinecop::get_all_rotations,
+                   "The rotations of all pair-copulas.",
+                   nb::call_guard<nb::gil_scoped_release>())
+      .def_prop_ro("parameters", &Vinecop::get_all_parameters,
+                   "The parameters of all pair-copulas.",
+                   nb::call_guard<nb::gil_scoped_release>())
+      .def_prop_ro("taus", &Vinecop::get_all_taus,
+                   "The Kendall's taus of all pair-copulas.",
+                   nb::call_guard<nb::gil_scoped_release>())
+      .def_prop_ro("order", &Vinecop::get_order,
+                   "The R-vine structure's order.",
+                   nb::call_guard<nb::gil_scoped_release>())
+      .def_prop_ro("structure", &Vinecop::get_rvine_structure,
+                   "The R-vine structure.",
+                   nb::call_guard<nb::gil_scoped_release>())
+      .def_prop_ro("npars", &Vinecop::get_npars,
+                   "The total number of parameters.")
+      .def_prop_ro("matrix", &Vinecop::get_matrix,
+                   "Extracts the R-vine structure's matrix.",
+                   nb::call_guard<nb::gil_scoped_release>())
+      .def_prop_ro("nobs", &Vinecop::get_nobs,
+                   "The number of observations (for fitted objects only).")
+      .def_prop_ro("threshold", &Vinecop::get_threshold,
+                   "The threshold (for thresholded copulas only).")
+      .def("select", &Vinecop::select, "data"_a,
+           "controls"_a.sig("FitControlsVinecop()") = FitControlsVinecop(),
+           vinecop_doc.select.doc, nb::call_guard<nb::gil_scoped_release>())
+      .def("fit", &Vinecop::fit, "data"_a,
+           "controls"_a.sig("FitControlsBicop()") = FitControlsBicop(),
+           "num_threads"_a = 1, vinecop_doc.fit.doc,
+           nb::call_guard<nb::gil_scoped_release>())
+      .def("pdf", &Vinecop::pdf, "u"_a, "num_threads"_a = 1,
+           vinecop_doc.pdf.doc, nb::call_guard<nb::gil_scoped_release>())
+      .def("cdf", &Vinecop::cdf, "u"_a, "N"_a = 10000, "num_threads"_a = 1,
+           "seeds"_a = std::vector<int>(), vinecop_doc.cdf.doc,
+           nb::call_guard<nb::gil_scoped_release>())
+      .def("simulate", &Vinecop::simulate, "n"_a, "qrng"_a = false,
+           "num_threads"_a = 1, "seeds"_a = std::vector<int>(),
+           vinecop_doc.simulate.doc, nb::call_guard<nb::gil_scoped_release>())
+      .def("rosenblatt", &Vinecop::rosenblatt, "u"_a, "num_threads"_a = 1,
+           "randomize_discrete"_a = true, "seeds"_a = std::vector<int>(),
+           vinecop_doc.rosenblatt.doc, nb::call_guard<nb::gil_scoped_release>())
+      .def("inverse_rosenblatt", &Vinecop::inverse_rosenblatt, "u"_a,
+           "num_threads"_a = 1, vinecop_doc.inverse_rosenblatt.doc,
+           nb::call_guard<nb::gil_scoped_release>())
+      .def("loglik", &Vinecop::loglik, "u"_a = Eigen::MatrixXd(),
+           "num_threads"_a = 1, vinecop_doc.loglik.doc,
+           nb::call_guard<nb::gil_scoped_release>())
+      .def("aic", &Vinecop::aic, "u"_a = Eigen::MatrixXd(), "num_threads"_a = 1,
+           vinecop_doc.aic.doc, nb::call_guard<nb::gil_scoped_release>())
+      .def("bic", &Vinecop::bic, "u"_a = Eigen::MatrixXd(), "num_threads"_a = 1,
+           vinecop_doc.bic.doc, nb::call_guard<nb::gil_scoped_release>())
+      .def("mbicv", &Vinecop::mbicv, "u"_a = Eigen::MatrixXd(), "psi0"_a = 0.9,
+           "num_threads"_a = 1, vinecop_doc.mbicv.doc,
+           nb::call_guard<nb::gil_scoped_release>())
+      .def(
+          "__repr__",
+          [](const Vinecop& cop) {
+            return "<pyvinecopulib.Vinecop> " + cop.str();
+          },
+          vinecop_doc.str.doc)
+      .def(
+          "__str__",
+          [](const Vinecop& cop) {
+            return "<pyvinecopulib.Vinecop> " + cop.str();
+          },
+          vinecop_doc.str.doc)
+      .def(
+          "format",
+          [](const Vinecop& cop, const std::vector<size_t>& trees = {}) {
+            return cop.str(trees);
+          },
+          "trees"_a = std::vector<size_t>{}, vinecop_doc.str.doc)
+      .def("truncate", &Vinecop::truncate, "trunc_lvl"_a,
+           vinecop_doc.truncate.doc, nb::call_guard<nb::gil_scoped_release>())
+      .def("plot", &vinecop_plot_wrapper, "tree"_a = nb::none(),
+           "add_edge_labels"_a = true, "layout"_a = "graphviz",
+           "vars_names"_a = nb::none(),
+           python_doc_helper("pyvinecopulib._python_helpers.vinecop",
+                             "VINECOP_PLOT_DOC",
+                             "Plot the vine copula (extended doc unavailable)")
+               .c_str())
+      .def("__getstate__",
+           [](const Vinecop& cop) {
+             nb::dict state;
+             state["rvine_structure"] =
+                 cop.get_rvine_structure().to_json().dump();
+             state["pair_copulas"] = cop.get_all_pair_copulas();
+             state["var_types"] = cop.get_var_types();
+             return state;
+           })
+
+      .def("__setstate__", [](Vinecop& cop, nb::dict state) {
+        nlohmann::json json_obj = nlohmann::json::parse(
+            nb::cast<std::string>(state["rvine_structure"]));
+        RVineStructure structure(json_obj);
+
+        new (&cop) Vinecop(
+            std::move(structure),
+            nb::cast<std::vector<std::vector<Bicop>>>(state["pair_copulas"]),
+            nb::cast<std::vector<std::string>>(state["var_types"]));
+      });
+}

@@ -1,0 +1,151 @@
+[build-system]
+requires = ["scikit-build-core>=0.5.0", "nanobind>=2.7.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pyvinecopulib"
+version = "0.7.5"
+authors = [
+  { name = "Thibault Vatter", email = "info@vinecopulib.com" },
+  { name = "Thomas Nagler", email = "info@vinecopulib.com" },
+]
+description = "A python interface to vinecopulib"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+dependencies = ['numpy>=1.14', 'matplotlib>=3.0', 'networkx>=3.0', 'pydot>=3.0']
+keywords = ['copula', 'vines copulas', 'pair-copulas constructions']
+classifiers = [
+  'Development Status :: 3 - Alpha',
+  'Intended Audience :: Financial and Insurance Industry',
+  'Intended Audience :: Healthcare Industry',
+  'Intended Audience :: Information Technology',
+  'Intended Audience :: Other Audience',
+  'Intended Audience :: Science/Research',
+  'Intended Audience :: Telecommunications Industry',
+  'Topic :: Scientific/Engineering',
+  'Topic :: Scientific/Engineering :: Mathematics',
+  'Programming Language :: C++',
+  'Programming Language :: Python :: 3.9',
+  'Programming Language :: Python :: 3.10',
+  'Programming Language :: Python :: 3.11',
+  'Programming Language :: Python :: 3.12',
+  'Programming Language :: Python :: 3.13',
+  'Programming Language :: Python :: 3.14',
+  'License :: OSI Approved :: MIT License',
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.15",
+  "ruff==0.11.6",
+  "pytest>=8.0",
+  "pytest-rerunfailures",
+  "pytest-xdist>=3.6",
+  "nbmake",
+  "pre-commit",
+  "pytest-cov",
+  "coverage[toml]",
+]
+examples = ["jupyterlab", "scipy"]
+doc = [
+  "sphinx==7.0",
+  "nbsphinx==0.9.2",
+  "sphinx-rtd-theme",
+  "sphinx-autodoc-typehints",
+  "myst-parser",
+]
+
+[project.urls]
+Homepage = "https://github.com/vinecopulib/pyvinecopulib/"
+Documentation = "https://vinecopulib.github.io/pyvinecopulib"
+Repository = "https://github.com/vinecopulib/pyvinecopulib.git"
+Issues = "https://github.com/vinecopulib/pyvinecopulib/issues"
+
+[tool.scikit-build]
+# Protect the configuration against future changes in scikit-build-core
+minimum-version = "0.4"
+
+# Setuptools-style build caching in a local directory
+build-dir = "build/{wheel_tag}"
+
+# Build stable ABI wheels for CPython 3.12+
+wheel.py-api = "cp312"
+
+[tool.cibuildwheel]
+# Necessary to see build output from the actual compilation
+build-verbosity = 1
+
+# Disable free-threading builds on all platforms
+skip = "cp3??t-*"
+
+# Run pytest to ensure that the package was correctly built
+test-command = "pytest -n auto {project}/tests"
+test-requires = ["pytest-cov", "pytest-xdist", "pytest-rerunfailures"]
+
+# Don't test Python 3.8 wheels on macOS/arm64
+test-skip = "cp38-macosx_*:arm64"
+
+# Needed for full C++17 support
+[tool.cibuildwheel.macos.environment]
+MACOSX_DEPLOYMENT_TARGET = "10.14"
+
+[tool.ruff]
+line-length = 80
+indent-width = 2
+
+# Include notebooks
+extend-include = ["*.ipynb"]
+exclude = ["lib"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F403", "F405"]
+# "**/{tests,docs,tools}/*" = ["E402"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+ignore_missing_imports = true
+pretty = true
+show_error_codes = true
+warn_unused_configs = true
+files = ["src", "tests"]
+exclude = "scripts|docs|examples"
+
+[tool.bandit]
+exclude_dirs = ["tests", "docs", "examples", "lib", "build"]
+skips = ["B101"]                                             # Skip assert_used test
+
+[tool.coverage.run]
+source = ["src/pyvinecopulib"]
+omit = ["*/tests/*", "*/test_*", "*/__pycache__/*", "*/site-packages/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "if self.debug:",
+  "if settings.DEBUG",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if 0:",
+  "if __name__ == .__main__.:",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+  "-n", "auto",
+  "--strict-markers",
+  "--strict-config",
+  "--cov=src/pyvinecopulib",
+  "--cov-report=term-missing",
+  "--cov-report=html:htmlcov",
+  "--cov-report=xml",
+]
+markers = [
+  "flaky: mark a test as flaky and allow reruns",
+]
