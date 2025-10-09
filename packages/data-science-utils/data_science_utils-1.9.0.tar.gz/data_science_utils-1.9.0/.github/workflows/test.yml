@@ -1,0 +1,70 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+    types: [ opened, reopened ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        python-version: [ "3.10", "3.11", "3.12", "3.13" ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Set TCL/TK Environment Variables
+        if: runner.os == 'Windows'
+        run: |
+          echo "TCL_LIBRARY=${{ steps.setup-python.outputs.pythonLocation }}\\tcl\\tcl8.6" >> $env:GITHUB_ENV
+          echo "TK_LIBRARY=${{ steps.setup-python.outputs.pythonLocation }}\\tcl\\tk8.6" >> $env:GITHUB_ENV
+          echo "MPLBACKEND=Agg" >> $env:GITHUB_ENV
+        shell: powershell
+      - name: Install hatch and coveralls
+        run: pip install hatch hatchling coveralls
+      - name: Install graphviz binaries for Linux (${{ runner.arch }})
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install graphviz
+      - name: Install graphviz binaries & Chromium for Windows (${{ runner.arch }})
+        if: runner.os == 'Windows'
+        run: |
+          choco install -y graphviz chromium
+      - name: Install graphviz binaries for macOS (${{ runner.arch }})
+        if: runner.os == 'macOS'
+        run: brew install graphviz
+      - name: Run tests
+        run: |
+          python -m hatch env create test
+          python -m hatch run test:run
+      - name: Run Ruff Formatter Check
+        run: python -m hatch run test:ruff format --check .
+      - name: Run Ruff Linter
+        run: python -m hatch run test:ruff check .
+      - name: Upload coverage to Coveralls
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_FLAG_NAME: ${{ matrix.os }}-python-${{ matrix.python-version }}
+          COVERALLS_PARALLEL: true
+        run: coveralls --service=github
+
+  coveralls:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Finish Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
