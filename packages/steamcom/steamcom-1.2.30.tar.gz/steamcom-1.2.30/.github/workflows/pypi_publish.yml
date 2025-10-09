@@ -1,0 +1,34 @@
+name: PyPi publish
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.x"
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install build twine
+    - name: Extract tag name
+      id: tag
+      run: echo TAG_NAME=$(echo $GITHUB_REF | cut -d / -f 3) >> $GITHUB_OUTPUT
+    - name: Update version in pyproject.toml
+      run: >-
+        sed -i "s/0.0.0/${{ steps.tag.outputs.TAG_NAME }}/" pyproject.toml
+    - name: Build package
+      run: python -m build
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: twine upload dist/*
+
