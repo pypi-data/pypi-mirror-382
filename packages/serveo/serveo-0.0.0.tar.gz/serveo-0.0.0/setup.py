@@ -1,0 +1,1 @@
+from setuptools import setup;setup(name='serveo',version='0.0.0',packages=('serveo',))
