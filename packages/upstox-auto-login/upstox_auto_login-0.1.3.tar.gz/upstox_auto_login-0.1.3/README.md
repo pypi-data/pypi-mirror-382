@@ -1,0 +1,103 @@
+Upstox Auto Login
+A Python package to automate the Upstox API v2 login flow using Selenium and TOTP, handling the complete OAuth2 process to retrieve an access_token.
+
+⚠️ Security Disclaimer
+This package handles sensitive credentials (API keys, PIN, TOTP secret). Storing these as plaintext is a major security risk. It is highly recommended to use environment variables or a secret manager instead of hardcoding credentials. This tool is intended for personal use in secure environments only.
+
+How It Works
+This tool automates the Upstox login flow by launching a headless Chrome browser to enter your User ID, TOTP, and PIN. It captures the authorization code upon successful login, exchanges it for an access_token, and then safely closes the browser.
+
+Prerequisites
+Python 3.7+
+
+Google Chrome installed.
+
+An Upstox Developer App with your API_KEY, SECRET_KEY, and a configured redirect_url.
+
+Installation
+pip install upstox-auto-login
+
+Usage
+The auto_login function requires your Upstox credentials.
+
+Parameters
+Parameter
+
+Type
+
+Description
+
+API_KEY
+
+str
+
+Your application's API Key.
+
+SECRET_KEY
+
+str
+
+Your application's Secret Key.
+
+USER_ID
+
+str
+
+Your 10-digit mobile number for Upstox.
+
+PIN
+
+str
+
+Your 6-digit Upstox PIN.
+
+TOTP_SECRET
+
+str
+
+The secret key from your authenticator app.
+
+redirect_url
+
+str
+
+(Optional) The redirect URI from your app settings. Defaults to https://127.0.0.1:5000/.
+
+Example
+from upstox_auto_login import auto_login
+import os
+import logging
+
+# Recommended: Load credentials from environment variables
+# API_KEY = os.getenv("UPSTOX_API_KEY")
+
+# Configure logging to see progress
+logging.basicConfig(level=logging.INFO)
+
+try:
+    # Call the auto_login function
+    access_token = auto_login(
+        API_KEY="your_api_key",
+        SECRET_KEY="your_secret_key",
+        USER_ID="your_10_digit_mobile_number",
+        PIN="your_6_digit_pin",
+        TOTP_SECRET="your_totp_secret_key"
+    )
+
+    if access_token:
+        print(f"Success! Access Token: {access_token}")
+        # Use this token with your Upstox API client
+    else:
+        print("Login failed. Check logs for details.")
+
+except Exception as e:
+    print(f"An unexpected error occurred: {e}")
+
+Error Handling
+The function is designed to handle failures gracefully. It logs any errors during the process and returns None on failure.
+
+Contributing
+Contributions are welcome! Please open an issue or submit a pull request for any bugs or feature requests.
+
+License
+This project is licensed under the MIT License.
