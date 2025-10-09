@@ -1,0 +1,148 @@
+# 🧠 Paragon-Py
+
+**Paragon-Py** is the official Python binding for the [Paragon AI Framework](https://github.com/openfluke/paragon).  
+It provides a lightweight `ctypes` interface to Paragon’s **GPU-agnostic runtime** — built in Go and powered by **WebGPU / Vulkan / Metal / DirectX 12**.
+
+> Run the same AI models across NVIDIA, AMD, Intel, Apple, and Qualcomm GPUs — identical outputs, zero conversions.
+
+---
+
+## ✨ Features
+
+- 🧩 **Cross-vendor GPU acceleration** — Vulkan, Metal, GL, and DX12 backends.
+- 🧠 **Unified C-ABI layer** via [Teleport](https://github.com/openfluke/teleport): same interface across languages.
+- ⚙️ **Pure Python bindings** — no build step, binaries included via Git LFS.
+- 🔬 **Deterministic inference** — identical numerical results across vendors.
+- 🌐 **Portable** — works in Jupyter, scripts, or servers (Linux / macOS / Windows).
+
+---
+
+## 📦 Installation
+
+Paragon-Py is distributed on **PyPI**:
+
+```bash
+pip install paragon-py
+```
+
+If you’re building from source (e.g., this repo):
+
+```bash
+git clone https://github.com/openfluke/paragon-py.git
+cd paragon-py
+python -m build
+pip install dist/paragon_py-*.whl
+```
+
+Binaries for Linux, macOS (Intel/ARM), and Windows are embedded in the wheel.  
+No compiler or Go toolchain required.
+
+---
+
+## 🧰 Quick Start
+
+```python
+import paragon_py as paragon
+
+# Create a small 3-layer network: input → hidden → output
+# Each layer uses ReLU activation and is trainable.
+h = paragon.new_network(
+    shapes=[(4, 8), (8, 8), (8, 2)],     # width x height per layer
+    activations=["relu", "relu", "relu"],
+    trainable=[True, True, True],
+    use_gpu=True
+)
+
+# Initialize GPU backend (optional but faster)
+paragon.initialize_gpu(h)
+
+# Dummy forward pass
+sample_input = [[0.1, 0.5, 0.3, 0.7]]
+paragon.forward(h, sample_input)
+
+# Extract and print the output
+out = paragon.extract_output(h)
+print("Network output:", out)
+
+# Cleanup GPU resources
+paragon.cleanup_gpu(h)
+```
+
+---
+
+## 🧩 Functions
+
+| Function                                                    | Description                              |
+| ----------------------------------------------------------- | ---------------------------------------- |
+| `new_network(shapes, activations, trainable, use_gpu)`      | Create a new network and return a handle |
+| `forward(handle, image_2d)`                                 | Run forward propagation                  |
+| `extract_output(handle)`                                    | Get output tensor as a list              |
+| `initialize_gpu(handle)`                                    | Initialize GPU context manually          |
+| `train(handle, inputs, targets, epochs, lr, shuffle=False)` | Run training loop                        |
+| `cleanup_gpu(handle)`                                       | Free GPU buffers                         |
+| `get_phase_methods_json()`                                  | Introspect available backend methods     |
+
+---
+
+## 🧱 Repo Structure
+
+```
+paragon-py/
+├── pyproject.toml
+├── MANIFEST.in
+├── LICENSE
+├── README.md
+└── src/paragon_py/
+    ├── __init__.py
+    ├── utils.py
+    ├── linux_amd64/
+    ├── darwin_amd64/
+    ├── darwin_arm64/
+    ├── darwin_universal/
+    └── windows_amd64/
+```
+
+Each platform folder includes a **Teleport** binary (`teleport_*.so/.dylib/.dll`)  
+built from [openfluke/teleport](https://github.com/openfluke/teleport).
+
+---
+
+## 🔗 Related Projects
+
+- 🧠 [Paragon](https://github.com/openfluke/paragon) — The core AI framework (Go + WebGPU)
+- 🧬 [Teleport](https://github.com/openfluke/teleport) — C-ABI bridge enabling language-agnostic bindings
+- 🪐 [OpenFluke](https://github.com/openfluke) — Unified ecosystem for reproducible, cross-vendor AI
+
+---
+
+## 🧾 License
+
+Licensed under the **Apache 2.0 License**.  
+See [`LICENSE`](./LICENSE) for details.
+
+---
+
+## 🧑‍💻 Contributing
+
+Pull requests are welcome!  
+If you’re adding a new backend or updating native binaries:
+
+1. Build the new `teleport` binaries from [openfluke/teleport](https://github.com/openfluke/teleport/releases)
+2. Drop them into the matching platform folder under `src/paragon_py/`
+3. Commit with Git LFS enabled
+4. Bump version in `pyproject.toml` and tag (e.g. `v0.0.4`)
+
+---
+
+## 🧠 About Paragon
+
+Paragon is a next-generation, GPU-agnostic AI runtime built in Go with WebGPU acceleration.  
+It’s designed for _deterministic reproducibility_ and _cross-platform portability_,  
+running natively across CPU, GPU, browser, and embedded systems — without model conversion.
+
+---
+
+**Author:** [Samuel Watson](https://github.com/openfluke)  
+**Organization:** [OpenFluke](https://openfluke.com)
+
+> “One model, any device.”
