@@ -1,0 +1,63 @@
+# token-limit-guard
+
+Least recently used token allocator with per-token rate limiting and optional
+blocking behavior. Perfect for juggling API keys or access tokens that must
+respect individual quotas.
+
+## Features
+
+- Accept tokens from a file or in-memory iterable
+- Configure rate limiting per token with a rolling time window
+- Blocking and non-blocking retrieval modes
+- Simple LRU selection to balance token usage
+- Thread-safe implementation with helpful logging for debugging
+
+## Installation
+
+The package is published on PyPI:
+
+```bash
+pip install token-limit-guard
+```
+
+## Quickstart
+
+```python
+from token_limit_guard import TokenLimitGuard
+
+token_guard = TokenLimitGuard(["tokenA", "tokenB", "tokenC"])
+token_guard.set_limiting_factors(max_allowed_count=2, time_window_in_sec=60)
+
+# Blocking call – waits for the next available token if all are exhausted
+token = token_guard.get_a_token()
+
+# Non-blocking call – returns None immediately when no token is available
+maybe_token = token_guard.get_a_token(block=False)
+
+# Convenience alias for non-blocking access
+maybe_token = token_guard.try_get_a_token()
+
+print(token)
+```
+
+## Development
+
+Install dev dependencies and run the tests with `pytest`:
+
+```bash
+python -m venv .token-venv
+source .token-venv/bin/activate  # or .venv\\Scripts\\activate on Windows
+pip install -e .[dev] # pip install -e '.[dev]'
+pytest
+```
+
+## Publishing to PyPI
+
+```bash
+pip install --upgrade build
+python -m build
+python -m twine upload dist/*
+```
+
+Remember to bump the version in `pyproject.toml` and `token_limit_guard/__init__.py`
+before publishing.
