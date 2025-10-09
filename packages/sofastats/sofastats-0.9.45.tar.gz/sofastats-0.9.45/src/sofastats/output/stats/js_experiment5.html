@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Statistical Test Selector</title>
+    <style>
+        .question {
+            margin: 20px;
+        }
+        .disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        #answer {
+            margin: 20px;
+            padding: 10px;
+            font-weight: bold;
+            color: blue;
+        }
+        .radio-group {
+            margin-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="question">
+        <h3>What type of analysis?</h3>
+        <input type="radio" name="type" value="difference"> Difference
+        <input type="radio" name="type" value="relationship"> Relationship
+    </div>
+
+    <div class="question" id="groupsQuestion">
+        <h3>Number of groups:</h3>
+        <input type="radio" name="groups" value="two"> 2 groups
+        <input type="radio" name="groups" value="three"> 3+ groups
+    </div>
+
+    <div class="question" id="relationshipTypeQuestion">
+        <h3>Relationship type:</h3>
+        <input type="radio" name="relationType" value="namesOnly"> Names only
+        <input type="radio" name="relationType" value="ordered"> Ordered
+    </div>
+
+    <div class="question" id="normalityQuestion">
+        <h3>Distribution:</h3>
+        <input type="radio" name="normality" value="normal"> Normal
+        <input type="radio" name="normality" value="nonNormal"> Non-normal
+    </div>
+
+    <div class="question" id="independenceQuestion">
+        <h3>Sample type:</h3>
+        <input type="radio" name="independence" value="independent"> Independent
+        <input type="radio" name="independence" value="paired"> Paired
+    </div>
+
+    <div id="answer"></div>
+
+    <button onclick="restart()">Restart</button>
+
+    <script>
+        let state = {
+            type: null,
+            groups: null,
+            relationType: null,
+            normality: null,
+            independence: null
+        };
+
+        function updateUI() {
+            // Enable/disable questions based on type
+            const relationshipTypeQuestion = document.getElementById('relationshipTypeQuestion');
+            const groupsQuestion = document.getElementById('groupsQuestion');
+            const independenceQuestion = document.getElementById('independenceQuestion');
+
+            if (state.type === 'difference') {
+                relationshipTypeQuestion.classList.add('disabled');
+                groupsQuestion.classList.remove('disabled');
+                independenceQuestion.classList.remove('disabled');
+            } else if (state.type === 'relationship') {
+                relationshipTypeQuestion.classList.remove('disabled');
+                groupsQuestion.classList.add('disabled');
+                independenceQuestion.classList.add('disabled');
+            }
+
+            determineAnswer();
+        }
+
+        function determineAnswer() {
+            const answerDiv = document.getElementById('answer');
+            
+            if (state.type === 'difference') {
+                if (state.groups && state.normality && state.independence) {
+                    if (state.groups === 'two') {
+                        if (state.normality === 'normal') {
+                            answerDiv.textContent = state.independence === 'independent' ? 
+                                'Use: Independent t-test' : 'Use: Paired t-test';
+                        } else {
+                            answerDiv.textContent = state.independence === 'independent' ? 
+                                'Use: Mann-Whitney U test' : 'Use: Wilcoxon signed-rank test';
+                        }
+                    } else { // three or more groups
+                        if (state.normality === 'normal') {
+                            answerDiv.textContent = state.independence === 'independent' ? 
+                                'Use: One-way ANOVA' : 'Use: Repeated measures ANOVA';
+                        } else {
+                            answerDiv.textContent = state.independence === 'independent' ? 
+                                'Use: Kruskal-Wallis test' : 'Use: Friedman test';
+                        }
+                    }
+                }
+            } else if (state.type === 'relationship') {
+                if (state.relationType && state.normality) {
+                    if (state.normality === 'normal') {
+                        answerDiv.textContent = state.relationType === 'ordered' ? 
+                            'Use: Pearson correlation' : 'Use: Chi-square test';
+                    } else {
+                        answerDiv.textContent = state.relationType === 'ordered' ? 
+                            'Use: Spearman correlation' : 'Use: Chi-square test';
+                    }
+                }
+            }
+        }
+
+        function restart() {
+            state = {
+                type: null,
+                groups: null,
+                relationType: null,
+                normality: null,
+                independence: null
+            };
+            
+            document.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.checked = false;
+            });
+            
+            document.querySelectorAll('.question').forEach(question => {
+                question.classList.remove('disabled');
+            });
+            
+            document.getElementById('answer').textContent = '';
+        }
+
+        // Add event listeners to all radio buttons
+        document.querySelectorAll('input[type="radio"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                state[e.target.name] = e.target.value;
+                updateUI();
+            });
+        });
+    </script>
+</body>
+</html>
