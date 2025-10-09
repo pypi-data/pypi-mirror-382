@@ -1,0 +1,68 @@
+name: CI - Integration Tests with uv
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write  # Required to allow pushing commits/tags
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Install uv (latest release)
+        run: |
+          wget -qO- https://astral.sh/uv/install.sh | sh
+          uv --version
+
+      - name: Install Python 3.12 with uv and create venv
+        run: |
+          uv python install 3.12
+          uv venv
+          echo "✅ Virtual environment created at .venv"
+
+      - name: Activate venv and sync dependencies
+        run: |
+          source .venv/bin/activate
+          uv sync
+
+      - name: Auto-format code with Black
+        run: |
+          source .venv/bin/activate
+          black .
+
+      - name: Set up Git credentials
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+
+      - name: Commit and Push formatting changes
+        run: |
+          git pull
+          git add .
+          git diff --quiet && git diff --staged --quiet || git commit -m "style: auto-format code with Black"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Run tests with coverage (unittest)
+        run: |
+          source .venv/bin/activate
+          uv pip install coverage
+          coverage run -m unittest discover -s tests -v
+          mkdir -p coverage_reports
+          coverage xml -o coverage_reports/coverage.xml
+          coverage report -m
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: SoftwareVerse/userverse-python-client
+          files: coverage_reports/coverage.xml
+          fail_ci_if_error: true
