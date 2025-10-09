@@ -1,0 +1,120 @@
+[project]
+name = "lib_cli_exit_tools"
+version = "1.6.0"
+description = "CLI exit handling helpers: clean signals, exit codes, and error printing"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = ["rich-click>=1.9.1"]
+license = { text = "MIT" }
+authors = [{ name = "bitranox", email = "bitranox@gmail.com" }]
+keywords = ["cli", "exit", "signals", "errors", "click"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: MIT License",
+  "Environment :: Console",
+  "Operating System :: OS Independent",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/bitranox/lib_cli_exit_tools"
+Repository = "https://github.com/bitranox/lib_cli_exit_tools.git"
+Issues = "https://github.com/bitranox/lib_cli_exit_tools/issues"
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.3",
+  "codecov-cli>=0.6",
+  "coverage[toml]>=7.10.7",
+  "hypothesis>=6.140.3",
+  "import-linter>=2.0",
+  "bandit>=1.7.9",
+  "pip-audit>=2.7",
+  "pyright>=1.1",
+  "pytest>=8.4",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=7.0",
+  "ruff>=0.13.3",
+  "textual>=6.1.0",
+  "twine>=6.2"
+]
+
+[project.scripts]
+lib_cli_exit_tools = "lib_cli_exit_tools.cli:main"
+# Friendly alias (optional):
+cli-exit-tools = "lib_cli_exit_tools.cli:main"
+lib-cli-exit-tools = "lib_cli_exit_tools.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lib_cli_exit_tools"]
+include = ["src/lib_cli_exit_tools/py.typed"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py313"
+
+[tool.ruff.lint.per-file-ignores]
+# ignore the "unused import sys" in the jupyter notebook - which we need (it is a linter hickup)
+"notebooks/*.ipynb" = ["F401"]
+
+[tool.pyright]
+typeCheckingMode = "strict"
+exclude = [
+  "scripts/menu.py",
+]
+
+[tool.pytest.ini_options]
+addopts = ["--doctest-modules"]
+doctest_optionflags = ["ELLIPSIS", "NORMALIZE_WHITESPACE"]
+markers = [
+  "os_agnostic: test exercises behavior that is the same on every operating system",
+  "posix_only: test applies only to POSIX-style operating systems",
+  "windows_only: test applies only to Windows operating systems",
+  "macos_only: test applies only to macOS operating systems",
+]
+
+[tool.coverage.run]
+branch = true
+parallel = false
+data_file = ".coverage.unit"
+source = ["src/lib_cli_exit_tools"]
+
+[tool.coverage.report]
+omit = [
+  "tests/*",
+  "packaging/*",
+  "src/lib_cli_exit_tools/__init__conf__.py",
+]
+fail_under = 85
+show_missing = true
+
+[tool.importlinter]
+root_package = "lib_cli_exit_tools"
+
+[[tool.importlinter.contracts]]
+name = "Core isolation"
+type = "forbidden"
+source_modules = [
+  "lib_cli_exit_tools.core",
+]
+forbidden_modules = [
+  "lib_cli_exit_tools.application",
+  "lib_cli_exit_tools.adapters",
+  "lib_cli_exit_tools.cli",
+  "lib_cli_exit_tools.lib_cli_exit_tools",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application avoids CLI layer"
+type = "forbidden"
+source_modules = [
+  "lib_cli_exit_tools.application",
+]
+forbidden_modules = [
+  "lib_cli_exit_tools.cli",
+]
