@@ -1,0 +1,213 @@
+{% load static %}
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8" />
+  <title>Markdown → HTML Renderer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src *; media-src *; frame-src *; style-src 'unsafe-inline' 'self'; script-src 'unsafe-inline' 'self';" />
+  <style>
+    :root{--bg:#0f1115;--panel:#151824;--muted:#8d93a1;--text:#e8ecf1;--accent:#5aa6ff;}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+    header{display:flex;gap:.75rem;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #23283a;background:var(--panel);position:sticky;top:0}
+    header h1{margin:0;font-size:16px;font-weight:600}
+    .toolbar{display:flex;gap:.5rem;align-items:center}
+    button{border:none;padding:8px 12px;border-radius:10px;background:var(--accent);color:#06121f;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    label{font-size:13px;color:var(--muted);display:flex;gap:.5rem;align-items:center;user-select:none}
+    main{display:grid;grid-template-columns:1fr 1fr;gap:10px;height:calc(100vh - 58px);padding:10px}
+    .pane{display:flex;flex-direction:column;border:1px solid #23283a;border-radius:14px;overflow:hidden;background:var(--panel);min-height:0}
+    .pane h2{margin:0;padding:10px 12px;border-bottom:1px solid #23283a;font-size:13px;color:var(--muted)}
+    textarea{width:100%;height:100%;resize:none;background:#0e1220;color:var(--text);border:none;padding:14px;font-family:ui-monospace,SFMono-Regular,Consolas,Monaco,monospace;font-size:14px;line-height:1.6}
+    .preview{padding:16px;overflow:auto}
+    .preview h1,.preview h2,.preview h3{margin:.6em 0 .4em}
+    .preview code{background:#0c1020;padding:2px 6px;border-radius:6px}
+    .preview pre{background:#0c1020;padding:12px;border-radius:10px;overflow:auto;direction:ltr}
+    .preview blockquote {
+      border-left: 4px solid var(--accent);
+      background: #181c2a;
+      margin: 1em 0;
+      padding: 10px 18px;
+      color: #a3b1d1;
+      font-style: italic;
+    }
+    .preview table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+      background: #181c2a;
+      color: var(--text);
+    }
+    .preview th, .preview td {
+      border: 1px solid #23283a;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    .preview th[align="right"], .preview td[align="right"] { text-align: right; }
+    .preview th[align="center"], .preview td[align="center"] { text-align: center; }
+    .preview th[align="left"], .preview td[align="left"] { text-align: left; }
+    .preview kbd {
+      background: #23283a;
+      border-radius: 6px;
+      border: 1px solid #5aa6ff;
+      padding: 2px 8px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #5aa6ff;
+      margin: 0 2px;
+      box-shadow: 0 1px 2px #0002;
+    }
+    .status{font-size:12px;color:var(--muted);padding:0 4px}
+    .row{display:flex;align-items:center;gap:.75rem}
+  @media (max-width: 960px){main{grid-template-columns:1fr;height:auto} .pane{min-height:40vh}}
+  .h_iframe-aparat_embed_frame{position:relative;}
+  .h_iframe-aparat_embed_frame .ratio{display:block;width:100%;height:auto;}
+  .h_iframe-aparat_embed_frame iframe{position:absolute;top:0;left:0;width:100%;height:100%;}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Markdown → HTML Renderer</h1>
+    <div class="toolbar">
+      <div class="row">
+        <label><input type="checkbox" id="live" /> Live Preview</label>
+        <span class="status" id="status">Ready</span>
+      </div>
+      <button id="renderBtn">Render</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="pane">
+      <h2>Input (.md)</h2>
+      <textarea id="md" placeholder="# Hello Markdown 🚀
+- This is a sample
+- **bold**, *italic*, `code`
+```js
+console.log('Hello Markdown');
+```"></textarea>
+    </section>
+
+    <section class="pane">
+      <h2>Preview (Safe HTML)</h2>
+      <div id="preview" class="preview"><em>HTML output will be displayed here...</em></div>
+    </section>
+  </main>
+
+  <script>
+    const ENDPOINT = "{% url 'render_markdown' %}";
+    const mdEl = document.getElementById("md");
+    const previewEl = document.getElementById("preview");
+    const renderBtn = document.getElementById("renderBtn");
+    const liveEl = document.getElementById("live");
+    const statusEl = document.getElementById("status");
+
+    // Emoji picker logic
+    const emojiList = [
+      ':smile:', ':rocket:', ':heart:', ':thumbsup:', ':fire:', ':star:', ':100:', ':clap:', ':eyes:', ':wave:', ':tada:', ':thinking:', ':sunglasses:', ':cry:', ':grin:', ':wink:', ':ok_hand:', ':pray:', ':confetti_ball:', ':poop:', ':blush:', ':angry:', ':sleeping:', ':zzz:', ':no_mouth:', ':neutral_face:', ':joy:', ':sob:', ':facepalm:', ':muscle:', ':skull:', ':alien:', ':robot:', ':cat:', ':dog:', ':sun:', ':moon:', ':rainbow:', ':rose:', ':crown:', ':gift:', ':balloon:', ':cake:', ':coffee:', ':pizza:', ':soccer:', ':basketball:', ':car:', ':airplane:', ':phone:', ':computer:', ':moneybag:', ':gem:', ':warning:', ':checkered_flag:', ':medal:', ':trophy:'
+    ];
+    let emojiBox = null;
+    mdEl.addEventListener('input', function(e) {
+      const val = mdEl.value;
+      const pos = mdEl.selectionStart;
+      const before = val.slice(0, pos);
+      const match = before.match(/:(\w{2,})$/);
+      if (match) {
+        const query = match[1];
+        const filtered = emojiList.filter(e => e.includes(query));
+        if (filtered.length) {
+          if (!emojiBox) {
+            emojiBox = document.createElement('div');
+            emojiBox.style.position = 'absolute';
+            emojiBox.style.background = '#23283a';
+            emojiBox.style.color = '#e8ecf1';
+            emojiBox.style.border = '1px solid #5aa6ff';
+            emojiBox.style.borderRadius = '8px';
+            emojiBox.style.zIndex = 1000;
+            emojiBox.style.fontSize = '15px';
+            emojiBox.style.padding = '6px 10px';
+            emojiBox.style.maxHeight = '180px';
+            emojiBox.style.overflowY = 'auto';
+            document.body.appendChild(emojiBox);
+          }
+          const rect = mdEl.getBoundingClientRect();
+          emojiBox.style.left = (rect.left + 20) + 'px';
+          emojiBox.style.top = (rect.top + 40) + 'px';
+          emojiBox.innerHTML = filtered.map(e => `<div style='cursor:pointer;padding:2px 0' data-emoji='${e}'>${e}</div>`).join('');
+          emojiBox.querySelectorAll('div').forEach(div => {
+            div.onclick = function() {
+              const newVal = val.slice(0, pos - query.length - 1) + div.dataset.emoji + val.slice(pos);
+              mdEl.value = newVal;
+              mdEl.focus();
+              emojiBox.remove();
+              emojiBox = null;
+              renderNow();
+            };
+          });
+        } else if (emojiBox) {
+          emojiBox.remove();
+          emojiBox = null;
+        }
+      } else if (emojiBox) {
+        emojiBox.remove();
+        emojiBox = null;
+      }
+    });
+
+    let timer = null;
+    function setStatus(s){ statusEl.textContent = s; }
+
+    async function renderNow() {
+      const markdown = mdEl.value || "";
+      setStatus("Rendering...");
+      renderBtn.disabled = true;
+      try {
+        const res = await fetch(ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markdown }),
+        });
+        const data = await res.json().catch(()=>({}));
+        if (!res.ok || !data?.html) throw new Error(data?.error || `HTTP ${res.status}`);
+        previewEl.innerHTML = data.html;
+        previewEl.querySelectorAll("a").forEach(a=>{
+          a.setAttribute("rel","noopener noreferrer");
+          a.setAttribute("target","_blank");
+        });
+        setStatus("Ready");
+      } catch (err) {
+        setStatus("Render Error");
+        previewEl.innerHTML = `<div style="background:#2b2030;border:1px solid #5a2b3a;padding:12px;border-radius:10px">
+<b>Error:</b> ${(err?.message||err).toString()}<br/>
+<span style="color:#aaa">Make sure the server is running and /render endpoint is accessible.</span>
+</div>`;
+        console.error(err);
+      } finally {
+        renderBtn.disabled = false;
+      }
+    }
+
+    function debounceRender() {
+      clearTimeout(timer);
+      timer = setTimeout(renderNow, 350);
+    }
+
+    renderBtn.addEventListener("click", renderNow);
+    mdEl.addEventListener("input", () => { if (liveEl.checked) debounceRender(); });
+
+    mdEl.value = `# Welcome to Markdown Renderer ✨
+
+This is a Django-based Markdown renderer with live preview support.
+
+## Features
+- Convert Markdown to HTML
+- Live preview
+- Safe HTML tags support
+- Clean and functional interface
+
+> To start, edit this text and click "Render" or enable live preview.`;
+    renderNow();
+  </script>
+</body>
+</html>
