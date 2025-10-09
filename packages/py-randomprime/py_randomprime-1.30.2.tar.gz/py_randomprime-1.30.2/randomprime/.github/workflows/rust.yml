@@ -1,0 +1,48 @@
+name: Rust
+
+on:
+  push:
+    branches:
+     - main
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: 'ubuntu-latest'
+            name: 'Linux'
+
+          - os: 'macos-latest'
+            name: 'macOS'
+            
+          - os: 'windows-latest'
+            name: 'Windows'
+
+    runs-on: ${{ matrix.os }}
+
+    name: ${{ matrix.name }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: 'recursive'
+
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: 1.85.1
+        target: powerpc-unknown-linux-gnu
+        override: true
+        
+    - uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --release --all-features --verbose
+
+    - uses: actions-rs/cargo@v1
+      with:
+        command: test
