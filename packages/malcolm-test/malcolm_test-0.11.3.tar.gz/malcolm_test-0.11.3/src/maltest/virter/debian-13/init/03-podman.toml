@@ -1,0 +1,51 @@
+version = 1
+
+[[steps]]
+[steps.shell]
+script = '''
+if ! dpkg -s podman &>/dev/null; then
+
+  sudo apt-get -y -q update
+  sudo apt-get -y -q --no-install-recommends install \
+      buildah \
+      catatonit \
+      crun \
+      fuse-overlayfs \
+      nftables \
+      passt \
+      podman \
+      slirp4netns \
+      uidmap
+
+  systemctl --user enable podman.service &>/dev/null || true
+  systemctl --user start podman.service &>/dev/null || true
+
+  # we don't want podman to always set DOCKER_HOST and take over, we may be running either one
+  sudo rm -f /etc/profile.d/podman-docker.*
+
+  mkdir -p "$HOME"/.config/containers
+  tee "$HOME"/.config/containers/containers.conf > /dev/null <<'EOT'
+[engine]
+
+runtime="crun"
+compose_warning_logs=false
+
+[containers]
+
+default_ulimits = [
+  "memlock=9223372036854775807:9223372036854775807",
+  "nofile=65535:65535",
+  "nproc=262143:524287"
+]
+
+[network]
+
+default_subnet_pools = [
+  {"base" = "172.27.0.0/16", "size" = 24},
+]
+EOT
+
+else
+  echo "podman is already installed"
+fi
+'''
