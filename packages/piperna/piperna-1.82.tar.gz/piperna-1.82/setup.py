@@ -1,0 +1,69 @@
+import setuptools
+
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
+    setuptools.setup(
+    name="piperna",
+    version="1.82",
+    author="Scott Furlan",
+    author_email="scottfurlan@gmail.com",
+    description="A python wrapper for fast and parallel processing of bulk RNA Seq data",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/scfurl/piperna.git",
+    packages=setuptools.find_packages(),
+    package_data={'piperna': ['piperna/data/genomes.json']},
+    include_package_data=True,
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+    ],
+    python_requires='>=2.5',
+    entry_points={'console_scripts': [
+        'piperna = piperna.__main__:run_piperna',
+    ]},
+    )
+
+
+"""
+cd '/Users/sfurlan/OneDrive - Fred Hutch Cancer Center/computation/develop/piperna'
+rm dist/*
+y
+python3 setup.py sdist bdist_wheel
+python3 -m twine upload dist/*
+scfurl
+
+
+**At SCRI do the following**
+
+module load python
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+pipx install --include-deps --pip-args '--trusted-host pypi.org --trusted-host files.pythonhosted.org' piperna
+pipx install --spec git+https://github.com/scfurl/piperna@dev --include-deps piperna --pip-args '--trusted-host pypi.org --trusted-host files.pythonhosted.org'
+
+
+**At the FHCRC do the following...**
+
+module load Python/3.6.7-foss-2016b-fh1
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+pipx uninstall piperna
+pipx install --spec git+https://github.com/scfurl/piperna --include-deps piperna 
+pipx install --include-deps piperna
+
+
+sFH2
+cd /home/sfurlan/scratch/owalt/bulk_HSCT
+mkdir STAR
+ml Python
+piperna MAKERUNSHEET -gk GRCh38 -fq fastq -r1c _1 -r2c _2 -t pe -sc _ -b file -o STAR
+piperna ALIGN -r runsheet.csv
+piperna SUMMARIZE -r runsheet.csv -th 24 -m 16 -l pipernaS.log
+
+
+
+piperna CONCATFASTQ -fc /archive/furlan_s/seq/cellranger/181015-NHPTreg/HHJJ7BGX5/outs/fastq_path,/archive/furlan_s/seq/cellranger/181015-NHPTreg/HWVFMBGX3/outs/fastq_path -o /archive/furlan_s/data_submission
+"""
