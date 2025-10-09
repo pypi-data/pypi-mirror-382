@@ -1,0 +1,136 @@
+// Norvelang Grammar
+
+// Entry point
+start: (_NL* (let_stmt | pipeline))+ _NL*
+_NL: NEWLINE
+%import common.NEWLINE
+%ignore NEWLINE
+
+// Pipeline and steps
+pipeline: from_stmt ("|" step)*
+
+?step: where_stmt
+     | map_stmt
+     | group_stmt
+     | save_stmt
+     | let_stmt
+     | join_stmt
+     | use_stmt
+     | order_stmt
+     | limit_stmt
+     | title_stmt
+
+// Title
+title_stmt: "title" (ESCAPED_STRING | SQUOTED_STRING)
+
+// Filtering
+where_stmt: "where" condition
+
+// Map and group
+map_stmt: "map" "{" field_mapping ("," field_mapping)* (","?) "}"
+group_stmt: "group" field_list ["having" condition]
+
+// Ordering and limiting
+order_stmt: "order" order_list
+order_list: order_key ("," order_key)* (","?)
+order_key: dotted_ident (ORDER_DIR)?
+ORDER_DIR.2: "asc"i | "desc"i
+limit_stmt: "limit" NUMBER?
+
+// Joins
+join_stmt: JOIN_TYPE source_with_alias "on" join_keys (extra_params)?
+         | JOIN_TYPE_NO_KEY source_with_alias (extra_params)?
+JOIN_TYPE: "left" | "right" | "inner" | "full"
+JOIN_TYPE_NO_KEY: "cross" | "natural"
+join_keys: dotted_ident "=" dotted_ident
+
+// Use (column selection)
+use_stmt: "use" [use_list]
+use_list: use_item ("," use_item)*
+use_item: (expr | STAR) [("as" IDENT | IDENT)]
+
+// From / Source
+from_stmt: source_with_alias extra_params?
+source_with_alias: file_name (AS IDENT)? | VAR (AS IDENT)?
+VAR: "$" IDENT
+extra_params: "[" param_list "]"
+param_list: param_pair ("," param_pair)*
+param_pair: IDENT "=" param_value
+param_value: FILENAME | IDENT | NUMBER | ESCAPED_STRING | SQUOTED_STRING
+AS: "as"i
+file_name: ESCAPED_STRING | SQUOTED_STRING | FILENAME
+
+FILENAME: /[a-zA-Z0-9_\-\/]+\.(csv|json|xlsx|xls|sqlite|db|xml)/
+
+// Map and aggregations
+field_mapping: dotted_ident ":" dotted_ident
+agg_mapping: IDENT ":" agg_func
+agg_func: IDENT "(" ( STAR | expr ) ")"
+field_list: dotted_ident ("," dotted_ident)* (","?)
+dotted_ident: (VAR | IDENT) ("." (IDENT | STAR))*
+
+// Save
+save_stmt: "save" file_name
+
+// Let
+let_stmt: "let" IDENT "=" _NL* pipeline
+        | "let" IDENT "=" _NL* "rows"
+
+// Expressions with PEMDAS
+STAR: "*"
+
+?condition: expr
+
+?expr: or_expr
+?or_expr: and_expr ("or" and_expr)*
+?and_expr: not_expr ("and" not_expr)*
+?not_expr: "not" comp_expr -> not_op
+         | comp_expr
+?comp_expr: sum_expr "between" sum_expr "and" sum_expr -> between_expr
+          | sum_expr (COMP sum_expr)?
+
+// PEMDAS: Addition/Subtraction (lowest precedence)
+sum_expr: sum_expr "+" prod_expr   -> add_expr
+        | sum_expr "-" prod_expr   -> sub_expr  
+        | prod_expr
+
+// PEMDAS: Multiplication/Division/Modulo
+prod_expr: prod_expr "*" power_expr -> mul_expr
+         | prod_expr "/" power_expr -> div_expr
+         | prod_expr "%" power_expr -> mod_expr
+         | power_expr
+
+// PEMDAS: Exponentiation (highest precedence)
+?power_expr: unary_expr "**" power_expr -> pow_expr
+           | unary_expr
+
+?unary_expr: ("+"|"-") unary_expr -> unary_op 
+           | atom
+
+?atom: NUMBER                        -> number
+     | ESCAPED_STRING                -> string
+     | SQUOTED_STRING                -> string
+     | IDENT "(" [expr_list] ")"     -> func_call
+     | agg_func
+     | dotted_ident                  -> var
+     | "(" expr ")"
+     | range_expr
+
+range_expr: NUMBER ".." NUMBER       -> range
+
+expr_list: expr ("," expr)* (","?)
+
+// Operators
+COMP: "==" | "!=" | "<>" | ">" | "<" | ">=" | "<="
+
+// Identifiers and tokens
+IDENT: /[a-zA-Z_][a-zA-Z0-9_]*/
+SQUOTED_STRING: /'[^']*'/
+%import common.NUMBER
+%import common.ESCAPED_STRING
+%import common.WS
+%ignore WS
+
+// Comments
+COMMENT: /#[^\n]*/
+%ignore COMMENT
