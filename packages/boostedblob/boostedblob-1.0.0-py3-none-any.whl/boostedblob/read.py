@@ -1,0 +1,298 @@
+from __future__ import annotations
+
+import itertools
+from typing import Any, Iterator
+
+from .boost import (
+    BoostExecutor,
+    BoostUnderlying,
+    OrderedMappingBoostable,
+    UnorderedMappingBoostable,
+    iter_underlying,
+)
+from .globals import config
+from .path import (
+    AzurePath,
+    BasePath,
+    BlobPath,
+    CloudPath,
+    GooglePath,
+    LocalPath,
+    getsize,
+    pathdispatch,
+)
+from .request import (
+    Request,
+    azure_auth_req,
+    execute_retrying_read,
+    execute_retrying_read_with_response,
+    google_auth_req,
+)
+
+ByteRange = tuple[int, int]
+OptByteRange = tuple[int | None, int | None]
+
+# ==============================
+# read_byte_range
+# ==============================
+
+
+@pathdispatch
+async def read_byte_range(path: BasePath | BlobPath | str, byte_range: OptByteRange) -> bytes:
+    """Read the content of ``path`` in the given byte range.
+
+    :param path: The path to read from.
+    :param byte_range: The byte range to read.
+    :return: The relevant bytes.
+
+    """
+    raise ValueError(f"Unsupported path: {path}")
+
+
+def _azure_get_blob_request(
+    path: AzurePath, byte_range: OptByteRange, *, speculative: bool = False
+) -> Request:
+    range_str = byte_range_to_str(byte_range)
+    range_header = {"Range": range_str} if range_str is not None else {}
+    success_codes = [200]
+    if range_header:
+        success_codes.append(206)
+    if speculative:
+        # We're not sure if the ranged read will succeed; if we have a zero-byte
+        # blob we'll get a 416 Range Not Satisfiable error.
+        success_codes.append(416)
+    return Request(
+        method="GET",
+        url=path.format_url("https://{account}.blob.core.windows.net/{container}/{blob}"),
+        headers=range_header,
+        success_codes=success_codes,
+        failure_exceptions={404: FileNotFoundError(path)},
+        auth=azure_auth_req,
+    )
+
+
+@read_byte_range.register  # type: ignore
+async def _azure_read_byte_range(path: AzurePath, byte_range: OptByteRange) -> bytes:
+    request = _azure_get_blob_request(path, byte_range)
+    return await execute_retrying_read(request)
+
+
+@read_byte_range.register  # type: ignore
+async def _google_read_byte_range(path: GooglePath, byte_range: OptByteRange) -> bytes:
+    range_str = byte_range_to_str(byte_range)
+    range_header = {"Range": range_str} if range_str is not None else {}
+    success_codes = (206,) if range_header else (200,)
+    request = Request(
+        method="GET",
+        url=path.format_url("https://storage.googleapis.com/storage/v1/b/{bucket}/o/{blob}"),
+        params=dict(alt="media"),
+        headers=range_header,
+        success_codes=success_codes,
+        failure_exceptions={404: FileNotFoundError(path)},
+        auth=google_auth_req,
+    )
+    return await execute_retrying_read(request)
+
+
+@read_byte_range.register  # type: ignore
+async def _local_read_byte_range(path: LocalPath, byte_range: OptByteRange) -> bytes:
+    with open(path, "rb") as f:
+        start, end = byte_range
+        if start is None:
+            return f.read() if end is None else f.read(end)
+        f.seek(start)
+        return f.read() if end is None else f.read(end - start)
+
+
+# ==============================
+# read_single
+# ==============================
+
+
+@pathdispatch
+async def read_single(path: BasePath | BlobPath | str) -> bytes:
+    """Read the content of ``path``.
+
+    For anything not small, prefer using `read_chunked` instead.
+
+    :param path: The path to read from.
+
+    """
+    raise ValueError(f"Unsupported path: {path}")
+
+
+@read_single.register  # type: ignore
+async def _cloud_read_single(path: CloudPath) -> bytes:
+    return await read_byte_range(path, (None, None))
+
+
+@read_single.register  # type: ignore
+async def _local_read_single(path: LocalPath) -> bytes:
+    with open(path, "rb") as f:
+        return f.read()
+
+
+# ==============================
+# read_stream
+# ==============================
+
+
+@pathdispatch
+async def read_stream(
+    path: BasePath | BlobPath | str, executor: BoostExecutor, size: int | None = None
+) -> BoostUnderlying[bytes]:
+    """Read the content of ``path``.
+
+    :param path: The path to read from.
+    :param executor: An executor.
+    :param size: If specified, will save a network call.
+    :return: The stream of bytes, chunking determined by ``config.chunk_size``.
+
+    """
+    raise ValueError(f"Unsupported path: {path}")
+
+
+@read_stream.register  # type: ignore
+async def _cloud_read_stream(
+    path: CloudPath, executor: BoostExecutor, size: int | None = None
+) -> OrderedMappingBoostable[Any, bytes]:
+    if size is None:
+        size = await getsize(path)
+
+    byte_ranges = itertools.zip_longest(
+        range(0, size, config.chunk_size),
+        range(config.chunk_size, size, config.chunk_size),
+        fillvalue=size,
+    )
+
+    # Note that we purposefully don't do
+    # https://docs.aiohttp.org/en/stable/client_quickstart.html#streaming-response-content
+    # Doing that would stream data as we needed it, which is a little too lazy for our purposes
+    chunks = executor.map_ordered(lambda byte_range: read_byte_range(path, byte_range), byte_ranges)
+    return chunks
+
+
+@read_stream.register  # type: ignore
+async def _azure_read_stream(
+    path: AzurePath, executor: BoostExecutor, size: int | None = None
+) -> BoostUnderlying[bytes]:
+    # The implementation of _cloud_read_stream actually works perfectly fine for Azure
+    # However, as an optimisation, we can skip the initial request for the size of the blob by
+    # speculatively reading the first chunk and checking the header size. This happens to also make
+    # Azure much happier.
+    request = _azure_get_blob_request(path, (0, config.chunk_size), speculative=True)
+    resp, first_chunk = await execute_retrying_read_with_response(request)
+    if resp.status == 416:
+        # If the file is completely empty, we'll get HTTP 416 Range Not
+        # Satisfiable.
+        return iter([])
+
+    content_size = int(resp.headers["Content-Range"].split("/")[1])
+    if size is not None:
+        assert size == content_size
+    size = content_size
+
+    if len(first_chunk) == size:
+        return iter([first_chunk])
+
+    assert len(first_chunk) < size
+    byte_ranges = itertools.zip_longest(
+        range(0, size, config.chunk_size),
+        range(config.chunk_size, size, config.chunk_size),
+        fillvalue=size,
+    )
+
+    async def _maybe_read_byte_range(byte_range: ByteRange) -> bytes:
+        if byte_range[0] == 0:
+            return first_chunk
+        return await read_byte_range(path, byte_range)
+
+    chunks = executor.map_ordered(_maybe_read_byte_range, byte_ranges)
+    return chunks
+
+
+@read_stream.register  # type: ignore
+async def _local_read_stream(
+    path: LocalPath, executor: BoostExecutor, size: int | None = None
+) -> Iterator[bytes]:
+    def iterator() -> Iterator[bytes]:
+        with open(path, "rb") as f:
+            while True:
+                data = f.read(config.chunk_size)
+                if not data:
+                    return
+                yield data
+
+    return iterator()
+
+
+# ==============================
+# read_stream_unordered
+# ==============================
+
+
+@pathdispatch
+async def read_stream_unordered(
+    path: CloudPath | str, executor: BoostExecutor, size: int | None = None
+) -> UnorderedMappingBoostable[Any, tuple[bytes, ByteRange]]:
+    assert isinstance(path, CloudPath)
+
+    if size is None:
+        size = await getsize(path)
+
+    byte_ranges = itertools.zip_longest(
+        range(0, size, config.chunk_size),
+        range(config.chunk_size, size, config.chunk_size),
+        fillvalue=size,
+    )
+
+    async def read_byte_range_wrapper(byte_range: ByteRange) -> tuple[bytes, ByteRange]:
+        chunk = await read_byte_range(path, byte_range)
+        return (chunk, byte_range)
+
+    chunks = executor.map_unordered(read_byte_range_wrapper, byte_ranges)
+    return chunks
+
+
+# ==============================
+# read_chunked
+# ==============================
+
+
+@pathdispatch
+async def read_chunked(path: CloudPath, executor: BoostExecutor, size: int | None = None) -> bytes:
+    """Read the content of ``path``.
+
+    :param path: The path to read from.
+    :param executor: An executor.
+    :param size: If specified, will save a network call.
+    :return: The bytes.
+
+    """
+    contents = []
+    stream = await read_stream(path, executor, size)
+    async for data in iter_underlying(stream):
+        contents.append(data)
+    return b"".join(contents)
+
+
+# ==============================
+# helpers
+# ==============================
+
+
+def byte_range_to_str(byte_range: OptByteRange) -> str | None:
+    # https://docs.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-blob-service-operations
+    # https://cloud.google.com/storage/docs/xml-api/get-object-download
+    # oddly range requests are not mentioned in JSON API, only in the XML API
+    start, end = byte_range
+    if start is not None and end is not None:
+        return f"bytes={start}-{end-1}"
+    if start is not None:
+        return f"bytes={start}-"
+    if end is not None:
+        if end > 0:
+            return f"bytes=0-{end-1}"
+        # This form is not supported by Azure
+        return f"bytes=-{-int(end)}"
+    return None
