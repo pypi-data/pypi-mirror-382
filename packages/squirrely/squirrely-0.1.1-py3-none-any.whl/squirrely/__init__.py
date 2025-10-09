@@ -1,0 +1,2 @@
+# squirrely/__init__.py
+from .main import main
