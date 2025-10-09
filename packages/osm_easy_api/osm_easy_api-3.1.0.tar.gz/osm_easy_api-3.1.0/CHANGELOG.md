@@ -1,0 +1,222 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [3.1.0] - 2025-10-08
+
+### Added
+- Additional tests for `api._request()`
+- Support for python 3.14
+
+### Changed
+- Exceptions for `notes.get_bbox()` (400 ValueError), `changeset.get_query()` (400 ValueError) and `changeset.upload()` (409 ChangesetAlreadyClosedOrUserIsNotAnAuthor) now will contain additional text returned by osm api [#35](https://github.com/docentYT/osm_easy_api/issues/35)
+- Use genbadge instead of coverage-badge
+
+### Fixed
+- Dependencies update
+
+## [3.0.2] - 2025-06-19
+### Added
+- Support for python 3.13
+- Project urls for PyPI registry
+
+### Changed
+- Development status set to `5 - Production/Stable`
+
+### Fixed
+- Dependencies update
+- Tests passing badge in README.md
+
+## [3.0.1] - 2024-05-21
+### Added
+- Support for python 3.12
+
+### Fixed
+- Dependencies update
+
+## [3.0.0] - 2024-03-19
+### Added
+- Support for `oAuth2`: `access_token` parameter in `Api` class constructor.
+- `Unauthorized` exception. (No access token.)
+- `Forbidden` exception. (The access token does not support the needed scope or you must be a moderator.)
+- `gpx.create()` endpoint.
+- `GpxFile` data class.
+- `Visibility` enum.
+- `gpx.update()` endpoint.
+- `gpx.delete()` endpoint.
+- `gpx.get_details()` endpoint.
+- `gpx.get_file()` endpoint.
+- `gpx.list_details()` endpoint.
+- `order` parameter in `changeset.get_query()`.
+
+### Fixed
+- Types in `elements` endpoint.
+- Missing documentation.
+- `misc.get_map_in_bbox()` endpoint should not yield `string`.
+
+### Changed
+- The way http errors are handled.
+- In `elements.get()` endpoint the `element` parameter has been renamed to `element_type`.
+- In `elements.history()` endpoint the `element` parameter has been renamed to `element_type`.
+- In `elements.version()` endpoint the `element` parameter has been renamed to `element_type`.
+- In `elements.getQuery()` endpoint the `element` parameter has been renamed to `element_type`.
+- In `elements.relations()` endpoint the `element` parameter has been renamed to `element_type`.
+- In `elements.full()` endpoint the `element` parameter has been renamed to `element_type`.
+- Type of `user_id` parameter in `changeset.get_query()` was changed from `str` to `int`.
+- `OsmChange_parser_generator()` and `OsmChange_parser()` from `diff` module are now 'private' functions. Use `Diff.get()` instead.
+- `notes.search()` endpoint throws `LimitsExceeded` exception instead of `ValueError`.
+- `page_number` paremeter in `gpx.get()` has now default value 0.
+- Now classes are imported from individual modules - not from the main library. See examples in the `README.md`.
+- `gpx.get()` renamed to `gpx.get_gps_points()`
+
+### Removed
+- Support for `HTTP Basic authentication`: `username` and `password` parameters in `Api` class constructor.
+- Most `# type: ignore`.
+- `NotAModerator` exception. It is now replaced by `Forbidden` exception.
+
+## [2.2.0] - 2024-02-23
+### Added
+- Exception for `410` status code in notes endpoint.
+
+## [2.1.1] - 2024-01-04
+### Fixed
+- Percent-encoding was not applied on texts entered by the user. [#22](https://github.com/docentYT/osm_easy_api/issues/22)
+
+## [2.1.0] - 2023-09-06
+### Added
+- `TooManyRequests` exception.
+- Support for `429` status code in `api.changeset.discussion.comment()`.
+
+## [2.0.0] - 2023-08-29
+### Added
+- Missing status code handling in `notes.get()`.
+- Support for hide note endpoint.
+### Fixed
+- Problems with parsing data chunks received by api.
+- Small grammar corrections in the documentation.
+### Changed
+- Working method of parser used in `notes` endpoint.
+- Working method of parsers in `misc` endpoint.
+- Working method of parsers in `user` endpoint.
+- Working method of parsers in `changeset` endpoint.
+- Working method of parsers in `elements` endpoint.
+### Removed
+- `EmptyResult` api exception, which was used in endpoints `notes`, `user` and `changeset`. From now on when the results are empty an empty list will be returned.
+- Unused imports.
+
+## [1.1.1] - 2023-08-03
+### Fixed
+- Corrected character when adding parameters in endpoint `api.notes.get_bbox()` (from `?` to `&`).
+- Fixed the `limit` parameter restrictions in `api.notes.get_bbox()` documentation.
+
+## [1.1.0] - 2023-08-28
+### Added
+- `limit` parameter for `api.changeset.get_query()` endpoint.
+
+### Fixed
+- Corrected character when adding parameters in endpoint `api.changeset.get_query()` (from `;` to `&`).
+
+## [1.0.2] - 2023-07-26
+### Fixed
+- Auth problems in API when using characters unsupported by latin-1 codec.
+
+## [1.0.1] - 2023-07-24
+### Fixed
+- `api.notes.create()` created only anonymous notes.
+
+## [1.0.0] - 2023-06-18
+### Added
+- `to_xml()` method in `OsmChange`.
+- `upload()` method in `changeset` `endpoint` has new optional arguments.
+- Test for `to_xml()` method in `OsmChange`.
+- `# pragma: no cover` for unexpected api errors (Those that are not in the specification on the wiki).
+
+### Changed
+- Private `_to_xml()` method in `OsmChange` is now static.
+
+## [0.4.2] - 2023-06-11
+
+### Changed
+- Order of elements in xml generated by `Way._to_xml()`. First tags, then nodes.
+
+### Fixed
+- `Relation._to_xml()` was returning an xml without osm tags.
+- Deleted disused variable in `Node._to_xml()`.
+- Fixed incorrect relation parsing of data recived by `full` endpoint.
+
+## [0.4.1] - 2023-05-23
+### Changed
+- Updated `requests` from `2.28.1` to `2.31.0`.
+
+## [0.4.0] - 2023-05-03
+### Added
+- `to_dict()` method and `from_dict()` class method to `Note`.  
+- `to_dict()` method and `from_dict()` class method to `Comment`.
+- `to_dict()` method and `from_dict()` class method to `User`.
+- Documentation about `Meta` and `Action` class.
+- Assert error (with information to report it on github) when api returns an error code not described on the wiki.
+- `to_dict()` method and `from_dict()` class method to `(relation) Member`.
+
+### Fixed
+- `Note` can now be imported from package.
+- `Comment` can now be imported from package.
+- `User` can now be imported from package.
+- `Member` can now be imported from package.
+- Pdoc command in `README.md`.
+- `Relation.to_dict()` method now recursively serialises members.
+- `Way.to_dict()` method now recursively serialises nodes.
+
+### Changed
+- Changed imports in `Relation.py` to use importing through a module rather than directly from a file.
+- Added `sample_dataclasses.py` file in tests fixtures to reduce code duplication.
+- Changed function name and deleted unnecessary argument in `append_elements_to_master_element()` nested inside private method `_to_xml()` in `OsmChange`.
+
+## [0.3.0] - 2023-03-14
+
+### Added
+- `to_dict()` method and `from_dict()` class method to Changeset. [#7](https://github.com/docentYT/osm_easy_api/issues/7)
+- Ability to set user_agent in `Diff` and `Api` class. [#5](https://github.com/docentYT/osm_easy_api/issues/5)
+- `osm_object_primitive` `from_dict()` class method now raises `ValueError` if the `type` key is not found.
+
+### Changed
+- `Changeset` is now exported from data_classes module.
+- More tests.
+
+## [0.2.0] - 2023-03-07
+
+### Added
+- `to_dict()` method and `from_dict()` class method to `osm_object_primitive`. (An object that is inherited by a `Node`, `Way`, `Relation`). [#3](https://github.com/docentYT/osm_easy_api/issues/3)
+- Support for historical anonymous edits and edits made by deleted accounts. [#4](https://github.com/docentYT/osm_easy_api/issues/4)
+
+## [0.1.4] - 2023-03-05
+
+### Fixed
+- Improvement of utils.join_url() function.
+- Spelling errors corrected [@matkoniecz](https://github.com/matkoniecz)
+
+## [0.1.3] - 2023-03-03
+
+### Fixed
+
+- Fixed the non-setting of the "visible" attribute.
+
+## [0.1.2] - 2023-03-03
+
+### Fixed
+
+- Fixed return type of generator in Diff.get() method.
+
+## [0.1.1] - 2023-03-03
+
+### Added
+
+- License
+
+## [0.1.0] - 2023-03-03
+
+### Added
+
+- Initial import
