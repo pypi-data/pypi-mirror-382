@@ -1,0 +1,401 @@
+# ============================================================================
+# Config file for RNA-seq
+#
+# ==================[ Sections for the users ]================================
+#
+# One of input_directory, input_pattern and input_samples must be provided
+# If input_directory provided, use it otherwise if input_pattern provided,
+# use it, otherwise use input_samples.
+# ============================================================================
+sequana_wrappers: "v24.8.29"
+
+input_directory:
+input_readtag: _R[12]_
+input_pattern: '*fastq.gz'
+
+# See sequana_pipetools.readthedocs.io for details about these 2 options
+# common prefixes are removed. addition prefixes may be removed here
+#extra_prefixes_to_strip = []
+# in special cases, sample names can be extracted with a pattern
+#sample_pattern: '{sample}.fastq.gz'
+apptainers:
+  sequana_tools: "https://zenodo.org/record/7102074/files/sequana_tools_0.14.3.img"
+  salmon: "https://zenodo.org/record/5708843/files/salmon_1.3.0.img"
+  fastqc: "https://zenodo.org/record/7015004/files/fastqc_0.11.9-py3.img"
+  fastp: "https://zenodo.org/record/7319782/files/fastp_0.23.2.img"
+  igvtools: "https://zenodo.org/record/7022635/files/igvtools_2.12.0.img"
+  graphviz: "https://zenodo.org/record/7928262/files/graphviz_7.0.5.img"
+  multiqc: "https://zenodo.org/record/10205070/files/multiqc_1.16.0.img"
+  rnaseqc: "https://zenodo.org/record/5799564/files/rnaseqc_2.35.0.img"
+
+# =========================================== Sections for the users
+
+#############################################################################
+# Genome section:
+#
+# :Parameters:
+#
+# - aligner: either star or bowtie2. 
+# - genome_directory: directory where all indexes are written.
+# - rRNA_contaminant: path to an existing fasta file for ribosomal RNA (to be found in
+#   genome_directory)
+# - rRNA_feature: if rRNA_contaminant is not provided, ribosomal RNA will be extract
+#     from GFF using this feature name. It must be found. 
+general:
+    aligner: bowtie2
+    genome_directory:
+    contaminant_file:
+    rRNA_feature: rRNA
+    custom_gff: ''
+
+
+#################################################################
+# FastQC section
+#
+# :Parameters:
+#
+# - options: string with any valid FastQC options
+#
+fastqc:
+    skip_fastqc_raw: true
+    options: --nogroup
+    threads: 4
+    resources:
+        mem: 4G
+
+#######################################################################
+# Quality trimming and adapter removal
+#
+# for cutadapt, please fill the fwd and rev fields if required. It can be a
+# string, or a filename. If a filename, it must be prefixed with "file:" to
+# specify that it is a file and not a string. If the tool is cutadapt, the empty
+# fwd and rev fields means that no adapters are to be used.
+#
+# :Parameters:
+#
+# - fwd: a string or file (prefixed with *file:*)
+# - m: 20 means discard trimmed reads that are shorter than 20.
+#         must be > 0
+# - quality: 0 means no trimming, 30 means keep base with quality
+#        above 30
+# - mode: must be set to one of
+#     - g for 5'
+#     - a for 3'
+#     - b for both 5'/3'
+# - rev: a string or file (prefixed with *file:*)
+# - tool: only cutadapt supported for now
+# - threads: number of threads to use (atropos only)
+# - options: See cutadapt documentation for details on
+#            cutadapt.readthedocs.io. We change the default value
+#            of -O to 6 (at least 6 bases are required to match before
+#            trimming of an adapter)
+#
+# tool_choice__ = ["atropos", "cutadapt"]
+#
+# trim-n trims Ns at the end of the read
+cutadapt:
+    tool_choice: cutadapt
+    fwd: ''
+    rev: ''
+    m: 20                       # {"strict_min": 0}
+    mode: b                     # {"values": ["b","g","a"]}
+    options: -O 6 --trim-n
+    quality: 30                 # {"range": [0,40]}
+    threads: 4
+
+
+#############################################################################
+# -Q should disable the quality filter
+#
+# Quality filtering only limits the N base number (-n, --n_base_limit) 
+# meaning if 5 Ns are found, the read is discarded, 
+# -q is the quality value se to Q15 to be qualified; If more than 40% of bases
+# are unqualified, the read is discarded.
+# You can also filter reads by average quality score using -e QUAL_score
+#
+# minimum length is set to 15 by default
+#
+# Adapter trimming is set by default. Can be disable with -A
+# For adapters, this is automatic but you can be specific using 
+# --adapter_sequence for read1, and --adapter_sequence_r2 for read2.
+# The --cut_tail moves a sliding window from tail (3') to front, drop the bases 
+# in the window if its mean quality is below cut_mean_quality, stop otherwise. 
+# Use cut_tail_window_size to set the widnow size (default 4)), and 
+# cut_tail_mean_quality to set the mean quality threshold (default 20)
+# Other useful options: --disable_adapter_trimming and --disable_quality_filtering.
+# or -n 5 (minimum number of Ns required to discard a read)
+fastp:
+    options: ' --cut_tail '
+    minimum_length: 20
+    adapters: ''
+    quality: 15
+    threads: 4
+    disable_adapter_trimming: false
+    disable_quality_filtering: false
+    resources:
+        mem: 8G
+
+#######################################################
+# Quality trimming software choice
+#
+# software_choice__ = ["atropos", "cutadapt", "fastp"]
+#
+trimming:
+    software_choice: fastp
+    do: true
+
+#############################################################################
+# bowtie1_mapping_rna used to align reads against ribosomal RNA
+#
+# :Parameters:
+#
+# - do: if unchecked, this rule is ignored
+# - options: any options recognised by bowtie1 tool
+# - threads: number of threads to be used
+# - nreads: no need to analyse all data to estimate the ribosomal content. 
+#   analyse 100,000 reads by default. Set to -1 to ignore and analyse all data
+bowtie1_mapping_rna:
+    # remove in v1.20 and set automatically to on/off if rRNA/fasta provided
+    # do: true
+    options: ''
+    threads: 4
+    nreads: 100000
+
+#############################################################################
+# star_mapping used to align reads against genome file
+#
+# :Parameters:
+#
+# - do: if unchecked, this rule is ignored
+# - options: any options recognised by rna-star tool. Set limitBAMsortRAM to 30G
+# - threads: number of threads to be used
+# - legacy: if set to True will use the old 2-pass version from STAR
+#      used in this pipeline until v0.15.3. If you want to use the
+#      2-pass mode available in star, you will need star 2.7 and above
+# 
+star_mapping:
+    options: " --limitBAMsortRAM 30000000000 --outFilterMismatchNoverLmax 0.05 --seedSearchStartLmax 20 "
+    legacy: True
+    threads: 4
+    resources:
+      mem: 32G
+
+##############################################################################
+# STAR indexing section
+#
+# :Parameters:
+#
+# - options: string with any valid STAR options
+star_index:
+    options:
+    threads: 4
+    resources:
+      mem: 4G
+#############################################################################
+# bowtie1_mapping_ref used to align reads against genome file
+#
+# :Parameters:
+#
+# - do: if unchecked, this rule is ignored
+# - options: any options recognised by bowtie1 tool
+# - threads: number of threads to be used
+#
+bowtie1_mapping_ref:
+    options: --chunkmbs 400 -m 1
+    threads: 4
+
+#############################################################################
+# bowtie2_mapping used to align reads against genome file
+#
+# :Parameters:
+#
+# - do: if unchecked, this rule is ignored
+# - options: any options recognised by bowtie2 tool
+# - threads: number of threads to be used
+#
+bowtie2_mapping:
+    #options: "--dovetail --no-mixed --no-discordant " for paired-end data
+    options: ''
+    threads: 4
+    genome_size_larger_than_4gb: false
+    resources:
+      mem: 20G
+
+bowtie2_index:
+    options: ''
+    threads: 4
+    resources:
+      mem: 20G
+
+salmon_index:
+    threads: 2
+    options:
+    resources:
+        mem: 4G
+
+salmon_mapping:
+    options: -l A
+    threads: 4
+    resources:
+        mem: 4G
+
+#############################################################################
+# feature_counts used to count reads against features
+#
+# :Parameters:
+#
+# - do: if unchecked, this rule is ignored
+# - options: any options recognised by feature_counts tool except -s
+# - threads: number of threads to be used
+# - strandness: (optional) you should provide the strand parameters, given
+#      from the experimental design. If not provided, we will guess it (see
+#      tolerance parameter here below)
+# - tolerance: if strandness is not provided, we will guess it from
+#     the data. The metric used is between 0 and 1. It is a ratio between 
+#     strand + and -. If below tolerance, the strand is reversely stranded. If
+#     above 1-tolerance, it is (forward) stranded. If around 0.5 +- tolerance,
+#     it is unstranded. Otherwise, it means our guess would not be very
+#     reliable. A warning will be raised. Note also that if there is no
+#     consensus across samples, a warning/error may also be raised. tolerance
+#     is therefore in the range [0-0.25]
+# - feature: this is equivalent to the -t option to specify the feature type in GTF
+#     annotation. For example gene, exon (default). 
+# - attribute: this is the -g option to specify the attribute type in GTF annoation. 
+#   (gene_id) by default. 
+# - extra_attributes: any other 
+#
+feature_counts:
+    do: true
+    options: ''      ## if exon/CDS is used, put -O option
+    strandness: ''   # set to 0, 1, 2 to force te type of strandness
+    threads: 1       # 
+    tolerance: 0.15  # use to figure out the strandness. no need to change
+    feature: gene    # could be exon, mRNA, etc
+    attribute: ID    # could be ID, gene_id, etc
+    extra_attributes:    # by default, stores only the main attribute, but could add more
+
+#############################################################################
+# bamCoverage write file in bigwig format from BAM files.
+# This tool takes an alignment of reads or fragments as input (BAM file) and
+# generates a coverage track (bigWig or bedGraph) as output. The coverage is
+# calculated as the number of reads per bin, where bins are short consecutive
+# counting windows of a defined size. It is possible to extended the length of
+# the reads to better reflect the actual fragment length. *bamCoverage* offers
+# normalization by scaling factor, Reads Per Kilobase per Million mapped reads
+# (RPKM), and 1x depth (reads per genome coverage, RPGC).
+#
+# :Parameters:
+#
+# - do: if unchecked, this rule is ignored
+# - binSize: Size of the bins, in bases, for the output of the
+#            bigwig/bedgraph file. (default: 50)
+# - genomeSize: Report read coverage normalized to 1x sequencing depth
+#                        (also known as Reads Per Genomic Content (RPGC)).
+#                        Sequencing depth is defined as: (total number of
+#                        mapped reads * fragment length) / effective genome
+#                        size. The scaling factor used is the inverse of the
+#                        sequencing depth computed for the sample to match the
+#                        1x coverage. To use this option, the effective genome
+#                        size has to be indicated after the option. The
+#                        effective genome size is the portion of the genome
+#                        that is mappable.
+# - extendReads: This parameter allows the extension of reads to
+#                fragment size.
+# - minFragmentLength: The minimum fragment length needed for read/pair
+#                      inclusion. Note that a value other than 0 will exclude
+#                      all single-end reads.
+# - maxFragmentLength: The maximum fragment length needed for read/pair
+#                      inclusion. A value of 0 disables filtering and is
+#                      needed for including single-end and orphan reads.
+# - threads: number of threads to be used
+bam_coverage:
+    do: false
+    options: "--binSize 10 --effectiveGenomeSize 2150000000"
+    #extendReads: 65
+    #minFragmentLength: 0 #Note that a value other than 0 will exclude all single-end reads.
+    #maxFragmentLength: 0 #A value of 0 disables filtering and is needed for including single-end and orphan reads.
+    threads: 4
+    resources:
+        mem: 20G
+
+
+###########################################################################
+# Creates a tdf files using igvtools
+#
+# :Parameters:
+#
+# - chromSize: path to index of reference genome obtain by samtools faidx
+igvtools:
+    do: false
+    # can be a link to the fasta file or an existing chrom.sizes file
+    # If none provided, will use the input fasta file
+    chrom_sizes_file: ''
+
+
+#############################################################################
+# mark_duplicates (picard-tools) allows to mark PCR duplicate in BAM files
+#
+# :Parameters:
+#
+# - do: if unchecked, this rule is ignored. Mandatory for RNA-SeQC tool.
+# - remove: If true do not write duplicates to the output file instead of writing them with
+#            appropriate flags set.  Default value: false. This option can be set to 'null' to clear
+#            the default value. Possible values: {true, false}
+# - tmpdir: write tempory file on this directory (default TMP_DIR=/tmp/, but could be "TMP_DIR=/local/scratch/")
+#
+mark_duplicates:
+    do: false
+    remove: false ## may be True
+    tmpdir: ./tmp/
+    threads: 4
+    resources:
+      mem: 34G
+
+add_read_group:
+    options: 
+
+#############################################################################
+# RNA-SeQC allows to compute a series of quality control metrics for RNA-seq data
+#
+# :Parameters:
+#
+# - do: if unchecked, this rule is ignored
+# - ref: Reference Genome in fasta format
+# - gtf: GTF File defining transcripts (must end in '.gtf')
+#        You can use the 'sequana gff-to-gtf input.gff' command
+# - options: any options recognised by RNA-seQC tool
+rnaseqc:
+    do: false
+    gtf_file:
+    options: --coverage
+    resources:
+        mem: 8G
+
+
+# if be_file not provided, try to create one on the fly
+# needs mark_duplicates
+rseqc:
+    do: false
+    bed_file:
+
+
+#############################################################################
+#   MultiQC aggregates results from bioinformatics analyses across many
+#   samples into a single report.
+#
+# :Parameters:
+#
+# - options: any options recognised by multiqc
+# - output-directory: Create report in the specified output directory
+# - config_file: by default, we use sequana RNA-seq multiqc_config file. 
+#       If you want your own multiqc, fill this entry
+multiqc:
+    options: -p -f -x *_init_*
+    modules: ''
+    input_directory: .
+    config_file: multiqc_config.yaml
+    resources:
+        mem: 8G
+
+
+

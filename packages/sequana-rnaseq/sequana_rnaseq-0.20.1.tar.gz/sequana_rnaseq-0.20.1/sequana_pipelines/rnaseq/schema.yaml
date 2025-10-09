@@ -1,0 +1,355 @@
+# Schema validator for the rnaseq pipeline
+# author: Thomas Cokelaer
+
+type: map
+mapping:
+    "sequana_wrappers":
+        type: str
+    "input_directory":
+        type: str
+        required: True
+    "input_readtag":
+        type: str
+        required: True
+    "input_pattern":
+        type: str
+        required: True
+    "apptainers":
+        type: any
+
+
+    "fastqc":
+        type: map
+        mapping:
+            "skip_fastqc_raw":
+                type: bool
+                required: True
+            "options":
+                type: str
+                required: True
+            "threads":
+                type: int
+                required: True
+                range: { min: 1 }
+            "resources":
+                type: any
+                required: true
+
+
+    "general":
+        type: map
+        mapping:
+            "aligner":
+                type: str
+                required: True
+                enum: ["bowtie2", "star", "salmon"]
+            "genome_directory":
+                required: True
+                type: str
+            "contaminant_file":
+                type: str
+            "rRNA_feature":
+                type: str
+            "custom_gff":
+                type: str
+
+    "add_read_group":
+      type: map
+      mapping:
+        "options":
+          type: str
+
+    "trimming":
+      type: map
+      mapping:
+        "do":
+          type: bool
+          required: True
+        "software_choice":
+          type: str
+          enum: [cutadapt,atropos,fastp]
+
+    "fastp":
+      type: map
+      mapping:
+        "options":
+            type: str
+        "minimum_length":
+            required: True
+            type: int
+        "adapters":
+            type: str
+            required: False
+        "quality":
+            type: int
+            range: {max: 40, min: 0}
+            required: False
+        "threads":
+            type: int
+            required: True
+            range: { min: 1 }
+        "disable_adapter_trimming":
+            type: bool
+        "disable_quality_filtering":
+            type: bool
+        "resources":
+            type: any
+            required: true
+
+
+    "cutadapt":
+        type: map
+        mapping:
+            "tool_choice":
+                type: str
+                enum: [cutadapt,atropos]
+                required: True
+            "adapter_choice":
+                type: str
+                required: False
+            "design_file":
+                type: str
+                required: False
+                pattern: .*
+            "fwd":
+                type: str
+                required: False
+            "rev":
+                type: str
+                required: False
+            "m":
+                type: int
+                range: {min: 0}
+                required: True
+            "mode":
+                type: str
+                enum: [b, g, a]
+                required: True
+            "options":
+                type: str
+                required: False
+            "quality":
+                type: int
+                range: {max: 40, min: 0}
+                required: False
+            "threads":
+                type: int
+                required: True
+                range: { min: 1 }
+
+    "multiqc":
+        type: map
+        mapping:
+            "options":
+                type: str
+            "modules":
+                type: str
+            "config_file":
+                type: str
+            "input_directory":
+                type: str
+            "resources":
+                type: any
+                required: true
+
+
+    "feature_counts":
+        type: map
+        mapping:
+            "do":
+                type: bool
+            "options":
+                type: str
+            "attribute":
+                type: str
+            "feature":
+                type: str
+            "extra_attributes":
+                type: str
+            "strandness":
+                required: False
+                type: any
+                enum: ['0', '1', '2' , '', 0, 1, 2]
+            "threads":
+                type: int
+                range: { min: 1, max: 8 }
+            "tolerance":
+                type: float
+                range: { min: 0, max: 0.25 }
+    'bowtie1_mapping_ref':
+        type: map
+        mapping:
+            "options":
+                type: str
+            "threads":
+                type: int
+                required: True
+                range: { min: 1 }
+
+    'salmon_index':
+      type: map
+      mapping: 
+        "options":
+          type: str
+        "threads":
+          type: int
+          required: True
+          range: { min: 1 }
+        "resources":
+          type: any
+          required: true
+      
+
+    'salmon_mapping':
+        type: map
+        mapping:
+            "options":
+                type: str
+            "threads":
+                type: int
+                required: True
+                range: { min: 1 }
+            "resources":
+                type: any
+                required: true
+
+    'bam_coverage':
+        type: map
+        mapping:
+            "do":
+                type: bool
+            "options":
+                type: str
+            "binSize":
+                type: int
+            "genomeSize":
+                type: int
+            "extendReads":
+                type: int
+            "minFragmentLength":
+                type: int
+            "maxFragmentLength":
+                type: int
+            "threads":
+                type: int
+                required: True
+                range: { min: 1, max: 8 }
+            "resources":
+                type: any
+                required: true
+
+    'mark_duplicates':
+        type: map
+        mapping:
+            "do":
+                type: bool
+            "remove":
+                type: bool
+            "tmpdir":
+                type: str
+            "threads":
+                type: int
+                required: True
+                range: { min: 1, max: 8 }
+            "resources":
+                type: any
+                required: true
+
+    'bowtie1_mapping_rna':
+        type: map
+        mapping:
+            "options":
+                type: str
+            "threads":
+                type: int
+                required: True
+                range: { min: 1}
+            "nreads":
+                type: int
+                required: True
+                range: { min: -1, max: 1e15}
+
+    'igvtools':
+        type: map
+        mapping:
+            "do":
+                type: bool
+            "chrom_sizes_file":
+                type: str
+    'rnaseqc':
+        type: map
+        mapping:
+            "do":
+                type: bool
+            "gtf_file":
+                type: str
+            "options":
+                type: str
+            "resources":
+                type: any
+                required: true
+    'rseqc':
+        type: map
+        mapping:
+            "do":
+                type: bool
+            "bed_file":
+                type: str
+
+    'bowtie2_mapping':
+        type: map
+        mapping:
+            "options":
+                type: str
+            "threads":
+                type: int
+                required: True
+                range: { min: 1}
+            "genome_size_larger_than_4gb":
+                type: bool
+            "resources":
+                type: any
+                required: true
+
+    'bowtie2_index':
+        type: map
+        mapping:
+            "options":
+                type: str
+            "threads":
+                type: int
+                required: True
+                range: { min: 1}
+            "resources":
+                type: any
+                required: true
+
+    'star_mapping':
+        type: map
+        mapping:
+            "options":
+                type: str
+            "threads":
+                type: int
+                required: True
+                range: { min: 1}
+            "resources":
+                type: any
+                required: true
+            "legacy":
+                type: bool
+                required: True
+
+    'star_index':
+        type: map
+        mapping:
+            "options":
+                type: str
+            "threads":
+                type: int
+                required: True
+                range: { min: 1}
+            "resources":
+                type: any
+                required: true
+
