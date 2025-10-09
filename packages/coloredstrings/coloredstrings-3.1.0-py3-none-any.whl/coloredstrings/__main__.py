@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import os
+
+from coloredstrings import style
+
+print(f"Current terminal type: {os.getenv('TERM')}")
+
+print("-" * 78)
+
+print("Test basic colors:")
+print(style.black("Black color"))
+print(style.red("Red color"))
+print(style.green("Green color"))
+print(style.yellow("Yellow color"))
+print(style.blue("Blue color"))
+print(style.magenta("Magenta color"))
+print(style.cyan("Cyan color"))
+print(style.white("White color"))
+print(style.gray("Gray color (light black color)"))
+print(style.bright_red("Light red color"))
+print(style.bright_green("Light green color"))
+print(style.bright_yellow("Light yellow color"))
+print(style.bright_blue("Light blue color"))
+print(style.bright_magenta("Light magenta color"))
+print(style.bright_cyan("Light cyan color"))
+
+print("-" * 78)
+
+print("Test highlights:")
+print(style.on.black("On black color"))
+print(style.on.red("On red color"))
+print(style.on.green("On green color"))
+print(style.on.yellow("On yellow color"))
+print(style.on.blue("On blue color"))
+print(style.on.magenta("On magenta color"))
+print(style.on.cyan("On cyan color"))
+print(style.black.on.white("On white color"))
+print(style.on.gray("On gray color (on light black color)"))
+print(style.on.bright_red("On light red color"))
+print(style.on.bright_green("On light green color"))
+print(style.on.bright_yellow("On light yellow color"))
+print(style.on.bright_blue("On light blue color"))
+print(style.on.bright_magenta("On light magenta color"))
+print(style.on.bright_cyan("On light cyan color"))
+
+print("-" * 78)
+
+print("Test attributes:")
+print(style.black.bold("Bold black color"))
+print(style.red.dim("Dim red color"))  # 'dark' mapped to dim()
+print(style.green.underline("Underline green color"))
+print(style.blue.inverse("Reversed blue color"))
+print(style.cyan.bold.underline.inverse("Bold underline inverse cyan color"))
+print(style.white.dim("Dim white color"))
+print("Hidden:", style.hidden("you can't see it, eh?"))
+print(style.strike("Striked"))
+print(style.blink.rgb(255, 105, 180)("Blink hot pink color"))
+print(style.rapid_blink.rgb(255, 0, 255)("Rapid pure magenta color"))
+print(style.double_underline("Double underlined text"))
+print(style.circle("Encircled text"))
+print(style.framed("Framed text"))
+
+print("-" * 78)
+
+print("Test mixing:")
+print(style.red.on.black.underline("Underline red on black color"))
+print(style.green.on.red.inverse("Reversed green on red color"))
+
+print("-" * 78)
+
+print("Test RGB (truecolor):")
+print(style.rgb(255, 0, 0)("Pure red text (255, 0, 0)"))
+print(style.red("Default red for comparison"))
+print(style.rgb(0, 255, 0)("Pure green text (0, 255, 0)"))
+print(style.green("Default green for comparison"))
+print(style.rgb(0, 0, 255)("Pure blue text (0, 0, 255)"))
+print(style.blue("Default blue for comparison"))
+print(style.rgb(255, 255, 0)("Pure yellow text (255, 255, 0)"))
+print(style.yellow("Default yellow for comparison"))
+print(style.rgb(0, 255, 255)("Pure cyan text (0, 255, 255)"))
+print(style.cyan("Default cyan for comparison"))
+print(style.rgb(255, 0, 255)("Pure magenta text (255, 0, 255)"))
+print(style.magenta("Default magenta for comparison"))
+print(style.rgb(255, 182, 193)("Light pink (255, 182, 193)"))
+print(style.rgb(255, 105, 180)("Hot pink (255, 105, 180)"))
