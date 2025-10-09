@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sphinxcontrib-extdevhelper-kasane"
+description = "襲 - Provide dynamic inheritance shortcuts to make Sphinx extension development easier"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT License" }
+authors = [{ name = "nikkie", email = "takuyafjp+develop@gmail.com" }]
+keywords = ["Sphinx extension", "helper"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Framework :: Sphinx",
+    "Framework :: Sphinx :: Extension",
+    "Topic :: Documentation",
+    "Topic :: Documentation :: Sphinx",
+    "Topic :: Software Development :: Documentation",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dynamic = ["version"]
+dependencies = ["Sphinx"]
+
+[project.urls]
+Repository = "https://github.com/ftnext/sphinxcontrib-extdevhelper-kasane"
+
+[tool.setuptools.dynamic]
+version = { attr = "sphinxcontrib.kasane.__version__" }
+
+[project.optional-dependencies]
+dev = [
+    "taskipy",
+    "autoflake",
+    "pyupgrade",
+    "black",
+    "isort",
+    "pytest",
+    "pytest-randomly",
+    "flake8",
+    "mypy",
+]
+
+[tool.taskipy.tasks]
+pre_test = "task format"
+test = "pytest -v"
+post_test = "task check"
+format = "task format_autoflake && task format_pyupgrade && task format_black && task format_isort"
+format_autoflake = "autoflake --in-place --remove-all-unused-imports $(find src tests -name '*.py') setup.py"
+format_pyupgrade = "pyupgrade $(find src tests -name '*.py') setup.py"
+format_black = "black -l 79 src tests setup.py"
+format_isort = "isort --profile black -l 79 src tests setup.py"
+check = "task check_flake8 && task check_mypy"
+check_flake8 = "flake8 src tests"
+check_mypy = "mypy src tests"
+
+[tool.mypy]
+ignore_missing_imports = true
