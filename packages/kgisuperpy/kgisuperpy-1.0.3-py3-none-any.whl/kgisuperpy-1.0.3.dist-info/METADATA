@@ -1,0 +1,2087 @@
+Metadata-Version: 2.4
+Name: kgisuperpy
+Version: 1.0.3
+Summary: KGI project
+Author: KGI Securities
+Author-email: ec.service@kgi.com
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pythonnet
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
+
+# README.md
+
+# SuperPy
+
+---
+
+# 更新紀錄
+
+| **日期** | 項目 | 版本 |
+| --- | --- | --- |
+| 2024/07/05 | 初版 | 1.0.0 |
+| 2024/09/18 | 1. 新增新編指數 <br> 2. 新增子帳登入功能 | 1.0.1 |
+| 2024/12/09 | 調整說明 | 1.0.2 |
+| 2025/09/30 | 調整證券下單回報功能 增加[4002]電文條件判斷 | 1.0.3 |
+
+---
+
+# **快速入門**
+
+⚠️ 在開始前請還需完成前置作業，包含**開戶**、**服務條款** 及 **Token**。
+
+依據主管機關規範，使用API元件應簽署『證券API服務風險預告書暨使用同意書』
+
+[我要線上申請API](https://h5webtrade.kgieworld.com.tw/ServicesWeb/Auth/Login?orign=o&applytype=21)
+
+## 安裝
+
+使用 pip 簡單安裝
+
+```bash
+pip install kgisuperpy
+
+```
+
+更新superpy
+
+```bash
+pip install -U kgisuperpy
+
+```
+
+## SuperPy物件
+
+➡️ In
+
+```python
+import superpy as sp
+sp.SuperPy()
+
+```
+
+✅ Out
+
+```python
+Init signature:
+sp.SuperPy(
+    simulation: bool = False,
+)
+Docstring:
+superpy api
+Functions:
+    login
+    logout
+    list_accounts
+    set_default_account
+    place_order
+    update_order
+    update_status
+    list_trades
+Objects:
+    Quote
+    Contracts
+    Order
+Init docstring:
+initialize superpy to start trading
+Args:
+    simulation (bool):
+        - False: to trading on real market (just use your account to start trading)
+        - True: become simulation account(need to contract as to open simulation account)
+
+```
+
+## **模擬模式**
+
+使用者能先在模擬環境熟悉我們所提供的服務，可避免在正式環境操作失誤造成財物的損失。以下會詳細說明在測試環境所提供的功能。
+
+☑️ **模擬環境**
+
+```python
+import superpy as sp
+api = sp.SuperPy(simulation=True) #Default
+
+```
+
+## **正式模式**
+
+☑️ 正式**環境**
+
+```python
+import superpy as sp
+api = sp.SuperPy(simulation=False)
+
+```
+
+---
+
+# 登入
+
+➡️ In
+
+```python
+import superpy as sp
+api = sp.SuperPy()
+api.login(
+    userID = "YOUR_USER_ID",
+    password = "YOUR_PASSWORD")
+
+```
+
+✅ Out
+
+```python
+[
+    FutureAccount(person_id='A123456789', broker_id='F004009', account_id='1234567', signed=True),
+    StockAccount(person_id='A123456789', broker_id='9268', account_id='1234567', signed=True)
+]
+
+```
+
+- 如果在帳號清單中找不到 `signed`，請至**服務條款**了解使用API服務所需要步驟。
+
+🔆 **Login Arguments**
+
+```python
+UserID (str): 用戶ID
+password (str): 密碼
+fetch_contract (bool): 是否從快取中讀取商品檔或從伺服器下載商品檔 (預設值: True)
+contracts_timeout (int): 獲取商品檔 timeout (預設值: 0 ms)
+contracts_cb (typing.Callable): 獲取商品檔 callback (預設值: None)
+subscribe_trade (bool): 是否訂閱委託/成交回報 (預設值: True)
+receive_window (int): 登入動作有效執行時間 (預設值: 30,000 毫秒)
+
+```
+
+### 帳號列表
+
+➡️ In
+
+```python
+accounts = api.list_accounts()
+
+```
+
+✅ Out
+
+```python
+# print(accounts)
+[
+	FutureAccount(person_id='A123456789', broker_id='F004009', account_id='1234567', signed=True),
+    FutureAccount(person_id='A123456789', broker_id='F004009', account_id='7654321'),
+    StockAccount(person_id='A123456789', broker_id='9268', account_id='7654321'),
+    StockAccount(person_id='A123456789', broker_id='9268', account_id='1234567', signed=True)
+]
+
+```
+
+## 預設帳號
+
+➡️ In
+
+```python
+# 期貨預設帳號
+print(api.futopt_account)
+
+```
+
+✅ Out
+
+```python
+FutureAccount(person_id='A123456789', broker_id='F004009', account_id='1234567', signed=True)
+
+```
+
+## 設定預設帳號
+
+➡️ In
+
+```python
+# 預設的期貨帳號從 ACCOUNT_ID_1轉換成 ACCOUNT_ID_2
+api.set_default_account(accounts[1])
+print(api.futopt_account)
+
+```
+
+✅ Out
+
+```python
+FutureAccount(person_id='A123456789', broker_id='F004009', account_id='7654321')
+
+```
+
+下單Order物件中需要指定帳號。更多資訊請參考現貨和期權下單。
+
+```python
+order = api.Order(
+    price=12,
+    quantity=1,
+    action=sp.constant.Action.Buy,
+    price_type=sp.constant.StockPriceType.LMT,
+    order_type=sp.constant.OrderType.ROD,
+    order_lot=sp.constant.StockOrderLot.Common,
+    account=api.stock_account
+)
+
+```
+
+## 子帳登入
+
+子帳登入方式，登入 ID 格式為: Trader@ID.Broker+Account；Ex: 1001@A123456789.F0040001234567
+
+- 登入情境
+
+```python
+# 同下單帳號不同子帳
+1001@A123456789.F0040091234567,,0000|1002@A123456789.F0040091234567,,0000
+# 群組子帳
+G1@A123456789.F0040091234567,,0000
+```
+
+傳入參數loginInfos供子帳登入
+
+➡️ In
+
+```python
+import superpy as sp
+api = sp.SuperPy()
+api.login(
+    userID = "YOUR_USER_ID",
+    password = "YOUR_PASSWORD",
+    loginInfos = "1001@A123456789.F0040001234567,,password"    
+)
+
+```
+
+✅ Out
+
+```python
+[
+    FutureAccount(person_id='A123456789', broker_id='F004000', account_id='1234567', signed=True, trader='1001'),
+]
+```
+
+子帳下單
+
+```python
+accounts = api.list_accounts()
+api.set_default_account(accounts[0])
+print(api.futopt_account)
+#FutureAccount(person_id='A123456789', broker_id='F004000', account_id='1234567', signed=True, trader='1001')
+
+order = api.Order(
+    action=sp.constant.Action.Buy,
+    price=20000,
+    quantity=1,
+    price_type=sp.constant.FuturesPriceType.LMT,
+    order_type=sp.constant.OrderType.ROD,
+    octype=sp.constant.FuturesOCType.Auto,
+    account=api.futopt_account
+)
+```
+
+## **登出**
+
+登出功能將關閉客戶端及服務端之間的連接，在不使用的時候終止程式是一個良好的習慣。
+
+```python
+api.logout()
+# True
+
+```
+
+---
+
+# 商品檔
+
+商品檔將在很多地方被使用，例如下單、訂閱行情…等。
+
+### **取得商品檔**
+
+下方提供兩種方法取得商品檔：
+
+- 方法1：登入成功後，將開始下載商品檔。但這個下載過程將不會影響其他的操作。若您想了解是否下載完成，可利用`Contracts.status`去得到下載狀態。`contracts_timeout` 設定為10000，它將等待10秒下載商品檔。
+
+☑️ In
+
+```python
+import superpy as sp
+api = sp.SuperPy()
+api.login(
+    userID = "YOUR_USER_ID",
+    password = "YOUR_PASSWORD",
+    contracts_timeout=10000,
+)
+
+```
+
+- 方法2：若不想在登入時下載商品檔，將`fetch_contract` 設定為`False`。利用 `fetch_contracts` 下載商品檔
+
+☑️ In
+
+```python
+import superpy as sp
+api = sp.SuperPy()
+api.login(
+    userID = "YOUR_USER_ID",
+    password = "YOUR_PASSWORD",
+    fetch_contract=False,
+)
+api.fetch_contracts(contract_download=True)
+
+```
+
+### **商品檔資訊**
+
+目前我們所提供的商品包含:證券、期貨、選擇權以及~~指數~~。可從下列方法更詳細得到我們所提供的商品。
+
+- **證券**
+
+➡️ In
+
+```python
+api.Contracts.Stocks["2883"]
+
+```
+
+✅ Out
+
+```python
+Stock {
+	'exchange': 'T',
+	'code': '2883',
+	'symbol': '2883',
+	'name': '凱基金',
+	'limit_up': 15.8,
+	'limit_down': 13.0,
+	'reference': 14.4
+}
+
+```
+
+🔆 Stock
+
+```python
+exchange (Exchange): 交易所 {OES, OTC, TSE ...等}
+code (str): 商品代碼
+symbol (str): 符號
+name (str): 商品名稱
+category (str): 類別
+unit (int): 單位
+limit_up (float): 漲停價
+limit_down (float): 跌停價
+reference (float): 參考價
+update_date (str): 更新日期
+margin_trading_balance (int): 融資餘額
+short_selling_balance (int): 融券餘額
+day_trade (DayTrade): 可否當沖 {Yes, No, OnlyBuy}
+
+```
+
+- **期貨**
+
+➡️ In
+
+```python
+api.Contracts.Futures["TXFF4"]
+
+```
+
+✅ Out
+
+```python
+Future {
+	'exchange': 'F',
+	'code': 'TXFF4',
+	'symbol': 'TXFF4',
+	'name': '大台指',
+	'category': 'TXF',
+	'limit_up': 0.0,
+	'limit_down': 0.0
+}
+
+```
+
+🔆 Future
+
+```python
+code (str): 商品代碼
+symbol (str): 符號
+name (str): 商品名稱
+category (str): 類別
+delivery_month (str): 交割月份
+delivery_date (str): 結算日
+underlying_kind (str): 標的類型
+unit (int): 單位
+limit_up (float): 漲停價
+limit_down (float): 跌停價
+reference (float): 參考價
+update_date (str): 更新時間
+
+```
+
+- 選擇權
+
+➡️ In
+
+```python
+api.Contracts.Options["TXO18000R3"]
+
+```
+
+✅ Out
+
+```python
+Option {
+	'exchange': 'O',
+	'code': 'TXO21200F4',
+	'symbol': 'TXO21200F4',
+	'name': 'TXO台指選',
+	'category': 'TXO',
+	'limit_up': 0.0,
+	'limit_down': 0.0
+}
+
+```
+
+🔆 **Option**
+
+```python
+code (str): 商品代碼
+symbol (str): 符號
+name (str): 商品名稱
+category (str): 類型
+delivery_month (str): 交割月份
+delivery_date (str): 交割日期
+strike_price (int or float): 屢約價
+option_right (OptionRight): 買賣權別
+underlying_kind (str): 標的類型
+limit_up (float): 漲停價
+limit_down (float): 跌停價
+reference (float): 參考價
+update_date (str): 更新時間
+
+```
+
+---
+
+# 委託下單
+
+## **證券下單**
+
+☑️ **StockOrder 物件格式**
+
+```python
+>> sp.order.StockOrder?
+Init signature:
+sp.order.StockOrder(
+    *,
+    action: superpy.constant.Action,
+    price: Union[float],
+    quantity: superpy.order.ConstrainedIntValue,
+    id: str = '',
+    seqno: str = '',
+    ordno: str = '',
+    account: superpy.account.Account = None,
+    custom_field: str = '',
+    ca: str = '',
+    price_type: superpy.constant.StockPriceType,
+    order_type: superpy.constant.OrderType,
+    order_lot: superpy.constant.StockOrderLot = <StockOrderLot.Common: 'Common'>,
+    order_cond: superpy.constant.StockOrderCond = <StockOrderCond.Cash: 'Cash'>,
+    daytrade_short: bool = False,
+) -> None
+
+```
+
+🔆 證券委託單
+
+```python
+price (float or int): 價格
+quantity (int): 委託數量
+action (str): {Buy: 買, Sell: 賣}
+price_type (str): {LMT: 限價, MKT: 市價, MKP: 範圍市價, FallStopPrice: 跌停, UnchangePrice: 平盤, RiseStopPrice: 漲停}
+# 註：因交易所只有限價跟巿價，故設定price_type為非市價單時，回報會統一為限價+實際價格
+order_type (str): 委託類別 {ROD, IOC, FOK}
+order_cond (str): {Cash:現股, MarginTrading:融資, ShortSelling:融券, ShortUnLimit:借券賣出, EDN:賣出擔保品}
+order_lot (str): { Common:整股, Fixing:定盤, Odd:盤後零股, IntradayOdd:盤中零股 }
+daytrade_short (bool): 先賣後買
+custom_field (str): 備註，只允許輸入大小寫英文字母及數字，且長度最長為 6
+account (:obj:Account): 下單帳號
+ca (binary): 憑證
+
+```
+
+### 下單
+
+下單時必須提供商品資訊`contract`及下單資訊`order`。
+
+🔆 **下單**
+
+```python
+api.place_order?
+    Signature:
+        api.place_order(
+            contract: superpy.contracts.Contract,
+            order: superpy.order.Order,
+            timeout: int = 5000,
+            cb: Callable[[superpy.order.Trade], NoneType] = None,
+        ) -> superpy.order.Trade
+    Docstring:
+    placing order
+
+```
+
+☑️ 商品檔 Contracts
+
+```python
+contract = api.Contracts.Stocks["2883"]
+
+```
+
+☑️ 委託單 Order
+
+```python
+order = api.Order(
+    price=17,
+    quantity=3,
+    action=sp.constant.Action.Buy,
+    price_type=sp.constant.StockPriceType.LMT,
+    order_type=sp.constant.OrderType.ROD,
+    # order_lot=sp.constant.StockOrderLot.Common, # Default
+    # order_cond=sp.constant.StockOrderCond.Cash, # Default
+    # daytrade_short=False,
+    account=api.stock_account
+)
+
+```
+
+➡️ In
+
+```python
+trade = api.place_order(contract, order)
+
+```
+
+✅ Out
+
+```python
+Trade(
+	contract=Stock {
+		'exchange': 'T',
+		'code': '2883',
+		'symbol': '2883',
+		'name': '凱基金',
+		'limit_up': 15.8,
+		'limit_down': 13.0,
+		'reference': 14.4
+	},
+	order=Order {
+		'action': <Action.Buy: 'Buy'>,
+		'price': 14.4,
+		'quantity': 3,
+		'account': {
+			'person_id': 'A123456789',
+			'broker_id': '9268',
+			'account_id': '1234567',
+			'signed': True
+		},
+		'custom_field': '',
+		'price_type': <StockPriceType.LMT: 'LMT'>,
+		'order_type': <OrderType.ROD: 'ROD'>,
+		'order_lot': <StockOrderLot.Common: 'Common'>,
+		'order_cond': <StockOrderCond.Cash: 'Cash'>,
+		'daytrade_short': False,
+		'ordno': 'Y004X',
+		'id': '1220006369'
+	},
+	status=OrderStatus {
+		'id': '1220006369',
+		'status': <Status.Submitted: 'Submitted'>,
+		'status_code': '0',
+		'order_datetime': datetime.datetime(2024, 5, 20, 14, 13, 31, 380000),
+		'order_quantity': '3'
+	}
+)
+
+```
+
+下單完同時也會收到從交易所傳回來的資料，詳情內容可詳見**下單回報**。
+
+🔆 委託單狀態
+
+- `PendingSubmit`: 傳送中
+- `PreSubmitted`: 預約單
+- `Submitted`: 傳送成功
+- `Failed`: 失敗
+- `Cancelled`: 已刪除
+- `Filled`: 完全成交
+- `Filling`: 部分成交
+
+### 改單
+
+🔆 **改單**
+
+```python
+api.update_order?
+    Signature:
+        api.update_order(
+            trade: superpy.order.Trade,
+            price: Union[pydantic.types.StrictInt, float] = None,
+            qty: int = None,
+            timeout: int = 5000,
+            cb: Ca  lable[[superpy.order.Trade], NoneType] = None,
+        ) -> superpy.order.Trade
+    Docstring: update the order price or qty
+
+```
+
+- 改價
+
+➡️ In
+
+```python
+trade = api.update_order(trade=trade, price=17.5)
+
+```
+
+✅ Out
+
+```python
+Trade(
+	contract=Stock {
+		'exchange': 'T',
+		'code': '2883',
+		'symbol': '2883',
+		'name': '凱基金',
+		'limit_up': 15.8,
+		'limit_down': 13.0,
+		'reference': 14.4
+	},
+	order=Order {
+		'action': <Action.Buy: 'Buy'>,
+		'price': 14.4,
+		'quantity': 3,
+		'account': {
+			'person_id': 'A123456789',
+			'broker_id': '9268',
+			'account_id': '1234567',
+			'signed': True
+		},
+		'custom_field': '',
+		'price_type': <StockPriceType.LMT: 'LMT'>,
+		'order_type': <OrderType.ROD: 'ROD'>,
+		'order_lot': <StockOrderLot.Common: 'Common'>,
+		'order_cond': <StockOrderCond.Cash: 'Cash'>,
+		'daytrade_short': False,
+		'ordno': 'Y004X',
+		'id': '1220006369'
+	},
+	status=OrderStatus {
+		'id': '1220006369',
+		'status': <Status.Submitted: 'Submitted'>,
+		'status_code': '0',
+		'order_datetime': datetime.datetime(2024, 5, 20, 14, 13, 31, 400000),
+		'order_quantity': '3',
+		'modified_price': 14.3
+	}
+)
+
+```
+
+- 改量(減量)
+
+`update_order` 只能用來**減少**原委託單的委託數量。
+
+➡️ In
+
+```python
+trade = api.update_order(trade=trade, qty=1)
+
+```
+
+✅ Out
+
+```python
+Trade(
+	contract=Stock {
+		'exchange': 'T',
+		'code': '2883',
+		'symbol': '2883',
+		'name': '凱基金',
+		'limit_up': 15.8,
+		'limit_down': 13.0,
+		'reference': 14.4
+	},
+	order=Order {
+		'action': <Action.Buy: 'Buy'>,
+		'price': 14.4,
+		'quantity': 3,
+		'account': {
+			'person_id': 'A123456789',
+			'broker_id': '9268',
+			'account_id': '1234567',
+			'signed': True
+		},
+		'custom_field': '',
+		'price_type': <StockPriceType.LMT: 'LMT'>,
+		'order_type': <OrderType.ROD: 'ROD'>,
+		'order_lot': <StockOrderLot.Common: 'Common'>,
+		'order_cond': <StockOrderCond.Cash: 'Cash'>,
+		'daytrade_short': False,
+		'ordno': 'Y004X',
+		'id': '1220006369'
+	},
+	status=OrderStatus {
+		'id': '1220006369',
+		'status': <Status.Submitted: 'Submitted'>,
+		'status_code': '0',
+		'order_datetime': datetime.datetime(2024, 5, 20, 14, 13, 31, 410000),
+		'order_quantity': '3',
+		'modified_price': 14.3,
+		'cancel_quantity': 1
+	}
+)
+
+```
+
+---
+
+### 刪單
+
+➡️ In
+
+```python
+trade = api.cancel_order(trade)
+
+```
+
+✅ Out
+
+```python
+Trade(
+	contract=Stock {
+		'exchange': 'T',
+		'code': '2883',
+		'symbol': '2883',
+		'name': '凱基金',
+		'limit_up': 15.8,
+		'limit_down': 13.0,
+		'reference': 14.4
+	},
+	order=Order {
+		'action': <Action.Buy: 'Buy'>,
+		'price': 14.4,
+		'quantity': 3,
+		'account': {
+			'person_id': 'A123456789',
+			'broker_id': '9268',
+			'account_id': '1234567',
+			'signed': True
+		},
+		'custom_field': '',
+		'price_type': <StockPriceType.LMT: 'LMT'>,
+		'order_type': <OrderType.ROD: 'ROD'>,
+		'order_lot': <StockOrderLot.Common: 'Common'>,
+		'order_cond': <StockOrderCond.Cash: 'Cash'>,
+		'daytrade_short': False,
+		'ordno': 'Y004X',
+		'id': '1220006369'
+	},
+	status=OrderStatus {
+		'id': '1220006369',
+		'status': <Status.Submitted: 'Submitted'>,
+		'status_code': '0',
+		'order_datetime': datetime.datetime(2024, 5, 20, 14, 13, 31, 420000),
+		'order_quantity': '3',
+		'modified_price': 14.3,
+		'cancel_quantity': '2'
+	}
+)
+
+```
+
+---
+
+## **期貨下單**
+
+☑️ **FuturesOrder 物件格式**
+
+```python
+>> sp.order.FuturesOrder?
+Init signature:
+sp.order.FuturesOrder(
+    *,
+    action: superpy.constant.Action,
+    price: Union[pydantic.types.StrictInt, float],
+    quantity: superpy.order.ConstrainedIntValue,
+    id: str = '',
+    seqno: str = '',
+    ordno: str = '',
+    account: superpy.account.Account = None,
+    custom_field: superpy.order.ConstrainedStrValue = '',
+    ca: str = '',
+    price_type: superpy.constant.FuturesPriceType,
+    order_type: superpy.constant.OrderType,
+    octype: superpy.constant.FuturesOCType = <FuturesOCType.Auto: 'Auto'>,
+) -> None
+
+```
+
+🔆 期貨委託單
+
+```python
+price (float or int): 價格
+quantity (int): 委託數量
+action (str): {Buy: 買, Sell: 賣}
+price_type (str): {LMT: 限價, MKT: 市價, MKP: 範圍市價}
+order_type (str): 委託類別 {ROD, IOC, FOK}
+octype (str): {Auto: 自動, New: 新倉, Cover: 平倉, DayTrade: 當沖}
+account (:obj:Account): 下單帳號
+ca (binary): 憑證
+
+```
+
+### 下單
+
+下單時必須提供商品資訊`contract`及下單資訊`order`。
+
+🔆 **下單**
+
+```python
+api.place_order?
+    Signature:
+        api.place_order(
+            contract: superpy.contracts.Contract,
+            order: superpy.order.Order,
+            timeout: int = 5000,
+            cb: Callable[[superpy.order.Trade], NoneType] = None,
+        ) -> superpy.order.Trade
+    Docstring:
+    placing order
+
+```
+
+☑️ 商品檔 Contracts
+
+```python
+contract = api.Contracts.Futures["TXFF4"]
+
+```
+
+☑️ 委託單 Order
+
+```python
+order = api.Order(
+    action=sp.constant.Action.Buy,
+    price=21300,
+    quantity=3,
+    price_type=sp.constant.FuturesPriceType.LMT,
+    order_type=sp.constant.OrderType.ROD,
+    octype=sp.constant.FuturesOCType.Auto,
+    account=api.futopt_account
+)
+
+```
+
+➡️ In
+
+```python
+trade = api.place_order(contract, order)
+
+```
+
+✅ Out
+
+```python
+Trade(
+	contract=Future {
+		'exchange': 'F',
+		'code': 'TXFF4',
+		'symbol': 'TXFF4',
+		'name': '大台指',
+		'category': 'TXF',
+		'limit_up': 0.0,
+		'limit_down': 0.0
+	},
+	order=Order {
+		'action': <Action.Buy: 'Buy'>,
+		'price': 21300,
+		'quantity': 3,
+		'account': {
+			'person_id': 'A123456789',
+			'broker_id': 'F004009',
+			'account_id': '1234567',
+			'signed': True
+		},
+		'custom_field': '',
+		'price_type': <FuturesPriceType.LMT: 'LMT'>,
+		'order_type': <OrderType.ROD: 'ROD'>,
+		'octype': <FuturesOCType.Auto: 'Auto'>,
+		'ordno': 'wAaaq',
+		'id': '00380617'
+	}
+	status=OrderStatus {
+		'id': '00380617',
+		'status': <Status.Submitted: 'Submitted'>,
+		'status_code': '10000000',
+		'order_datetime': datetime.datetime(2024, 5, 20, 15, 6, 4),
+		'order_quantity': '3',
+		'web_id': '126'
+	}
+)
+
+```
+
+下單完同時也會收到從交易所傳回來的資料，詳情內容可詳見**下單回報**。
+
+🔆 委託單狀態
+
+- `PendingSubmit`: 傳送中
+- `PreSubmitted`: 預約單
+- `Submitted`: 傳送成功
+- `Failed`: 失敗
+- `Cancelled`: 已刪除
+- `Filled`: 完全成交
+- `Filling`: 部分成交
+
+### 改單
+
+🔆 **改單**
+
+```python
+api.update_order?
+    Signature:
+        api.update_order(
+            trade: superpy.order.Trade,
+            price: Union[pydantic.types.StrictInt, float] = None,
+            qty: int = None,
+            timeout: int = 5000,
+            cb: Ca  lable[[superpy.order.Trade], NoneType] = None,
+        ) -> superpy.order.Trade
+    Docstring: update the order price or qty
+
+```
+
+- 改價
+
+➡️ In
+
+```python
+trade = api.update_order(trade=trade, price=21350)
+
+```
+
+✅ Out
+
+```python
+Trade(
+	contract=Future {
+		'exchange': 'F',
+		'code': 'TXFF4',
+		'symbol': 'TXFF4',
+		'name': '大台指',
+		'category': 'TXF',
+		'limit_up': 0.0,
+		'limit_down': 0.0
+	},
+	order=Order {
+		'action': <Action.Buy: 'Buy'>,
+		'price': 21300,
+		'quantity': 3,
+		'account': {
+			'person_id': 'A123456789',
+			'broker_id': 'F004009',
+			'account_id': '1234567',
+			'signed': True
+		},
+		'custom_field': '',
+		'price_type': <FuturesPriceType.LMT: 'LMT'>,
+		'order_type': <OrderType.ROD: 'ROD'>,
+		'octype': <FuturesOCType.Auto: 'Auto'>,
+		'ordno': 'wAaaq',
+		'id': '00380617'
+	}
+	status=OrderStatus {
+		'id': '00380617',
+		'status': <Status.Submitted: 'Submitted'>,
+		'status_code': '10000000',
+		'order_datetime': datetime.datetime(2024, 5, 20, 15, 11, 14),
+		'order_quantity': '3',
+		'web_id': '126',
+		'modified_price': 21350
+	}
+)
+
+```
+
+- 改量(減量)
+
+`update_order` 只能用來**減少**原委託單的委託數量。
+
+➡️ In
+
+```python
+trade = api.update_order(trade=trade, qty=1)
+
+```
+
+✅ Out
+
+```python
+Trade(
+	contract=Future {
+		'exchange': 'F',
+		'code': 'TXFF4',
+		'symbol': 'TXFF4',
+		'name': '大台指',
+		'category': 'TXF',
+		'limit_up': 0.0,
+		'limit_down': 0.0
+	},
+	order=Order {
+		'action': <Action.Buy: 'Buy'>,
+		'price': 21300,
+		'quantity': 3,
+		'account': {
+			'person_id': 'A123456789',
+			'broker_id': 'F004009',
+			'account_id': '1234567',
+			'signed': True
+		},
+		'custom_field': '',
+		'price_type': <FuturesPriceType.LMT: 'LMT'>,
+		'order_type': <OrderType.ROD: 'ROD'>,
+		'octype': <FuturesOCType.Auto: 'Auto'>,
+		'ordno': 'wAaaq',
+		'id': '00380617'
+	}
+	status=OrderStatus {
+		'id': '00380617',
+		'status': <Status.Submitted: 'Submitted'>,
+		'status_code': '10000000',
+		'order_datetime': datetime.datetime(2024, 5, 20, 15, 11, 15),
+		'order_quantity': '3',
+		'web_id': '126',
+		'modified_price': 21350,
+		'cancel_quantity': 1
+	}
+)
+
+```
+
+---
+
+### 刪單
+
+➡️ In
+
+```python
+trade = api.cancel_order(trade)
+
+```
+
+✅ Out
+
+```python
+Trade(
+	contract=Future {
+		'exchange': 'F',
+		'code': 'TXFF4',
+		'symbol': 'TXFF4',
+		'name': '大台指',
+		'category': 'TXF',
+		'limit_up': 0.0,
+		'limit_down': 0.0
+	},
+	order=Order {
+		'action': <Action.Buy: 'Buy'>,
+		'price': 21300,
+		'quantity': 3,
+		'account': {
+			'person_id': 'A123456789',
+			'broker_id': 'F004009',
+			'account_id': '1234567',
+			'signed': True
+		},
+		'custom_field': '',
+		'price_type': <FuturesPriceType.LMT: 'LMT'>,
+		'order_type': <OrderType.ROD: 'ROD'>,
+		'octype': <FuturesOCType.Auto: 'Auto'>,
+		'ordno': 'wAaaq',
+		'id': '00380617'
+	}
+	status=OrderStatus {
+		'id': '00380617',
+		'status': <Status.Submitted: 'Submitted'>,
+		'status_code': '10000000',
+		'order_datetime': datetime.datetime(2024, 5, 20, 15, 11, 15),
+		'order_quantity': '3',
+		'web_id': '126',
+		'modified_price': 21350,
+		'cancel_quantity': 2
+	}
+)
+
+```
+
+---
+
+## 查詢狀態
+
+在取得 `Trade` 狀態前，必須先利用`update_status`進行更新。如果無法成功刪單或改單，你可以對特定`trade`物件進行更新，並確認在`trade`中的`OrderStatus`，是否為可刪改狀態。`update_status` 預設查詢為名下所有帳號。若想查詢特定帳號，將帳號帶入`account`。
+
+☑️ **Update Status**
+
+```python
+api.update_status?
+```
+
+✅ Out
+
+```python
+Signature:
+    api.update_status(
+        account: superpy.account.Account = None,
+        trade: superpy.order.Trade = None,
+    )
+Docstring: update status of all trades you have
+```
+
+### **取得證券委託狀態**
+
+➡️ In
+
+```python
+api.update_status(api.stock_account)
+api.list_trades()
+```
+
+✅ Out
+
+```python
+[
+	Trade(
+		contract=Stock {
+			'exchange': 'T',
+			'code': '2883',
+			'symbol': '2883',
+			'name': '凱基金',
+			'limit_up': 15.8,
+			'limit_down': 13.0,
+			'reference': 14.4
+		},
+		order=Order {
+			'action': <Action.Buy: 'Buy'>,
+			'price': 14.4,
+			'quantity': 3,
+			'account': {
+				'person_id': 'A123456789',
+				'broker_id': '9268',
+				'account_id': '1234567',
+				'signed': True
+			},
+			'custom_field': '',
+			'price_type': <StockPriceType.LMT: 'LMT'>,
+			'order_type': <OrderType.ROD: 'ROD'>,
+			'order_lot': <StockOrderLot.Common: 'Common'>,
+			'order_cond': <StockOrderCond.Cash: 'Cash'>,
+			'daytrade_short': False,
+			'ordno': 'Y004X',
+			'id': '1220006369'
+		},
+		status=OrderStatus {
+			'id': '1220006369',
+			'status': <Status.Submitted: 'Submitted'>,
+			'status_code': '0',
+			'order_datetime': datetime.datetime(2024, 5, 20, 14, 13, 31, 380000),
+			'order_quantity': '3'
+		}
+	)
+]
+```
+
+### **取得期貨委託狀態**
+
+➡️ In
+
+```python
+api.update_status(api.futopt_account)
+api.list_trades()
+```
+
+✅ Out
+
+```python
+[
+	Trade(
+		contract=Future {
+			'exchange': 'F',
+			'code': 'TXFF4',
+			'symbol': 'TXFF4',
+			'name': '大台指',
+			'category': 'TXF',
+			'limit_up': 0.0,
+			'limit_down': 0.0
+		},
+		order=Order {
+			'action': <Action.Buy: 'Buy'>,
+			'price': 21300,
+			'quantity': 3,
+			'account': {
+				'person_id': 'A123456789',
+				'broker_id': 'F004009',
+				'account_id': '1234567',
+				'signed': True
+			},
+			'custom_field': '',
+			'price_type': <FuturesPriceType.LMT: 'LMT'>,
+			'order_type': <OrderType.ROD: 'ROD'>,
+			'octype': <FuturesOCType.Auto: 'Auto'>,
+			'ordno': 'wAaaq',
+			'id': '00380617'
+		}
+		status=OrderStatus {
+			'id': '00380617',
+			'status': <Status.Submitted: 'Submitted'>,
+			'status_code': '10000000',
+			'order_datetime': datetime.datetime(2024, 5, 20, 15, 6, 4),
+			'order_quantity': '3',
+			'web_id': '126'
+		}
+	)
+]
+```
+
+### **更新特定交易狀態**
+
+☑️ **更新特定交易狀態**
+
+```python
+# you can get trade from place_order
+# trade = api.place_order(contract, order)
+
+# or get from api.list_trades
+# trade = api.list_trades()[0]
+
+api.update_status(trade=trade)
+```
+
+### **委託及成交狀態屬性**
+
+🔆 **委託狀態屬性**
+
+```python
+id (str): 關聯Order物件編碼
+status (:obj:Status): {
+            Cancelled: 已刪除, 
+            Filled: 完全成交, 
+            PartFilled: 部分成交, 
+            Failed: 失敗, 
+            PendingSubmit: 傳送中, 
+            PreSubmitted: 預約單, 
+            Submitted: 傳送成功
+        }
+status_code (str): 狀態碼
+order_datetime (datetime): 委託時間
+order_quantity (int): 委託數量
+modified_price (float): 改價金額
+cancel_quantity (int): 取消委託數量
+deals (:List:Deal): 成交資訊
+```
+
+🔆 **成交屬性**
+
+```python
+seq (str): 成交序號
+price (int or float): 成交價
+quantity (int): 成交數量
+```
+
+---
+
+# 委託回報
+
+每次您使用 `place_order`、`update_order` 或者 `cancel_order` 時，預設皆會收到來自交易所的委託或成交回報。如果您不想收到任何回報通知，您可以參考訂閱委託回報將其關閉。我們亦提供了處理委託及成交回報的介面。如果您正在建立自己的交易系統，這會非常有幫助。
+
+## **處理委託及成交回報**
+
+您可以使用 `set_order_callback` 來處理委託及成交回報。以下範例顯示，自製的委託回報函數(`order_cb`)將先 print `my_order_callback` 然後才 print 委託及成交回報。
+
+☑️ **設定委託回報函式**
+
+```python
+def order_cb(stat, msg):
+    print('my_order_callback')
+    print(stat, msg)
+api.set_order_callback(order_cb)
+
+```
+
+## **委託回報**
+
+當期交所收到委託將會回傳回報。在回報中分為四部分，包括`operation`、`order`、`status`及`contract`。以下我們會在進行詳細的說明。
+
+- **operation**
+
+```python
+op_type (str): {
+        "New": 新單,
+        "Cancel": 刪單,
+        "UpdatePrice": 改價,
+        "UpdateQty": 改量
+    }
+op_code (str): {"00": 成功, others: 失敗}
+op_msg (str): 錯誤訊息
+
+```
+
+- **status**
+
+```python
+id (str): 與成交回報的trade_id相同
+exchange_ts (int): 交易所時間
+modified_price (float or int): 改價
+cancel_quantity (int): 取消數量
+order_quantity (int): 委託數量
+web_id (str): 下單平台代碼
+
+```
+
+- **order、contract：參考證券、期貨回報**
+
+## **成交回報**
+
+當搓合成功，期交所會傳送成交回報告知。搓合成功包含部分成交以及完全成交，可以從委託回報中的`id`去對應成交回報中的`trade_id`去確認是否為同一筆委託單。
+
+⚠️ 交易所回傳訊息優先順序成交回報大於委託回報，所以當委託立即成交可能會先收到成交回報。
+
+## 證券回報
+
+### 委託
+
+☑️ Order Callback
+
+```python
+OrderState.StockOrder {
+	'operation': {
+		'op_type': 'New',
+		'op_code': '0',
+		'op_msg': ''
+	},
+	'order': {
+		'id': '1220006374',
+		'ordno': 'Y005M',
+		'account': {
+			'account_type': 'S',
+			'broker_id':
+			'9268',
+			'account_id': '1234567'
+		},
+		'action': 'Buy',
+		'price': '14.4',
+		'quantity': '3',
+		'order_type': 'ROD',
+		'price_type': 'MKT',
+		'order_cond': 'CASH',
+		'order_lot': 'Common'
+	},
+	'status': {
+		'id': '1220006374',
+		'modified_price': 0,
+		'cancel_quantity': 0,
+		'order_quantity': '3'
+	},
+	'contract': {
+		'security_type': 'STK',
+		'exchange': 'TSE',
+		'code': '2883',
+		'symbol': '',
+		'name': '',
+		'currency': 'TWD'
+	}
+}
+
+```
+
+🔆 **委託回報資訊**
+
+- order
+
+```python
+id (str): 與成交回報的trade_id相同
+seqno (str): 平台單號
+ordno (str): 委託單號
+account (dict): 帳號資訊
+action (str): 買賣別 {Buy, Sell}
+price (float or int): 委託價格
+quantity (int): 委託數量
+order_type (str): 委託類別 {ROD, IOC, FOK}
+price_type (str): {
+			LMT: 限價,
+			MKT: 市價,
+			MKP: 範圍市價
+			# 註：因交易所只有限價跟巿價，故設定price_type為非市價單時，回報會統一為限價+實際價格
+		}
+order_cond (str): {
+			Cash: 現股,
+			MarginTrading: 融資,
+			ShortSelling:融券,
+			ShortUnLimit:借券賣出,
+			EDN:賣出擔保品
+        }
+order_lot (str): {
+            Common: 整股,
+            Fixing: 定盤,
+            Odd: 盤後零股,
+            IntradayOdd: 盤中零股
+        }
+custom_field (str): 自訂欄位
+
+```
+
+- contract
+
+```python
+security_type (str): 商品類別
+exchange (str): 交易所
+code (str): 商品代碼
+symbol (str): 符號
+name (str): 商品名稱
+currency (str): 幣別
+
+```
+
+### 成交
+
+☑️ Deal Callback
+
+```python
+OrderState.StockDeal {
+	'trade_id': '1220006374',
+	'ordno': 'Y005M',
+	'broker_id': '9268',
+	'account_id': '1234567',
+	'action': 'Buy',
+	'code': '2883',
+	'order_cond': 'CASH',
+	'order_lot': 'Common',
+	'price': '14.4',
+	'quantity': '3'
+}
+
+```
+
+🔆 **成交回報資訊**
+
+```python
+trade_id (str): 與委託回報id相同
+seqno (str): 平台單號
+ordno (str): 前五碼為同委託回報委託單號，後三碼為同筆委託成交交易序號。
+exchange_seq (str): 回報序號
+broker_id (str): 分行代碼
+account_id (str): 帳號
+action (str): 買賣別 {Buy, Sell}
+code (str): 商品代碼
+order_cond (str): {
+            Cash: 現股,
+            MarginTrading: 融資,
+            ShortSelling: 融券,
+            ShortUnLimit: 借券賣出,
+            EDN: 賣出擔保品
+        }
+order_lot (str): {
+            Common: 整股,
+            Fixing: 定盤,
+            Odd: 盤後零股,
+            IntradayOdd: 盤中零股
+        }
+price (float or int): 成交價
+quantity (int): 成交量
+web_id (str): 平台代碼
+custom_field (str): 自訂欄位
+ts (int): 成交時間戳
+
+```
+
+## 期貨回報
+
+### 委託
+
+☑️ Order Callback
+
+```python
+OrderState.FuturesOrder {
+	'operation': {
+		'op_type': 'New',
+		'op_code': '0',
+		'op_msg': '10000000'
+	},
+	'order': {
+		'id': '00380622',
+		'ordno': 'wAaas',
+		'account': {
+			'account_type': 'F',
+			'broker_id': 'F004009',
+			'account_id': '1234567'
+		},
+		'action': 'Buy',
+		'price': '0021300.00',
+		'quantity': '3',
+		'order_type': 'ROD',
+		'price_type': 'MKT',
+		'oc_type': 'New'
+	},
+	'status': {
+		'id': '00380622',
+		'modified_price': 0,
+		'cancel_quantity': 0,
+		'order_quantity': '3',
+		'web_id': '126'
+	},
+	'contract': {
+		'security_type': 'FUT',
+		'exchange': 'TAIFEX',
+		'code': 'TXFF4'
+	}
+}
+
+```
+
+🔆 **委託回報資訊**
+
+- order
+
+```python
+id (str): 與成交回報的trade_id相同
+seqno (str): 平台單號
+ordno (str): 委託單號
+account (dict): 帳號資訊
+action (str): 買賣別
+price (float or int): 委託價
+quantity (int): 委託量
+order_cond (str): {
+            Cash: 現股,
+            MarginTrading: 融資,
+            ShortSelling: 融券
+        }
+order_type (str): 委託類別 {ROD, IOC, FOK}
+price_type (str): {LMT: 限價, MKT: 市價, MKP: 範圍市價}
+market_type (str): 市場別 {Day:日盤, Night:夜盤}
+oc_type(str): {New: 新倉, Cover: 平倉, Auto: 自動}
+subaccount(str): 子帳號
+combo (bool): 是否為組合單
+
+```
+
+- contract
+
+```python
+security_type (str): 商品類別
+code (str): 商品代碼
+exchange (str): 交易所
+delivery_month (str): 交割月份
+delivery_date (str): 交割日期
+strike_price (float): 履約價
+option_right (str): {Future, OptionCall, OptionPut}
+
+```
+
+### 成交
+
+☑️ Deal Callback
+
+```python
+OrderState.FuturesDeal {
+	'trade_id': '00380622',
+	'ordno': 'wAaas',
+	'exchange_seq': '00000005',
+	'broker_id': 'F004009',
+	'account_id': '0118131',
+	'action': 'Buy',
+	'code': 'TXFF4',
+	'price': '0021300.00',
+	'quantity': '3',
+	'security_type': '1'
+}
+
+```
+
+🔆 **成交回報資訊**
+
+```python
+trade_id (str): 與委託回報id相同
+seqno (str): 平台單號
+ordno (str): 前五碼為同委託回報委託單號，後三碼為同筆委託成交交易序號。
+exchange_seq (str): 回報序號
+broker_id (str): 分行代碼
+account_id (str): 帳號
+action (str): 買賣別
+code (str): 商品代碼
+price (float or int): 成交價
+quantity (int): 成交量
+subaccount (str): 子帳號
+security_type (str): 商品類別
+delivery_month (str): 交割月份
+strike_price (float): 履約價
+option_right (str): {Future, OptionCall, OptionPut}
+market_type (str): {Day, Night}
+ts (int): 成交時間戳
+
+```
+
+---
+
+# 行情資料
+
+利用訂閱商品檔的方式去取得即時行情。
+
+### **Callback**
+
+預設狀況下我們將即時行情使用`print`的方式呈現。可根據個人需求修改函數。請避免在函數內進行運算。
+
+## 訂閱證券行情
+
+☑️ **Subscribe**
+
+```python
+>> api.quote.subscribe?
+Signature:
+    api.quote.subscribe(
+        contract:superpy.contracts.Contract,
+        quote_type:superpy.constant.QuoteType=<QuoteType.Tick: 'tick'>,
+        intraday_odd:bool=False,
+    )
+
+```
+
+🔆 **Quote Parameters**
+
+```python
+quote_type: 訂閱類型 {'tick', 'bidask'}
+intraday_odd: 盤中零股 {True, False}
+
+```
+
+## Tick
+
+### **整股**
+
+**➡️ In**
+
+```python
+api.quote.subscribe(
+    api.Contracts.Stocks["2330"],
+    quote_type = sp.constant.QuoteType.Tick,
+)
+
+```
+
+### **盤中零股**
+
+**➡️ In**
+
+```python
+api.quote.subscribe(
+    api.Contracts.Stocks["2330"],
+    quote_type = sp.constant.QuoteType.Tick,
+    intraday_odd = True)
+
+```
+
+**✅ Out**
+
+```python
+Exchange.TSE
+Tick: {
+	'code': '2330',
+	'datetime': 120048039,
+	'amount': 827.0,
+	'volume': 2.0,
+	'total_volume': 18668.0,
+	'simtrade': False,
+	'intraday_odd': 0
+}
+
+```
+
+### **屬性**
+
+```python
+code (str): 商品代碼
+datetime (datetime): 時間
+open (decimal): 開盤價
+avg_price (decimal): 均價
+close (decimal): 成交價
+high (decimal): 最高價(自開盤)
+low (decimal): 最低價(自開盤)
+amount (decimal): 成交額 (NTD)
+total_amount (decimal): 總成交額 (NTD)
+volume (int): 成交量 (整股:張, 盤中零股: 股)
+total_volume (int): 總成交量 (整股:張, 盤中零股: 股)
+tick_type (int): 內外盤別{1: 外盤, 2: 內盤, 0: 無法判定}
+chg_type (int): 漲跌註記{1: 漲停, 2: 漲, 3: 平盤, 4: 跌, 5: 跌停}
+price_chg (decimal): 漲跌
+pct_chg (decimal):  漲跌幅
+bid_side_total_vol (int): 買盤成交總量 (整股:張, 盤中零股: 股)
+ask_side_total_vol (int): 賣盤成交總量 (整股:張, 盤中零股: 股)
+bid_side_total_cnt (int): 買盤成交筆數
+ask_side_total_cnt (int): 賣盤成交筆數
+closing_oddlot_shares (int): 盤後零股成交股數(股)
+fixed_trade_vol (int): 定盤成交量 (整股:張, 盤中零股: 股)
+suspend (bool): 暫停交易
+simtrade (bool): 試撮
+intraday_odd (int): 盤中零股 {0: 整股, 1:盤中零股}
+
+```
+
+## **BidAsk**
+
+### **整股**
+
+**➡️ In**
+
+```python
+api.quote.subscribe(
+    api.Contracts.Stocks["2330"],
+    quote_type = sp.constant.QuoteType.BidAsk,
+)
+
+```
+
+### **盤中零股**
+
+**➡️ In**
+
+```python
+api.quote.subscribe(
+    api.Contracts.Stocks["2330"],
+    quote_type = sp.constant.QuoteType.BidAsk,
+    intraday_odd = True)
+
+```
+
+**✅ Out**
+
+```python
+Exchange.TSE
+BidAsk: {
+	'code': '2330',
+	'datetime': 120048039,
+	'bid_price': [827.0, 826.0, 825.0, 824.0, 823.0],
+	'bid_volume': [82, 72, 183, 119, 144],
+	'ask_price': [828.0, 829.0, 830.0, 831.0, 832.0],
+	'ask_volume': [4, 170, 266, 627, 185],
+	'simtrade': False,
+	'intraday_odd': 0
+}
+
+```
+
+### **屬性**
+
+```python
+code (str): 商品代碼
+datetime (datetime): 時間
+bid_price (:List:decimal): 委買價
+bid_volume (:List:int): 委買量 (張)
+diff_bid_vol (:List:int): 買價增減量 (張)
+ask_price (:List:decimal): 委賣價
+ask_volume (:List:int): 委賣量
+diff_ask_vol (:List:int): 賣價增減量 (張)
+suspend (bool): 暫停交易
+simtrade (bool): 試撮
+
+```
+
+## **Callback**
+
+### Tick
+
+☑️ **decorator方式**
+
+```python
+from superpy import TickSTKv1, Exchange
+@api.on_tick_stk_v1()
+def quote_callback(exchange: Exchange, tick:TickSTKv1):
+    print(f"Exchange: {exchange}, Tick: {tick}")
+
+```
+
+☑️ **傳統方式**
+
+```python
+from superpy import TickSTKv1, Exchange
+def quote_callback(exchange: Exchange, tick:TickSTKv1):
+    print(f"Exchange: {exchange}, Tick: {tick}")
+api.quote.set_on_tick_stk_v1_callback(quote_callback)
+
+```
+
+### **BidAsk**
+
+☑️ **decorator方式**
+
+```python
+from superpy import BidAskSTKv1, Exchange
+@api.on_bidask_stk_v1()
+def quote_callback(exchange: Exchange, bidask:BidAskSTKv1):
+    print(f"Exchange: {exchange}, BidAsk: {bidask}")
+
+```
+
+☑️ **傳統方式**
+
+```python
+from superpy import BidAskSTKv1, Exchange
+def quote_callback(exchange: Exchange, bidask:BidAskSTKv1):
+    print(f"Exchange: {exchange}, BidAsk: {bidask}")
+api.quote.set_on_bidask_stk_v1_callback(quote_callback)
+
+```
+
+---
+
+## 訂閱期貨行情
+
+☑️ **Subscribe**
+
+```python
+>> api.quote.subscribe?
+Signature:
+    api.quote.subscribe(
+        contract:superpy.contracts.Contract,
+        quote_type:superpy.constant.QuoteType=<QuoteType.Tick: 'tick'>,
+    )
+
+```
+
+🔆 **Quote Parameters**
+
+```python
+quote_type: 訂閱類型 {'tick', 'bidask'}
+
+```
+
+## Tick
+
+### 範例
+
+**➡️ In**
+
+```python
+api.quote.subscribe(
+    api.Contracts.Futures['TXFF4'],
+    quote_type = sp.constant.QuoteType.Tick,
+)
+
+```
+
+**✅ Out**
+
+```python
+Exchange.TAIFEX
+Tick: {
+	'code': 'TXFF4',
+	'datetime': 12022614,
+	'amount': 21260.0,
+	'volume': 7,
+	'total_volume': 80869,
+	'bid_side_total_vol': 54879,
+	'ask_side_total_vol': 50711,
+	'simtrade': 0
+}
+
+```
+
+### **屬性**
+
+```python
+code (str): 商品代碼
+datetime (datetime.datetime): 日期
+open (Decimal): 開盤價
+underlying_price (Decimal): 標的物價格
+bid_side_total_vol(int): 買盤成交總量 (lot)
+ask_side_total_vol(int): 賣盤成交總量 (lot)
+avg_price (Decimal): 均價
+close (Decimal): 成交價
+high (Decimal): 最高價(自開盤)
+low (Decimal): 最低價(自開盤)
+amount (Decimal): 成交額 (NTD)
+total_amount (Decimal): 總成交額 (NTD)
+volume (int): 成交量 (lot)
+total_volume (int): 總成交量 (lot)
+tick_type (int): 內外盤別{1: 外盤, 2: 內盤, 0: 無法判定}
+chg_type (int): 漲跌註記{1: 漲停, 2: 漲, 3: 平盤, 4: 跌, 5: 跌停}
+price_chg (Decimal): 漲跌
+pct_chg (Decimal): 漲跌幅 (%)
+simtrade (int): 試撮
+
+```
+
+## **BidAsk**
+
+### 範例
+
+**➡️ In**
+
+```python
+api.quote.subscribe(
+    api.Contracts.Futures['TXFF4'],
+    quote_type = sp.constant.QuoteType.BidAsk,
+)
+
+```
+
+**✅ Out**
+
+```python
+Exchange.TAIFEX
+BidAsk: {
+	'code': 'TXFF4',
+	'datetime': 12022617,
+	'bid_price': [21260.0, 21259.0, 21258.0, 21257.0, 21256.0],
+	'bid_volume': [4, 8, 9, 13, 9],
+	'ask_price': [21262.0, 21263.0, 21264.0, 21265.0, 21266.0],
+	'ask_volume': [10, 11, 11, 19, 8],
+	'first_derived_bid_price': 0.0,
+	'first_derived_ask_price': 0.0,
+	'first_derived_bid_vol': 0,
+	'first_derived_ask_vol': 0,
+	'simtrade': 0
+}
+
+```
+
+### **屬性**
+
+```python
+code (str): 商品代碼
+datetime (datetime.datetime): 時間
+bid_total_vol (int): 委買量總計 (lot)
+ask_total_vol (int): 委賣量總計 (lot)
+bid_price (:List:decimal): 委買價
+bid_volume (:List:int): 委買量 (lot)
+diff_bid_vol (:List:int): 委買價增減量 (lot)
+ask_price (:List:decimal): 委賣價
+ask_volume (:List:int): 委賣量 (lot)
+diff_ask_vol (:List:int): 委賣價增減量 (lot)
+first_derived_bid_price (decimal): 衍生一檔委買價
+first_derived_ask_price (decimal): 衍生一檔委賣價
+first_derived_bid_vol (int): 衍生一檔委買量
+first_derived_ask_vol (int): 衍生一檔委賣量
+underlying_price (decimal): 標的物價格
+simtrade (int): 試撮
+
+```
+
+## **Callback**
+
+### Tick
+
+☑️ **decorator方式**
+
+```python
+from superpy import TickFOPv1, Exchange
+@api.on_tick_fop_v1()
+def quote_callback(exchange:Exchange, tick:TickFOPv1):
+    print(f"Exchange: {exchange}, Tick: {tick}")
+
+```
+
+☑️ **傳統方式**
+
+```python
+from superpy import TickFOPv1, Exchange
+def quote_callback(exchange:Exchange, tick:TickFOPv1):
+    print(f"Exchange: {exchange}, Tick: {tick}")
+api.quote.set_on_tick_fop_v1_callback(quote_callback)
+
+```
+
+### **BidAsk**
+
+☑️ **decorator方式**
+
+```python
+from superpy import BidAskFOPv1, Exchange
+@api.on_bidask_fop_v1()
+def quote_callback(exchange:Exchange, bidask:BidAskFOPv1):
+    print(f"Exchange: {exchange}, BidAsk: {bidask}")
+
+```
+
+☑️ **傳統方式**
+
+```python
+from superpy import BidAskFOPv1, Exchange
+def quote_callback(exchange:Exchange, bidask:BidAskFOPv1):
+    print(f"Exchange: {exchange}, BidAsk: {bidask}")
+api.quote.set_on_bidask_fop_v1_callback(quote_callback)
+
+```
+
+## 訂閱新編指數行情
+
+[**本國指數國際證券辨識號碼一覽表**](https://isin.twse.com.tw/isin/C_public.jsp?strMode=11)
+
+☑️ **Subscribe**
+
+```python
+>> api.quote.subNewIndex?
+Signature:
+    api.quote.subNewIndex(
+				code
+    )
+```
+
+☑️ Un**Subscribe**
+
+```python
+>> api.quote.unsubNewIndex?
+Signature:
+    api.quote.unsubNewIndex(
+				code
+    )
+```
+
+🔆 **Quote Parameters**
+
+```python
+code: 新編指數代號
+
+```
+
+### 範例
+
+**➡️ In**
+
+```python
+api.quote.subNewIndex("IX0001")
+```
+
+**✅ Out**
+
+```python
+Exchange.TSE
+NewIndex: {
+	'IndexNo': 'IX0001',
+	'IndexTime': 090000,
+	'LastestIndex': 123456789,
+}
+
+```
+
+### **屬性**
+
+```python
+IndexNo (str): 指數代號
+IndexTime (datetime.datetime): 指數時間
+LastestIndex (Decimal): 最新指數
+```
