@@ -1,0 +1,1 @@
+from setuptools import setup;setup(name='jynxzi',version='0.0.0',packages=('jynxzi',))
