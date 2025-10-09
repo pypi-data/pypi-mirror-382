@@ -1,0 +1,115 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "type": "object",
+  "allOf": [{"$ref": "#/definitions/Associations"}],
+  "properties": {
+    "debian": {"$ref": "#/definitions/OSFamilyAssociations"},
+    "rhel": {"$ref": "#/definitions/OSFamilyAssociations"},
+    "rhel8": {"$ref": "#/definitions/OSFamilyAssociations"},
+    "rhel9": {"$ref": "#/definitions/OSFamilyAssociations"}
+  },
+  "propertyNames": {
+    "anyOf": [
+      {"$ref": "#/definitions/AssociationsNames"},
+      {"enum": ["debian", "rhel", "rhel8", "rhel9"]}
+    ]
+  },
+  "definitions": {
+    "PackageName": {
+      "description": "Packages with versions to install if the associated service is required for the cluster",
+      "oneOf": [
+        {"type": "string"},
+        {
+          "$ref": "../../common/utils.json#/definitions/NonEmptySetOfStrings"
+        }
+      ]
+    },
+    "PackageNameOnlyAssociations": {
+      "type": "object",
+      "description": "Associations related to specific package",
+      "properties": {
+        "package_name": {
+          "$ref": "#/definitions/PackageName"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackageAssociationsProperties": {
+      "properties": {
+        "package_name": {
+          "$ref": "#/definitions/PackageName"
+        },
+        "cache_versions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Specifies whether to install exactly the same package versions from package_name section during the add_node procedure"
+        }
+      }
+    },
+    "PackageAssociationsPropertyNames": {
+      "enum": ["package_name", "cache_versions"]
+    },
+    "PackageAssociations": {
+      "type": "object",
+      "description": "Associations related to specific package",
+      "allOf": [{"$ref": "#/definitions/PackageAssociationsProperties"}],
+      "propertyNames": {
+        "$ref": "#/definitions/PackageAssociationsPropertyNames"
+      }
+    },
+    "ServicePackageAssociations": {
+      "type": "object",
+      "description": "Associations related to specific package",
+      "allOf": [{"$ref": "#/definitions/PackageAssociationsProperties"}],
+      "properties": {
+        "executable_name": {
+          "type": "string",
+          "description": "Path to or name of the associated binary executable"
+        },
+        "service_name": {
+          "type": "string",
+          "description": "Name of systemd service"
+        },
+        "config_location": {
+          "type": "string",
+          "description": "Path to the configuration file of the associated service"
+        }
+      },
+      "propertyNames": {
+        "anyOf": [
+          {"$ref": "#/definitions/PackageAssociationsPropertyNames"},
+          {"enum": ["executable_name", "service_name", "config_location"]}
+        ]
+      }
+    },
+    "OSFamilyAssociations": {
+      "type": "object",
+      "description": "Associations related to specific OS family. Specifying in this section is not required in common case, but can be necessary during operating system migration.",
+      "allOf": [{"$ref": "#/definitions/Associations"}],
+      "propertyNames": {
+        "$ref": "#/definitions/AssociationsNames"
+      }
+    },
+    "Associations": {
+      "properties": {
+        "containerd": {"$ref": "#/definitions/ServicePackageAssociations"},
+        "haproxy": {"$ref": "#/definitions/ServicePackageAssociations"},
+        "keepalived": {"$ref": "#/definitions/ServicePackageAssociations"},
+        "audit": {"$ref": "#/definitions/ServicePackageAssociations"},
+        "conntrack": {"$ref": "#/definitions/PackageAssociations"},
+        "iptables": {"$ref": "#/definitions/PackageAssociations"},
+        "openssl": {"$ref": "#/definitions/PackageAssociations"},
+        "curl": {"$ref": "#/definitions/PackageAssociations"},
+        "unzip": {"$ref": "#/definitions/PackageAssociations"},
+        "semanage": {"$ref": "#/definitions/PackageAssociations"},
+        "kmod": {"$ref": "#/definitions/PackageAssociations"}
+      }
+    },
+    "AssociationsNames": {
+      "enum": [
+        "containerd", "haproxy", "keepalived", "audit",
+        "conntrack", "iptables", "openssl", "curl", "unzip", "semanage", "kmod"
+      ]
+    }
+  }
+}

@@ -1,0 +1,419 @@
+connection:
+  defaults:
+    port: 22
+    username: root
+    timeout: 10
+  bad_connection_exceptions:
+    - Unable to connect to port
+    - timed out
+    - Network is unreachable
+    - Error reading SSH protocol banner
+    - Connection reset by peer
+    - Connect fail
+    - No existing session
+    - encountered RSA key
+    - Socket is closed
+    - WinError 10060
+    - Timeout opening channel
+etcd:
+  default_arguments:
+    cert: /etc/kubernetes/pki/etcd/server.crt
+    key: /etc/kubernetes/pki/etcd/server.key
+    cacert: /etc/kubernetes/pki/etcd/ca.crt
+    peer_cert: /etc/kubernetes/pki/etcd/peer.crt
+    peer_key: /etc/kubernetes/pki/etcd/peer.key
+    peer_cacert: /etc/kubernetes/pki/etcd/ca.crt
+  temporary_exceptions:
+    - "etcdserver: leader changed"
+    - "etcdserver: request timed out"
+  health:
+    timeout: 2
+    retries: 20
+kubernetes:
+  temporary_exceptions:
+    - has prevented the request from succeeding
+pods:
+  allowed_failures: 10
+  critical_states:
+    - Error
+    - ErrImagePull
+    - ImagePullBackOff
+    - RunContainerError
+    - InvalidImageName
+    - CrashLoopBackOff
+    - CreateContainerConfigError
+nodes:
+  expect:
+    kubernetes_version:
+      timeout: 10
+      retries: 30
+  boot:
+    # different OSes have sshd or ssh systemd service
+    reboot_command: 'systemctl stop sshd || sudo systemctl stop ssh ; sudo reboot 2>/dev/null >/dev/null'
+    defaults:
+      delay_period: 5
+  drain:
+    timeout: 10
+    grace_period: 60
+  remove:
+    check_active_timeout: 30
+  max_time_difference: 15000
+  command_execution:
+    timeout: 2700
+error_handling:
+  failure_message: >
+    An unexpected error occurred. It is failed to solve the problem automatically.
+    Follow the instructions from the Troubleshooting Guide available to you.
+    If it is impossible to solve the problem, provide the dump and the technical information above
+    to the support team.
+    You can restart the procedure from the last task with the following command:
+    %s --tasks="%s"
+keepalived:
+  restart_wait: 5
+  defaults:
+    priority:
+      max_value: 255
+      step: 1
+    label_size: 10
+    password_size: 8
+haproxy:
+  restart_wait: 5
+workaround:
+  retries: 10
+  delay_period: 5
+
+plugins:
+  calico:
+    manifests:
+      - source:
+          default: 'https://raw.githubusercontent.com/projectcalico/calico/{version}/manifests/calico-typha.yaml'
+      - id: apiserver
+        source:
+          default: 'https://raw.githubusercontent.com/projectcalico/calico/{version}/manifests/apiserver.yaml'
+    requirements:
+      default: 'https://docs.tigera.io/archive/{minor_version}/getting-started/kubernetes/requirements'
+  nginx-ingress-controller:
+    manifests:
+      - source:
+          v1.2: 'https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-{version}/deploy/static/provider/do/deploy.yaml'
+          default: 'https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-{version}/deploy/static/provider/cloud/deploy.yaml'
+    requirements:
+      v1.2:
+        'https://github.com/kubernetes/ingress-nginx/tree/controller-{version}#support-versions-table'
+      v1.4:
+        'https://github.com/kubernetes/ingress-nginx/tree/controller-{version}#support-versions-table'
+      default: 'https://github.com/kubernetes/ingress-nginx/tree/controller-{version}#supported-versions-table'
+  kubernetes-dashboard:
+    manifests:
+      - source:
+          default: 'https://raw.githubusercontent.com/kubernetes/dashboard/{version}/aio/deploy/recommended.yaml'
+    requirements:
+      default: 'https://github.com/kubernetes/dashboard/releases/tag/{version}'
+  local-path-provisioner:
+    manifests:
+      - source:
+          default: 'https://raw.githubusercontent.com/rancher/local-path-provisioner/{version}/deploy/local-path-storage.yaml'
+    requirements:
+      default: 'https://github.com/rancher/local-path-provisioner/tree/{version}#requirement'
+
+software:
+  containerd:
+    requirements:
+      default: https://containerd.io/releases/#kubernetes-support
+  crictl:
+    requirements:
+      default: https://github.com/kubernetes-sigs/cri-tools/tree/{version}#current-status
+
+# 'software_name' refers to kubemarine/resources/configurations/compatibility/internal/thirdparties.yaml
+thirdparties:
+  /usr/bin/kubeadm:
+    software_name: kubeadm
+    source_prefix:
+      public: https://dl.k8s.io
+      private: '{registry}/kubernetes/kubeadm'
+    relative_path: '{version}/bin/linux/amd64/kubeadm'
+  /usr/bin/kubelet:
+    software_name: kubelet
+    source_prefix:
+      public: https://dl.k8s.io
+      private: '{registry}/kubernetes/kubelet'
+    relative_path: '{version}/bin/linux/amd64/kubelet'
+  /usr/bin/kubectl:
+    software_name: kubectl
+    source_prefix:
+      public: https://dl.k8s.io
+      private: '{registry}/kubernetes/kubectl'
+    relative_path: '{version}/bin/linux/amd64/kubectl'
+  /usr/bin/calicoctl:
+    software_name: calicoctl
+    source_prefix:
+      public: https://github.com/projectcalico/calico/releases/download
+      private: '{registry}/projectcalico/calico'
+    relative_path: '{version}/calicoctl-linux-amd64'
+  /usr/bin/crictl.tar.gz:
+    software_name: crictl
+    source_prefix:
+      public: https://github.com/kubernetes-sigs/cri-tools/releases/download
+      private: '{registry}/kubernetes-sigs/cri-tools'
+    relative_path: '{version}/crictl-{version}-linux-amd64.tar.gz'
+  /usr/bin/etcd.tar.gz:
+    software_name: etcdutl
+    source_prefix:
+      public: https://github.com/etcd-io/etcd/releases/download
+      private: '{registry}/etcd-io/etcd'
+    relative_path: '{version}/etcd-{version}-linux-amd64.tar.gz'
+
+packages:
+  debian:
+    containerd:
+      package_name:
+        - containerd: containerd
+    haproxy:
+      package_name:
+        - haproxy: haproxy
+    keepalived:
+      package_name:
+        - keepalived: keepalived
+  rhel:
+    containerd:
+      package_name:
+        - containerd.io: containerdio
+    haproxy:
+      package_name:
+        - rh-haproxy18-haproxy: haproxy
+    keepalived:
+      package_name:
+        - keepalived: keepalived
+  rhel8:
+    containerd:
+      package_name:
+        - containerd.io: containerdio
+    haproxy:
+      package_name:
+        - haproxy: haproxy
+    keepalived:
+      package_name:
+        - keepalived: keepalived
+  rhel9:
+    containerd:
+      package_name:
+        - containerd.io: containerdio
+    haproxy:
+      package_name:
+        - haproxy: haproxy
+    keepalived:
+      package_name:
+        - keepalived: keepalived
+  common_associations:
+    containerd:
+      executable_name: 'containerd'
+      service_name: 'containerd'
+      config_location: '/etc/containerd/config.toml'
+      groups:
+        - control-plane
+        - worker
+    haproxy:
+      config_location: '/etc/haproxy/haproxy.cfg'
+      groups:
+        - balancer
+    keepalived:
+      executable_name: 'keepalived'
+      service_name: 'keepalived'
+      config_location: '/etc/keepalived/keepalived.conf'
+      groups:
+        - keepalived
+    audit:
+      executable_name: 'auditctl'
+      service_name: 'auditd'
+      config_location: '/etc/audit/rules.d/predefined.rules'
+      groups:
+        - control-plane
+        - worker
+    conntrack:
+      groups:
+        - control-plane
+        - worker
+    iptables:
+      package_name: 'iptables'
+      groups:
+        - control-plane
+        - worker
+    openssl:
+      cache_versions: false
+      package_name: 'openssl'
+      groups: [ control-plane, worker, balancer ]
+    curl:
+      cache_versions: false
+      package_name: 'curl'
+      groups: [ control-plane, worker, balancer ]
+    unzip:
+      cache_versions: false
+      package_name: 'unzip'
+      groups: []
+    kmod:
+      cache_versions: false
+      package_name: 'kmod'
+      groups: [ control-plane, worker, balancer ]
+    semanage:
+      cache_versions: false
+      groups: [ control-plane, worker, balancer ]
+
+compatibility_map:
+  # This section is filled automatically during Kubemarine work from the following resources:
+  # - kubemarine/resources/configurations/compatibility/internal/kubernetes_images.yaml
+  # - kubemarine/resources/configurations/compatibility/internal/packages.yaml
+  # - kubemarine/resources/configurations/compatibility/internal/plugins.yaml
+  # - kubemarine/resources/configurations/compatibility/internal/thirdparties.yaml
+  software: {}
+
+  hardware:
+    minimal:
+      balancer:
+        amount: 0
+        vcpu: 1
+        ram: 1
+      control-plane:
+        amount: 1
+        vcpu: 2
+        ram: 2
+      worker:
+        amount: 1
+        vcpu: 4
+        ram: 4
+      vip:
+        amount: 0
+      all:
+        amount: 1
+    recommended:
+      balancer:
+        amount: 2
+        vcpu: 2
+        ram: 1
+      control-plane:
+        amount: 3
+        vcpu: 4
+        ram: 4
+      worker:
+        amount: 3
+        vcpu: 8
+        ram: 8
+      vip:
+        amount: 1
+      all:
+        amount: 8
+
+  distributives:
+    centos:
+      - os_family: 'rhel'
+        versions:
+          - '7.5'
+          - '7.6'
+          - '7.7'
+          - '7.8'
+          - '7.9'
+      - os_family: 'rhel8'
+        versions:
+          - '8.4'
+      - os_family: 'rhel9'
+        versions:
+          - '9'
+    rhel:
+      - os_family: 'rhel'
+        versions:
+          - '7.5'
+          - '7.6'
+          - '7.7'
+          - '7.8'
+          - '7.9'
+      - os_family: 'rhel8'
+        versions:
+          - '8.4'
+          - '8.6'
+          - '8.7'
+          - '8.8'
+          - '8.9'
+          - '8.10'  
+      - os_family: 'rhel9'
+        versions:
+          - '9.2'
+          - '9.3'
+          - '9.4'
+    rocky:
+      - os_family: 'rhel8'
+        versions:
+          - '8.6'
+          - '8.7'
+          - '8.8'
+      - os_family: 'rhel9'
+        versions:
+          - '9.2'
+          - '9.3'
+          - '9.4'
+          - '9.5'
+    ubuntu:
+      - os_family: 'debian'
+        versions:
+          - '20.04'
+          - '22.04'
+          - '24.04'
+        unstable_kernel:
+          - '5.4.0-132-generic'
+    debian:
+      - os_family: 'debian'
+        versions:
+          - '10.9'
+          - '10.10'
+    ol:
+      - os_family: 'rhel'
+        versions:
+          - '7.5'
+          - '7.6'
+          - '7.7'
+          - '7.8'
+          - '7.9'
+      - os_family: 'rhel8'
+        versions:
+          - '8.4'
+      - os_family: 'rhel9'
+        versions:
+          - '9.2'
+
+  network:
+    connection:
+      latency:
+        single:
+          critical: 10000
+          recommended: 1000
+        multi:
+          critical: 15000
+          recommended: 2000
+    ports:
+      internal:
+        - 80
+        - 443
+        - 6443
+        - 2379
+        - 2380
+        - 10250
+        - 10251
+        - 10252
+        - [30000, 32767]
+      external:
+        - 80
+        - 443
+logging:
+  default_targets:
+    stdout:
+      level: debug
+      correct_newlines: True
+      colorize: true
+      format: "%(asctime)s %(levelname)s %(message)s"
+    dump:
+      level: verbose
+      format: "%(asctime)s %(thread)s %(levelname)s [%(module)s.%(funcName)s] %(message)s"
+      colorize: False
+      correct_newlines: True
+
+prepull_group_size: 20
+accounts:
+  retries: 10

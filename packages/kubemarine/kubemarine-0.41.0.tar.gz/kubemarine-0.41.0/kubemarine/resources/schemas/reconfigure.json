@@ -1,0 +1,130 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "type": "object",
+  "properties": {
+    "services": {
+      "type": "object",
+      "description": "Configure settings of different services",
+      "properties": {
+        "kubeadm_kubelet": {
+          "type": "object",
+          "description": "Override the original settings for the kubelet",
+          "allOf": [{"$ref": "#/definitions/KubeletReconfigureSupported"}]
+        },
+        "kubeadm_kube-proxy": {
+          "type": "object",
+          "description": "Override the original settings for the kube-proxy",
+          "allOf": [{"$ref": "definitions/services/kubeadm_kube-proxy.json#/definitions/PayloadProperties"}],
+          "propertyNames": {
+            "not": {"enum": ["apiVersion", "kind"]}
+          }
+        },
+        "kubeadm_patches": {
+          "type": "object",
+          "allOf": [{"$ref": "definitions/services/kubeadm_patches.json"}],
+          "properties": {
+            "kubelet": {
+              "type": "array",
+              "allOf": [{"$ref": "definitions/services/kubeadm_patches.json#/definitions/KubeletPatches"}],
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "allOf": [{"$ref": "definitions/services/kubeadm_patches.json#/definitions/KubeletPatch"}],
+                    "properties": {
+                      "patch": {
+                        "type": "object",
+                        "allOf": [
+                          {"$ref": "#/definitions/KubeletReconfigureSupported"},
+                          {"$ref": "definitions/services/kubeadm_patches.json#/definitions/KubeletProperties"}
+                        ]
+                      }
+                    }
+                  },
+                  {"$ref": "definitions/common/utils.json#/definitions/ListMergingSymbol"}
+                ]
+              }
+            }
+          }
+        },
+        "kubeadm": {
+          "type": "object",
+          "description": "Override the original settings for the kubeadm",
+          "properties": {
+            "apiServer": {
+              "$ref": "definitions/services/kubeadm.json#/definitions/ApiServer"
+            },
+            "scheduler": {
+              "$ref": "definitions/services/kubeadm.json#/definitions/Scheduler"
+            },
+            "controllerManager": {
+              "$ref": "definitions/services/kubeadm.json#/definitions/ControllerManager"
+            },
+            "etcd": {
+              "type": "object",
+              "properties": {
+                "local": {
+                  "type": "object",
+                  "properties": {
+                    "extraArgs": {
+                      "$ref": "definitions/services/kubeadm.json#/definitions/ExtraArgs"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "sysctl": {
+          "$ref": "definitions/services/sysctl.json"
+        }
+      },
+      "additionalProperties": false
+    },
+    "patches": {
+      "type": "array",
+      "description": "Override the resulting configuration for specific nodes. The list of patches is appended to the main list of patches in the inventory. Thus, the same settings have precedence in the last patch of the procedure inventory if overridden few times for the same node.",
+      "items": {
+        "allOf": [
+          {"$ref": "definitions/common/node_ref.json#/definitions/AnyOfNodesGroupsSpec"},
+          {"$ref": "#/definitions/PatchReconfigureSupported"}
+        ]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "KubeletReconfigureSupported": {
+      "type": "object",
+      "properties": {
+        "protectKernelDefaults": {"$ref": "definitions/services/kubeadm_kubelet.json#/definitions/ProtectKernelDefaults"},
+        "podPidsLimit": {"$ref": "definitions/services/kubeadm_kubelet.json#/definitions/PodPidsLimit"},
+        "maxPods": {"$ref": "definitions/services/kubeadm_kubelet.json#/definitions/MaxPods"},
+        "serializeImagePulls": {"$ref": "definitions/services/kubeadm_kubelet.json#/definitions/SerializeImagePulls"}
+      },
+      "additionalProperties": false
+    },
+    "PatchReconfigureSupported": {
+      "type": "object",
+      "properties": {
+        "groups": {"$ref": "definitions/patch.json#/definitions/PatchGroups"},
+        "nodes": {"$ref": "definitions/patch.json#/definitions/PatchNodes"},
+        "services": {
+          "type": "object",
+          "description": "Configure settings of different services",
+          "properties": {
+            "sysctl": {
+              "$ref": "definitions/services/sysctl.json",
+              "description": "Manage the Linux Kernel parameters for the specified nodes in a patch"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
