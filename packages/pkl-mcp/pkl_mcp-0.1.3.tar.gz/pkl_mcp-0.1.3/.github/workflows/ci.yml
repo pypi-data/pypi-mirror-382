@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read   # Required to access repository content
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Set up environment and sync dependencies
+      run: |
+        echo "Setting up environment and syncing dependencies..."
+        uv sync --dev
+
+    - name: Run code formatting check
+      run: |
+        echo "Checking code formatting with ruff..."
+        uv run ruff format --check .
+
+    - name: Run linting checks
+      run: |
+        echo "Running linting checks with ruff..."
+        uv run ruff check .
+
+    - name: Run type checking
+      run: |
+        echo "Running static type checking with mypy..."
+        uv run mypy .
+
+    - name: Run test suite with coverage
+      run: |
+        echo "Running test suite with coverage..."
+        uv run pytest
+
+    - name: Build package
+      run: |
+        echo "Building package distributions..."
+        uv run python -m build
+
+    - name: Validate package
+      run: |
+        echo "Validating built packages..."
+        uv run twine check dist/*
+
+    - name: Upload coverage reports to Codecov
+      if: matrix.python-version == '3.12'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Upload build artifacts
+      if: matrix.python-version == '3.12'
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+        retention-days: 7
+
+  # Additional job to ensure all quality checks pass
+  quality-gate:
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    
+    steps:
+    - name: Check test results
+      run: |
+        if [ "${{ needs.test.result }}" != "success" ]; then
+          echo "❌ Quality gate failed: Tests did not pass on all Python versions"
+          exit 1
+        fi
+        echo "✅ Quality gate passed: All tests successful across Python versions"
