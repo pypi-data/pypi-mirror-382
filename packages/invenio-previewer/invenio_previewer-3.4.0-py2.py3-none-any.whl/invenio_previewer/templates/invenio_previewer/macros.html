@@ -1,0 +1,59 @@
+{# -*- coding: utf-8 -*-
+
+  This file is part of Invenio.
+  Copyright (C) 2016-2025 CERN.
+
+  Invenio is free software; you can redistribute it and/or modify it
+  under the terms of the MIT License; see LICENSE file for more details.
+#}
+
+{%- macro preview_file(preview_endpoint, pid, filename, id='preview-iframe', width='100%', height='400' ) %}
+  <iframe
+   class="preview-iframe"
+   id="{{id}}"
+   width="{{width}}"
+   height="{{height}}"
+   src="{{ url_for(preview_endpoint, pid_value=pid.pid_value, filename=filename) }}"></iframe>
+{%- endmacro %}
+
+{%- macro file_list(files, pid, sort_by='key', with_preview=true, download_endpoint='invenio_records_ui.recid_files', preview_endpoint='invenio_records_ui.recid_previewer') %}
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>{{_('Name')}}</th>
+        <th>{{_('Size')}}</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for file in files|sort(attribute=sort_by) %}
+      {%- set file_url_download = url_for(download_endpoint, pid_value=pid.pid_value, filename=file.key, download=1) %}
+      {%- set file_url_preview = url_for(preview_endpoint, pid_value=pid.pid_value, filename=file.key) %}
+      {%- set file_type = file.key.split('.')[-1] %}
+      <tr>
+        <td>
+          {%- if with_preview %}
+            <a class="filename preview-link" href="#preview" data-url="{{file_url_preview}}">{{ file.key }}</a>
+          {%- else %}
+            <a class="forcewrap" href="{{ file_url_download }}">{{ file.key }}</a>
+          {%- endif %}
+          <br/><small class="text-muted nowrap">{{ file.checksum or _("Checksum not yet calculated.") }} <i class="fa fa-question-circle text-muted" data-toggle="tooltip" tooltip data-placement="top" title="{{_('This is the file fingerprint (checksum), which can be used to verify the file integrity.')}}"></i></small>
+        </td>
+        <td class="nowrap">{{ file.size|filesizeformat }}</td>
+        <td class="nowrap">
+          <span class="pull-right">
+            {% if with_preview and file_type is previewable %}
+              <button class="btn preview-link btn-xs btn-default" data-url="{{file_url_preview}}">
+                <i class="fa fa-eye"></i> {{_("Preview")}}
+              </button>
+            {% endif %}
+            <a class="btn btn-xs btn-default" href="{{ file_url_download }}">
+              <i class="fa fa-download"></i>
+              {{_('Download')}}
+            </a>
+          </span>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{%- endmacro %}
