@@ -1,0 +1,77 @@
+[build-system]
+# Build dependencies with minimum versions for compatibility:
+# - scikit-build-core>=0.8.0: CMake-based build backend for Python C++ extensions
+# - setuptools>=61.0.0: Provides core build infrastructure and packaging utilities
+# - packaging>=23.2: Required by scikit-build-core for canonicalize_name(validate=True) parameter
+requires = ["scikit-build-core>=0.8.0", "nanobind", "setuptools>=61.0.0", "packaging>=23.2"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "mcap_bag_parser"
+version = "0.2.3rc1"
+authors = [
+  { name="Neal Tanner"},
+  { name="Teresa Gadda"},
+  { name="Bryan Zhao"},
+]
+description = "Parse ROS2 mcap bagfiles efficiently into pandas dataframes, using the rosx_introspection package."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pandas",
+    "numpy",
+    "mcap",
+    "mcap-ros2-support",
+    "msgpack",
+]
+
+[project.urls]
+Homepage = "https://gitlab.com/nealtanner/mcap-bag-parser"
+Issues = "https://gitlab.com/nealtanner/mcap-bag-parser/-/issues"
+
+
+[tool.scikit-build]
+cmake.source-dir = "."
+cmake.build-type = "Release"
+cmake.args = ["-DROSX_PYTHON_BINDINGS=ON", "-DBUILD_ROSX_SUPPORT=ON", "-DROSX_HAS_JSON=OFF", "-DCMAKE_DISABLE_FIND_PACKAGE_ament_cmake=TRUE"]
+wheel.packages = ["src/mcap_bag", "src/rosx_introspection"]
+sdist.exclude = [
+    "test_env/", "test_env/**",
+    "mcap_dev/", "mcap_dev/**",
+    "test_dist/", "test_dist/**",
+    "test_wheel_env/", "test_wheel_env/**",
+    "test_wheelhouse/", "test_wheelhouse/**",
+    "wheelhouse/", "wheelhouse/**",
+    "dist/", "build/", "build_python/",
+    "*.egg-info/", "__pycache__/", ".pytest_cache/",
+    ".claude/", "CLAUDE.md"
+]
+# NOTE: we need to include git submodule in source distribution for proper building
+sdist.include = ["external/rosx_introspection/**"]
+
+[tool.cibuildwheel]
+# for now, we'll build for common Python versions
+build = "cp310-*"
+# skip 32-bit and musllinux builds
+skip = ["*-win32", "*-manylinux_i686", "*-musllinux*", "pp*"]
+
+# on linux, build for x86_64 and aarch64
+[tool.cibuildwheel.linux]
+archs = ["x86_64", "aarch64"]
+
+# Ensure git submodule is available
+before-all = "git submodule update --init --recursive"
+# manylinux2014 provides C++17 support
+manylinux-x86_64-image = "manylinux2014"
+manylinux-aarch64-image = "manylinux2014"
+
+# on macOS build for Intel and Apple Silicon, TODO: test this w/ someone that has a Mac
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+# macOS 11.0+ for arm64 support
+environment = { MACOSX_DEPLOYMENT_TARGET="11.0" }

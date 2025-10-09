@@ -1,0 +1,112 @@
+stages:
+    - linting
+    - testing
+    - build
+    - deploy
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+
+flake8:
+    stage: linting
+    image: python:3.10
+
+    script:
+        - pip install flake8 pep8-naming
+        - flake8 src/ --count --max-complexity=20 --max-line-length=127 --statistics
+    only:
+        - merge_requests
+
+pytest_core:
+    stage: testing
+    image: python:3.10
+    before_script:
+        - pip install -r requirements.txt
+        - pip install build scikit-build-core
+        # build the self-contained wheel (w/ the C++ compilation)
+        - python -m build
+        # install the built wheel for testing
+        - pip install dist/mcap_bag_parser-*.whl
+    script:
+        - python -m pytest src/mcap_bag/test/ --ignore=src/mcap_bag/test/test_dataframe_equivalence.py -v
+    only:
+        - merge_requests
+
+pytest_full:
+    stage: testing
+    image: python:3.10
+    before_script:
+        # Install build dependencies for C++ compilation
+        - apt-get update && apt-get install -y cmake build-essential
+        - pip install -r requirements.txt
+        # Build the C++ extension with Python bindings (disable JSON to avoid rapidjson issues)
+        - mkdir -p build && cd build
+        - cmake .. -DBUILD_ROSX_SUPPORT=ON -DCMAKE_BUILD_TYPE=Release -DROSX_HAS_JSON=OFF
+        - make -j$(nproc)
+        - cd ..
+    script:
+        # Set PYTHONPATH - build dir FIRST to find C++ extension, then src for tests
+        - export PYTHONPATH="${CI_PROJECT_DIR}/build/external/rosx_introspection/python:${CI_PROJECT_DIR}/src"
+        - python -m pytest
+    rules:
+        - if: $CI_MERGE_REQUEST_IID
+          changes:
+            - "src/rosx_mcap_adapter/rosx_mcap_adapter.py"
+            - "src/rosx_mcap_adapter/__init__.py"
+        - if: $CI_COMMIT_TAG  # Always run full tests on releases
+
+build:
+    stage: build
+    image: python:3.10
+    # Docker-in-Docker required for cibuildwheel to build manylinux wheels
+    # Why: cibuildwheel uses Docker containers (quay.io/pypa/manylinux*) to create
+    # PyPI-compatible wheels. Standard 'python -m build' creates linux_x86_64 wheels
+    # which PyPI rejects. This is the official cibuildwheel-recommended setup.
+    services:
+        - name: docker:dind
+          entrypoint: ["env", "-u", "DOCKER_HOST"]
+          command: ["dockerd-entrypoint.sh"]
+    variables:
+        DOCKER_HOST: tcp://docker:2375/
+        DOCKER_DRIVER: overlay2
+        DOCKER_TLS_CERTDIR: ""
+    before_script:
+        # Install Docker CLI and build dependencies
+        - apt-get update && apt-get install -y cmake build-essential docker.io
+        - git submodule sync --recursive
+        - git submodule update --init --recursive
+    script:
+        # Install cibuildwheel and build dependencies
+        - python3 -m pip install --upgrade build cibuildwheel
+        # Build manylinux wheels (x86_64 only in CI - aarch64 requires native runner)
+        - CIBW_ARCHS_LINUX=x86_64 cibuildwheel --platform linux
+        # Build source distribution
+        - python3 -m build --sdist
+    artifacts:
+        paths:
+            - wheelhouse/
+            - dist/
+        expire_in: 1 hour
+    only:
+        - tags
+
+deploy_to_pypi:
+    stage: deploy
+    image: python:3.10
+    id_tokens:
+        PYPI_ID_TOKEN:
+            aud: pypi
+    script:
+        - python3 -m pip install --upgrade twine
+        # Upload to PyPI using OIDC trusted publisher (no credentials needed)
+        - python3 -m twine upload wheelhouse/*.whl dist/*.tar.gz
+    dependencies:
+        - build
+    rules:
+        - if: $CI_COMMIT_TAG  # All tags trigger PyPI deployment
+    when: on_success
