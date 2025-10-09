@@ -1,0 +1,198 @@
+#
+# SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+[build-system]
+requires = [
+  "hatchling >= 1.23, < 2",
+
+  # Transitive; needed for `uv --resolution=lowest`
+  "trove-classifiers >= 2024.5.17",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "feature_check"
+description = "Query a program for supported features"
+readme = "README.md"
+license = {text = "BSD-2-Clause"}
+dynamic = ["version"]
+requires-python = ">= 3.10"
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "License :: DFSG approved",
+  "License :: Freely Distributable",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: POSIX",
+  "Operating System :: Unix",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Utilities",
+]
+dependencies = [
+  "click >= 8.1.5, < 9",
+  "pyparsing >= 3.2, < 4",
+]
+
+[dependency-groups]
+testenv-mypy = [
+  {include-group = "testenv-unit-tests"},
+  "mypy >= 1.5, < 2",
+  "simplejson >= 3, < 4",
+  "types-simplejson >= 3, < 4",
+]
+testenv-ruff = [
+  "ruff == 0.14.0",
+]
+testenv-unit-tests = [
+  "hypothesis >= 6.10.1, < 7",
+  "pytest >= 8, < 9",
+]
+testenv-uvoxen = [
+  "uvoxen >= 0.2.1, < 0.3; python_version >= '3.11'",
+]
+
+[[project.authors]]
+name = "Peter Pentchev"
+email = "roam@ringlet.net"
+
+[project.scripts]
+feature-check = "feature_check.__main__:main"
+
+[project.urls]
+Homepage = "https://devel.ringlet.net/misc/feature-check/"
+Changelog = "https://gitlab.com/ppentchev/feature-check/-/blob/master/docs/changes.md"
+Repository = "https://gitlab.com/ppentchev/feature-check"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/feature_check"]
+
+[tool.hatch.version]
+path = "src/feature_check/defs.py"
+
+[tool.mypy]
+strict = true
+
+[tool.ruff]
+extend = "ruff-base.toml"
+output-format = "concise"
+preview = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+
+[tool.test-stages]
+stages = [
+  "@check and @quick and not @manual",
+  "@check and not @manual",
+  "@tests and not @manual",
+]
+
+[tool.uvoxen]
+mediaType = "vnd.ringlet.devel.uvoxen.config/uvoxen.v0.3+toml"
+envlist = [
+  "ruff",
+  "format",
+  "uvoxen-sync-check",
+  "mypy",
+  "unit-tests",
+]
+
+[tool.uvoxen.defs]
+pyfiles = [
+  "src/feature_check",
+  "tests/unit",
+]
+
+[tool.uvoxen.tox]
+header = """
+# SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+"""
+
+[tool.uvoxen.env.ruff]
+tags = [
+  "check",
+  "ruff",
+  "quick",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.format]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check --config ruff-base.toml --select=D,I --diff -- {[defs]pyfiles}",
+  "ruff format --check --config ruff-base.toml --diff -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.reformat]
+tags = [
+  "format",
+  "manual",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check --config ruff-base.toml --select=D,I --fix -- {[defs]pyfiles}",
+  "ruff format --config ruff-base.toml -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.mypy]
+tags = [
+  "check",
+]
+dependency-groups = [
+  "testenv-mypy",
+]
+install-dependencies = true
+commands = [
+  "mypy {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.unit-tests]
+tags = [
+  "tests",
+]
+dependency-groups = [
+  "testenv-unit-tests",
+]
+install-project = true
+commands = [
+  "pytest tests/unit",
+]
+
+[tool.uvoxen.env.uvoxen-sync-check]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-uvoxen",
+]
+commands = [
+  "uvoxen tox generate --check --diff",
+]

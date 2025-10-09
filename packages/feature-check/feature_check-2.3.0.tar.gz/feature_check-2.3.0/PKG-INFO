@@ -1,0 +1,95 @@
+Metadata-Version: 2.4
+Name: feature_check
+Version: 2.3.0
+Summary: Query a program for supported features
+Project-URL: Homepage, https://devel.ringlet.net/misc/feature-check/
+Project-URL: Changelog, https://gitlab.com/ppentchev/feature-check/-/blob/master/docs/changes.md
+Project-URL: Repository, https://gitlab.com/ppentchev/feature-check
+Author-email: Peter Pentchev <roam@ringlet.net>
+License: BSD-2-Clause
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: DFSG approved
+Classifier: License :: Freely Distributable
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: Unix
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Utilities
+Requires-Python: >=3.10
+Requires-Dist: click<9,>=8.1.5
+Requires-Dist: pyparsing<4,>=3.2
+Description-Content-Type: text/markdown
+
+<!--
+SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+SPDX-License-Identifier: BSD-2-Clause
+-->
+
+feature-check - query a program for supported features
+======================================================
+
+The `feature_check` library obtains the list of supported features from
+a program via various methods and allows programs to check for the presence
+and, possibly, versions of specific features.
+
+The `feature_check` library is fully typed.
+
+Obtaining the features supported by a program
+---------------------------------------------
+
+The `obtain_features()` function in the `feature_check` module runs
+a program with the appropriate option to obtain its list of features;
+the default is to pass the `--features` option, but this may be overridden.
+The `obtain_features()` function then examines the output to find a line
+that matches the specified prefix (or the default `Features: ` prefix) and
+expects the rest of the line to be a whitespace-separated list of either
+feature names or `name=version` pairs.  It returns a dictionary of
+the features obtained with their versions (or `1.0` if only a feature name
+was found in the program's output).
+
+    import feature_check
+    
+    data = feature_check.obtain_features("timelimit")
+    print(data.get("subsecond", "not supported"))
+    
+For programs that need a different command-line option to list features:
+
+    import feature_check
+    
+    print("SSL" in feature_check.obtain_features("curl", option="--version"))
+
+Testing for feature versions
+----------------------------
+
+The `feature_check` library also provides a simple expression evaluation
+mechanism for examining feature versions - the `expr` module defines
+several `Expr` and `Result` classes and also provides the `parse_simple()`
+function (also exported by `feature_check()` itself) for creating simple
+version comparisons:
+
+    import feature_check
+    
+    data = feature_check.obtain_features("timelimit")
+    expr = feature_check.parse_simple("subsecond >= 1")
+    print(expr.evaluate(data).value)
+
+Contact the author
+------------------
+
+For more information, please see the `feature_check` library's
+[homepage][ringlet] or contact the author, [Peter Pentchev][roam].
+
+[ringlet]: https://devel.ringlet.net/misc/feature-check/
+[roam]: <mailto:roam@ringlet.net>
