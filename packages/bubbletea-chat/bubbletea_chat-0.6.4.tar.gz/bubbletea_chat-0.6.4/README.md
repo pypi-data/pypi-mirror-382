@@ -1,0 +1,209 @@
+# Bubbletea Documentation
+
+## Table of Contents
+
+- [Introduction](#introduction)
+- [Quickstart](#quickstart)
+- [Documentation](#documentation)
+- [Examples](#examples)
+- [Contributing](#contributing)
+
+## Introduction
+
+### 1. Intro Concept - Frontend for your AI Agent
+
+Bubbletea is the **frontend platform for AI agents & chatbots**. Share your AI creations with the world through beautiful, instant chat interfaces. Build your bot in any language, host it anywhere, and Bubbletea provides the user interface.
+
+- No frontend development needed
+- Share bots with simple URLs
+- Professional UI out of the box
+- Built-in user management & history
+
+## Quickstart
+
+### 2. Quickstart - E2E Echobot
+
+Get your first bot running in minutes. This complete example shows you how to build, deploy, and share a working chatbot in just 3 steps.
+
+**🎬 Video Demonstration**
+
+Watch this step-by-step video guide that walks you through the entire process:
+[Bubbletea Quickstart Tutorial](https://www.youtube.com/embed/Op5cbkJylm8)
+
+#### Step 1: Create an Echo Bot
+
+First, install the Bubbletea SDK and create a simple bot that echoes messages back to users. The @bt.chatbot decorator automatically handles all the HTTP endpoint setup for you.
+
+```python
+# Install SDK with LLM support
+pip install 'bubbletea-chat[llm]'
+
+# echobot.py
+import bubbletea_chat as bt
+
+@bt.chatbot
+def echo_bot(message: str):
+    # Simple echo bot
+    return bt.Text(f"Echo: {message}")
+
+if __name__ == "__main__":
+    # Creates /chat endpoint automatically
+    bt.run_server(echo_bot, port=8000, host="0.0.0.0")
+```
+
+#### Step 2: Deploy with ngrok or Replit
+
+Now make your bot accessible from the internet. Choose either ngrok for local development or Replit for instant cloud hosting. Both options are free and take less than a minute to set up.
+
+**Option A: Deploy with ngrok (Local Development)**
+
+```bash
+# Install ngrok: https://ngrok.com/download
+# Start your bot locally
+python echobot.py
+
+# In another terminal, expose it to internet
+ngrok http 8000
+
+# Your bot URL will be: https://abc123.ngrok-free.app
+```
+
+**Option B: Deploy on Replit (Cloud Hosting)**
+
+Replit provides free, always-on hosting with zero configuration:
+
+- Go to [replit.com](https://replit.com) and create a new Python repl
+- Copy your bot code into main.py
+- Click "Run" to start your bot
+- Get instant URL: https://your-bot.username.repl.co
+- Free hosting, SSL included, always online
+- Click "Deploy" button and ensure deployment type is set to "Public"
+
+#### Step 3: Register Your Bot & Access Everywhere
+
+Finally, register your bot through the Dashboard to make it accessible to users:
+
+- Go to [https://bubbletea.chat](https://bubbletea.chat)
+- Create or select a subaccount for your bot
+- Use BT Agent or the dashboard UI to register your bot
+
+Your bot is now accessible at:
+- 🌐 Web: https://bubbletea.chat/echobot
+- 📱 iOS & Android: Bubbletea mobile app
+
+## Documentation
+
+### 📚 Core Documentation
+
+- **[Creating a Bot](docs/01-creating-a-bot.md)** - Subaccounts, configuration, and getting started
+- **[Building a Bot](docs/02-building-a-bot.md)** - API reference, components, and advanced features
+- **[Deploying a Bot](docs/03-deploying-a-bot.md)** - Deployment options and testing
+- **[Managing a Bot](docs/04-managing-a-bot.md)** - Dashboard and bot management
+
+### 🔧 Key Features
+
+#### Components
+Bubbletea provides rich UI components for your bot:
+- 💬 **Text** - Simple text messages
+- 📝 **Markdown** - Rich formatted text
+- 🎨 **Image** - Display images with alt text
+- 🎬 **Video** - Embed videos with player controls
+- 🎴 **Cards** - Interactive cards with images and text
+- 💊 **Pills** - Quick action buttons
+- ⚠️ **Error** - Error messages with proper styling
+- ⏳ **Block** - Loading indicators
+
+Learn more in the [Components Documentation](docs/02-building-a-bot.md#components)
+
+#### Bot Configuration
+Configure your bot's identity, appearance, and behavior:
+
+```python
+import bubbletea_chat as bt
+
+@bt.config()
+def get_config():
+    return bt.BotConfig(
+        name="your-bot",
+        url="https://your-bot.com/chat",
+        is_streaming=False,
+        display_name="Your Bot",
+        subtitle="Brief description",
+        icon_emoji="🤖",
+        description="Full description with **markdown** support"
+    )
+```
+
+See full configuration options in [Bot Configuration](docs/01-creating-a-bot.md#bot-configuration)
+
+#### Multiple Bots Support
+Run multiple bots in the same application:
+
+```python
+# Support Bot at /support
+@bt.chatbot("support")
+def support_bot(message: str):
+    return bt.Text("How can I help you?")
+
+# Sales Bot at /sales
+@bt.chatbot("sales")
+def sales_bot(message: str):
+    return bt.Text("Let me help you find the perfect plan!")
+
+# Run all bots
+bt.run_server(port=8000)
+```
+
+Learn more in [Multiple Bots Documentation](docs/02-building-a-bot.md#multiple-bots-with-configurations)
+
+## Examples
+
+### Bot Examples Repository
+
+Visit our [bots](bots/) folder for complete working examples:
+- **Echo Bot** - Simple starter bot
+- **Morning Bot** - Daily assistant with Firebase integration
+- **Movie Bot** - Movie recommendations
+- **OpenAI Bot** - GPT-powered conversational bot
+
+Each bot includes:
+- Complete source code
+- Setup instructions
+- Environment configuration
+- Deployment guides
+
+### Quick Example: Image Generation Bot
+
+```python
+@bt.chatbot
+async def art_bot(message: str):
+    llm = LLM(model="dall-e-3")
+    image_url = await llm.agenerate_image(message)
+    return [bt.Image(image_url), bt.Text("Your image is ready!")]
+```
+
+More examples in [Examples & Showcase](docs/04-managing-a-bot.md#examples--showcase)
+
+## Contributing
+
+Bubbletea is open source and welcomes contributions! Whether you're fixing bugs, adding features, improving documentation, or creating example bots, your contributions help make Bubbletea better for everyone.
+
+### How to Contribute
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+### Resources
+
+- **SDK Documentation**: [bubbletea.chat/docs](https://bubbletea.chat/docs)
+- **Python Package**: [PyPI](https://pypi.org/project/bubbletea-chat/)
+- **GitHub**: [github.com/bubbletea-chat/bubbletea](https://github.com/bubbletea-chat/bubbletea)
+- **Dashboard**: [bubbletea.chat](https://bubbletea.chat)
+
+### License
+
+MIT License - See LICENSE file for details
+
+[View on GitHub](https://github.com/bubbletea-chat/bubbletea) | [Report Issue](https://github.com/bubbletea-chat/bubbletea/issues)
