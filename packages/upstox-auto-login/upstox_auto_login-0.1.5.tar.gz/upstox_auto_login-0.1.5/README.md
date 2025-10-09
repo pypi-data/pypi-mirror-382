@@ -1,0 +1,144 @@
+# 🚀 Upstox Auto Login
+
+A **Python package** to **automate the Upstox API v2 login flow** using **Selenium** and **TOTP**, handling the complete **OAuth2** process to retrieve an `access_token`.
+
+---
+
+## ⚠️ Security Disclaimer
+
+This package handles **sensitive credentials** (API keys, PIN, TOTP secret).
+
+> ❗ **Storing credentials as plaintext is a major security risk.**
+> It is **highly recommended** to:
+
+* Use **environment variables** or a **secret manager**.
+* Avoid sharing your credentials in public repositories.
+  This tool is intended for **personal use in secure environments only.**
+
+---
+
+## 🧩 How It Works
+
+The tool:
+
+1. Launches a **headless Chrome browser**.
+2. Automates the login by entering your **User ID**, **TOTP**, and **PIN**.
+3. Captures the **authorization code** after successful login.
+4. Exchanges it for an **access_token** via the Upstox OAuth2 flow.
+5. Closes the browser automatically.
+
+You can then use the returned `access_token` in your Upstox API client.
+
+---
+
+## 🛠️ Prerequisites
+
+Before using this package, make sure you have:
+
+* 🐍 **Python 3.7+**
+* 🌐 **Google Chrome** (latest version)
+* 🔑 An **Upstox Developer App** with:
+
+  * `API_KEY`
+  * `SECRET_KEY`
+  * Configured `redirect_url`
+
+---
+
+## 📦 Installation
+
+```bash
+pip install upstox-auto-login
+```
+
+---
+
+## ⚙️ Usage
+
+The main function provided is `auto_login()` — it automates the entire login flow.
+
+### **Function Parameters**
+
+| Parameter      | Type  | Description                                                    |
+| -------------- | ----- | -------------------------------------------------------------- |
+| `API_KEY`      | `str` | Your Upstox API Key                                            |
+| `SECRET_KEY`   | `str` | Your Upstox Secret Key                                         |
+| `USER_ID`      | `str` | Your 10-digit Upstox mobile number                             |
+| `PIN`          | `str` | Your 6-digit Upstox trading PIN                                |
+| `TOTP_SECRET`  | `str` | Your TOTP secret key from the authenticator app                |
+| `redirect_url` | `str` | *(Optional)* Redirect URI (default: `https://127.0.0.1:5000/`) |
+
+---
+
+## 🧠 Example
+
+```python
+from upstox_auto_login import auto_login
+import os
+import logging
+
+# ✅ Recommended: Load credentials from environment variables
+# API_KEY = os.getenv("UPSTOX_API_KEY")
+
+# Configure logging to track the login process
+logging.basicConfig(level=logging.INFO)
+
+try:
+    # Call the auto_login function
+    access_token = auto_login(
+        API_KEY="your_api_key",
+        SECRET_KEY="your_secret_key",
+        USER_ID="your_10_digit_mobile_number",
+        PIN="your_6_digit_pin",
+        TOTP_SECRET="your_totp_secret_key"
+    )
+
+    if access_token:
+        print(f"Success! Access Token: {access_token}")
+    else:
+        print("Login failed. Check logs for details.")
+
+except Exception as e:
+    print(f"An unexpected error occurred: {e}")
+```
+
+---
+
+## Error Handling
+
+The function is designed to handle failures gracefully.
+
+* Logs detailed errors during execution.
+* Returns `None` if the login or token exchange fails.
+
+---
+
+
+## Contributing
+
+Contributions are welcome!
+If you’d like to:
+
+* Report a bug 🐛
+* Request a feature 💡
+* Submit a pull request 🧩
+
+Please open an issue or PR on the **GitHub repository**.
+
+---
+
+##License
+
+This project is licensed under the **MIT License**.
+See the [LICENSE](LICENSE) file for more details.
+
+---
+
+## 🧑‍💻 Author
+
+**Uttam Kumar**
+Python Developer • Automation & Trading Systems
+
+---
+
+### ⭐ If you find this project useful, don’t forget to star the repo!
