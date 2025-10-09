@@ -1,0 +1,63 @@
+name: Publish Documentation
+
+on:
+  push:
+    branches:
+      - 'main'
+  workflow_run:
+    workflows: [Release]
+    types:
+      - completed
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - name: checkout current branch
+        uses: actions/checkout@v4
+        with:
+          # Required: https://github.com/actions/checkout/issues/1471
+          fetch-depth: 0
+
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{env.PYTHON_VERSION}}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install project
+        id: install
+        run: |
+          uv sync --group docs
+          VERSION=$(uv run hatch version)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set git credentials
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+
+      # Main branch publishes dev version of docs
+      - run: |
+          echo "Deploying dev version ${{ steps.install.outputs.version }}"
+          uv run mike deploy -b gh-pages dev --push
+        if: github.ref == 'refs/heads/main'
+
+      # Tagged commits publish latest and numbered version of docs
+      - run: |
+          echo "Deploying latest version ${{ steps.install.outputs.version }}"
+          uv run mike deploy -b gh-pages ${{ steps.install.outputs.version }} latest --update-aliases --push
+        if: ${{ (github.event_name == 'workflow_run') && (github.event.workflow_run.conclusion == 'success') }}
