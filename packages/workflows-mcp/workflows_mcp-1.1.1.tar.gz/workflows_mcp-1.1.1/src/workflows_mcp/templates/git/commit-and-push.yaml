@@ -1,0 +1,181 @@
+name: commit-and-push
+description: Stage changes, create commit, and push to remote repository
+version: "1.0"
+author: Workflows MCP Team
+tags: [git, commit, push, workflow]
+
+inputs:
+  commit_message:
+    type: string
+    description: Commit message (can be multiline)
+    default: "Update files"
+
+  working_dir:
+    type: string
+    description: Git repository directory
+    default: "."
+
+  add_files:
+    type: string
+    description: Files to stage (use '.' for all, or specific paths)
+    default: "."
+
+  push_to_remote:
+    type: boolean
+    description: Push commit to remote repository
+    default: true
+
+  remote_name:
+    type: string
+    description: Remote name (origin, upstream, etc.)
+    default: "origin"
+
+  allow_empty:
+    type: boolean
+    description: Allow empty commits (no changes)
+    default: false
+
+blocks:
+  # Check git status
+  - id: check_status
+    type: BashCommand
+    inputs:
+      command: "git status --porcelain"
+      working_dir: "${working_dir}"
+      timeout: 30
+
+  # Get current branch
+  - id: get_branch
+    type: BashCommand
+    inputs:
+      command: "git branch --show-current"
+      working_dir: "${working_dir}"
+      timeout: 10
+    depends_on:
+      - check_status
+
+  # Stage files
+  - id: stage_files
+    type: BashCommand
+    inputs:
+      command: "git add ${add_files}"
+      working_dir: "${working_dir}"
+      timeout: 60
+    depends_on:
+      - get_branch
+    condition: "${allow_empty} or (${check_status.stdout} != '')"
+
+  # Check if there are staged changes
+  - id: check_staged
+    type: BashCommand
+    inputs:
+      command: "git diff --cached --name-only | wc -l"
+      working_dir: "${working_dir}"
+      timeout: 30
+    depends_on:
+      - stage_files
+
+  # Build commit command
+  - id: build_commit_command
+    type: BashCommand
+    inputs:
+      command: |
+        CMD="git commit"
+        if [ "${allow_empty}" = "true" ]; then
+          CMD="$CMD --allow-empty"
+        fi
+        CMD="$CMD -m \"${commit_message}\""
+        echo "$CMD"
+      timeout: 5
+    depends_on:
+      - check_staged
+
+  # Create commit
+  - id: create_commit
+    type: BashCommand
+    inputs:
+      command: "${build_commit_command.stdout}"
+      working_dir: "${working_dir}"
+      timeout: 60
+      check_returncode: false
+    depends_on:
+      - build_commit_command
+    condition: "${allow_empty} or (${check_staged.stdout} != '0')"
+
+  # Get commit hash
+  - id: get_commit_hash
+    type: BashCommand
+    inputs:
+      command: "git rev-parse HEAD"
+      working_dir: "${working_dir}"
+      timeout: 10
+    depends_on:
+      - create_commit
+    condition: "${create_commit.exit_code} == 0"
+
+  # Push to remote
+  - id: push_to_remote_repo
+    type: BashCommand
+    inputs:
+      command: "git push ${remote_name} ${get_branch.stdout}"
+      working_dir: "${working_dir}"
+      timeout: 120
+      check_returncode: false
+    depends_on:
+      - get_commit_hash
+    condition: "${push_to_remote} and ${create_commit.exit_code} == 0"
+
+  # Get commit hash display
+  - id: get_commit_display
+    type: BashCommand
+    inputs:
+      command: "test ${create_commit.exit_code} -eq 0 && echo '${get_commit_hash.stdout}' || echo 'No commit created'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - create_commit
+      - get_commit_hash
+
+  # Get push status display
+  - id: get_push_display
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${push_to_remote}" = "true" ]; then
+          if [ ${push_to_remote_repo.exit_code} -eq 0 ]; then
+            echo 'Success'
+          else
+            echo 'Failed'
+          fi
+        else
+          echo 'Not requested'
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - push_to_remote_repo
+
+  # Generate summary
+  - id: summary
+    type: EchoBlock
+    inputs:
+      message: |
+        Commit Summary:
+        - Branch: ${get_branch.stdout}
+        - Commit: ${get_commit_display.stdout}
+        - Message: ${commit_message}
+        - Staged files: ${check_staged.stdout}
+        - Pushed: ${get_push_display.stdout}
+    depends_on:
+      - get_commit_display
+      - get_push_display
+
+outputs:
+  success: "${create_commit.exit_code} == 0"
+  commit_created: "${create_commit.exit_code} == 0"
+  commit_hash: "${get_commit_hash.stdout}"
+  branch: "${get_branch.stdout}"
+  files_staged: "${check_staged.stdout}"
+  pushed: "${push_to_remote} and ${push_to_remote_repo.exit_code} == 0"
+  summary: "${summary.echoed}"
+  commit_message: "${commit_message}"

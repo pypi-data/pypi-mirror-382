@@ -1,0 +1,144 @@
+name: brew-install
+description: Install package using Homebrew (macOS package manager)
+version: "1.0"
+author: Workflows MCP Team
+tags: [tools, provider, brew, homebrew, macos, installation]
+
+inputs:
+  package_name:
+    type: string
+    description: Package/formula name to install (e.g., "pytest", "git")
+    required: true
+
+  cask:
+    type: boolean
+    description: Install as cask (GUI applications)
+    default: false
+
+  upgrade:
+    type: boolean
+    description: Upgrade if already installed
+    default: false
+
+blocks:
+  # Check if brew is available (macOS only)
+  - id: check_brew_available
+    type: BashCommand
+    inputs:
+      command: |
+        # Check platform
+        PLATFORM=$(uname -s)
+        if [ "$PLATFORM" != "Darwin" ]; then
+          echo "ERROR: Homebrew only available on macOS" >&2
+          exit 1
+        fi
+
+        # Check if brew command exists
+        command -v brew >/dev/null 2>&1
+      timeout: 5
+      check_returncode: false
+
+  # Check if package already installed
+  - id: check_installed
+    type: BashCommand
+    inputs:
+      command: |
+        # Check installation status
+        if [ "${cask}" = "true" ]; then
+          brew list --cask "${package_name}" >/dev/null 2>&1
+        else
+          brew list "${package_name}" >/dev/null 2>&1
+        fi
+      timeout: 10
+      check_returncode: false
+    condition: "${check_brew_available.success}"
+    depends_on:
+      - check_brew_available
+
+  # Build brew install command
+  - id: build_install_command
+    type: BashCommand
+    inputs:
+      command: |
+        # Determine command based on installation status and upgrade flag
+        # If already installed and upgrade=false, this block won't execute (condition prevents it)
+        # If already installed and upgrade=true: upgrade
+        # If not installed: install
+        if [ "${cask}" = "true" ]; then
+          if [ "${upgrade}" = "true" ]; then
+            echo "brew upgrade --cask ${package_name}"
+          else
+            echo "brew install --cask ${package_name}"
+          fi
+        else
+          if [ "${upgrade}" = "true" ]; then
+            echo "brew upgrade ${package_name}"
+          else
+            echo "brew install ${package_name}"
+          fi
+        fi
+      timeout: 5
+      check_returncode: false
+    condition: "${check_brew_available.success} and (not ${check_installed.success} or ${upgrade})"
+    depends_on:
+      - check_brew_available
+      - check_installed
+
+  # Execute brew install/upgrade
+  - id: install_package
+    type: BashCommand
+    inputs:
+      command: "${build_install_command.stdout}"
+      timeout: 600
+      check_returncode: false
+    depends_on:
+      - build_install_command
+
+  # Get installed version
+  - id: get_installed_version
+    type: BashCommand
+    inputs:
+      command: |
+        # Get version from brew info
+        if [ "${cask}" = "true" ]; then
+          VERSION=$(brew info --cask "${package_name}" 2>/dev/null | head -n1 | awk '{print $2}' || echo "unknown")
+        else
+          VERSION=$(brew info "${package_name}" 2>/dev/null | head -n1 | awk '{print $4}' || echo "unknown")
+        fi
+
+        echo "$VERSION"
+      timeout: 10
+      check_returncode: false
+    condition: "${check_brew_available.success}"
+    depends_on:
+      - install_package
+
+  # Generate installation summary
+  - id: installation_summary
+    type: EchoBlock
+    inputs:
+      message: |
+        Homebrew Installation Summary:
+        - Package: ${package_name}
+        - Cask: ${cask}
+        - Brew Available: ${check_brew_available.success}
+        - Already Installed: ${check_installed.success}
+        - Exit Code: ${install_package.exit_code}
+        - Installed Version: ${get_installed_version.stdout}
+        - Command: ${build_install_command.stdout}
+    depends_on:
+      - check_brew_available
+      - check_installed
+      - install_package
+      - get_installed_version
+
+outputs:
+  success: "${install_package.exit_code} == 0"
+  installed_version: "${get_installed_version.stdout}"
+  exit_code: "${install_package.exit_code}"
+  stdout: "${install_package.stdout}"
+  stderr: "${install_package.stderr}"
+  command_executed: "${build_install_command.stdout}"
+  brew_available: "${check_brew_available.success}"
+  already_installed: "${check_installed.success}"
+  summary: "${installation_summary.echoed}"

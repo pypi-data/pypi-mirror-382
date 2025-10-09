@@ -1,0 +1,171 @@
+name: generate-readme
+description: Generate README.md from template with project metadata
+version: "1.0"
+author: Workflows MCP Team
+tags: [python, files, documentation, template, readme]
+inputs:
+  project_name:
+    type: string
+    description: Project name
+    default: "My Project"
+
+  description:
+    type: string
+    description: Project description
+    default: "A sample project"
+
+  author:
+    type: string
+    description: Project author
+    default: "Anonymous"
+
+  version:
+    type: string
+    description: Project version
+    default: "1.0.0"
+
+  license:
+    type: string
+    description: License type
+    default: "MIT"
+
+  template_path:
+    type: string
+    description: Path to README template file
+    default: "README.template.md"
+
+  output_path:
+    type: string
+    description: Output README path
+    default: "README.md"
+
+  create_template_if_missing:
+    type: boolean
+    description: Create default template if template_path doesn't exist
+    default: true
+
+blocks:
+  # Check if template exists
+  - id: check_template
+    type: BashCommand
+    inputs:
+      command: "test -f ${template_path} && echo 'exists' || echo 'missing'"
+      timeout: 5
+      check_returncode: false
+
+  # Create default template if missing
+  - id: create_default_template
+    type: CreateFile
+    inputs:
+      path: "${template_path}"
+      content: |
+        # ${project_name}
+
+        ${description}
+
+        ## Installation
+
+        \`\`\`bash
+        pip install ${project_name}
+        \`\`\`
+
+        ## Usage
+
+        \`\`\`python
+        import ${project_name}
+        # Your code here
+        \`\`\`
+
+        ## Features
+
+        - Feature 1
+        - Feature 2
+        - Feature 3
+
+        ## Contributing
+
+        Contributions are welcome! Please feel free to submit a Pull Request.
+
+        ## License
+
+        This project is licensed under the ${license} License.
+
+        ## Author
+
+        ${author}
+
+        ## Version
+
+        Current version: ${version}
+    depends_on:
+      - check_template
+    condition: "${create_template_if_missing} and ${check_template.stdout} contains 'missing'"
+
+  # Read template
+  - id: read_template
+    type: ReadFile
+    inputs:
+      path: "${template_path}"
+    depends_on:
+      - check_template
+      - create_default_template
+    condition: "${check_template.stdout} contains 'exists' or ${create_template_if_missing}"
+
+  # Populate template with variables
+  - id: populate_template
+    type: PopulateTemplate
+    inputs:
+      template: "${read_template.content}"
+      variables:
+        project_name: "${project_name}"
+        description: "${description}"
+        author: "${author}"
+        version: "${version}"
+        license: "${license}"
+    depends_on:
+      - read_template
+
+  # Write README file
+  - id: write_readme
+    type: CreateFile
+    inputs:
+      path: "${output_path}"
+      content: "${populate_template.result}"
+      mode: "644"
+    depends_on:
+      - populate_template
+
+  # Verify README was created
+  - id: verify_readme
+    type: ReadFile
+    inputs:
+      path: "${output_path}"
+    depends_on:
+      - write_readme
+
+  # Generate summary
+  - id: summary
+    type: EchoBlock
+    inputs:
+      message: |
+        README Generation Summary:
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Project: ${project_name} v${version}
+        Template: ${template_path} (${check_template.stdout})
+        Output: ${output_path}
+        Author: ${author}
+        License: ${license}
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Status: ✓ README generated successfully
+        Size: ${verify_readme.size} bytes
+    depends_on:
+      - verify_readme
+
+outputs:
+  success: "true"
+  readme_path: "${output_path}"
+  template_used: "${template_path}"
+  template_created: "${create_template_if_missing} and ${check_template.stdout} contains 'missing'"
+  readme_content: "${verify_readme.content}"
+  readme_size: "${verify_readme.size}"
+  summary: "${summary.echoed}"
