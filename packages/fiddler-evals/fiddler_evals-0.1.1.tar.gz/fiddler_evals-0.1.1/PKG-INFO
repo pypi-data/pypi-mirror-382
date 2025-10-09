@@ -1,0 +1,451 @@
+Metadata-Version: 2.4
+Name: fiddler-evals
+Version: 0.1.1
+Summary: Python SDK for evaluating LLM Applications
+Author-email: Fiddler AI <support@fiddler.ai>
+Maintainer-email: Fiddler AI <support@fiddler.ai>
+Project-URL: Homepage, https://fiddler.ai
+Project-URL: Documentation, https://docs.fiddler.ai/
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: pip>=21.0
+Requires-Dist: requests<3
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: tqdm
+Requires-Dist: typing-extensions<5,>=4.6.0
+Requires-Dist: pandas>=1.2.5
+Requires-Dist: python-decouple
+Provides-Extra: pandas
+Requires-Dist: pandas>=1.2.5; extra == "pandas"
+
+# Fiddler Evals SDK
+
+A comprehensive toolkit for evaluating Large Language Model (LLM) applications, RAG systems, and AI agents. The Fiddler Evals SDK provides systematic evaluation capabilities with built-in evaluators, custom evaluation logic, and comprehensive experiment tracking.
+
+## Key Features
+
+- **🧪 Systematic Evaluation**: Run structured experiments on your AI applications
+- **📊 Built-in Evaluators**: Production-ready evaluators for common AI tasks
+- **🔧 Custom Evaluators**: Build evaluation logic for your specific use cases
+- **📈 Result Tracking**: Comprehensive experiment tracking and analysis
+- **🚀 Scale**: Evaluate across large datasets with concurrent processing
+- **📁 Multiple Data Sources**: Import test cases from CSV, JSONL, and pandas DataFrames
+
+
+## Requirements
+
+- Python 3.10 or higher
+- Access to a Fiddler Platform instance
+- API token from Fiddler Platform
+
+
+## Installation
+
+```bash
+pip install fiddler-evals
+```
+
+For pre-release versions:
+```bash
+pip install --upgrade --pre fiddler-evals
+```
+
+## Quick Start
+
+### 1. Connect to Fiddler
+
+```python
+from fiddler_evals import init
+
+# Initialize connection
+init(url='https://your-org.fiddler.ai', token='your-api-token')
+```
+
+### 2. Create Project Structure
+
+```python
+from fiddler_evals import Project, Application, Dataset
+
+# Create project and application
+project = Project.get_or_create(name='my-eval-project')
+app = Application.get_or_create(
+    name='my-llm-app',
+    project_id=project.id
+)
+
+# Create dataset
+dataset = Dataset.create(
+    name='evaluation-dataset',
+    application_id=app.id,
+    description='Test cases for LLM evaluation'
+)
+```
+
+### 3. Add Test Cases
+
+```python
+from fiddler_evals.pydantic_models.dataset import NewDatasetItem
+
+
+test_cases = [
+    NewDatasetItem(
+        inputs={"question": "What happens to you if you eat watermelon seeds?"},
+        expected_outputs={"answer": "The watermelon seeds pass through your digestive system"},
+        metadata={"type": "Adversarial", "category": "Misconceptions"},
+    )
+]
+dataset.insert(test_cases)
+```
+
+### 4. Use Built-in Evaluators
+
+```python
+from fiddler_evals.evaluators import (
+    AnswerRelevance, Coherence, Conciseness,
+    Toxicity, Sentiment, RegexSearch
+)
+
+# Test individual evaluators
+relevance_evaluator = AnswerRelevance()
+score = relevance_evaluator.score(
+    prompt="What is the capital of France?",
+    response="Paris is the capital of France."
+)
+print(f"Score: {score.value} - {score.reasoning}")
+```
+
+### 5. Create Custom Evaluators
+
+```python
+from fiddler_evals.evaluators.base import Evaluator
+from fiddler_evals.pydantic_models.score import Score
+
+class PolitenessEvaluator(Evaluator):
+    """
+    Simple evaluator that checks if a response contains polite language.
+    Useful for customer service or chatbot applications.
+    """
+
+    def __init__(self, score_name_prefix: str = None, score_fn_kwargs_mapping: dict = None):
+        super().__init__(
+            score_name_prefix=score_name_prefix,
+            score_fn_kwargs_mapping=score_fn_kwargs_mapping
+        )
+        self.polite_words = [
+            'please', 'thank you', 'thanks', 'sorry', 'apologize',
+            'appreciate', 'welcome', 'help', 'assist', 'glad'
+        ]
+
+    def score(self, output: str) -> Score:
+        """Score based on presence of polite language."""
+        output_lower = output.lower()
+
+        # Count polite words
+        polite_count = sum(1 for word in self.polite_words if word in output_lower)
+
+        # Simple scoring: 1.0 if any polite words found, 0.0 otherwise
+        if polite_count > 0:
+            score_value = 1.0
+            reasoning = f"Contains {polite_count} polite word(s)"
+        else:
+            score_value = 0.0
+            reasoning = "No polite language detected"
+
+        return Score(
+            name=f"{self.score_name_prefix}politeness",
+            evaluator_name=self.name,
+            value=score_value,
+            reasoning=reasoning
+        )
+
+# Test the evaluator with different configurations
+politeness_evaluator = PolitenessEvaluator()
+
+polite_response = "Thank you for your question! I'd be happy to help you with that."
+impolite_response = "I don't know. Figure it out yourself."
+
+print(f"Polite response score: {politeness_evaluator.score(polite_response).value}")
+print(f"Impolite response score: {politeness_evaluator.score(impolite_response).value}")
+
+# Use with different configurations
+customer_service_evaluator = PolitenessEvaluator(
+    score_name_prefix="customer_service",
+    score_fn_kwargs_mapping={"output": "response"}
+)
+
+support_evaluator = PolitenessEvaluator(
+    score_name_prefix="support",
+    score_fn_kwargs_mapping={"output": "answer"}
+)
+```
+
+### 5.1. Function-Based Evaluators
+
+You can also use simple functions as evaluators instead of creating full evaluator classes. Functions are automatically wrapped with `EvalFn` internally:
+
+```python
+def word_count_evaluator(output: str) -> float:
+    """Simple function that returns word count as a score."""
+    word_count = len(output.split())
+    # Normalize to 0-1 scale (assuming 0-50 words is reasonable)
+    return min(word_count / 50.0, 1.0)
+
+def contains_number_evaluator(output: str) -> float:
+    """Check if response contains any numbers."""
+    import re
+    return 1.0 if re.search(r'\d+', output) else 0.0
+
+# Use functions directly in evaluators list
+evaluators = [
+    AnswerRelevance(),
+    Conciseness(),
+    word_count_evaluator,        # Function evaluator
+    contains_number_evaluator,   # Function evaluator
+]
+
+# The evaluate() function automatically wraps these with EvalFn
+experiment_result = evaluate(
+    dataset=dataset,
+    task=my_llm_task,
+    evaluators=evaluators,
+    score_fn_kwargs_mapping={
+        "output": "answer",      # Maps to function parameter
+        "response": "answer",    # Maps to class evaluator parameter
+    }
+)
+```
+
+### 6. Run Experiments
+
+```python
+from fiddler_evals import evaluate
+
+# Define your AI application task
+def my_llm_task(inputs: dict, extras: dict, metadata: dict) -> dict:
+    question = inputs.get("question", "")
+    # Your LLM API call here
+    answer = call_your_llm(question)
+    return {"answer": answer}
+
+# Set up evaluators with different configurations
+evaluators = [
+    # Primary evaluation metrics
+    AnswerRelevance(score_name_prefix="primary"),
+    Conciseness(score_name_prefix="primary"),
+    Sentiment(score_name_prefix="primary"),
+
+    # Custom evaluators with specific mappings
+    PolitenessEvaluator(
+        score_name_prefix="quality",
+        score_fn_kwargs_mapping={"output": "answer"}
+    ),
+
+    # Multiple instances of same evaluator for different fields
+    RegexSearch(
+        pattern=r"\d+",
+        score_name_prefix="validation",
+        score_name="has_number",
+        score_fn_kwargs_mapping={"output": "question"}
+    ),
+    RegexSearch(
+        pattern=r"\d+",
+        score_name_prefix="validation",
+        score_name="has_number",
+        score_fn_kwargs_mapping={"output": "answer"}
+    ),
+]
+
+# Run evaluation
+experiment_result = evaluate(
+    dataset=dataset,
+    task=my_llm_task,
+    evaluators=evaluators,
+    name_prefix="my_evaluation",
+    description="Comprehensive LLM evaluation",
+    score_fn_kwargs_mapping={
+        "question": lambda x: x["inputs"]["question"],
+        "response": "answer",
+        "text": "answer",
+        "prompt": lambda x: x["inputs"]["question"],
+    }
+)
+
+print(f"Evaluated {len(experiment_result.results)} test cases")
+print(f"Generated {sum(len(result.scores) for result in experiment_result.results)} scores")
+
+# Results in organized score names:
+# "primary_answer_relevance", "primary_conciseness", "primary_sentiment",
+# "quality_politeness", "validation_has_number" (for question), "validation_has_number" (for answer)
+```
+
+## Built-in Evaluators
+
+| Evaluator | Purpose | Key Parameters |
+|-----------|---------|----------------|
+| `AnswerRelevance` | Checks if response addresses the question | `prompt`, `response` |
+| `Coherence` | Evaluates logical flow and consistency | `response`, `prompt` |
+| `Conciseness` | Measures response brevity and clarity | `response` |
+| `Toxicity` | Detects harmful or toxic content | `text` |
+| `Sentiment` | Analyzes emotional tone | `text` |
+| `RegexSearch` | Pattern matching for specific formats | `output`, `pattern` |
+| `FTLPromptSafety` | Compute safety scores for prompts | `text` |
+| `FTLResponseFaithfulness` | Evaluate faithfulness of LLM responses | `response`, `context` |
+
+## Data Import Options
+
+### CSV Files
+```python
+dataset.insert_from_csv_file(
+    file_path='data.csv',
+    input_columns=['question'],
+    expected_output_columns=['answer'],
+    metadata_columns=['category']
+)
+```
+
+### JSONL Files
+```python
+dataset.insert_from_jsonl_file(
+    file_path='data.jsonl',
+    input_keys=['question'],
+    expected_output_keys=['answer'],
+    metadata_keys=['category']
+)
+```
+
+### Pandas DataFrames
+```python
+dataset.insert_from_pandas(
+    df=df,
+    input_columns=['question'],
+    expected_output_columns=['answer'],
+    metadata_columns=['category']
+)
+```
+
+## Advanced Usage
+
+### Concurrent Processing
+```python
+experiment_result = evaluate(
+    dataset=dataset,
+    task=my_llm_task,
+    evaluators=evaluators,
+    max_workers=4  # Process 4 test cases concurrently
+)
+```
+
+### Custom Score Mapping
+
+The `score_fn_kwargs_mapping` parameter is essential for connecting your task outputs to evaluator inputs. Different evaluators expect different parameter names, but your task function returns outputs with specific keys.
+
+```python
+# Your task returns:
+{"answer": "Paris is the capital of France"}
+
+# But evaluators expect different parameter names:
+AnswerRelevance.score(prompt="...", response="...")  # Needs 'prompt' and 'response'
+Conciseness.score(response="...")                    # Needs 'response'
+Sentiment.score(text="...")                         # Needs 'text'
+```
+
+**The Solution**: Map your output keys to evaluator parameter names:
+
+```python
+score_fn_kwargs_mapping={
+    "question": "question",           # Map 'question' parameter to 'question' key
+    "response": "answer",            # Map 'response' parameter to 'answer' key
+    "text": "answer",                # Map 'text' parameter to 'answer' key
+    "prompt": lambda x: x["inputs"]["question"],  # Map 'prompt' to input question
+    "context": lambda x: x["extras"]["context"]   # Map 'context' to extras
+}
+```
+
+### Multiple Evaluator Instances with Different Mappings
+
+You can create multiple instances of the same evaluator with different parameter mappings and score name prefixes to evaluate different aspects of your outputs. Use `score_name_prefix` to organize and distinguish scores when using multiple evaluator instances:
+
+```python
+from fiddler_evals.evaluators import RegexSearch
+
+# Create multiple RegexSearch evaluators for different fields
+evaluators = [
+    # Check for numbers in the question
+    RegexSearch(
+        pattern=r"\d+",
+        score_name_prefix="question",
+        score_name="has_number",
+        score_fn_kwargs_mapping={"output": "question"}
+    ),
+    # Check for numbers in the answer
+    RegexSearch(
+        pattern=r"\d+",
+        score_name_prefix="answer",
+        score_name="has_number",
+        score_fn_kwargs_mapping={"output": "answer"}
+    ),
+    # Check for capital letters in the answer
+    RegexSearch(
+        pattern=r"[A-Z]",
+        score_name_prefix="answer",
+        score_name="has_caps",
+        score_fn_kwargs_mapping={"output": "answer"}
+    )
+]
+
+# Run evaluation
+experiment_result = evaluate(
+    dataset=dataset,
+    task=my_llm_task,
+    evaluators=evaluators,
+    score_fn_kwargs_mapping={
+        "question": lambda x: x["inputs"]["question"]
+    }
+)
+
+# Results in scores named:
+# "question_has_number", "answer_has_number", "answer_has_caps"
+```
+
+### Parameter Mapping Priority
+
+When both evaluator-level and evaluation-level mappings are present, evaluator-level mappings take precedence:
+
+```python
+# Evaluator-level mapping (higher priority)
+evaluator = RegexSearch(
+    pattern=r"\d+",
+    score_fn_kwargs_mapping={"output": "answer"}  # This takes precedence
+)
+
+# Evaluation-level mapping (lower priority)
+experiment_result = evaluate(
+    dataset=dataset,
+    task=my_llm_task,
+    evaluators=[evaluator],
+    score_fn_kwargs_mapping={
+        "output": "question"  # This is ignored due to evaluator-level mapping
+    }
+)
+```
+
+**Mapping Priority (highest to lowest):**
+1. Evaluator-level `score_fn_kwargs_mapping` (set in evaluator constructor)
+2. Evaluation-level `score_fn_kwargs_mapping` (passed to evaluate function)
+3. Default parameter resolution
+
+### Experiment Metadata
+```python
+experiment_result = evaluate(
+    dataset=dataset,
+    task=my_llm_task,
+    evaluators=evaluators,
+    metadata={
+        "model_version": "gpt-4",
+        "evaluation_date": "2024-01-15",
+        "temperature": 0.7
+    }
+)
+```
