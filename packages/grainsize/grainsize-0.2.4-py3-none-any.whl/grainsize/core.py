@@ -1,0 +1,1373 @@
+import re
+from typing import Any
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import seaborn as sns
+from pandas import DataFrame
+from pandas.io.parsers import TextFileReader
+import copy
+
+
+class GrainSize(object):
+
+    def __init__(self, fname=None, sheet_name="raw_data", skiprows=1, dataframe=None):
+        self.dataframe = None
+        if dataframe is not None:
+            self.dataframe = dataframe
+        elif fname:
+            self.load_data(fname, sheet_name=sheet_name, skiprows=skiprows)
+
+    def __repr__(self):
+        if self.dataframe is not None:
+            return repr(self.dataframe)
+        return "GrainSize object with no data loaded"
+
+    def __getattr__(self, item):
+        """Delegate to the DataFrame class for methods that are
+        not defined in this class."""
+        if not hasattr(self, 'dataframe'):
+            raise AttributeError(
+                f"'GrainSize' object has no attribute '{item}'")
+        try:
+            return getattr(self.dataframe, item)
+        except AttributeError:
+            raise AttributeError(
+                f"'GrainSize' object or its 'dataframe' has no attribute '{item}'")
+
+    def load_data(self, fname, sheet_name="raw_data", skiprows=1, **kwargs):
+        """Loads core data from a MasterSizer 3000 Excel file into a DataFrame.
+
+                Parameters:
+                - fname: Filename or path of the Excel file.
+                - sheet_name: Name of the sheet in the Excel file to read.
+                - skiprows: Number of rows to skip at the beginning of the sheet.
+
+                Returns:
+                - A pandas DataFrame containing the imported data.
+                """
+        df = pd.read_excel(fname, sheet_name=sheet_name, skiprows=skiprows)
+        self.dataframe = df
+        return df
+
+    def set_gs_index(self):
+        """Sets the DataFrame's index to the 'grain_size' column."""
+        if self.dataframe is not None:
+            self.dataframe = self.dataframe.set_index(
+                "grain_size").rename_axis("grain_size")
+
+        return self.dataframe
+
+    def rename_range_col(self):
+        """Finds the DataFrame column with minimum amount of null values
+        and renames it 'grain_size'."""
+
+        # find column with minimum amount of nulls
+        min_null_col = self.dataframe.isnull().sum().idxmin()
+        self.dataframe.rename(
+            mapper={min_null_col: "grain_size"}, axis=1, inplace=True)
+
+        return self.dataframe
+
+    def get_depths(self):
+        """Extracts depths from the raw column labels."""
+
+        import re
+        # pattern of depth to look for, appears as "-xxx"
+        pattern = r"(?<=-)\d{3}"
+
+        depths = []
+        for col in self.dataframe.columns:
+            match = re.search(pattern, col)
+            if match:
+                depths.append(match.group())
+            # append "None" if depth not found
+            else:
+                depths.append(None)
+
+        return depths
+
+    def drop_redun(self, to_drop="Unnamed"):
+        """Drop empty and redundant columns from the DataFrame.
+        to_drop: redundant column headers, default value: 'Unnamed'.
+        """
+        # drop empty columns
+        self.dataframe = self.dataframe.dropna(axis=1, how="all")
+        # drop redundant columns which contain to_drop phrase in header
+        cols_to_drop = [
+            col for col in self.dataframe.columns if to_drop in col]
+        self.dataframe = self.dataframe.drop(labels=cols_to_drop, axis=1)
+
+        return self.dataframe
+
+    def rename_headers(self):
+        """Renames column headers as respective depth.
+        *** Use after transposing the matrix, so the depth is represented as columns."""
+
+        # rename column headers with "depths" instead of original file headers
+        depth_list = self.get_depths()
+        mapper = {self.dataframe.columns[i]: float(
+            depth_list[i]) for i in range(len(self.dataframe.columns))}
+        self.dataframe.rename(mapper=mapper, axis=1, inplace=True)
+
+        return self.dataframe
+
+    def sort_by_depth(self):
+        """Sorts DataFrame's rows by depth."""
+        return self.dataframe.sort_index(axis=0, ascending=True)
+
+    def clean_data(self):
+        """Clean the initial DataFrame created by importing the MasterSizer 3000
+        original Excel file."""
+
+        import copy
+
+        # create a copy of the original data frame
+        self.dataframe = copy.deepcopy(self.dataframe)
+        # find column with entire GS range
+        self.rename_range_col()
+        # drop empty columns
+        self.drop_redun()
+        # set index to grain_size column
+        self.set_gs_index()
+
+        # rename column headers
+        self.rename_headers()
+        # transpose the DataFrame
+        self.dataframe = self.dataframe.transpose()
+        # drop the column which is labels "Size Classes"
+        self.dataframe = self.dataframe.drop(
+            labels="Size Classes (μm)", axis=1)
+        # rename index
+        self.dataframe.rename_axis("depth", inplace=True)
+        # replace remaining NaN with 0
+        self.dataframe.fillna(0, inplace=True)
+        # sort index by depth
+        self.dataframe = self.sort_by_depth()
+
+        # make sure all values are of type "float"
+        self.dataframe = self.dataframe.astype(float)
+
+        # remove duplicates from index, keeping the last sample
+        self.dataframe = self.dataframe.loc[~self.dataframe.index.duplicated(
+            keep="last")]
+
+        return self.dataframe
+
+    def normalize_gs(self):
+        """Create a normalized DataFrame of grain size distribution to represent percents
+        (out of 100%)."""
+
+        # ensure the DataFrame is not empty
+        if self.dataframe is not None:
+            # create a copy of the data frame
+            data = self.dataframe.copy()
+            # sum each row
+            data["sum"] = data.apply(np.sum, axis=1)
+            # normalize each value in the dataframe
+            normalized_df = data.apply(lambda x: x * 100 / data["sum"])
+
+            # drop the "sum" column since it's unnecessary now
+            normalized_df.drop(labels="sum", axis=1, inplace=True)
+            # fill NaN with 0
+            normalized_df.fillna(0, inplace=True)
+
+            # drop columns that contain only zeros (no representation for any grains)
+            normalized_df = normalized_df.loc[:,
+                                              (normalized_df != 0).any(axis=0)]
+
+            # return as a new GrainSize object with the normalized DataFrame
+            return GrainSize(dataframe=normalized_df)
+        else:
+            # return an empty GrainSize object with an empty DataFrame
+            return GrainSize()
+
+    def create_categories(self, save=False, fpath="core_cats.csv"):
+        """Create a DataFrame of grain size categories:
+        Clay, silt, sand, and gravel."""
+
+        if self.dataframe is not None:
+            # assert that column labels are of numeric type
+            self.dataframe.columns = self.dataframe.columns.astype(float)
+
+            # create gs categories masks
+            clay_mask = self.dataframe.columns < 4
+            silt_mask = (self.dataframe.columns >= 4) & (
+                self.dataframe.columns < 63.5)
+            sand_mask = (self.dataframe.columns >= 63.5) & (
+                self.dataframe.columns < 2001)
+            gravel_mask = self.dataframe.columns >= 2001
+
+            # create pandas Series objects for each gs category
+            clay_col = self.dataframe.loc[:, clay_mask].sum(axis=1)
+            silt_col = self.dataframe.loc[:, silt_mask].sum(axis=1)
+            sand_col = self.dataframe.loc[:, sand_mask].sum(axis=1)
+            gravel_col = self.dataframe.loc[:, gravel_mask].sum(axis=1)
+
+            # build a pd.DataFrame out of the Series objects
+            categories = pd.DataFrame({"clay": clay_col,
+                                       "silt": silt_col,
+                                       "sand": sand_col,
+                                       "gravel": gravel_col},
+                                      index=self.dataframe.index)
+
+            # if save=True, save the data frame as a csv file
+            if save:
+                categories.to_csv(fpath)
+
+            # return the categories DataFrame into an instantiated GrainSize object
+            return GrainSize(dataframe=categories)
+
+        else:
+            # return an empty GrainSize object with an empty DataFrame
+            return GrainSize()
+
+    def find_median_mode(self):
+        """
+        Create a pd.DataFrame of median and mode of grain size
+        distribution.
+
+        :return:
+        pd.DataFrame
+        """
+
+        if self.dataframe is not None:
+            # create a cumulative sum DataFrame across each row
+            data_cumsum = self.dataframe.cumsum(axis=1)
+            # create a dictionary that will hold median and mode labels
+            cumsum_dict = dict()
+            # iterate over data_cumsum and populate cumsum_dict
+            for i, s in data_cumsum.iterrows():
+                cumsum_dict[i] = {"median": s[s >= 50].index[0]}
+
+            for i, s in self.dataframe.iterrows():
+                cumsum_dict[i]["mode"] = self.dataframe.columns[s.to_numpy().argmax()]
+
+            # build a pd.DataFrame out of cumsum_dict
+            med_mode_df = pd.DataFrame.from_dict(cumsum_dict, orient="index")
+
+            # return a GrainSize object with med_mode_df as dataframe
+            return GrainSize(dataframe=med_mode_df)
+
+        else:
+            return GrainSize()
+
+    def find_mean(self):
+        """
+        Find the mean values of the grain size distribution.
+        :return: pd.Series
+        """
+
+        mean_values = self.dataframe.apply(
+            lambda row: row[row > 0].mean(), axis=1)
+
+        return mean_values
+
+    def find_mean_labels(self, row, mean_vals):
+        """
+        Find grain size column label which represent the mean
+        frequency in a gs distribution dataset.
+        :return:
+        """
+        # filter row to only include values greater than 0
+        filtered_row = row[row > 0]
+        if filtered_row.empty:
+            return np.nan
+        # find the difference between the row values and the mean
+        differences = (filtered_row - mean_vals).abs()
+        # find the label (grain size) of the minimal difference in the first occurrence
+        return differences.idxmin()
+
+    def add_mean_gs(self):
+        """
+        Add labels of mean grain size to the med_mode_df.
+        :return:
+        """
+        # find mean values
+        mean_values = self.find_mean()
+        # find labels of mean values
+        mean_labels = self.dataframe.apply(lambda row: self.find_mean_labels(row, mean_values[row.name]),
+                                           axis=1)
+
+        return mean_labels
+
+    def create_stats_df(self, save=False, fpath=r"full_core_stats.csv"):
+        """
+        Create a statistical data frame that holds median,
+        mode, and mean grain size classes for a given normalized
+        grain size dataset.
+        :return:
+        """
+
+        # normalize the data
+        normalized_df = self.normalize_gs()
+
+        # calculate median and mode, return a GrainSize object
+        stats = normalized_df.find_median_mode()
+
+        # add mean grain size labels
+        stats.dataframe["mean"] = self.add_mean_gs()
+        # add a standard deviation column
+        stats.dataframe["std"] = self.dataframe.apply(
+            lambda row: row[row != 0].std(), axis=1)
+        # add skewness column
+        stats.dataframe["skewness"] = self.dataframe.apply(
+            lambda row: row[row != 0].skew(), axis=1)
+        # create kurtosis column
+        stats.dataframe["kurtosis"] = self.dataframe.apply(
+            lambda row: row[row != 0].kurtosis(), axis=1)
+
+        stats.dataframe.rename_axis("depth")
+
+        # if save=True, save as a csv file
+        if save:
+            stats.dataframe.to_csv(fpath)
+
+        return stats
+
+    def plot_stats(self,
+                   core_name="core",
+                   figsize=(8, 6),
+                   marker=".",
+                   linestyle="dashed",
+                   save_fig=False,
+                   fpath="gs_stat_plot.png",
+                   dpi=350):
+        """
+        Plots line graphs of core's statistics.
+
+        :param core_name: core's name
+        :param figsize: figure size
+        :param marker: marker style
+        :param linestyle: line style
+        :param save_fig: whether to save returned figure
+        :param fpath: saving path
+        :param dpi: dpi for returned figure
+        :return: .png figure of GrainSize object statistics
+        """
+
+        stats_labels = ["median", "mode", "mean",
+                        "std", "skewness", "kurtosis"]
+        colors = ["#e0bb34", "#913800", "#521101",
+                  "#03265e", "#8a32b3", "#bd2a82"]
+
+        # define all 6 axes objects with shared x and y axes
+        fig, axes = plt.subplots(figsize=figsize, nrows=1, ncols=len(stats_labels),
+                                 sharey=True, sharex=False)
+
+        for ax, stat, color in zip(axes, stats_labels, colors):
+            ax.plot(self.dataframe[stat], self.dataframe.index, marker=marker,
+                    linestyle=linestyle, linewidth=0.85, color=color)
+            # set the corresponding label
+            ax.set_xlabel("Grain size (µm)")
+            ax.set_title(f"{stat.capitalize()}")
+            # show grid
+            ax.grid(True)
+
+        # set for all axes
+        axes[0].set_ylabel("Depth (cm)")
+        # invert the y-axis
+        plt.gca().invert_yaxis()
+        # add a suptitle with core's name
+        plt.suptitle(f"{core_name} Grain Size Distribution Statistics")
+
+        plt.tight_layout()
+
+        # if save_fig=True, save to fpath:
+        if save_fig:
+            plt.savefig(fpath, dpi=dpi, bbox_inches="tight")
+
+        return fig, axes
+
+    def fine_fraction(self,
+                      save=False,
+                      save_path="fine_fraction.csv"):
+
+        if self.dataframe is not None:
+            fine_categories = ["clay", "silt"]
+            fine_percents = self.create_categories().loc[:, fine_categories]
+            fine_percents["total"] = fine_percents.loc[:,
+                                                       "clay"] + fine_percents.loc[:, "silt"]
+
+            if save:
+                fine_percents.to_csv(save_path)
+
+            return fine_percents
+        else:
+            return GrainSize()
+
+    def core_bottom(self):
+        """
+        Find the bottom depth of the core (assumes result is given in cm).
+        :return: float
+        """
+
+        if self.dataframe is not None:
+            return self.dataframe.index[-1]
+        else:
+            print("The dataframe is None - check again.")
+            return None
+
+    def calc_core_maxima(self):
+        """
+        Calculate the maximum values for each statistic in the stats DataFrame.
+        :return: dict with max values for each statistic
+        """
+
+        if self.dataframe is not None:
+            max_values = {
+                "median": self.dataframe["median"].max(),
+                "mode": self.dataframe["mode"].max(),
+                "mean": self.dataframe["mean"].max(),
+                "std": self.dataframe["std"].max(),
+                "skewness": self.dataframe["skewness"].max(),
+                "kurtosis": self.dataframe["kurtosis"].max()
+            }
+            return max_values
+        else:
+            print("The dataframe is None - check again.")
+            return {}
+
+    def calc_core_minima(self):
+        """
+        Calculate the minimum values for each statistic in the stats DataFrame.
+        :return: dict with min values for each statistic
+        """
+
+        if self.dataframe is not None:
+            min_values = {
+                "median": self.dataframe["median"].min(),
+                "mode": self.dataframe["mode"].min(),
+                "mean": self.dataframe["mean"].min(),
+                "std": self.dataframe["std"].min(),
+                "skewness": self.dataframe["skewness"].min(),
+                "kurtosis": self.dataframe["kurtosis"].min()
+            }
+            return min_values
+        else:
+            print("The dataframe is None - check again.")
+            return {}
+
+    @staticmethod
+    def compare_maxima(cores: list, core_names: list):
+        """
+        Compare maximum statistics values between cores in the list. Returns a DataFrame with the results.
+        :param cores: list of GrainSize objects with statistics DataFrames
+        """
+
+        maxima_dict = dict()
+        for core, core_name in zip(cores, core_names):
+            maxima_dict[core_name] = core.calc_core_maxima()
+
+        maxima_df = pd.DataFrame(maxima_dict).T
+
+        return maxima_df
+
+    @staticmethod
+    def compare_minima(cores: list, core_names: list):
+        """
+        Compare minimum statistics values between cores in the list. Returns a DataFrame with the results.
+        :param cores: list of GrainSize objects with statistics DataFrames
+        """
+
+        minima_dict = dict()
+        for core, core_name in zip(cores, core_names):
+            minima_dict[core_name] = core.calc_core_minima()
+
+        minima_df = pd.DataFrame(minima_dict).T
+
+        return minima_df
+
+    @staticmethod
+    def extract_stats_extremes(extremes_df, extreme_type="max"):
+        """
+        Extracts the extreme values (maxima or minima) from a DataFrame of statistics extremes.
+        :param extremes_df: DataFrame with statistics extremes (maxima or minima)
+        :prama extreme_type: "max" or "min" to specify which extremes to extract
+        :return: dict with extreme values for each statistic
+        """
+
+        if not isinstance(extremes_df, pd.DataFrame):
+            raise TypeError("Input must be a pandas DataFrame.")
+
+        if extremes_df.empty:
+            print("The extremes DataFrame is empty- nothing to extract")
+            return {}
+
+        if extreme_type not in ["max", "min"]:
+            raise ValueError("extreme_type must be either 'max' or 'min'.")
+
+        func = getattr(pd.Series, extreme_type)
+
+        extreme_values = {
+            col: func(extremes_df[col]) for col in extremes_df.columns
+            if extremes_df[col].dtype != "O"
+        }
+
+        return extreme_values
+
+    def plot_stats_fines(self,
+                         fine_col="total",
+                         core_name="core",
+                         figsize=(10, 8),
+                         ylimit=None,
+                         xlimits=None,
+                         marker=".",
+                         linestyle="dashed",
+                         lw=0.85,
+                         gs_scale="log",
+                         colors=None,
+                         save_fig=False,
+                         fpath="gs_stat_plot.png",
+                         dpi=350):
+        """
+        Plots line graphs of core's statistics and also the fraction of
+        fine grains (< 63 um, silt + clay).
+
+        :param core_name: core's name
+        :param figsize: figure size
+        :param marker: marker style
+        :param linestyle: line style
+        :param save_fig: whether to save returned figure
+        :param fpath: saving path
+        :param dpi: dpi for returned figure
+        :return: .png figure of GrainSize object statistics
+        """
+
+        stats_labels = ["median", "mode", "mean",
+                        "std", "skewness", "kurtosis"]
+        if colors is None:
+            colors = ["#ffc014", "#fa7e1e", "#d62976",
+                      "#962fbf", "#4f5bd5", "#411f96", "#20A64F"]
+
+        # define all 6 axes objects with shared x and y axes
+        fig, axes = plt.subplots(figsize=figsize, nrows=1, ncols=len(stats_labels) + 1,
+                                 sharey=True, sharex=False)
+
+        for ax, stat, color in zip(axes[:-3], stats_labels[:-2], colors[:-2]):
+            ax.plot(self.dataframe[stat], self.dataframe.index, marker=marker,
+                    linestyle=linestyle, linewidth=lw, color=color)
+
+            # set x-scale to logarithmic if specified (else linear)
+            if gs_scale == "log":
+                ax.set_xscale("log")
+
+            # set x-axis limit
+            if isinstance(xlimits, dict) and stat in xlimits:
+                if gs_scale == "log":
+                    ax.set_xlim(1e-1, xlimits[stat])
+                else:
+                    ax.set_xlim(0, xlimits[stat])
+
+            # set labels
+            ax.set_xlabel("Grain size (µm)")
+            ax.set_title(f"{stat.capitalize()}")
+            # show grid
+            ax.grid(True)
+
+        # plot skewness and kurtosis
+        for ax, stat, color in zip(axes[-3:-1], stats_labels[-2:], colors[-2:]):
+            ax.plot(self.dataframe[stat], self.dataframe.index, marker=marker,
+                    linestyle=linestyle, linewidth=lw, color=color)
+            ax.set_title(f"{stat.capitalize()}")
+
+            if ylimit:
+                ax.set_ylim(0, ylimit)
+            else:
+                ax.set_ylim(0, self.core_bottom())
+
+            if isinstance(xlimits, dict) and stat in xlimits:
+                ax.set_xlim(right=xlimits[stat])
+
+            # show grid
+            ax.grid(True)
+
+        # plot fine grains fraction (silt, clay) at the end of the row
+        ax_percentage = axes[-1]
+        fine_grains = self.dataframe.loc[:, fine_col]
+        ax_percentage.plot(fine_grains, self.dataframe.index, marker=marker,
+                           linestyle=linestyle, linewidth=lw, color=colors[-1])
+        ax_percentage.set_xlabel("Percentage (%)")
+        ax_percentage.set_title("< 63 µm")
+        ax_percentage.set_xlim(0, 100)
+
+        if ylimit:
+            ax_percentage.set_ylim(0, ylimit)
+        else:
+            ax_percentage.set_ylim(0, self.core_bottom())
+        ax_percentage.grid(True)
+
+        # set for all axes
+        axes[0].set_ylabel("Depth (cm)")
+        if ylimit:
+            axes[0].set_ylim(0, ylimit)
+        else:
+            axes[0].set_ylim(0, self.core_bottom())
+        plt.gca().invert_yaxis()
+        plt.suptitle(f"{core_name} Grain Size Distribution Statistics")
+
+        plt.tight_layout()
+
+        if save_fig:
+            plt.savefig(fpath, dpi=dpi, bbox_inches="tight")
+
+        return fig, axes
+
+    @staticmethod
+    def compare_gs(cores: list,
+                   core_names: list = None,
+                   fine_col="total",
+                   figsize_per_plot=(1.5, 8),
+                   marker=".",
+                   linestyle="dashed",
+                   save_fig=False,
+                   fpath="compare_gs_grid.png",
+                   dpi=350):
+        """
+        Compare cores in a subplot grid with 1 row per core, and 4 columns (median, mode, mean, <63 µm).
+
+        :param cores: list of GrainSize objects
+        :param core_names: optional list of names for the cores
+        :param fine_col: column name for < 63 µm
+        :param figsize_per_plot: size of each subplot (width, height)
+        :param marker: marker style
+        :param linestyle: line style
+        :param save_fig: whether to save the plot
+        :param fpath: path to save
+        :param dpi: resolution
+        :return: fig, axes
+        """
+
+        for i, core in enumerate(cores):
+            if not isinstance(core, GrainSize):
+                raise TypeError(
+                    f"Item at index {i} is not a GrainSize object.")
+
+        if core_names is None:
+            core_names = [f"Core {i+1}" for i in range(len(cores))]
+
+        n_cores = len(cores)
+        stats_labels = ["median", "mode", "mean", "< 63 µm"]
+        colors = ["#e0bb34", "#913800", "#521101", "#0da818"]
+
+        # find maximal depth between the cores
+        max_depth = max(core.dataframe.index.max() for core in cores)
+
+        # total figure size
+        figsize = (figsize_per_plot[0] * 4, figsize_per_plot[1] * n_cores)
+        fig, axes = plt.subplots(
+            nrows=n_cores, ncols=4,
+            figsize=figsize,
+            sharey=True,
+            squeeze=False
+        )
+
+        for row_idx, (core, name) in enumerate(zip(cores, core_names)):
+            for col_idx, (label, color) in enumerate(zip(stats_labels, colors)):
+                ax = axes[row_idx, col_idx]
+                data_col = fine_col if label == "< 63 µm" else label
+
+                if data_col in core.dataframe.columns:
+                    ax.plot(core.dataframe[data_col], core.dataframe.index,
+                            marker=marker, linestyle=linestyle, color=color, linewidth=0.85)
+
+                if row_idx == 0:
+                    ax.set_title(label)
+
+                if label == "< 63 µm":
+                    ax.set_xlim(0, 100)
+                else:
+                    ax.set_xlim(-0.5, core.dataframe[data_col].max() + 1)
+
+                ax.set_ylim(0, max_depth)
+                ax.invert_yaxis()
+
+                if col_idx == 0:
+                    ax.set_ylabel(f"{name}\nDepth (cm)")
+                    yticks = np.arange(0, max_depth + 1, 50)
+                    ax.set_yticks(yticks)
+                    ax.set_yticklabels([str(int(y)) for y in yticks])
+                    ax.tick_params(axis='y', labelsize=8, labelleft=True)
+                else:
+                    ax.tick_params(axis='y', labelleft=False)
+
+                if row_idx == n_cores - 1:
+                    if label == "< 63 µm":
+                        ax.set_xlabel("Percentage (%)")
+                    else:
+                        ax.set_xlabel("Grain size (µm)")
+
+                # plot a horizontal line if core is shorter than max_depth
+                if max_depth > core.dataframe.index[-1]:
+                    ax.axhline(
+                        y=core.dataframe.index[-1], color='red', linestyle='--', linewidth=0.3, alpha=0.5)
+
+                ax.grid(True)
+
+        fig.suptitle("Grain Size Comparison by Core")
+        fig.tight_layout()
+
+        if save_fig:
+            plt.savefig(fpath, dpi=dpi)
+
+        return fig, axes
+
+
+class XRF(object):
+
+    def __init__(self,
+                 fname=None,
+                 sheet_name="calibrated_results",
+                 header=0, usecols="A:B",
+                 index_col=0,
+                 nrows=27,
+                 tp=True,
+                 dataframe=None):
+        """
+        Initializes the XRF object. Loads data from an Excel file if 'fname' is provided.
+
+        Parameters:
+        - fname: Filename or path of an XRF Excel file. In case of using a CSV file, pass pd.read_csv() to 'dataframe' instead.
+        - sheet_name: Name of the sheet in the Excel file to read.
+        - header: Row number where headers are located (0-indexed).
+        - usecols: Columns to parse from the Excel file.
+        - index_col: Column to set as index.
+        -tp: Whether to transpose the DataFrame after loading.
+        - dataframe: Existing pandas DataFrame to initialize the object with. If instantiated directly from a CSV file, pass pd.read_csv() to this parameter.
+        """
+        self.dataframe = dataframe
+        if dataframe is None and fname:
+            self.load_data(fname,
+                           sheet_name=sheet_name,
+                           header=header,
+                           usecols=usecols,
+                           index_col=index_col,
+                           nrows=nrows,
+                           tp=tp)
+
+    def __repr__(self):
+        if self.dataframe is not None:
+            return repr(self.dataframe)
+        return "XRF object with no data loaded"
+
+    def __getattr__(self, item):
+        """Delegate to the DataFrame class for methods that are
+        not defined in this class."""
+        if not hasattr(self, 'dataframe') or self.dataframe is None:
+            # Prevent recursion if 'dataframe' doesn't exist yet
+            raise AttributeError(f"'XRF' object has no attribute '{item}'")
+        try:
+            return getattr(self.dataframe, item)
+        except AttributeError:
+            raise AttributeError(
+                f"'XRF' object or its 'dataframe' has no attribute '{item}'")
+
+    def load_data(self,
+                  fname,
+                  sheet_name="calibrated_data",
+                  header=0,
+                  nrows=27,
+                  usecols="A:B",
+                  index_col=0,
+                  tp=True):
+        """
+        Loads XRF data from an Excel file into a pandas DataFrame.
+
+        Parameters:
+        - fname: Filename or path of the Excel file.
+        - sheet_name: Name of the sheet in the Excel file to read.
+        - header: Row number where headers are located (0-indexed).
+        - usecols: Columns to parse from the Excel file.
+        - index_col: Column to set as index.
+
+        Returns:
+        - A pandas DataFrame containing the imported data.
+        """
+        self.dataframe = pd.read_excel(io=fname,
+                                       sheet_name=sheet_name,
+                                       header=header,
+                                       nrows=nrows,
+                                       usecols=usecols,
+                                       index_col=index_col)
+
+        if tp:
+            self.dataframe = self.dataframe.transpose()
+
+        return self.dataframe
+
+    def to_ppm(self):
+        """
+
+        :return:
+        """
+
+        # get the elements that are presented in percents
+        percents_row = self.dataframe.iloc[0,
+                                           :][self.dataframe.iloc[0, :] == "%"]
+        percents_df = pd.DataFrame(percents_row)
+
+        # list elements that are measured in percents
+        elements_in_pc = percents_df.index.tolist()
+        # create new XRF object with ppm dataframe
+        ppm_df = XRF(dataframe=copy.deepcopy(self.dataframe))
+        # drop the second raw
+        ppm_df.dataframe.drop(labels="FileName", axis=0, inplace=True)
+        # define conversion factor from percents to ppm
+        conversion_factor = 10_000
+        # convert percents to ppm
+        ppm_df.dataframe[elements_in_pc] *= conversion_factor
+
+        # return new XRF object with elements measured in ppm
+        return ppm_df
+
+    def clean_data(self):
+        """
+        Cleans the data by updating the index to be the larger number in the interval as a float.
+        """
+        if self.dataframe is not None:
+            cleaned = copy.deepcopy(self.dataframe)
+
+            def extract_larger_number(index):
+                # Match patterns like '001-002' or '(2-3)'
+                match = re.search(r'(\d+)-(\d+)', index)
+                if match:
+                    return float(match.group(2))
+                match = re.search(r'\((\d+)-(\d+)\)', index)
+                if match:
+                    return float(match.group(2))
+                # Return None for unexpected index values
+                return None
+
+            # Apply extraction function to index
+            cleaned_index = self.dataframe.index.map(extract_larger_number)
+            cleaned = self.dataframe[cleaned_index.notnull()]
+            cleaned.index = cleaned_index.dropna().astype(float)
+        else:
+            raise ValueError("No dataframe loaded to clean")
+
+        return XRF(dataframe=cleaned)
+
+    def plot_elements(self, core_name="Core", figsize=(10, 8), ylimit=None, xlimit=None, rows=2, lw=0.75, marker=".", unit="percent",
+                      savefig=False, dpi=350, savepath="elements.png"):
+
+        elements = list(self.dataframe.columns)
+
+        num_elements = len(elements)
+        num_cols = (num_elements + rows - 1) // rows
+
+        fig, axs = plt.subplots(
+            nrows=rows, ncols=num_cols, figsize=figsize, sharey=True)
+
+        if rows > 1 and num_cols > 1:
+            axs = axs.flatten()
+
+        # plot every element on the elements list
+        for i, element in enumerate(elements):
+            row = i // num_cols
+            col = i % num_cols
+            ax = axs[i] if num_elements > 1 else axs
+            ax.plot(self.dataframe[element],
+                    self.dataframe.index, marker=marker, lw=lw)
+            ax.grid()
+            ax.set_title(f"{element}", fontsize=12)
+
+            if ylimit:
+                ax.set_ylim(0, (max(ylimit, self.dataframe.index[-1])))
+            else:
+                ax.set_ylim(self.dataframe.index[0], self.dataframe.index[-1])
+            if xlimit:
+                ax.set_xlim(0, (max(xlimit[i], self.dataframe[element].max())))
+            else:
+                ax.set_xlim(0, self.dataframe[element].max())
+
+            ax.yaxis.set_inverted(True)
+            if col == 0:
+                ax.set_ylabel("Depth (cm)")
+
+        plt.suptitle(f"{core_name} XRF Results (in {unit})",
+                     fontsize=16, y=0.99)
+
+        plt.tight_layout()
+
+        if savefig:
+            plt.savefig(savepath, dpi=dpi)
+
+        return fig, axs
+
+    def plot_elements_tight(
+            self,
+            core_name="Core",
+            figsize=(3, 8),
+            ylimit=None,
+            xlimit=None,
+            lw=0.65,
+            colors=None,
+            marker=".",
+            ls="-",
+            savefig=False,
+            savepath="elements_tight.png",
+            dpi=350
+    ):
+        """
+        Plot all elements in a single column with shared y-axis."""
+
+        fig, ax = plt.subplots(figsize=figsize, ncols=1, nrows=1)
+
+        if colors is None:
+            colors = cm.viridis(np.linspace(0, 1, len(self.dataframe.columns)))
+
+        for element in self.dataframe.columns:
+            ax.plot(self.dataframe[element], self.dataframe.index,
+                    marker=marker, lw=lw, ls=ls, color=colors[self.dataframe.columns.get_loc(
+                        element)],
+                    label=element)
+            if ylimit:
+                ax.set_ylim(0, ylimit)
+            else:
+                ax.set_ylim(self.dataframe.index[0], self.dataframe.index[-1])
+
+            if xlimit:
+                ax.set_xlim(0, xlimit)
+            else:
+                ax.set_xlim(0, self.dataframe.values.max())
+
+            ax.yaxis.set_inverted(True)
+
+        ax.grid()
+        ax.set_ylabel("Depth (cm)")
+        ax.set_xlabel("Percentage (%)")
+        ax.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc="lower left",
+                  ncols=2, mode="expand", borderaxespad=0.)
+
+        plt.suptitle(f"{core_name} XRF Results")
+        plt.tight_layout()
+
+        if savefig:
+            plt.savefig(savepath, dpi=dpi)
+
+        return fig, ax
+
+    @staticmethod
+    def compare_elements(cores,
+                         core_names=None,
+                         colors=None,
+                         lw=0.75,
+                         marker=".",
+                         figsize=(10, 8),
+                         rows=2,
+                         unit="percent",
+                         ylimit=None,
+                         xlimit=None,
+                         savefig=False,
+                         dpi=350,
+                         savepath="compare_elements.png"):
+        """
+        Compare element concentrations between cores.
+        If a single core is provided, it will plot the elements of that core.
+
+        Parameters
+        ----------
+        cores : XRF or list[XRF]
+            A single XRF object or list of XRF objects to compare.
+        core_names : list[str], optional
+            Names for each core in the legend. Defaults to Core 1, Core 2, ...
+        colors : list[str], optional
+            Colors for each core. Defaults to rcParams cycle.
+        lw : float
+            Line width for plots.
+        marker : str
+            Marker style for plots.
+        figsize : tuple
+            Figure size.
+        rows : int
+            Number of rows of subplots.
+        unit : str
+            Unit label for the super-title.
+        ylimit : tuple or list, optional
+            Y-axis limits.
+        xlimit : tuple or list, optional
+            X-axis limits for each element.
+        savefig : bool
+            Whether to save the figure.
+        dpi : int
+            DPI for saved figure.
+        savepath : str
+            File path for saved figure.
+
+        Returns
+        -------
+        fig, axs
+            Matplotlib figure and axes array.
+        """
+        import itertools
+
+        if not isinstance(cores, (list, tuple)):
+            cores = [cores]
+        n_cores = len(cores)
+
+        if core_names is None:
+            core_names = [f"Core {i+1}" for i in range(n_cores)]
+
+        if colors is None:
+            base_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+            colors = list(itertools.islice(
+                itertools.cycle(base_colors), n_cores))
+
+        # elements to plot (from first core)
+        elements = list(cores[0].dataframe.columns)
+        num_elements = len(elements)
+        num_cols = (num_elements + rows - 1) // rows
+
+        fig, axs = plt.subplots(nrows=rows,
+                                ncols=num_cols,
+                                figsize=figsize,
+                                sharey=True)
+
+        if rows > 1 or num_cols > 1:
+            axs = axs.flatten()
+        else:
+            axs = [axs]
+
+        for i, element in enumerate(elements):
+            ax = axs[i]
+            for j, core in enumerate(cores):
+                series = core.dataframe[element]
+                ax.plot(series,
+                        core.dataframe.index,
+                        marker=marker,
+                        lw=lw,
+                        color=colors[j],
+                        label=core_names[j])
+            ax.set_title(f"{element}", fontsize=12)
+            ax.grid(True)
+
+            if ylimit:
+                ax.set_ylim(0, max(ylimit, cores[0].dataframe.index[-1]))
+            else:
+                ax.set_ylim(cores[0].dataframe.index[0],
+                            cores[0].dataframe.index[-1])
+
+            if xlimit:
+                ax.set_xlim(0, max(xlimit[i],
+                                   max(core.dataframe[element].max() for core in cores)))
+            else:
+                ax.set_xlim(
+                    0, max(max(core.dataframe[element].max() for core in cores), 1))
+
+            ax.invert_yaxis()
+
+            if i % num_cols == 0:
+                ax.set_ylabel("Depth (cm)")
+
+        axs[0].legend(loc="upper right", frameon=False)
+
+        plt.suptitle(
+            f"XRF Profiles Comparison (in {unit})", fontsize=16, y=0.99)
+        plt.tight_layout()
+
+        if savefig:
+            plt.savefig(savepath, dpi=dpi)
+
+        return fig, axs
+
+    def plot_ratios(self, core_name="Core", ratio_list=[("Si", "Al")], lw=0.75, figsize=(6, 8), ylimit=None, xlimit=None, marker=".",
+                    savefig=False, dpi=350, savepath="element_ratios.png"):
+
+        num_ratios = len(ratio_list)
+
+        fig, axs = plt.subplots(nrows=1, ncols=num_ratios, figsize=figsize,
+                                sharey=True)
+        if num_ratios == 1:
+            axs = [axs]
+
+        for i, (num, denom) in enumerate(ratio_list):
+            # calculate elemental ratio
+            ratio = self.dataframe[num] / self.dataframe[denom]
+            axs[i].plot(ratio, self.dataframe.index,
+                        marker=marker, lw=lw, ls="-")
+            axs[i].grid()
+
+            if ylimit:
+                axs[i].set_ylim(0, max(ylimit, self.dataframe.index[-1]))
+            else:
+                axs[i].set_ylim(self.dataframe.index[0],
+                                self.dataframe.index[-1])
+            if xlimit:
+                axs[i].set_xlim(0, max(xlimit[i], max(ratio)))
+            else:
+                axs[i].set_xlim(0, max(ratio))
+
+            axs[i].yaxis.set_inverted(True)
+            axs[i].set_title(f"{num}/{denom}", fontsize=14)
+            if i == 0:
+                axs[i].set_ylabel("Depth (cm)", fontsize=15)
+
+        plt.suptitle(f"{core_name} Elemental Ratios", fontsize=16, y=0.99)
+        plt.tight_layout()
+
+        if savefig:
+            plt.savefig(savepath, dpi=dpi)
+
+        return fig, axs
+
+    @staticmethod
+    def compare_ratios(cores,
+                       core_names=None,
+                       ratio_list=[("Si", "Al")],
+                       colors=None,
+                       lw=0.75,
+                       marker=".",
+                       figsize=(6, 8),
+                       ylimit=None,
+                       xlimit=None,
+                       savefig=False,
+                       dpi=350,
+                       savepath="compare_element_ratios.png"):
+        """
+        Compare one or more elemental ratios across several XRF cores.
+
+        Parameters
+        ----------
+        cores : list[XRF]
+            List of XRF objects to compare.
+        core_names : list[str] | None
+            Optional names that will be used in the legend. Defaults to Core 1, Core 2, …
+        ratio_list : list[tuple[str, str]]
+            List of (numerator, denominator) pairs to plot. One subplot per pair.
+        colors : list[str] | None
+            Matplotlib‑style colors, one per core. Defaults to the current rcParams cycle.
+        lw, marker, figsize, ylimit, xlimit, savefig, dpi, savepath
+            Same meaning as in `.plot_ratios()`.
+        """
+
+        import itertools
+
+        n_cores = len(cores)
+        n_ratios = len(ratio_list)
+        if core_names is None:
+            core_names = [f"Core {i+1}" for i in range(n_cores)]
+        if colors is None:
+            colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+            colors = list(itertools.islice(itertools.cycle(colors), n_cores))
+
+        fig, axs = plt.subplots(
+            nrows=1,
+            ncols=n_ratios,
+            figsize=figsize,
+            sharey=True
+        )
+        if n_ratios == 1:
+            axs = [axs]
+
+        for j, (num, denom) in enumerate(ratio_list):
+            ax = axs[j]
+
+            for i, core in enumerate(cores):
+                ratio_series = core.dataframe[num] / core.dataframe[denom]
+                ax.plot(ratio_series,
+                        core.dataframe.index,
+                        marker=marker,
+                        lw=lw,
+                        color=colors[i],
+                        label=core_names[i])
+
+            if ylimit:
+                ax.set_ylim(0, max(ylimit, core.dataframe.index[-1]))
+            else:
+                ax.set_ylim(cores[0].dataframe.index[0],
+                            cores[0].dataframe.index[-1])
+
+            if xlimit:
+                ax.set_xlim(0, max(xlimit[j],
+                                   max(ratio_series.max() for core in cores)))
+            else:
+                ax.set_xlim(0, max(ratio_series.max() for core in cores))
+
+            ax.set_title(f"{num}/{denom}")
+            ax.yaxis.set_inverted(True)
+            ax.grid(True)
+
+            if j == 0:
+                ax.set_ylabel("Depth (cm)")
+
+        handles, labels = axs[0].get_legend_handles_labels()
+        fig.legend(handles,
+                   labels,
+                   loc="upper center",
+                   bbox_to_anchor=(0.5, 0.97),
+                   ncol=len(handles),
+                   frameon=False,
+                   fontsize=9)
+        plt.suptitle("Elemental Ratios Comparison")
+        plt.tight_layout()
+
+        if savefig:
+            plt.savefig(savepath, dpi=dpi)
+
+        return fig, axs
+
+
+class Stratigraphy(object):
+
+    def __init__(self, fname=None, header=0, dataframe=None):
+        # complete more attributes as needed
+        self.dataframe = None
+        if dataframe is not None:
+            self.dataframe = dataframe
+        elif fname:
+            self.load_data(fname, header=header)
+
+        self.fill_params = []
+
+    def __repr__(self):
+        if self.dataframe is not None:
+            return repr(self.dataframe)
+        return "Stratigraphy object with no data loaded"
+
+    def __getattr__(self, item):
+        """Delegate to the DataFrame class for methods that are
+        not defined in this class."""
+        if not hasattr(self, 'dataframe'):
+            # Prevent recursion if 'dataframe' doesn't exist yet
+            raise AttributeError(
+                f"'Stratigraphy' object has no attribute '{item}'")
+        try:
+            return getattr(self.dataframe, item)
+        except AttributeError:
+            raise AttributeError(
+                f"'Stratigraphy' object or its 'dataframe' has no attribute '{item}'")
+
+    def load_data(self, fname, header=0):
+        """Loads stratigraphic units data from a csv file into a DataFrame.
+
+                Parameters:
+                - fname: Filename or path of the csv file.
+                - header: int, row number (0-indexed) to use as df headers.
+
+                Returns:
+                - A pandas DataFrame containing the imported data.
+                """
+        df = pd.read_csv(fname, header=header)
+        self.dataframe = df
+        return df
+
+    def plot_stratigraphy(self, figsize=(2.75, 18), core_name="Core", savefig=False,
+                          savepath="core_strat.png", dpi=350):
+        fig, ax = plt.subplots(figsize=figsize)
+
+        colors = {
+            'Silty Sand': '#d2b48c',  # Tan
+            'Silty Mud': '#8b4513',  # SaddleBrown
+            'Clay': '#a52a2a',  # Brown
+            'Sand': '#ffd700',  # Gold
+            'Gravel': '#808080'  # Gray
+        }
+
+        for _, row in self.dataframe.iterrows():
+            color = colors[row["unit"]]
+            fill = ax.fill_betweenx(
+                [row["top"], row["bottom"]], 0, 1, color=color)
+            self.fill_params.append(
+                {'top': row["top"], 'bottom': row["bottom"], 'color': color})
+
+            mid_depth = (row["top"] + row["bottom"]) / 2
+            if row["symbol"] is not np.nan:
+                ax.text(0.5, mid_depth, row["symbol"],
+                        va="center", ha="left", fontsize=10)
+            ax.text(0.5, mid_depth, row["unit"],
+                    va="center", ha="right", fontsize=10)
+
+        for bottom in self.dataframe["bottom"]:
+            ax.axhline(y=bottom, color="k", linewidth=0.5)
+
+        ax.set_ylim(self.dataframe["bottom"].iloc[-1], 0)
+        ax.set_ylabel("Depth (cm)")
+        ax.set_title(f"{core_name} Units")
+        # ax.set_xticks([])
+        ax.set_xlabel("Units")
+        ax.xaxis.label.set_color("white")
+        ax.tick_params(axis="x", colors="white")
+        ax.yaxis.set_ticks(np.arange(
+            self.dataframe["top"].iloc[0], self.dataframe["bottom"].iloc[-1], 20))
+
+        plt.tight_layout()
+
+        if savefig:
+            plt.savefig(savepath, dpi=dpi)
+
+        return fig, ax
+
+
+class CoreAnalysis:
+    # all methods here are static.
+    @staticmethod
+    def plot_combined_stats(gs_obj, xrf_obj, core_name="Core", ylimit=263, xrf_els=["Mg", "Fe"], gs_stats=["mean", "mode", "median"], figsize=(10, 8), marker=".", linestyle="dashed"):
+        """
+        Plot mode, median, and mean from GrainSize alongside selected XRF elements in separate subplots.
+
+        :param gs_obj: GrainSize object
+        :param xrf_obj: XRF object
+        :param xrf_els: List of selected XRF elements to plot (default: ["Mg", "Fe"])
+        :param figsize: Tuple defining figure size
+        :param marker: Marker style for lines
+        :param linestyle: Line style
+        """
+
+        import matplotlib.cm as cm
+        import matplotlib.colors as mcolors
+
+        # extract depth index
+        depth = gs_obj.dataframe.index
+
+        # define grain size statistics to plot
+        gs_stats = gs_stats
+        gs_colors = ["#913800", "#e0bb34", "#521101"]
+
+        # Generate colors dynamically for XRF elements
+        cmap = cm.get_cmap("viridis", len(xrf_els))
+        xrf_colors = [mcolors.rgb2hex(cmap(i)) for i in range(len(xrf_els))]
+
+        # total number of subplots (GS stats + selected XRF elements)
+        num_plots = len(gs_stats) + len(xrf_els)
+
+        # fig and axes
+        fig, axes = plt.subplots(
+            nrows=1, ncols=num_plots, figsize=figsize, sharey=True)
+
+        # make `axes` iterable in any case
+        if num_plots == 1:
+            axes = [axes]
+
+        # plot GrainSize statistics
+        for ax, stat, color in zip(axes[:len(gs_stats)], gs_stats, gs_colors):
+            if stat in gs_obj.dataframe.columns:
+                ax.plot(gs_obj.dataframe[stat], depth, label=stat.capitalize(),
+                        marker=marker, linestyle=linestyle, color=color)
+                ax.set_title(stat.capitalize())
+                ax.grid(True)
+                ax.set_xlabel("Grain Size (µm)")
+
+        # plot XRF elements
+        for ax, (el, color) in zip(axes[len(gs_stats):], zip(xrf_els, xrf_colors)):
+            el = el.capitalize()
+            if el in xrf_obj.dataframe.columns:
+                ax.plot(xrf_obj.dataframe[el], xrf_obj.dataframe.index, label=el,
+                        marker=marker, linestyle=linestyle, color=color)
+                max_concentration = xrf_obj.dataframe[el].max()
+                ax.set_title(el)
+                ax.set_xlim(0, max_concentration)
+                ax.grid(True)
+                ax.set_xlabel("Concentration (%)")
+
+        # labels and foramtting
+        for ax in axes:
+            ax.set_ylim(0, max(depth[-1], ylimit))
+
+        axes[0].set_ylabel("Depth (cm)")
+        plt.gca().invert_yaxis()
+        plt.suptitle(f"Summary plot for {core_name}")
+        plt.tight_layout()
+
+        return fig, ax
