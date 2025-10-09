@@ -1,0 +1,163 @@
+[build-system]
+requires = [
+    "pdm-backend",
+]
+build-backend = "pdm.backend"
+
+[project]
+name = "check-bitdefender"
+dynamic = []
+authors = [
+    { name = "ldvchosal", email = "ldvchosal@github.com" },
+]
+description = "A Nagios plugin for monitoring BitDefender GravityZone API endpoints"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Systems Administration",
+]
+keywords = [
+    "nagios",
+    "monitoring",
+    "bitdefender",
+    "gravityzone",
+    "api",
+    "endpoint-security",
+]
+dependencies = [
+    "nagiosplugin>=1.4.0",
+    "click>=8.0,<9.0",
+    "requests>=2.32.5",
+]
+version = "1.0.5"
+
+[project.license]
+text = "MIT"
+
+[project.urls]
+Homepage = "https://github.com/lduchosal/check_bitdefender"
+"Bug Reports" = "https://github.com/lduchosal/check_bitdefender/issues"
+Source = "https://github.com/lduchosal/check_bitdefender"
+Documentation = "https://github.com/lduchosal/check_bitdefender/blob/main/README.md"
+
+[project.scripts]
+check_bitdefender = "check_bitdefender.cli:main"
+
+[tool.setuptools.package-data]
+"*" = [
+    "*.ini",
+]
+
+[tool.black]
+line-length = 100
+target-version = [
+    "py39",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v"
+
+[tool.pdm-bump]
+version-files = [
+    "check_bitdefender/__init__.py:__version__",
+]
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.version]
+source = "file"
+path = "check_bitdefender/__init__.py"
+
+[tool.pdm.scripts]
+format = "ruff format"
+typecheck = "mypy check_bitdefender/"
+build = "python -m build"
+publish = "python -m twine upload dist/* --verbose"
+install = "pdm install"
+install-dev = "pdm install -G dev"
+clihelp = "check_bitdefender --help"
+cliendpoints = "check_bitdefender endpoints"
+test = "python -m pytest tests/ -v --cov=check_bitdefender --cov-report=term-missing"
+test-quick = "python -m pytest tests/ --tb=no -q"
+test-ci = "python -m pytest tests/ -v --cov=check_bitdefender --cov-report=term-missing -m 'not reverseproxy'"
+test-unit = "python -m pytest tests/unit/ -v"
+test-integration = "python -m pytest tests/integration/ -v"
+test-cov = "python -m pytest tests/ -v --cov=check_bitdefender --cov-report=html --cov-report=term-missing"
+lint = "ruff check check_bitdefender/ tests/"
+lint-fix = "ruff check --fix check_bitdefender/ tests/"
+format-check = "black --check check_bitdefender/ tests/"
+check = [
+    "lint",
+    "format-check",
+    "typecheck",
+    "test",
+]
+bump-version = "pdm bump -v patch"
+env = "echo ${PATH}"
+clean = "python -c \"import shutil; import os; [shutil.rmtree(p, ignore_errors=True) for p in ['.coverage', 'htmlcov', '.pytest_cache', '__pycache__', 'check_bitdefender/__pycache__'] if os.path.exists(p)]\""
+version-show = "python -c 'import check_bitdefender; print(xp.__version__)'"
+version-patch = "pdm bump patch"
+version-minor = "pdm bump minor"
+version-major = "pdm bump major"
+
+[tool.pdm.scripts.cli]
+composite = [
+    "clihelp",
+    "cliendpoints",
+]
+
+[tool.pdm.scripts.all]
+composite = [
+    "install",
+    "format",
+    "build",
+    "test",
+    "cli",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+    "pytest-asyncio>=1.0",
+    "black>=21.0",
+    "flake8>=3.8",
+    "mypy>=0.800",
+    "twine>=6.2.0",
+    "pdm>=2.0.0",
+    "ruff>=0.13.0",
+    "pdm-bump",
+    "types-requests>=2.32.4.20250913",
+]
