@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+from pathlib import Path
+from itertools import islice
+from subprocess import check_call, run, PIPE
+
+paths = list(sorted(Path('reddit').glob('*.json')))
+
+def different(p1: Path, p2: Path, extract: bool) -> bool:
+    cmd = [
+        './jdiff', '--diff', *(['--extract'] if extract else []), str(p1), str(p2),
+    ]
+    print('   ' + ' '.join(cmd))
+    res = run(cmd, stdout=PIPE)
+    assert res.returncode <= 1
+    return res.returncode == 1
+
+# TODO domination relationship can be tested via diff inclusion
+# TODO different normaliser for csv (e.g. lastfm)
+# TODO start erroring when there are enough of them, so it's not too annoying? 
+# TODO or, maybe only error if the last one triggered. tha
+
+from_ = 1644
+for i, before, after in islice(zip(range(10000000000000), paths, paths[1:]), from_, None):
+    print(f'comparing {i} {before.name} vs {after.name}: ')
+    extr_diff = different(before, after, extract=True)
+    cleanup_diff = different(before, after, extract=False)
+    # if there are differences, whatever, keep on going
+    if extr_diff == cleanup_diff:
+        print('    ok: both normalisers agree ' + ('different' if extr_diff else 'SAME'))
+        continue
+    print('  ERROR!!!!!')
+
+    
+    # if cleanup_diff:
+    #     print('   OK: both normalined and cleaned up')
+    # assert not cleanup_diff
