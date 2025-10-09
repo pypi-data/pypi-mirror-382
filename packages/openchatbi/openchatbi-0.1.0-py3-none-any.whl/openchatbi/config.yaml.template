@@ -1,0 +1,100 @@
+organization: The Company
+dialect: presto
+bi_config_file: example/bi.yaml
+
+# Python Code Execution Configuration
+# Options: "local", "restricted_local", "docker"
+# - local: Run code in the current Python process (fastest, least secure)
+# - restricted_local: Run code with RestrictedPython (moderate security, some limitations)
+# - docker: Run code in isolated Docker containers (slowest, most secure, requires Docker to be installed)
+python_executor: local
+
+# Visualization configuration
+# Options: "rule" (rule-based), "llm" (LLM-based), or null (skip visualization)
+# visualization_mode: llm
+
+# Context management configuration
+# Controls how conversation context is managed and compressed when it becomes too long
+context_config:
+  # Enable/disable context management entirely
+  enabled: true
+
+  # Token limit that triggers context management (when conversation exceeds this, compression starts)
+  summary_trigger_tokens: 12000
+
+  # Number of recent messages to always preserve in full (never compress these)
+  keep_recent_messages: 20
+
+  # Historical tool output compression limits
+  max_tool_output_length: 2000  # Max length for historical tool outputs
+  max_sql_result_rows: 50       # Max rows to keep in CSV results
+  max_code_output_lines: 50     # Max lines for code execution output
+
+  # Conversation summarization settings
+  enable_summarization: true         # Enable conversation summarization
+  enable_conversation_summary: true  # Enable detailed conversation summary
+  summary_max_messages: 50           # Max messages to include in summary context
+
+  # Content preservation settings
+  preserve_tool_errors: true    # Always preserve error messages in full
+  preserve_recent_sql: true     # Preserve SQL content (less aggressive compression)
+
+# Catalog store configuration
+catalog_store:
+  store_type: file_system
+  data_path: ./example
+
+# Data warehouse configuration
+data_warehouse_config:
+  uri: "presto://{user_name}@domain:8080/db/default"
+  include_tables:
+    - null  # null means include all tables, or specify yaml list
+  database_name: "db.default"  # database name to use in catalog
+  token_service: "https://tokens-domain:8080/v1"
+  user_name: TOKEN_SERVICE_USER_NAME
+  password: TOKEN_SERVICE_PASSWORD
+
+# LLM configurations
+default_llm:
+  class: langchain_openai.ChatOpenAI
+  params:
+    api_key: YOUR_API_KEY_HERE
+    model: gpt-4.1
+    temperature: 0.01
+    max_tokens: 8192
+
+embedding_model:
+  class: langchain_openai.OpenAIEmbeddings
+  params:
+    api_key: YOUR_API_KEY_HERE
+    model: text-embedding-3-large
+    chunk_size: 1024
+
+# Optional
+text2sql_llm:
+  class: langchain_openai.ChatOpenAI
+  params:
+    api_key: YOUR_API_KEY_HERE
+    model: gpt-4.1
+    temperature: 0.0
+    max_tokens: 8192
+
+# MCP (Model Context Protocol) server configurations
+mcp_servers:
+  # File system MCP server (stdio transport)
+  - name: filesystem
+    transport: stdio
+    command: ["npx", "-y", "@modelcontextprotocol/server-filesystem"]
+    args: ["--path", "/tmp"]
+    enabled: false
+    timeout: 30
+  
+
+  # Example HTTP-based MCP server (streamable_http transport)
+  - name: weather
+    transport: streamable_http
+    url: "http://localhost:8000/mcp/"
+    headers:
+      Authorization: "Bearer YOUR_TOKEN"
+    enabled: false
+    timeout: 30
