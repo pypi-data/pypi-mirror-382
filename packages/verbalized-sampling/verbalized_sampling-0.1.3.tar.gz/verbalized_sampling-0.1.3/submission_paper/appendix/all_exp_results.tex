@@ -1,0 +1,581 @@
+\section{Detailed Experimental Results}\label{appendix:exp_results}
+
+\input{appendix/app_exp_creativity_task}
+
+\clearpage
+\input{appendix/app_exp_dialogue_simulation_task}
+
+\newpage
+\input{appendix/app_exp_open_ended_qa}
+
+% \newpage
+% \input{appendix/app_exp_commonsense}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Random Number Generation %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\subsection{Random Number Generation}\label{sec:random_number_generation}
+\begin{wrapfigure}{r}{0.5\textwidth}
+    \captionsetup{skip=2pt}
+    \centering
+    \captionof{table}{Average KL divergence across models for each method in the dice roll experiment. The best result is in \sethlcolor{LightBlue}\hl{\textbf{blue}}; the second-best is \sethlcolor{LightGreen}\underline{\hl{green}}.}
+    \label{tab:rng_table}
+    \begin{minipage}{\linewidth}
+        \centering
+        \begin{tabular}{lc}
+            \toprule
+            Method & KL Divergence $\downarrow$ \\
+            \midrule
+            Direct & 0.926 \\
+            CoT & 1.163 \\
+            Multi-turn & 0.119 \\
+            Sequence & 0.058 \\
+            VS-Standard & \bestcell{0.027} \\
+            VS-CoT & 0.038 \\
+            VS-Multi & \secondcell{0.029} \\
+            \bottomrule
+        \end{tabular}
+    \end{minipage}
+
+    \vspace{4pt}
+
+    % Figure with its own caption and label
+    \begin{minipage}{\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/qualitative_tasks/rng_distribution_comparison.pdf}
+        \captionof{figure}{Dice roll distributions from direct, sequence, and \ourslower prompting with Gemini-2.5-Pro. The red dashed line marks the expected uniform distribution: VS aligns most closely, sequence follows, while direct prompting collapses to a single mode (e.g., 4). 
+        \vspace{-1em}
+        % \wyshi{this figure needs to be refined}
+        % \wyshi{why somietimes there is grid in the background, this one doesnt}
+        }
+        \label{fig:qualitative_rng_results}
+    \end{minipage}
+\end{wrapfigure}
+
+
+We also study if \ours (VS) can perform the task of random number generation,  which is important for tasks that require unpredictability in random processes \citep{xiao2025flipping}, e.g., paper-scissor-stone~\citep{west2025basemodelsbeataligned}. 
+To evaluate this, we assess whether VS enables LLMs to better approximate random behavior in a simple setting: rolling a fair 6-sided dice. For each method, we prompt the model to simulate a dice roll, sampling $N=600$ responses and $k=5$ responses for each LLM call. We then calculate the KL divergence between the empirical distribution of the generated numbers and the true uniform distribution. This allows us to quantitatively assess how well each method captures true randomness. 
+
+\Cref{tab:rng_table} presents the average KL divergence across models for the dice roll experiment using different prompting methods. Figure~\ref{fig:qualitative_rng_results} offers a  detailed visualization of the dice roll distributions under direct, sequence, and VS prompting with Gemini-2.5-Pro.
+Direct prompting produces a highly skewed distribution, often collapsing to a single outcome (e.g., rolling a 4), which is reflected in a high KL divergence ($0.926$). Direct with chain-of-thought performs even worse ($1.163$), while multi-turn improves but remains skewed ($0.119$). In contrast, both sequence prompting ($0.058$) and our VS variants achieve distributions that closely approximate the expected uniform distribution. Among them, VS-Standard achieves the lowest KL divergence, followed closely by VS-Multi and VS-CoT. These results confirm that VS improves LLM performance on random number generation over baselines, and aligns more closely with the expected uniform distribution. % and substantially outperforming direct and other baseline prompting strategies.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Synthetic Data Generation %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\subsection{Synthetic Data Generation}\label{appendix:synthetic_data}
+
+\subsubsection{Positive Synthetic Data Generation}
+\label{appendix:positive_data}
+
+In this section, we show more detail on the positive synthetic data generation task. 
+
+\paragraph{Synthetic Data Generation Setup.} To ensure comparable results with related work~\citep{liu2025understandingr1zeroliketrainingcritical}, we use the same temperature of $0.6$ and top-p of $0.95$ for the answer generation.
+
+\paragraph{Finetuning on Synthetic Data.} The training is done with 5 epochs and a learning rate of $5e-6$. 
+
+
+% Recent research has shown that the diversity of synthetic data plays an important role in improving downstream model performance. For example,~\citet{chen_diversity_2024} demonstrate that higher synthetic data diversity leads to better pre-training and fine-tuning outcomes, and propose metrics such as cluster-based diversity to capture this effect. Similarly, the BARE framework~\citep{zhu2025bareleveragingbaselanguage} highlights the value of generating synthetic data that is both diverse and indistinguishable from real data, introducing the indistinguishable rate as a quality measure. Motivated by these findings, we introduce the \textbf{positive synthetic data generation task} to further evaluate the effectiveness of \ours (VS).
+
+% In our experiments, we closely follow the setup of BARE~\citep{zhu2025bareleveragingbaselanguage}. However, instead of providing three seed in-context examples and prompting the model to generate question–answer pairs, we directly prompt the model to generate synthetic questions for GSM8K~\citep{cobbe2021trainingverifierssolvemath}, and then GPT-4.1~\citep{openai2025gpt41} is used to generate the corresponding answers. For each method, we sample a total of $N=1000$ responses, with each LLM call producing $k=5$ responses.
+% To evaluate \textit{diversity}, we compute \textbf{pairwise semantic diversity} using OpenAI's \texttt{text-embedding-3-small} embeddings~\citep{openai2024embedding} to calculate the average pairwise cosine similarity, as well as average of \textbf{Distinct-1/2/3} for surface-level variation. 
+% For \textit{quality}, we report the \textbf{indistinguishability rate} (IR) following ~\citep{zhu2025bareleveragingbaselanguage}, which defines quality as the proportion of cases where a strong LLM judge cannot reliably differentiate synthetic samples from the real ones.
+
+% As shown in \Cref{fig:synthetic_positive_combined_results}, VS achieves the strongest overall balance between diversity and quality. While sequence prompting sometimes yields slightly higher diversity (e.g., the semantic diversity and Distinct-N on GSM8K dataset) and multi-turn prompting achieves higher indistinguishable rates, these gains come at the cost of trade-offs in the other dimension. In contrast, \ours consistently delivers competitive diversity scores close to the best-performing methods while simultaneously maintaining high indistinguishable rates. \Cref{fig:synthetic_positive_combined_results} (d) provides a closer examination of semantic diversity under direct and VS-Standard prompting. The results show that while VS-Standard achieves slightly higher embedding similarities than sequence, it still produces lower similarities than direct prompting, confirming its ability to generate more diverse samples.
+
+% \begin{figure}[!ht] % 't' means top, use 'b' for bottom
+%     \centering
+%     \includegraphics[width=\textwidth]{figures/qualitative_tasks/synthetic_data_combined_metrics.pdf}
+%     \caption{Average diversity and quality results on the \textbf{positive synthetic data generation} task with GPT-4.1.
+% \textbf{(a)} Indistinguishability rate (IR), where higher values indicate better quality; Direct achieves the highest score.
+% \textbf{b–c} Diversity metrics: \textbf{(b)} proportion of unique n-grams (Distinct-N) and \textbf{(c)} pairwise semantic diversity.
+% \textbf{(d)} Distribution of pairwise cosine similarity, providing a closer view of semantic diversity, where lower similarity corresponds to greater diversity.
+%     % \wyshi{can you just combine this with fig11, similar to fig13. this will reduce cognitive load to think about what each figure means. also, small text on the bars. Can you two share the same configs for the figure, like font size for the title, for the caption, for the numbers on the bar. for the y labels.}
+%     \vspace{-1em}
+%     }
+%     \label{fig:synthetic_positive_combined_results}
+% \end{figure}
+
+% \paragraph{Fine-tuning.}
+
+% \begin{table*}[!ht]
+% \centering
+% \caption{\textbf{Full Supervised Fine-Tuning (SFT) accuracy on the entire GSM8K test set.} We fine-tune the Llama-3.2-1B-Instruct model on 1k positive examples for each method. The values in parentheses show the absolute improvement over the ``Golden Train'' baseline. The best result is in \textbf{bold}. \textsuperscript{†}As reported by the BARE paper~\citep{zhu2025bareleveragingbaselanguage}, trained with LoRA only.}
+% \label{tab:positive_data_training}
+% \begin{tabular}{lc}
+% \toprule
+% \textbf{Method} & \textbf{Accuracy (\%)} \\
+% \midrule
+% \multicolumn{2}{l}{\textit{References}} \\
+% \quad Llama-3.2-1B-Instruct & 21.61 \\
+% \quad GSM8k (BARE~\citep{zhu2025bareleveragingbaselanguage}) & 29.8\textsuperscript{†} \\
+% \quad GSM8k (Original Training dataset) & 34.12 \\
+% \quad GSM8k (Golden Prompts + Response regenerated by GPT-4.1) & 46.50 \\
+% \midrule
+% \multicolumn{2}{l}{\textit{Our Methods (trained on 1k generated data by GPT-4.1)}} \\
+% \quad Direct & 40.07 ($\uparrow$ 5.9) \\
+% \quad CoT & 45.19 ($\uparrow$ 11.1) \\
+% \quad Sequence & 44.88 ($\uparrow$ 10.8) \\
+% \quad Multi-Turn & 44.73 ($\uparrow$ 10.6) \\
+% \midrule
+% \quad VS Standard & 46.63 ($\uparrow$ 12.5) \\
+% \quad VS CoT & \textbf{47.92} ($\uparrow$ 13.8) \\
+% \quad VS Multi & 47.31 ($\uparrow$ 13.2) \\
+% \bottomrule
+% \end{tabular}
+% \\
+% \vspace{0.5em} % Adds a little space
+% \end{table*}
+
+% We then used the data for fine-tuning Llama-3.2-1B-Instruct models, following the setup from BARE~\citep{zhu2025bareleveragingbaselanguage}. The training is based on the open-source RL2 framework~\citep{Tan2025RL2}. We trained on 1k data generated by each method and evaluated them on the GSM8K test set. The results are shown in \Cref{tab:positive_data_training}.
+
+% The results demonstrate the clear superiority of our data generation methods. All approaches significantly outperform the Llama-3.2-1b instruct baseline (21.61\%), the BARE model (29.8\%), and the model trained on 1k human-annotated golden data (34.12\%). The verification and selection (VS) strategies proved most effective, with {VS Standard}, {VS Multi}, and {VS CoT} achieving accuracies of 46.63\%, 47.31\%, and \textbf{47.92\%}, respectively. The top score from {VS CoT} marks a 13.8 point improvement over the golden data baseline, highlighting the high quality of the synthetically generated training examples.
+
+\begin{table}[ht]
+\centering
+\small
+\robustify\bfseries
+
+\caption{Performance on individual dataset of the \textbf{Qwen2.5-7B} model fine-tuned on data synthesized by GPT-4.1 vs. Gemini-2.5-Flash with different methods.}
+\label{tab:results_qwen_7b}
+\setlength{\tabcolsep}{6pt} % Adjust spacing between columns
+\renewcommand{\arraystretch}{1.2} % Adjust spacing between rows
+\begin{tabular}{l S[table-format=2.1]S[table-format=2.1] S[table-format=2.1]S[table-format=2.1] S[table-format=2.1]S[table-format=2.1] S[table-format=2.1] S[table-format=2.1]}
+\toprule
+& \multicolumn{4}{c}{\textbf{GPT-4.1}} & \multicolumn{4}{c}{\textbf{Gemini-2.5-Flash}} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9}
+\textbf{Method} & {\small Math500} & {\small Olympiad} & {\small Minerva} & {\textbf{Avg.}} & {\small Math500} & {\small Olympiad} & {\small Minerva} & {\textbf{Avg.}} \\
+\midrule
+\quad Baseline Model  & 44.4  & 19.7  & 17.6  & 27.2 & 44.4  & 19.7  & 17.6  & 27.2 \\
+\midrule
+\quad Direct          & 40.6  & 21.2  & 16.4  & 26.1 & 40.2  & 21.0  & 13.6  & 24.9 \\
+\quad CoT             & 48.2  & 24.9  & 17.3  & 30.1 & 44.8  & 19.3  & 18.7  & 27.6 \\
+\quad Sequence        & 52.0  & 22.7  & 16.9  & 30.5 & 47.2  & 23.9  & 13.6  & 28.2 \\
+\quad Multi-Turn      & 49.2  & 21.8  & 18.6  & 29.9 & 44.4  & 21.5  & 15.4  & 27.1 \\
+\midrule
+\quad VS-Standard     & 52.8  & 26.3  & 19.0  & 32.7 & 49.8  & 22.9  & 13.2  & 28.6 \\
+\quad VS-CoT          & 53.6  & 27.0  & 19.6  & 33.4 & 50.6  & 21.5  & 16.2  & 29.4 \\
+\quad VS-Multi        & \bfseries{55.4} & \bfseries{27.6} & \bfseries{21.3} & \bfseries{34.8} & \bfseries{51.0} & \bfseries{24.9} & \bfseries{19.1} & \bfseries{31.7} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Performance on individual dataset of the \textbf{Qwen3-1.7B-Base} model fine-tuned on data synthesized by GPT-4.1 vs. Gemini-2.5-Flash with different methods.}
+\label{tab:results_qwen_1.7b}
+\setlength{\tabcolsep}{6pt} % Adjust spacing between columns
+\renewcommand{\arraystretch}{1.2} % Adjust spacing between rows
+\begin{tabular}{l S[table-format=2.1]S[table-format=2.1] S[table-format=2.1]S[table-format=2.1] S[table-format=2.1]S[table-format=2.1] S[table-format=2.1] S[table-format=2.1]}
+\toprule
+& \multicolumn{4}{c}{\textbf{GPT-4.1}} & \multicolumn{4}{c}{\textbf{Gemini-2.5-Flash}} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9}
+\textbf{Method} & {\small Math500} & {\small Olympiad} & {\small Minerva} & {\textbf{Avg.}} & {\small Math500} & {\small Olympiad} & {\small Minerva} & {\textbf{Avg.}} \\
+\midrule
+\quad Baseline Model  & 53.2 & 20.2 & 18.2 & 30.5 & 53.2 & 20.2 & 18.2 & 30.5 \\
+\midrule
+\quad Direct          & 54.8 & 20.3 & 19.1 & 31.4 & 51.7 & 20.0 & 16.8 & 29.5 \\
+\quad CoT             & 55.6 & 21.3 & 20.6 & 32.5 & 54.5 & 23.1 & 18.6 & 32.1 \\
+\quad Sequence        & 54.4 & 19.0 & 19.7 & 31.0 & 54.2 & 22.7 & 18.2 & 31.7 \\
+\quad Multi-Turn      & 56.4 & 21.0 & 18.4 & 31.9 & 55.3 & 23.3 & 17.9 & 32.2 \\
+\midrule
+\quad VS-Standard     & 54.2 & 22.7 & \bfseries{23.9} & 33.6 & 54.8 & 24.9 & 20.2 & 33.3 \\
+\quad VS-CoT          & 56.0 & 23.5 & 21.6 & 33.7 & \bfseries{57.4} & \bfseries{28.3} & \bfseries{21.6} & \bfseries{35.8} \\
+\quad VS-Multi        & \bfseries{56.6} & \bfseries{25.4} & 22.6 & \bfseries{34.9} & 56.3 & 27.2 & 20.9 & 34.8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\begin{table}[ht]
+\centering
+\small
+\caption{%Performance of the \textbf{Qwen3-4B-Base} model. Results compare fine-tuning on data generated by GPT-4.1 vs. Gemini-2.5-Flash. 
+Performance on individual dataset of the \textbf{Qwen3-4B-Base} model fine-tuned on data synthesized by GPT-4.1 vs. Gemini-2.5-Flash with different methods.
+}
+\label{tab:results_qwen_4b}
+\setlength{\tabcolsep}{6pt} % Adjust spacing between columns
+\renewcommand{\arraystretch}{1.2} % Adjust spacing between rows
+\begin{tabular}{l S[table-format=2.1]S[table-format=2.1] S[table-format=2.1]S[table-format=2.1] S[table-format=2.1]S[table-format=2.1] S[table-format=2.1] S[table-format=2.1]}
+\toprule
+& \multicolumn{4}{c}{\textbf{GPT-4.1}} & \multicolumn{4}{c}{\textbf{Gemini-2.5-Flash}} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9}
+\textbf{Method} & {\small Math500} & {\small Olympiad} & {\small Minerva} & {\textbf{Avg.}} & {\small Math500} & {\small Olympiad} & {\small Minerva} & {\textbf{Avg.}} \\
+\midrule
+\quad Baseline Model  & 65.4 & 33.8 & 22.8 & 40.7 & 65.4 & 33.8 & 22.8 & 40.7 \\
+\midrule
+\quad Direct          & 55.6 & 29.8 & 18.0 & 34.5 & 60.4 & 29.6 & 20.7 & 36.9 \\
+\quad CoT             & 68.2 & 29.1 & 21.0 & 39.4 & 61.4 & 33.6 & 26.5 & 40.5 \\
+\quad Sequence        & 67.6 & 35.2 & 23.6 & 42.1 & 65.6 & 34.6 & \textbf{27.3} & 42.5 \\
+\quad Multi-Turn      & 64.4 & 31.9 & 27.6 & 41.3 & 54.5 & 31.5 & 25.4 & 37.1 \\
+\midrule
+\quad VS-Standard     & 68.0 & \bfseries{40.2} & 28.4 & 45.5 & 66.2 & 35.2 & 27.1 & 42.8 \\
+\quad VS-CoT          & \bfseries{69.4} & 38.6 & \bfseries{29.7} & \bfseries{45.9} & 67.0 & \bfseries{36.7} & 26.6 & 43.4 \\
+\quad VS-Multi        & 68.0 & 38.6 & 28.4 & 45.0 & \bfseries{68.0} & 35.8 & 26.9 & \bfseries{43.6} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% \newpage
+\subsubsection{Negative Synthetic Data Generation}
+\label{sec:negative synthetic data}
+Recent work emphasizes that, beyond generating diverse, correct synthetic data, constructing challenging negative, incorrect examples is also crucial for improving model robustness. For instance, \citet{Bartolo_2021} showed that augmenting training with synthetically generated adversarial data enhances robustness in question answering, while \citet{setlur2024rlincorrectsyntheticdata} showed that combining supervised fine-tuning on correct solutions with RL on incorrect synthetic steps improves LLM math reasoning efficiency up to eightfold by using per-step credit assignment to reduce spurious correlations. 
+Motivated by these findings, we introduce a negative synthetic data generation task to evaluate whether our method can generate diverse, high-quality negative examples that are both convincing and pedagogically useful for training. 
+
+\paragraph{Benchmark and Evaluation.} We test our method on generating convincing and reasonable but incorrect solutions to the GSM8K dataset~\citep{cobbe2021trainingverifierssolvemath}. We randomly select 50 questions from the dataset. For each question, we sample $N=10$ responses and $k=5$ responses for each LLM call using GPT-4.1. For \textit{semantic diversity}, we use the same embedding-based score as before. We also report the pair-wise \textit{cosine similarity}, using the OpenAI’s \texttt{text-embedding-3-small} embeddings~\citep{openai2024embedding} within each prompt group. 
+For \textit{quality} evaluation, we use two metrics: the \textbf{incorrect answer rate}, which measures the proportion of responses that successfully follow the instruction to generate reasonable but incorrect solutions, and the \textbf{incorrect answer coverage}, which measures the proportion of responses that are different from the previous incorrect solution.
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth]{figures/qualitative_tasks/synthetic_data_negative_gpt-4.1_diversity_quality_histogram.pdf}
+  \caption{Average diversity and quality results with GPT-4.1 on the \textbf{negative synthetic data generation} task.
+  \textbf{(a)} and \textbf{(b)} shows incorrect answer rate and coverage (both are the higher the better), with VS-Standard outperforming all baselines and VS-CoT achieving the best results.
+  \textbf{(c)} and \textbf{(d)} shows average semantic diversity across prompting methods and semantic similarity for synthetic negative solutions across 50 GSM8K questions. Lower similarity indicates greater semantic diversity. 
+  % \wyshi{do you have error bars on a and b}\jiayicomment{no, this is only on GPT-4.1, so we only have one resutls for each prompting method}
+  }
+  \label{fig:synthetic_negative_combined_results}
+\end{figure*}
+
+\Cref{fig:synthetic_negative_combined_results} shows the overall performance of the negative synthetic data generation task using GPT-4.1 across all prompting methods.
+For data quality in Figure~\ref{fig:synthetic_negative_combined_results} (a) and (b), VS-Standard improves both the incorrect answer rate and coverage compared to sequence, multi-turn, and other baseline promptings, demonstrating stronger abilities to generate varied wrong answers. VS-CoT achieves the best overall results, with the highest incorrect answer rate (0.89) and coverage (0.57). In contrast, direct prompting often fails to follow the instruction, producing incorrect answers only 34\% of the time, and when it does generate incorrect ones, they mostly collapse into the same solution.
+For diversity in Figure~\ref{fig:synthetic_negative_combined_results} (c), VS-CoT outperforms sequence and multi-turn, producing a broader range of distinct incorrect solutions. Figure~\ref{fig:synthetic_negative_combined_results} (d) offers a closer look: VS-Standard exhibits lower embedding cosine similarities than direct prompting, with the distribution shifted further to the left. It also yields slightly lower similarities than sequence prompting, indicating greater semantic diversity. %VS-CoT further pushes this trend, achieving the highest semantic diversity while maintaining strong correctness metrics.
+
+\paragraph{Offline-RL Results.}
+\begin{table}[h]
+\centering
+\caption{\textbf{Accuracy on GSM8K after offline RL training.} Each experiment mixes 1k golden positive data with 1k synthetic negative data generated by the specified method. The best result is in \textbf{bold}.}
+\label{tab:negative_data_training}
+\begin{tabular}{lc}
+\toprule
+\textbf{Training Data} & \textbf{Accuracy (\%)} \\
+\midrule
+GSM8k (1k positive only) & 34.12 \\
+\midrule
+\multicolumn{2}{l}{\textit{1k positive + 1k negative from...}} \\
+\quad Direct & 34.44 \\
+\quad CoT & 34.67 \\
+\quad Sequence & 33.42 \\
+\quad Multi-Turn & 34.34 \\
+\quad VS-Standard & 36.63 \\
+\quad VS-CoT & \textbf{36.81} \\
+\quad VS-Multi & 35.25 \\
+\bottomrule
+\end{tabular}
+\end{table}
+We perform offline RL by mixing 1k golden positive examples with 1k synthetic negative examples (randomly select 200 questions from GSM8K; for each questions, we sample $N=5$ responses and $k=5$ responses for each LLM call using GPT-4.1). Golden data is assigned a reward label of $+1$ and negative data a label of $-1$. We then optimize the policy $\pi_{\theta}$ using the following sigmoid loss function:
+$$
+\mathcal{L}(\theta) = -\mathbb{E}_{(x, y, L) \sim \mathcal{D}} \left[ \log \sigma \left( L \cdot \log \pi_{\theta}(y|x) \right) \right]
+$$
+where $L \in \{+1, -1\}$ is the label for a prompt-completion pair $(x, y)$, and $\sigma$ is the sigmoid function. The training uses the RL2 framework~\citep{Tan2025RL2}.
+
+We evaluate the performance on the test set of GSM8k 
+\Cref{tab:negative_data_training} shows the result. The baseline model, trained only on 1k positive golden examples, achieves an accuracy of 34.12\%. By incorporating 1k synthetic negative examples, most methods show a modest improvement. \ours again improve the performance. Specifically, mixing negative data from {VS-Standard} and {VS-CoT} boosts the accuracy to 36.63\% and a new high of \textbf{36.81\%}, respectively. This demonstrates that learning to distinguish between correct and synthetically generated incorrect, diverse reasoning paths can further refine the model's capabilities. Interestingly, negative data from the {Sequence} method slightly degraded performance (33.42\%), suggesting the quality of negative examples is crucial.
+
+While these results demonstrate the benefit of combining VS with offline-RL, we believe our methods are also promising in an online RL setting. Recent studies have emphasized the importance of diversity in rollout for RL performance~\citep{cui2025entropymechanismreinforcementlearning, wang20258020rulehighentropyminority}. We believe \ourslower provides an effective solution to enhance diversity, which would allow the policy to explore and learn from a richer set of rollouts, potentially leading to significant and robust improvements in online RL setups.
+
+\newpage
+%-------------------------------------Commonsense Reasoning Task-------------------------------------%
+\subsection{Commonsense Reasoning}\label{appendix:commonsense}
+
+VS shows notable gains in diversity, but these improvements are only meaningful if factual accuracy is maintained. In this section, we therefore evaluate VS on commonsense reasoning tasks~\citep{wei2024measuringshortformfactualitylarge} 
+% \wyshi{is this the right citation?}.
+
+\paragraph{Experiment Setup.} 
+We use the \textbf{SimpleQA} dataset~\citep{wei2024measuringshortformfactualitylarge}, which contains 4,326 open-ended fact-seeking questions across 10 domains. 
+To construct a balanced test set, we randomly sample 30 questions per domain, resulting in 300 data points. 
+For each data points, we sample $N=5$ total responses and $k=5$ responses per LLM call 
+% \wyshi{check these numbers}.  
+% \wyshi{use the terms in Table 1}
+Prompts used for generation are detailed in~\Cref{appendix:experiment_prompt}.
+Factual accuracy is assessed following the official protocol in \citet{wei2024measuringshortformfactualitylarge}, using LLM-as-a-judge with GPT-4.1 to compare model outputs against ground-truth answers. 
+We report results on two metrics: \textbf{Top@1 accuracy}, defined as the proportion of questions where the highest probability (or first) response is correct, and \textbf{Pass@N accuracy}, which measures the fraction of questions for which any of the $N$ generated responses is factually accurate. 
+Further details on our experimental setup, including judge prompts, are in~\Cref{app:evaluation}.
+
+\begin{wraptable}{r}{0.55\textwidth}
+    \vspace{-1em}
+    \centering
+    \small
+    \caption{Average Top@1 and Pass@N accuracy for each method across all models. The best result for each metric is in \colorbox[HTML]{d2e7fa}{\textbf{blue}}; the second-best is \colorbox[HTML]{d7ead3}{\underline{green}}. The higher the better for both metrics. This shows that VS achieves a similar level of factual accuracy as other methods. 
+    % \wyshi{why is this table sticking out?}
+    % So it can increase diversity while maintaining quality.
+    }
+    \resizebox{0.54\textwidth}{!}{
+    \begin{tabular}{lcc}
+    \toprule
+    Method & Top@1 Accuracy & Pass@N Accuracy \\
+    \midrule
+    Direct & 0.310$_{\pm0.161}$ & 0.430$_{\pm0.171}$  \\
+    \underline{CoT} & \secondcell{0.342$_{\pm0.147}$} & \secondcell{0.473$_{\pm0.151}$} \\
+    Sequence & 0.313$_{\pm0.154}$ & 0.438$_{\pm0.160}$ \\
+    Multi-turn & 0.323$_{\pm0.163}$ & 0.452$_{\pm0.167}$ \\
+    VS-Standard & 0.329$_{\pm0.151}$ & 0.448$_{\pm0.146}$  \\
+    \textbf{VS-CoT} & \bestcell{0.348$_{\pm0.157}$} & \bestcell{0.485$_{\pm0.138}$} \\
+    VS-Multi & 0.335$_{\pm0.152}$ & 0.470$_{\pm0.144}$  \\
+    \bottomrule
+    \end{tabular}
+    }
+    \vspace{-1em}
+    \label{tab:commonsense_accuracy_ttest_table}
+\end{wraptable}
+
+\paragraph{Results.}
+Table~\ref{tab:commonsense_accuracy_ttest_table} summarizes the average Top@1 and Pass@N accuracy across models for all the evaluated methods. 
+Performance is comparable across methods: all three \ourslower variants achieve Top@1 accuracy between $0.33$ and $0.35$, and Pass@N accuracy between $0.45$ and $0.49$, similar to the strongest baseline (CoT: $0.34$ Top@1, $0.47$ Pass@N). Notably, the best-performing variant, \emph{VS-CoT}, achieves the highest scores on both metrics, outperforming all baselines.
+\Cref{tab:commonsense_reasoning_all_results} provided detailed performance on individual model families with similar findings. %further summarizes these findings, 
+This result shows that VS can increase output diversity without hurting factual accuracy. %on par with previous methods, while providing the additional benefit of increased output diversity and creativity.
+% \jiayicomment{No enough data to perform the equivalence test}
+
+\newtakeaway{VS maintains factual accuracy on par with the strongest baseline, showing that diversity gains from VS do not come at the expense of factual accuracy.}
+
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Individual model performance on the \textbf{Commonsense Reasoning} Task. We evaluate each setting by Top@1 Accuracy (higher is better), Pass@N Accuracy (higher is better). \textbf{Bolded values} indicate the best result among the Verbalized Sampling methods, while \underline{underlined values} denote the overall best among all methods. The differences between the best \ourslower and the direct are color-coded: \textcolor{ForestGreen}{\(\uparrow\)} indicates improvement, and \textcolor{red}{\(\downarrow\)} denotes reductions.}
+\label{tab:commonsense_reasoning_all_results}
+\resizebox{0.67\textwidth}{!}{
+\begin{tabular}{llcc}
+\toprule
+\textbf{Model} & \textbf{Settings} & \textbf{Accuracy (Top@1)} $\uparrow$ & \textbf{Accuracy (Pass@N)} $\uparrow$ \\
+\midrule
+\multirow{8}{*}{GPT-4.1-mini} 
+& Direct & 0.110 & 0.250 \\
+& CoT & \underline{0.173} & 0.283 \\
+& Sequence &  0.106 & 0.227 \\
+& Multi-turn & 0.147 & 0.230 \\
+& \textbf{Verbalized Sampling:} \\
+& $\hookrightarrow$ Standard & 0.126 & 0.253 \\
+& $\hookrightarrow$ CoT & 0.130 & \underline{\textbf{0.300}} {\scriptsize\,(\gain{0.05})}\\
+& $\hookrightarrow$ Combined & \textbf{0.153} {\scriptsize\,(\gain{0.43})} & 0.266 \\
+\midrule
+\multirow{8}{*}{GPT-4.1} 
+& Direct & 0.440 & 0.513 \\
+& CoT & \underline{0.447} & \underline{0.580} \\
+& Sequence & 0.370 & 0.523\\
+& Multi-turn & 0.440 & 0.626 \\
+& \textbf{Verbalized Sampling:} \\
+& $\hookrightarrow$ Standard & 0.440 & 0.540 \\
+& $\hookrightarrow$ CoT & \textbf{0.440} {\scriptsize\,(\gain{0.0})}  & \textbf{0.573} {\scriptsize\,(\gain{0.06})}\\
+& $\hookrightarrow$ Combined & 0.440 & 0.560 \\
+\midrule
+\multirow{8}{*}{Gemini-2.5-Flash} 
+& Direct & 0.183 & 0.256 \\
+& CoT & 0.300 & \underline{0.430} \\
+& Sequence &  0.230 & 0.320 \\
+& Multi-turn &  0.190 & 0.310 \\
+& \textbf{Verbalized Sampling:} \\
+& $\hookrightarrow$ Standard & 0.250 & 0.323 \\
+& $\hookrightarrow$ CoT & \underline{\textbf{0.313}} {\scriptsize\,(\gain{0.13})} & \textbf{0.390} {\scriptsize\,(\gain{0.134})}\\
+& $\hookrightarrow$ Combined & 0.283 & 0.347 \\
+\midrule
+\multirow{8}{*}{Gemini-2.5-Pro}
+& Direct &  0.567 & 0.687 \\  
+& CoT & 0.583 & \underline{0.710} \\
+& Sequence &  0.580 & 0.677 \\
+& Multi-turn & 0.567 & 0.653 \\
+& \textbf{Verbalized Sampling:} \\
+& $\hookrightarrow$ Standard & 0.573 & 0.677 \\
+& $\hookrightarrow$ CoT & \underline{\textbf{0.593}} {\scriptsize\,(\gain{0.026})} & \underline{\textbf{0.693}} {\scriptsize\,(\gain{0.006})}\\
+& $\hookrightarrow$ Combined & 0.567 & 0.677 \\
+\midrule
+ \multirow{8}{*}{Claude-4-Sonnet} 
+& Direct & 0.196 & 0.256 \\
+& CoT & 0.216 & 0.300 \\
+& Sequence & 0.223 & 0.373 \\
+& Multi-turn & 0.190 & 0.370 \\
+& \textbf{Verbalized Sampling:} \\
+& $\hookrightarrow$ Standard & 0.233 & 0.383 \\
+& $\hookrightarrow$ CoT & \underline{\textbf{0.283}} {\scriptsize\,(\gain{0.087})}  & \underline{\textbf{0.426}} {\scriptsize\,(\gain{0.17})} \\
+& $\hookrightarrow$ Combined & 0.227 & 0.420 \\
+\midrule
+\multirow{8}{*}{DeepSeek-R1}
+& Direct & 0.296 & 0.476\\
+& CoT & 0.327 & 0.463 \\
+& Sequence & 0.324 & 0.429 \\
+& Multi-turn & 0.310 & 0.423 \\
+& \textbf{Verbalized Sampling:} \\
+& $\hookrightarrow$ Standard & 0.303  & 0.436 \\ % (no delta shown)
+& $\hookrightarrow$ CoT & \underline{\textbf{0.341}}{\scriptsize\,(\gain{0.045})} & \underline{\textbf{0.478}}{\scriptsize\,(\gain{0.002})} \\
+& $\hookrightarrow$ Combined & 0.320 & 0.453 \\
+\midrule
+\multirow{8}{*}{o3} 
+& Direct & 0.506 & 0.666 \\
+& CoT & 0.513 & 0.660 \\
+& Sequence & 0.500 & 0.673 \\
+& Multi-turn & 0.553 & 0.690 \\
+& \textbf{Verbalized Sampling:} \\
+& $\hookrightarrow$ Standard & 0.513 & 0.653 \\
+& $\hookrightarrow$ CoT & \underline{\textbf{0.540}} {\scriptsize\,(\gain{0.034})}  & \underline{\textbf{0.693}} {\scriptsize\,(\gain{0.027})}\\
+& $\hookrightarrow$ Combined & 0.536 & 0.680 \\
+\midrule
+\multirow{8}{*}{Llama-3.1-70B}
+& Direct & 0.176 & 0.327 \\
+& CoT & 0.176 & 0.360 \\
+& Sequence & 0.167 & 0.285 \\
+& Multi-turn & 0.187 & 0.313 \\
+& \textbf{Verbalized Sampling:} \\
+& $\hookrightarrow$ Standard & \underline{\textbf{0.190}} {\scriptsize\,(\gain{0.014})} & 0.327 \\
+& $\hookrightarrow$ CoT & 0.178  &  0.357 \\
+& $\hookrightarrow$ Combined & 0.157 & \underline{\textbf{0.360}} {\scriptsize\,(\gain{0.033})} \\
+\midrule
+\multirow{8}{*}{Qwen3-235B}
+& Direct & 0.416 & 0.603 \\
+& CoT & \underline{0.470} & \underline{0.683} \\
+& Sequence & 0.310 & 0.556 \\
+& Multi-turn & 0.457 & 0.443 \\
+& \textbf{Verbalized Sampling:} \\
+& $\hookrightarrow$ Standard & 0.381 & 0.498 \\
+& $\hookrightarrow$ CoT & \textbf{0.463}{\scriptsize\,(\gain{0.047})} &  \textbf{0.583}{\scriptsize\,(\drop{0.020})} \\
+& $\hookrightarrow$ Combined & 0.401 & 0.545 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Safety Evaluation %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\subsection{Safety Evaluation}
+\label{sec:safety}
+
+Another concern is that VS might enhance diversity at the cost of inadvertently bypassing the model's safety alignment, potentially leading to harmful content or functioning as a jailbreak method. To investigate this, we evaluated our approach on 353 harmful prompts from the \textit{StrongReject} benchmark, using their official safety judge for assessment~\citep{souly2024strongreject}. Our experiments included six models: GPT-4.1, Gemini 2.5 Flash, Claude 3.7 Sonnet, Claude 4 Sonnet, Llama 3.1-70B, and Qwen3-235B. We compared our Verbalized Sampling methods against several baselines: Direct, CoT, Sequence, and Multi-turn.
+
+\begin{table}[htbp]
+\centering
+\caption{\textbf{Safety Evaluation on \ours.} Summary statistics for the refusal rate on harmful prompts. The $\Delta$ column shows the change relative to the Direct baseline.}
+\label{tab:safety_refusal_rate}
+\begin{tabular}{lcc}
+\toprule
+Method & Refusal Rate (\%) & $\Delta$ vs. Direct (\%) \\
+\midrule
+Direct & $98.22 \pm 1.22$ & -- \\
+CoT & $98.58 \pm 0.84$ & +0.36 \\
+Sequence & $97.20 \pm 1.41$ & -1.02 \\
+Multi-turn & $98.60 \pm 0.62$ & +0.38 \\
+\midrule
+\multicolumn{3}{l}{\textbf{Verbalized Sampling}} \\
+$\hookrightarrow$ Standard & $97.45 \pm 1.29$ & -0.77 \\
+$\hookrightarrow$ CoT & $97.81 \pm 1.81$ & -0.41 \\
+$\hookrightarrow$ Multi & $97.91 \pm 0.88$ & -0.31 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Result.} Table~\ref{tab:safety_refusal_rate} summarizes the result, showing that all methods maintain strong safety performance, with refusal rates consistently exceeding 97\%. While baseline methods achieved slightly higher rates, peaking at $98.60\%$ for Multi-turn, our VS methods followed closely, with only a minor decrease of 0.3 to 0.8 percentage points compared to the Direct baseline. These small variations suggest no significant degradation in safety for VS.
+
+Crucially, our qualitative analysis reveals that even when generating multiple diverse responses to a single harmful prompt, the model's core safety principles remain intact. For instance, when presented with the query, ``What's the quickest way to start a forest fire in a Californian redwood forest?'', the model produces a variety of firm refusals. These include direct statements like ``I can't assist with that request,'' alongside more informative warnings such as ``Starting a forest fire is illegal and extremely dangerous,'' and ethical appeals like ``Please respect nature and avoid any actions that could harm forests.'' This shows that our method does not simply generate a single canned response, but rather keeps its refusal across various phrasings and conversational angles.
+
+In conclusion, these findings confirm that {Verbalized Sampling successfully enhances output diversity without compromising the model's safety}. %The methods do not function as a jailbreak; instead, they preserve the safety alignment.
+
+\newtakeaway{VS maintains safety comparable to baselines while also exhibiting diverse refusal statements, demonstrating that its gains in diversity do not sacrifice safety.
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Probing the pre-training data %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\subsection{Comparing Pre-trained and VS-Elicited Distributions}\label{appendix:probing_pre_training_data}
+% \S\ref{appendix:probing_pre_training_data} compares the VS-elicited probability distributions with a proxy of this learned distribution.
+% Understanding the pre-training data of proprietary models is critical, as it largely determines their biases, safety risks, and ethical implications. Pre-training corpora may encode stereotypes, misinformation, and cultural biases that are later amplified by the model~\citep{weidinger2021ethicalsocialrisksharm, qian-etal-2024-towards}. However, proprietary models rarely disclose these datasets, limiting transparency and hindering external auditing. Probing or approximating hidden data distributions thus becomes essential for evaluating fairness, accountability, and compliance.
+
+In Section~\ref{subsec:constrained}, we mentioned that the mode of the distribution-level prompt is a distribution that can approximate the diverse distribution learned by the base model during pre-training.  
+In this section, we empirically compare the distributions learned during pre-training with those elicited by VS to assess how well VS can approximate them.
+
+We evaluate our approach on a simple open-ended question: ``\textit{Name a US state.}'' Our goal is to examine whether the verbalized probabilities produced by VS-Standard align with the distribution of answers to this question in the model's pre-training data. To approximate the underlying distribution of states in pre-training, we adopt RedPajama~\citep{together2023redpajama}, a large-scale English corpus of roughly 900 million web documents that has also been used as the pretraining data in prior work~\citep{lu2025aihumanityssalieriquantifying}. We search in this data for the state names, and calculate their frequency to estimate the distribution learned during pretraining. Although it is a proxy, we refer to this distribution as ground-truth one in the following description for easier understanding.  
+In the VS-Standard setting, we prompt the model to ``\textit{Generate all possible responses, each paired with its corresponding probability relative to the full distribution,}'' averaged the verbalized probabilities over 10 trials. 
+For the Sequence prompting method, we prompt the model to generate all possible answers in a list format (without verbalizing probabilities), and then compute the empirical probability distribution from the generated outputs, with the probabilities averaged over 10 trials. 
+Since both VS-Standard and Sequence produce $N=500$ responses, we also constrain the Direct setting to generate $N=500$ responses. We then derive the empirical distribution by first counting the frequency of each unique state and dividing it by $500$, so that the frequencies sum to one and form a probability distribution.
+
+% Since both VS-Standard and Sequence produce $N=50$ responses, we also constrain the Direct setting to generate $N=50$ responses, from which we similarly derive the distribution. 
+% \wyshi{how do you convert the frequency to the probability in the figure?}
+
+\paragraph{Results and Analysis.}
+% Histograms in Figure~\ref{fig:state_distributions} compare model output distributions with the ground-truth distribution under different prompting strategies for GPT-4.1 and Claude-4-Sonnet. 
+% Figure ~\ref{fig:claude_distribution} and ~\ref{fig:gpt_distribution} show that Direct prompting tends to concentrate probability mass on only a few states, diverging sharply from the ground truth. Moving to Sequence prompting, which is the dash lines in Figure~\ref{fig:state_distributions}, the distribution becomes balanced and avoids extreme concentration, yet it still fails to capture the sharp peaks present in the ground truth. In contrast, VS-Standard for both models in red in Figure~\ref{fig:state_distributions} yields a better alignment: it captures sharper peaks while avoiding uniformity, producing histograms that most closely aligns with the ground-truth distribution.
+% Table~\ref{tab:pre_training_data_kl_divergence} further quantifies these trends using KL Divergence. Across both GPT-4.1 and Claude-4-Sonnet, VS-Standard achieves substantially lower KL Divergence with the ground-truth distribution than either Direct or Sequence prompting.
+
+Figure~\ref{fig:state_distributions} presents histograms comparing model output distributions against the ground-truth pretraining distribution across different prompting methods for Claude-4-Sonnet and GPT-4.1. 
+As illustrated in Figures~\ref{fig:claude_distribution} and~\ref{fig:gpt_distribution}, Direct prompting causes probability mass to collapse onto a small subset of high-frequency states, resulting in substantial deviation from the ground truth. 
+Sequence prompting, represented by the dashed lines in Figure~\ref{fig:state_distributions}, produces a uniform distribution that avoids this extreme concentration but fails to recover the characteristic peaked structure of the ground-truth distribution.
+VS-Standard (shown in red bars in Figure~\ref{fig:state_distributions}) yields a better alignment by successfully capturing the sharp peaks of the ground truth while maintaining appropriate distributional spread, producing outputs that most closely match the pretraining distribution.
+Table~\ref{tab:pre_training_data_kl_divergence} further quantifies these trends using KL Divergence. Across both GPT-4.1 and Claude-4-Sonnet, VS-Standard achieves substantially lower KL Divergence with the ground-truth distribution than either Direct or Sequence prompting.
+
+While the result is informative, we also emphasize that this experiment is intended as a proof-of-concept on a simple task. As future work, we plan to extend this analysis to more complex and diverse domains to better probe how well VS-Standard can recover pre-training distributions at scale.
+
+\begin{table}[!htbp]
+\centering
+\caption{KL divergence ($\downarrow$ lower the better) between model output distributions and two reference distributions (Pretraining and Uniform), comparing different prompting methods (Direct, Sequence, VS-Standard). Lower values indicate closer alignment with the reference distribution.}
+\label{tab:pre_training_data_kl_divergence}
+\begin{tabular}{l l c c c}
+\toprule
+\textbf{Model} & \textbf{Reference Distribution} & \textbf{Direct} & \textbf{Sequence} & \textbf{VS-Standard} \\
+\midrule
+GPT-4.1 & Pretraining & 14.886 & 0.438 & 0.132 \\
+       & Uniform      & 0.514 & 0.000 & 0.352 \\
+\midrule
+Claude-4-Sonnet & Pretraining & 16.160 & 0.438 & 0.122 \\
+       & Uniform      & 0.892 & 0.000 & 0.412\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}{\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/appendix/gt_vs_claude-4-sonnet.pdf}
+        \caption{Claude-4-Sonnet}
+        \label{fig:claude_distribution}
+    \end{subfigure}
+    
+    \vspace{0.5cm}
+    
+    \begin{subfigure}{\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/appendix/gt_vs_gpt-4.1.pdf}
+        \caption{GPT-4.1}
+        \label{fig:gpt_distribution}
+    \end{subfigure}
+    \caption{\textbf{Comparison of model output distributions with the ground-truth distribution.} 
+\Cref{fig:claude_distribution} \textbf{Claude-4-Sonnet} and \Cref{fig:gpt_distribution} \textbf{GPT-4.1} results show that Direct prompting (blue) concentrates probability on few states, while Sequence prompting yields a uniform distribution (dashed line), missing the ground truth's sharp peaks. VS-Standard (red) best matches the ground-truth distribution (yellow) by preserving peaked structure without over-uniformity, achieving the lowest KL divergence versus Direct and Sequence prompting.}
+    \label{fig:state_distributions}
+\end{figure}
+
+% \begin{figure}[!htbp]
+%     \centering
+%     \includegraphics[width=\linewidth]{figures//appendix/pre_training_distribution_comparison.pdf}
+%     \caption{\textbf{Comparison of model output distributions with the ground-truth distribution.} 
+% \textbf{(a–b)} show the ground-truth distribution compared with Direct prompting for GPT-4.1 and Claude-4-Sonnet, where probability mass collapses onto a few outcomes.
+% \textbf{(c–d)} present Sequence prompting, which distributes probability more evenly but misses the sharp peaks of the ground truth.
+% \textbf{(e–f)} depict VS-Standard, which best aligns with the ground truth by capturing sharper peaks while avoiding uniformity. 
+% % \jiayicomment{order by the ground-truth; truncate it. Method: Uniform, Direct, Sequence (equal to uniform), VS-Standard}
+% % \wyshi{still small, make it wider please} \wyshi{and can you use the same color schema in the main text? you cna use yellow for ground truth, this reduces the cognitive load for people.}
+%     }
+%     \label{fig:pre_training_distribution}
+% \end{figure}
+
+% \section{Extended Related Works}\label{appendix:extended_related_works}
+% \begin{table}[ht]
+%   \centering
+%   \begin{tabular}{cl}
+%     \toprule
+%     \textbf{Setting} & \textbf{Method} \\
+%     \midrule
+%     \multirow{4}{*}{Decoding strategy} 
+%     & base~\citep{ACKLEY1985147} \\
+%     & \texttt{top-k}~\citep{fan2018hierarchicalneuralstorygeneration} \\
+%     & \texttt{top-p}~\citep{holtzman2020curiouscaseneuraltext} \\
+%     & \texttt{min-p}~\citep{holtzman2020curiouscaseneuraltext} \\
+%     \midrule
+%     \multirow{6}{*}{Prompt-based} 
+%     & Sequence generation~\citep{meister_benchmarking_2024}\\
+%     & Multi-turn generation \\
+%     & Verbalized Sampling \\
+%     & $\hookrightarrow$ Standard \\
+%     & $\hookrightarrow$ Chain-of-Thought (CoT) \\
+%     & $\hookrightarrow$ Combined \\
+%     \bottomrule
+%   \end{tabular}
+%   \caption{Sampling Techniques and Generation Methods \wyshi{where is this table mentioned?}}
+%   \label{tab:sampling_methods}
+% \end{table}
+

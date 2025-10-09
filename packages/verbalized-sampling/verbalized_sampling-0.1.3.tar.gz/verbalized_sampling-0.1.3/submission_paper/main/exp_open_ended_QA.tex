@@ -1,0 +1,110 @@
+\section{Open-Ended QA}\label{main:open_ended_qa}
+% Building on the finding that VS improves diversity and simulation, this section evaluates whether it can also generate more broad and realistic answer distributions in simple Open-Ended QA tasks with multiple valid answers. This may be useful in realistics tasks like survey simulation. 
+% \wyshi{balanced or realistic} 
+Enumerative open‑ended QA exposes mode collapse because many answers are equally valid on true task utility. 
+Besides, for real-world tasks like survey simulation, generating a broad and realistic range of answers is crucial. Building on our finding that VS improves diversity, this section evaluates its effectiveness in producing such distributions for open-ended questions with multiple valid answers.
+
+
+\paragraph{Benchmark.} We adapt from the \textit{CoverageQA}~\citep{wong2024simplestratdiversifyinglanguagemodel} benchmark, which contains simple QA questions with a wide range of valid answers (e.g., ``Name a US state''). Our evaluation uses 40 questions (10 original, 30 new ones created in the same style), each with at least 20 ground-truth answers requiring no reasoning or external knowledge. For each question, we sample $N=100$ responses per method by generating $k=20$ candidates per LLM call, capturing both within-call and across-call diversity. Full prompts are in Appendix~\Cref{appendix:experiment_prompt}.
+
+
+
+
+% We use the \textit{CoverageQA}~\citep{wong2024simplestratdiversifyinglanguagemodel} dataset, which is designed to elicit a broad range of valid answers (e.g., ``Name a US state''   expects all 50 states, revealing whether models over-generate frequent ones like ``California'' while neglecting rare ones like ``Wyoming''). 
+% % To reduce cost, we evaluate VS on 40 questions \wyshi{i thought you mentioned 50+50 in previous meetings? now it's only 100?}, combining \wyshi{XX how many} originals from the \textbf{CoverageQA} dataset~\citep{wong2024simplestratdiversifyinglanguagemodel} with additional \wyshi{how many} ones we created in the same style \wyshi{why did we create additional ones? so that they don't need further reasoning?}.  
+% To reduce cost, we evaluate VS on 40 questions, combining 10 original ones from the \textit{CoverageQA} dataset  with additional 30 ones we created in the same style.
+% Each question has at least 20 ground-truth answers requiring no further reasoning or external knowledge, so that the evaluation strictly focuses on the response coverage and distribution. 
+% For each question, we sample $N=100$ responses per method, with each LLM call generating $k=20$ candidates, capturing both within-call (across the $k$ candidates) and across-calls (over the total $N$ responses) diversity.
+% Full prompts and example questions are in~\Cref{appendix:experiment_prompt}. 
+% \wyshi{where is the question, if no question, delete it}. 
+% \jiayicomment{50 general + 50 questions from the dataset, how to determine if general use small model and with at least 98\% accuracy}
+
+\paragraph{Evaluation.}
+We evaluate the performance using three metrics: 
+(1) \textbf{KL divergence}, the deviation of the model's 
+answer distribution from a realistic reference distribution estimated from the RedPajama~\citep{together2023redpajama} pretraining corpus.  Lower values indicate better alignment. Note that here we focus on the generated answers rather than the verbalized probabilities, so we calculate the answer distribution from the frequency of each unique answer, not from the verbalized probability distribution like in Figure~\ref{fig:qualitative}. 
+% answer distribution from an estimated pretraining distribution; lower values indicate closer alignment with the pretraining distribution.  
+% These open-ended QA questions (e.g., ``Name a US state'') usually have a non-uniform ``ground-truth'' distribution, with some answers appearing more frequently in text. We therefore estimate the ``ground-truth'' distribution with the distribution in a pretraining corpus, RedPajama~\citep{together2023redpajama}, following prior work~\citep{lu2025aihumanityssalieriquantifying}. This will serve as a more realistic reference distribution than a uniform distribution. % use the pretraining distribution as a more realistic reference than a uniform distribution. 
+% We approximate the pretraining distribution using RedPajama~\citep{together2023redpajama}, following prior work~\citep{lu2025aihumanityssalieriquantifying}. 
+%This is because the open-ended QA task focuses on the generated answers themselves, rather than their underlying probabilities. 
+% \wyshi{need to change this}; %over ground-truth answers \wyshi{i thought there is no ground-truth?}\jiayicomment{we have ground truth answer but not ground truth distribution}; 
+(2) \textbf{Coverage-N}, the fraction of unique ground-truth answers generated in $N$ samples; higher values indicate broader coverage. 
+(3) \textbf{Precision}, the proportion of correct answers among all samples; it measures if the increased diversity comes at the expense of correctness. 
+
+% \begin{wrapfigure}{r}{0.5\textwidth}
+%     \captionsetup{skip=2pt}
+%     \centering
+%     % % Figure with its own caption and label
+%     % \begin{minipage}{\linewidth}
+%     %     \centering
+%     %     \includegraphics[width=\linewidth]{figures/bias/coverage_n.pdf}
+%     %     \captionof{figure}{\textbf{Average Coverage-N} across models on different methods. \wyshi{this one overlaps with Figure 10, please delete}
+%     %     }
+%     %     \label{fig:bias_coverage_n}
+%     % \end{minipage}
+
+%     % \vspace{4pt}
+
+%     \captionof{table}{Coverage test across models: percent of times (\%) VS-Standard fully covers Sequence or Sequence fully covers VS-Standard.}
+%     \label{tab:bias_coverage_test}
+%     \resizebox{0.5\textwidth}{!}{
+%         \centering
+%         \begin{tabular}{lcc}
+%         \toprule
+%         \textbf{Model} & \textbf{VS-Standard(\%)} & \textbf{Sequence(\%)} \\
+%         \midrule
+%         GPT-4.1-mini      & 47.5  & 15.0  \\
+%         GPT-4.1           & 57.5  & 20.0  \\
+%         Gemini-2.5-Flash  & 45.0  & 15.0  \\
+%         Gemini-2.5-Pro    & 15.0  & 12.5  \\
+%         Claude-4-Sonnet   & 40.0  & 30.0  \\
+%         Deepseek-r1       & 25.0  & 17.5  \\
+%         o3                & 20.0  & 20.0  \\
+%         Qwen3-235b        & 37.5  & 22.5  \\
+%         \bottomrule
+%         \end{tabular}
+%     }
+%     \vspace{-2em}
+% \end{wrapfigure}
+\begin{figure*}[!htbp]
+    \centering
+    \includegraphics[width=\textwidth]{figures/bias/combined_kl_coverage_precision.pdf}
+  \caption{
+  Results on the \textbf{Open-Ended QA} task averaged across models. We perform one-tailed t-test between VS-Standard and baselines (*$p<0.05$, **$p<0.01$, ***$p<0.001$). 
+      \textbf{(a)} shows the average KL divergence between the response distribution and the corresponding pretraining distribution. VS achieves lower KL divergence compared to baseline methods, indicating closer alignment with the pretraining distribution.
+      \textbf{(b)} shows the average Coverage-N across all models. This means VS can generate a broader range of correct answers than the baselines. 
+      \textbf{(c)} shows the average precision across all models. VS methods maintain answer quality comparable to baseline approaches.
+      \vspace{-1.5em}
+      % \wyshi{merge figure 10 and 11, the precision one. and change the caption slightly. it looks ugly just by itself.}
+  }
+  \label{fig:open_ended_qa_combined_results}
+\end{figure*}
+
+\paragraph{Results.} 
+As shown in Figure~\ref{fig:open_ended_qa_combined_results}, our methods outperform all baselines. VS-Standard significantly lowers KL divergence and improves coverage. VS-Multi achieves the best overall tradeoff, yielding the lowest KL divergence and the highest coverage. Crucially, these gains do not compromise answer quality, as precision remains near 1.0 across all methods. Detailed results are available in Table~\ref{tab:all_results_open_ended_qa_general}.
+
+
+
+
+
+% \paragraph{Results.} 
+% % \wyshi{describe the KL, precision results here}
+% Figure~\ref{fig:open_ended_qa_combined_results} reports quantitative results across methods. 
+% For KL divergence in Figure~\ref{fig:open_ended_qa_combined_results} (a), VS-Standard achieves significantly lower KL divergence compared to Direct, CoT, and Multi-turn prompting, indicating more balanced response distributions \wyshi{update this}. While the improvement over sequence prompting is modest, it remains consistent across models\wyshi{what does this mean? what's consistent}. 
+% In terms of Coverage-N in Figure~\ref{fig:open_ended_qa_combined_results} (b), VS-Standard also significantly outperforms Direct, CoT, and Multi-turn prompting, with marginal improvement over Sequence. However, VS-Multi achieves the best overall tradeoff, delivering both the highest Coverage-N and lowest KL divergence. \wyshi{update the result} Importantly, as shown in Figure~\ref{fig:open_ended_qa_combined_results} (c), these gains in diversity are achieved without loss of answer quality: precision for VS is stably close to 1 and comparable across all methods.
+% See Table~\ref{tab:all_results_open_ended_qa_general} for detailed results on individual models.
+
+% To further assess diversity, we introduce a \textit{coverage test}, which measures how often responses from VS-Standard fully subsume those from sequence. As shown in Table~\ref{tab:bias_coverage_test}, VS-Standard consistently covers sequence more often than the reverse across models.
+% However, because of mode collapse, direct prompting yields highly skewed and narrow outputs. For instance, when prompted with ``Name a US State,'' Claude-4-sonnet outputs ``California'' 95 out of 100 times, covering only 2 states. \ours reduces this bias to 5 occurrences of ``California'' and expands coverage to 20 states.
+
+
+\newtakeaway{VS improves alignment with the pretraining distribution and increases answer coverage without compromising answer quality in open-ended QA with multiple valid answers.}
+
+
+
+% \begin{figure}[!htbp]
+%     \centering
+%     \includegraphics[width=0.5\linewidth]{figures/bias/method_average_precision.pdf}
+%     \caption{Precision results on \textbf{Open-Ended QA} task averaged across models.}
+%     \label{fig:open_ended_qa_precision}
+% \end{figure}
