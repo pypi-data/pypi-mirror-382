@@ -1,0 +1,232 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyadvincekit"
+version = "0.1.2"
+description = "高内聚、易扩展、符合团队规范的Python Web开发基础框架"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "PyAdvanceKit Team", email = "team@pyadvincekit.com"},
+]
+maintainers = [
+    {name = "PyAdvanceKit Team", email = "team@pyadvincekit.com"},
+]
+keywords = [
+    "fastapi",
+    "sqlalchemy", 
+    "web-framework",
+    "orm",
+    "async",
+    "crud",
+    "middleware",
+    "auth",
+    "excel"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Database",
+]
+requires-python = ">=3.8"
+dependencies = [
+    # Web框架
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    
+    # 数据验证和配置
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    
+    # 数据库ORM
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.12.0",
+    
+    # 结构化日志
+    "structlog>=23.0.0",
+    
+    # 安全和认证
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "cryptography>=41.0.0",
+    
+    # 数据验证
+    "email-validator>=2.0.0",
+    
+    # 时区处理
+    "pytz>=2023.3",
+    
+    # HTTP客户端
+    "aiohttp>=3.8.0",
+    "requests>=2.31.0",
+    
+    # 其他工具依赖
+    "python-dateutil>=2.8.0",
+    
+    # Excel处理
+    "pandas>=1.5.0",
+    "openpyxl>=3.0.0",
+    "xlrd>=2.0.0",
+    
+    # SQLite（异步）- 默认推荐
+    "aiosqlite>=0.19.0",
+]
+
+[project.optional-dependencies]
+# 数据库驱动
+postgresql = ["asyncpg>=0.29.0", "psycopg2-binary>=2.9.0"]
+mysql = ["aiomysql>=0.2.0", "pymysql>=1.1.0"]
+
+# 开发工具
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "httpx>=0.25.0",  # FastAPI测试客户端
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.0.0",
+]
+
+# 文档工具
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.23.0",
+]
+
+# 完整安装
+all = [
+    "pyadvincekit[postgresql,mysql,dev,docs]"
+]
+
+[project.urls]
+Homepage = "https://github.com/pyadvincekit/pyadvincekit"
+Documentation = "https://pyadvincekit.readthedocs.io"
+Repository = "https://github.com/pyadvincekit/pyadvincekit"
+Issues = "https://github.com/pyadvincekit/pyadvincekit/issues"
+Changelog = "https://github.com/pyadvincekit/pyadvincekit/blob/main/CHANGELOG.md"
+
+[project.scripts]
+pyadvincekit = "pyadvincekit.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pyadvincekit"]
+
+[tool.hatch.version]
+path = "pyadvincekit/__init__.py"
+
+# 代码格式化配置
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["pyadvincekit"]
+
+# 测试配置
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=pyadvincekit",
+    "--cov-branch",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+asyncio_mode = "auto"
+
+# 类型检查配置
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "alembic.*",
+    "structlog.*",
+    "pandas.*",
+    "openpyxl.*",
+    "xlrd.*",
+]
+ignore_missing_imports = true
+
+# 覆盖率配置
+[tool.coverage.run]
+source = ["pyadvincekit"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/virtualenv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
