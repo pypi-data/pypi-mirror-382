@@ -1,0 +1,117 @@
+name: PyPi Package Deploy
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        type: choice
+        description: Select Release Type
+        default: "minor"
+        options:
+          - major
+          - minor
+          - patch
+permissions:
+  contents: write
+  deployments: write
+  packages: write
+concurrency:
+  group: "release"
+  cancel-in-progress: false
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    env:
+      CI_COMMIT_MESSAGE: Continuous Integration Version Bump ${{ inputs.release }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv Package
+        run: |
+          pip install --upgrade pip
+          pip install build
+          pip install uv==0.5.30
+      - name: Install Dependencies
+        run: uv sync --group dev
+      - name: Bump Version
+        run: |
+          uv run python - <<EOF
+          from tomlkit import parse, dumps
+          from tomlkit.toml_file import TOMLFile
+          file = TOMLFile("pyproject.toml")
+          doc = file.read()
+          version = doc["project"]["version"]
+          release = "${{ inputs.release }}"
+          major, minor, patch = map(int, version.split('.'))
+          if release == "major":
+              new_version = f"{major + 1}.0.0"
+          elif release == "minor":
+              new_version = f"{major}.{minor + 1}.0"
+          elif release == "patch":
+              new_version = f"{major}.{minor}.{patch + 1}"
+          doc["project"]["version"] = new_version
+          file.write(doc)
+          print(f"New Version: {new_version}")
+          EOF
+          echo "RELEASE_TAG=$(uv run python -c 'from tomlkit.toml_file import TOMLFile; print(TOMLFile("pyproject.toml").read()["project"]["version"])')" >> $GITHUB_ENV
+      - name: Build package
+        run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: dist/
+          retention-days: 1
+      - name: GIT commit and tag
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add pyproject.toml
+          git commit -m "${{ env.CI_COMMIT_MESSAGE }}"
+          git push
+          echo "Tagging new version: $RELEASE_TAG"
+          git tag -a "$RELEASE_TAG" -m "Auto-generated tag"
+          git push origin "$RELEASE_TAG"
+      - name: "Create release"
+        uses: actions/github-script@v7
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          script: |
+            if (!process.env.RELEASE_TAG) {
+              core.setFailed("The environment variable RELEASE_TAG is not defined.");
+              return;
+            }
+            try {
+              const response = await github.rest.repos.createRelease({
+                draft: false,
+                generate_release_notes: true,
+                name: process.env.RELEASE_TAG,
+                owner: context.repo.owner,
+                prerelease: false,
+                repo: context.repo.repo,
+                tag_name: process.env.RELEASE_TAG,
+              });
+              core.exportVariable('RELEASE_ID', response.data.id);
+              core.exportVariable('RELEASE_UPLOAD_URL', response.data.upload_url);
+            } catch (error) {
+              core.setFailed(error.message);
+            }
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: production
+      url: "https://pypi.org/project/pyretailscience"
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: dist
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

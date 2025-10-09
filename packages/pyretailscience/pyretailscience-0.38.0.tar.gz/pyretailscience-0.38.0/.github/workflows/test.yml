@@ -1,0 +1,35 @@
+name: Pre-commit
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: "test"
+  cancel-in-progress: false
+
+jobs:
+  pre-commit:
+    name: Pre-Commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install UV
+        run: |
+          pip install --upgrade pip
+          pip install uv==0.5.30
+          uv sync
+      - name: Install Pre-commit in uv environment
+        run: uv run pip install pre-commit
+      - name: Run Pre-commit
+        run: pre-commit run --all-files
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4.6.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
