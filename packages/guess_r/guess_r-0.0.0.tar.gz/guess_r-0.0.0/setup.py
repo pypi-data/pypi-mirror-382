@@ -1,0 +1,1 @@
+from setuptools import setup;setup(name='guess_r',version='0.0.0',packages=('guess_r',))
