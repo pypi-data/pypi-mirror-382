@@ -1,0 +1,451 @@
+Metadata-Version: 2.4
+Name: yt-music-manager-cli
+Version: 1.0.2
+Summary: A production-ready YouTube music playlist manager and synchronizer (YT Music Manager CLI)
+Author-email: Sukarth Acharya <sukarthacharya@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/sukarth/yt-music-manager-cli
+Project-URL: Bug Reports, https://github.com/sukarth/yt-music-manager-cli/issues
+Project-URL: Source, https://github.com/sukarth/yt-music-manager-cli
+Project-URL: Privacy Policy, https://github.com/sukarth/yt-music-manager-cli/blob/main/PRIVACY_POLICY.md
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Multimedia :: Sound/Audio
+Classifier: Topic :: Internet :: WWW/HTTP :: Indexing/Search
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: yt-dlp>=2023.7.6
+Requires-Dist: google-api-python-client>=2.95.0
+Requires-Dist: google-auth-httplib2>=0.1.0
+Requires-Dist: google-auth-oauthlib>=1.0.0
+Requires-Dist: click>=8.1.0
+Requires-Dist: rich>=13.4.0
+Requires-Dist: colorama>=0.4.6
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pydantic-settings>=2.0.0
+Requires-Dist: toml>=0.10.2
+Requires-Dist: tomli-w>=1.0.0
+Requires-Dist: watchdog>=3.0.0
+Requires-Dist: static-ffmpeg>=2.0
+Requires-Dist: cryptography>=41.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+Dynamic: license-file
+
+# YT Music Manager CLI (YTMM CLI)
+
+[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+A production-ready YouTube & YouTube music playlist manager that  downloads and keeps your music playlists in sync. **No API keys or authentication required** for public playlists! (YT Music Manager CLI)
+
+## 🎵 Features
+
+- **📐 Zero Setup**: Works immediately with public playlists - no API keys needed!
+- **🔄 Automatic Playlist Sync**: Download and sync multiple YouTube playlists
+- **🎧 High-Quality Audio**: Downloads in MP3 format with configurable quality
+- **📁 Organized Storage**: Creates subfolders for each playlist automatically  
+- **⚡ Smart Updates**: Only downloads new songs and removes deleted ones
+- **🔐 Flexible Authentication**: Public playlists (no auth), bundled OAuth (zero setup), or custom OAuth credentials
+- **🛡️ Production Ready**: Comprehensive error handling, logging, and recovery
+- **🖥️ Easy CLI**: Simple command-line interface with rich progress display
+- **⚙️ Configurable**: Customizable download paths, quality settings, and more
+- **📊 Progress Tracking**: Real-time download progress and sync statistics
+
+## 📋 Requirements
+
+- **Python 3.8+**
+- **Internet connection**
+- **Optional**: Google OAuth for private playlists
+
+## 🚀 Quick Start
+
+### 1. Installation
+
+```bash
+
+# Install from PyPI (Recommended)
+pip install yt-music-manager-cli
+
+# OR:
+
+# Clone the repository
+git clone https://github.com/sukarth/yt-music-manager-cli.git
+cd yt-music-manager-cli
+
+# and innstall the package
+pip install -e .
+
+```
+
+### 2. Start Using Immediately!
+
+**No configuration needed for public playlists:**
+
+```bash
+# Add a public playlist and start downloading
+ytmm add-playlist "https://www.youtube.com/playlist?list=XXXXXX"
+
+# Sync all playlists
+ytmm sync
+```
+
+That's it! The app works out of the box with public YouTube playlists.
+
+### 3. Authentication and private playlists
+
+For private playlists or advanced features, you can set up authentication:
+
+**Option A: Use bundled Google Sign-In (Recommended, zero setup)**
+
+```bash
+# Sign in with your Google account in your browser when prompted:
+ytmm auth mode auto_oauth -y
+```
+
+**Option B: Custom OAuth Credentials**
+
+```bash
+# Use your own OAuth credentials
+ytmm auth mode manual_oauth -y
+
+# Follow the interactive setup process
+```
+
+### 4. Configuration
+
+The app works with default settings, but you can customize everything:
+
+```bash
+# Initialize configuration file
+ytmm init
+
+# View current settings
+ytmm config
+```
+
+Edit `config/settings.toml`:
+
+```toml
+[youtube]
+auth_method = "no_auth"  # Options: "no_auth", "auto_oauth", "manual_oauth"
+
+[download]
+base_path = "~/Music/YouTube Playlists"
+audio_format = "mp3" 
+audio_quality = "192"
+
+[sync]
+max_concurrent_downloads = 3
+auto_sync_interval = 3600
+```
+
+Or change specific values:
+
+```bash
+ytmm config set download.audio_quality '320'
+
+# Result:
+# [OK] Set download.audio_quality = 320
+# Please restart the application for changes to take effect.
+```
+
+### 5. Add and Sync Playlists
+
+```bash
+# Add a public playlist (works immediately, no setup needed)
+ytmm add-playlist "https://www.youtube.com/playlist?list=XXXXXX"
+
+# Add multiple playlists at once
+ytmm add-playlist PLxxx PLyyy PLzzz
+ytmm add-playlist "https://youtube.com/playlist?list=..." "https://youtube.com/playlist?list=..."
+
+# Add a playlist with a custom name (single playlist only)
+ytmm add-playlist "https://youtube.com/playlist?list=..." --name "My Favorites"
+
+# Sync all playlists
+ytmm sync --all
+
+# Sync specific playlist
+ytmm sync "My Playlist Name"
+
+# Add and sync immediately
+ytmm add-playlist "https://youtube.com/playlist?list=..."
+# (Will ask if you want to sync right away)
+
+# Preview changes without downloading
+ytmm sync --all --dry-run
+```
+
+## 🔐 Authentication Management
+
+YT Music Manager CLI supports three authentication modes:
+
+### No Authentication (Default)
+- **Access**: Public playlists only
+- **Setup**: None required - works immediately
+- **Limitations**: Cannot access private/unlisted playlists
+
+```bash
+# Check current authentication status
+ytmm auth status
+
+# Switch to no-auth mode
+ytmm auth mode no_auth -y
+```
+
+### Bundled Google Sign-In (auto_oauth)
+- **Access**: All your playlists (public and private)  
+- **Setup**: None required - uses bundled OAuth credentials
+- **Benefits**: Full access, zero setup, no API quotas
+
+```bash
+# Switch to bundled OAuth (and follow process to login with Google)
+ytmm auth mode auto_oauth -y
+
+# Sign out/remove account
+ytmm auth remove login
+```
+
+### Custom OAuth (manual_oauth)
+- **Access**: All your playlists (public and private)
+- **Setup**: Your own OAuth app configuration
+- **Benefits**: Full access, your own credentials
+
+```bash
+# Switch to custom OAuth mode
+ytmm auth mode manual_oauth -y
+
+# Sign out/remove creds
+ytmm auth remove creds
+```
+
+## 📖 Usage Guide
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `ytmm init` | Initialize configuration and setup |
+| `ytmm add-playlist <url/id> [url/id...]` | Add one or more YouTube playlists to track |
+| `ytmm list-playlists` | Show all tracked playlists |
+| `ytmm sync [playlist]` | Sync playlists (download new, remove old) |
+| `ytmm sync --all` | Sync all tracked playlists |
+| `ytmm remove-playlist <name/id> [name/id...]` | Stop tracking one or more playlists |
+| `ytmm status` | Show sync status and statistics |
+| `ytmm config` | Show current configuration |
+| `ytmm auth status` | Show authentication status |
+| `ytmm auth mode <mode>` | Switch authentication mode (no_auth/auto_oauth/manual_oauth) |
+| `ytmm auth remove <arg>` | Sign out and remove credentials (login/creds) |
+| `ytmm config` | Show config status |
+| `ytmm config list` | List full config |
+| `ytmm config list <section.key>` | List specific config value |
+| `ytmm config set <section.key> <value>` | Set configuration value |
+
+### Examples
+
+```bash
+# Add multiple playlists at once
+ytmm add-playlist PLxxx PLyyy PLzzz
+ytmm add-playlist "https://www.youtube.com/playlist?list=PLrAXtmRdnEQy5lVX..." "https://www.youtube.com/watch?v=abc&list=PLxyz..."
+
+# Add single playlists
+ytmm add-playlist "https://www.youtube.com/playlist?list=PLrAXtmRdnEQy5lVX..."
+
+# Note: --name option only works with single playlists
+
+# List all tracked playlists
+ytmm list-playlists --detailed
+
+# Sync with custom options
+# Preview changes
+ytmm sync --all --dry-run
+# Sync specific playlist
+ytmm sync "Chill Music"
+
+# Check status and statistics
+ytmm status
+
+# Remove multiple playlists at once, but keep files
+ytmm remove-playlist "Old Playlist" "Another Playlist" PLxxx --keep-files
+```
+
+## ⚙️ Configuration
+
+The configuration file is located at `config/settings.toml`:
+
+```toml
+[youtube]
+auth_method = "no_auth"  # no_auth, auto_oauth, or manual_oauth
+
+[download]
+base_path = "~/Music/YouTube Playlists"
+audio_format = "mp3"              # mp3, aac, ogg, wav, flac
+audio_quality = "192"             # 64-320 kbps
+
+[sync]
+auto_sync_interval = 3600         # Auto-sync every hour
+max_concurrent_downloads = 3      # Parallel downloads
+check_for_updates_on_start = true
+preserve_deleted_locally = false  # Delete files removed from playlist
+
+[logging]
+level = "INFO"                    # DEBUG, INFO, WARNING, ERROR
+log_file = "logs/yt_music_manager_cli.log"
+max_log_size = "10MB"
+backup_count = 5
+```
+
+## 📁 Local Downloaded Playlists File Organization
+
+```
+~/Music/YouTube Playlists/
+├── My Chill Playlist/
+│   ├── Song 1.mp3
+│   ├── Song 2.mp3
+│   └── Song 3.mp3
+├── Workout Music/
+│   ├── High Energy Track.mp3
+│   └── Motivational Song.mp3
+└── Study Focus/
+    └── Ambient Track.mp3
+```
+
+## 🔧 Advanced Usage
+
+### Automation with Cron
+
+Set up automatic syncing with cron:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add line to sync every 6 hours
+0 */6 * * * /path/to/ytmm sync --all
+```
+
+### Environment Variables
+
+You can override settings with environment variables:
+
+```bash
+export YT_MUSIC_MANAGER_CLI_YOUTUBE__AUTH_METHOD="auto_oauth"
+export YT_MUSIC_MANAGER_CLI_DOWNLOAD__BASE_PATH="/custom/path"
+ytmm sync --all
+```
+
+### Custom Download Templates
+
+Customize file naming in `settings.toml`:
+
+```toml
+[download]
+naming_template = "%(playlist_index)s - %(title)s.%(ext)s"
+```
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+**"Authentication required for private playlists"**
+- Use bundled OAuth and sign in with Google: `ytmm auth mode auto_oauth -y`
+
+**"Permission denied" errors**
+- Check write permissions for download directory
+- On Windows, avoid special characters in paths
+- Run as administrator if needed
+
+**"No module named 'yt_dlp'"**
+- Ensure dependencies are installed!
+
+**Downloads failing**
+- Check internet connection
+- Some videos may be region-restricted or unavailable in general to download
+
+### Getting Help
+
+1. Check the logs: `tail -f logs/yt_music_manager_cli.log`
+2. Run with debug mode: `ytmm --debug sync --all`
+3. Check configuration: `ytmm config`
+4. Create an issue with logs and error messages
+
+## 📊 Performance
+
+- **Download Speed**: Configurable concurrent downloads (1-10 parallel)
+- **Storage**: Efficient file organization with duplicate detection
+- **Memory**: Streaming downloads with progress tracking
+- **Reliability**: Automatic retries and error recovery
+
+## 🔒 Privacy & Security
+
+- **Local Storage**: All music files stored locally on your device
+- **Secure OAuth**: Tokens are encrypted using Fernet with machine-specific keys
+- **No Tracking**: No analytics or usage tracking
+- **Open Source**: Full source code available for review
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing & Development
+
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on contribution and development.
+
+## 🐛 Reporting Bugs
+
+When reporting bugs, please include:
+
+1. **Environment Information**
+    - Python version
+    - Operating system
+    - YT Music Manager CLI (YTMM CLI) version
+
+2. **Steps to Reproduce**
+   - Clear, numbered steps
+   - Expected vs actual behavior
+   - Screenshots if applicable
+
+3. **Log Files**
+    - Include relevant logs from `logs/yt_music_manager_cli.log`
+    - Use debug mode: `ytmm --debug command`
+
+## 🪶 Feature Requests
+
+For new features, please:
+
+1. Check existing issues first
+2. Describe the use case clearly
+3. Explain why it would benefit users
+4. Consider implementation complexity
+
+## ⭐ Support
+
+If you find this project helpful, please consider:
+- ⭐ Starring the repository
+- 🐛 Reporting bugs
+- 💡 Suggesting new features
+- 🔀 Contributing code
+
+## 🙏 Acknowledgments
+
+- **yt-dlp** - Excellent YouTube downloading library
+- **Rich** - Beautiful terminal output and progress bars
+- **Click** - Powerful command-line interface framework
+- **Google** - YouTube Data API v3
+
+---
+
+**Made with ❤️ by Sukarth, for music lovers who want their playlists always in sync**
