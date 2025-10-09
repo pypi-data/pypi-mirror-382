@@ -1,0 +1,121 @@
+[tool.poetry]
+name = "nodestream"
+version = "0.14.16"
+description = "A Fast, Declarative ETL for Graph Databases."
+license = "GPL-3.0-only"
+authors = [
+    "Zach Probst <Zach_Probst@intuit.com>"
+]
+readme = "README.md"
+
+homepage = "https://github.com/nodestream-proj/nodestream"
+repository = "https://github.com/nodestream-proj/nodestream"
+documentation = "https://nodestream-proj.github.io/nodestream"
+
+keywords = ["etl", "neo4j", "declarative", "data", "kafka", "ingest"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Natural Language :: English",
+    "Topic :: Database"
+]
+packages = [ { include = "nodestream" } ]
+
+[tool.isort]
+profile = "black"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pyyaml = "^6.0"
+jmespath = "^1.0"
+cleo = "^2.0"
+python-json-logger = "^2.0"
+boto3 = "^1.34.127"
+confluent-kafka = "^2.5"
+Jinja2 = "^3"
+pandas = "^2"
+pyarrow = ">=17.0.0,<19.0.0"
+schema = "^0.7"
+cookiecutter = "^2.0"
+httpx = "^0.27"
+psutil = "^6.0"
+
+uvloop = [
+    { version = ">=0.17.0,<=0.21.0", platform = "darwin"},
+    { version = ">=0.17.0,<=0.21.0", platform = "linux"}
+]
+
+prometheus-client = {version = "^0.21.1", optional = true}
+genson = {version = "^1.3.0", optional = true}
+jsonschema = {version = "^4.23.0", optional = true}
+
+[tool.poetry.extras]
+prometheus = ["prometheus-client"]
+validation = ["genson", "jsonschema"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.2"
+black = "^25.1.0"
+pyhamcrest = "^2.1.0"
+isort = "^6.0.1"
+pytest-cov = "^6.1.1"
+pytest-asyncio = "^1.0.0"
+pytest-mock = "^3.14.1"
+freezegun = "^1.2.2"
+moto = {version = "^5", extras = ["s3", "dynamodb"]}
+ruff = "^0.11.12"
+pytest-snapshot = "^0.9.0"
+pytest-httpx = "^0.30.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks the test as an integration test (deselect with '-m \"not integration\"')",
+    "e2e: marks the test as an end-to-end test (deselect with '-m \"not e2e\"')",
+]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.poetry.scripts]
+nodestream = 'nodestream.cli.application:run'
+
+# To prevent the "builin" stuff being a special case of plugins,
+# nodestream just considers itself a plugin for all of the things that are pluggable.
+[tool.poetry.plugins."nodestream.plugins"]
+"argument_resolvers" = "nodestream.pipeline.argument_resolvers"
+"file_formats" = "nodestream.pipeline.extractors.files"
+"interpretations" = "nodestream.interpreting.interpretations"
+"normalizers" = "nodestream.pipeline.normalizers"
+"value_providers" = "nodestream.pipeline.value_providers"
+"record_formats" = "nodestream.pipeline.extractors.streams"
+"stream_connectors" = "nodestream.pipeline.extractors.streams"
+"commands" = "nodestream.cli.commands"
+"audits" = "nodestream.project.audits"
+"schema_printers" = "nodestream.schema.printers"
+"databases" = "nodestream.databases.null"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E501"]
+unfixable = ["B"]
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S106"]
+
+[tool.ruff.lint.flake8-annotations]
+mypy-init-return = true
+suppress-none-returning = true
+allow-star-arg-any = true
