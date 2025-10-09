@@ -1,0 +1,174 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ixbrlparse"
+dynamic = ["version"]
+description = "A python module for getting useful data out of ixbrl files."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "David Kane", email = "david@dkane.net" }]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Office/Business :: Financial :: Accounting",
+  "Topic :: Text Processing :: Markup :: HTML",
+  "Topic :: Text Processing :: Markup :: XML",
+]
+dependencies = [
+  "click",
+  "beautifulsoup4",
+  "lxml>=5.2.2",
+  "word2number",
+  "pluggy>=1",
+]
+
+[project.optional-dependencies]
+docs = ["mkdocs", "mkdocs-material", "mkdocstrings[python]"]
+test = ["coverage[toml]>=6.5", "pytest"]
+lint = ["mypy>=1.0.0", "ruff>=0.4.7", "types-beautifulsoup4", "types-click"]
+
+[project.urls]
+Homepage = "https://github.com/kanedata/ixbrl-parse"
+Documentation = "https://ixbrl-parse.readthedocs.io/"
+Issues = "https://github.com/kanedata/ixbrl-parse/issues"
+Source = "https://github.com/kanedata/ixbrl-parse"
+
+[project.scripts]
+ixbrlparse = "ixbrlparse.cli:ixbrlparse"
+
+[tool.hatch.version]
+path = "src/ixbrlparse/__about__.py"
+
+[tool.hatch.envs.default]
+features = ["test"]
+installer = "uv"
+
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+test-cov = "coverage run -m pytest {args:tests}"
+cov-report = ["- coverage combine", "coverage report"]
+cov = ["test-cov", "cov-report"]
+cov-fail = ["test-cov", "- coverage combine", "coverage report --fail-under=95"]
+cov-html = [
+  "test-cov",
+  "- coverage combine",
+  "coverage report",
+  "coverage html",
+  "python -m http.server -d htmlcov",
+]
+
+[[tool.hatch.envs.all.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+[tool.hatch.envs.docs]
+features = ["docs"]
+
+[tool.hatch.envs.docs.scripts]
+serve = "mkdocs serve"
+build = "mkdocs build"
+deploy = "mkdocs gh-deploy --force"
+
+[tool.hatch.envs.lint]
+detached = true
+features = ["lint"]
+
+[tool.hatch.envs.lint.scripts]
+typing = "mypy --install-types --non-interactive {args:src/ixbrlparse tests}"
+style = ["ruff check {args:.}", "ruff format --check --diff {args:.}"]
+fmt = ["ruff format {args:.}", "ruff check --fix {args:.}", "style"]
+all = ["style", "typing"]
+
+[tool.mypy]
+ignore_missing_imports = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR/stubs/"
+files = "./stubs/**.*"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+  "A",
+  "ARG",
+  "B",
+  "C",
+  "DTZ",
+  "E",
+  "EM",
+  "F",
+  "FBT",
+  "I",
+  "ICN",
+  "ISC",
+  "N",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "Q",
+  "RUF",
+  "S",
+  "T",
+  "TID",
+  "UP",
+  "W",
+  "YTT",
+]
+ignore = [
+  # Allow non-abstract empty methods in abstract base classes
+  "B027",
+  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  "FBT003",
+  # Ignore checks for possible passwords
+  "S105",
+  "S106",
+  "S107",
+  # Ignore complexity
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  "ISC001",
+]
+unfixable = [
+  # Don't touch unused imports
+  "F401",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ixbrlparse"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+
+[tool.coverage.run]
+source_pkgs = ["ixbrlparse", "tests"]
+branch = true
+parallel = true
+omit = ["src/ixbrlparse/__about__.py"]
+
+[tool.coverage.paths]
+ixbrlparse = ["src/ixbrlparse", "*/ixbrlparse/src/ixbrlparse"]
+tests = ["tests", "*/ixbrlparse/tests"]
+
+[tool.coverage.report]
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/ixbrlparse"]
