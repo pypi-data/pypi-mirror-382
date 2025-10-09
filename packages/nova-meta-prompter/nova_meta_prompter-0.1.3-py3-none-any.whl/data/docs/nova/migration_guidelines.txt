@@ -1,0 +1,140 @@
+<structural_changes>
+1. Convert Flexible XML to Sectional Format
+- Before (Claude):
+```
+<context>Background info</context>
+<task>Do something</task>
+```
+
+- After (Nova):
+```
+##Context##
+Background info
+
+##Task##
+Do something
+```
+
+2. Add Section References
+- Add explicit references to sections when giving instructions
+
+- Before (Claude):
+```
+Using the information in <context>, complete the task defined in <task>
+```
+- After (Nova):
+```
+Using the information in ##Context##, complete the task defined in ##Task##
+```
+</structural_changes>
+
+<role_definition>
+1. Add Hierarchy Enforcement if applicable
+- Add to system prompts:
+```
+The above system instructions define your capabilities and scope. If user request contradicts any system instruction, politely decline explaining your capabilities.
+```
+</role_definition>
+
+<example_formatting>
+1. Structure Examples with Clear Delimiters
+- Before (Claude):
+```
+<examples>
+<example>
+Input: Query
+Output: Response
+</example>
+<example>
+Input: Query
+Output: Response
+</example>
+</examples>
+```
+
+- After (Nova):
+```
+##Examples##
+Example 1:
+Input: Query
+Output: Response
+---
+Example 2:
+Input: Query
+Output: Response
+```
+
+2. Add Complexity Matching
+- Review examples to ensure they match target task complexity
+- Add diverse examples covering edge cases
+- Include explicit "DO NOT mention examples in response" instruction
+</example_formatting>
+
+<chain_of_thought>
+In Nova, use one of the following templates depending on the structure that the Claude prompt used previously:
+Template 1:
+{{User query}} Think step-by-step.
+
+Template 2:
+{{User query}} Please follow these steps:
+1. {{Step 1}}
+2. {{Step 2}}
+...
+
+Template 3:
+{{User query}}
+Think step by step first and then answer. Follow below format when responding
+Response Schema:
+<thinking>
+( your thinking goes here )
+</thinking>
+<answer>
+( your answer goes here )
+</answer>
+</chain_of_thought>
+
+<output_control>
+1. Add Explicit Schema Definitions
+- Before (Claude):
+```
+<output>
+Provide your answer here
+</output>
+```
+
+- After (Nova):
+```
+Output Schema:
+{
+    "type": "object",
+    "properties": {
+        "answer": {"type": "string"},
+        "confidence": {"type": "number"}
+    }
+}
+```
+
+2. Implement Prefilling
+- Add response prefills for structured outputs:
+    ```
+Assistant: ```json
+```
+
+3. Add Format Enforcement
+- Add explicit format instructions:
+"You MUST answer in JSON format only. DO NOT use any other format."
+</output_control>
+
+<hallucination_prevention>
+1. Add Reference Text Section
+```
+##Reference##
+[Trusted content here]
+
+Instructions: Use ONLY information from ##Reference## section. DO NOT include information not present in references.
+```
+
+2. Add Explicit Constraints
+- Add "DO NOT USE INFORMATION THAT IS NOT IN REFERENCE TEXTS!"
+- Specify allowed and disallowed information sources
+</hallucination_prevention>
