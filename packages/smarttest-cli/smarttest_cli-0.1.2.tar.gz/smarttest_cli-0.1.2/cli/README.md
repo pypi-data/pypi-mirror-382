@@ -1,0 +1,611 @@
+# SmartTest CLI
+
+Enterprise-ready CLI for executing test scenarios with secure, zero-credential-exposure architecture.
+
+## Features
+
+🔒 **Zero Credential Exposure**: Auth tokens never leave your network
+⚡ **Concurrent Execution**: Run up to 5 scenarios simultaneously
+🎯 **Continue-on-Error**: Individual failures don't stop execution
+📊 **Real-time Progress**: Live progress updates with rich terminal output
+📄 **CI Integration**: JUnit XML reports for CI/CD pipelines
+🌐 **Network Aware**: Proxy and custom CA support for enterprise networks
+
+## Installation
+
+Install the CLI from PyPI:
+
+```bash
+pip install smarttest-cli
+```
+
+### Get Your PAT Token
+
+1. Visit the SmartTest platform: https://ai-smart-test.vercel.app/
+2. Sign up or log in to your account
+3. Navigate to **Settings** → **API Tokens**
+4. Click **Generate PAT Token**
+5. Copy your Personal Access Token (PAT)
+
+**What is a PAT Token?**
+A Personal Access Token (PAT) authenticates the CLI with the SmartTest backend. It allows the CLI to fetch test scenarios and submit results securely. This token is separate from any credentials needed to test your APIs.
+
+## Quick Start
+
+### 1. Set Your PAT Token
+
+```bash
+export SMARTTEST_TOKEN=your_pat_token_here
+```
+
+### 2. Run Test Scenarios
+
+```bash
+# Run a specific scenario
+smarttest --scenario-id 123
+
+# Run all scenarios for an endpoint
+smarttest --endpoint-id 456
+
+# Run all scenarios for a system
+smarttest --system-id 789
+
+# With JUnit XML report for CI
+smarttest --system-id 789 --report junit.xml
+
+# With JSON output for CI/CD parsing
+smarttest --system-id 789 --format json > results.json
+
+# Combined: JSON output + JUnit XML report
+smarttest --system-id 789 --format json --report junit.xml > results.json
+```
+
+## Output Formats
+
+The CLI supports multiple output formats for different use cases:
+
+| Format | Flag | Use Case | Colors | Progress | Parseable |
+|--------|------|----------|--------|----------|-----------|
+| **Terminal** | (default) | Local development | ✅ | ✅ | ❌ |
+| **JSON** | `--format json` | CI/CD pipelines | ❌ | ❌ | ✅ |
+| **JUnit XML** | `--report file.xml` | Test reporting | N/A | N/A | ✅ |
+
+**Quick Examples:**
+```bash
+# Local development (colorful output)
+smarttest --system-id 123
+
+# CI/CD (machine-readable)
+smarttest --system-id 123 --format json > results.json
+
+# Test reporting tools
+smarttest --system-id 123 --report junit.xml
+
+# All together
+smarttest --system-id 123 --format json --report junit.xml > results.json
+```
+
+---
+
+### Terminal Output (Default)
+
+Rich, colorful output with real-time progress and endpoint grouping:
+
+```bash
+smarttest --system-id 123
+```
+
+**Features:**
+- 🎨 Color-coded results (green=passed, red=failed, yellow=errors)
+- 📊 Real-time progress bar
+- 📍 Results grouped by API endpoint
+- 🔍 Detailed validation failure messages
+
+**Example:**
+```
+📋 Discovered 10 scenarios across 3 endpoints:
+   • POST /auth/login → 3 scenario(s)
+   • GET /users → 5 scenario(s)
+   • POST /orders → 2 scenario(s)
+
+⚡ Executing scenarios... ✅ 8 passed, ❌ 2 failed [██████████] 10/10
+
+Results by Endpoint:
+
+✅ POST /auth/login → 3/3 passed
+
+❌ GET /users → 3/5 passed
+     ↳ Invalid user ID: Expected status 404, got 500
+
+✅ POST /orders → 2/2 passed
+
+Overall Summary:
+✅ 8 passed
+❌ 2 failed
+
+Summary: 8/10 scenarios passed (80.0% success rate)
+```
+
+### JSON Output (CI/CD Integration)
+
+Machine-readable JSON for programmatic parsing:
+
+```bash
+smarttest --system-id 123 --format json > results.json
+```
+
+**Features:**
+- 🤖 Structured data with summary statistics
+- 📊 Endpoint-grouped results
+- 🔍 Detailed validation failures
+- 📈 Response times and error messages
+
+**Output Structure:**
+```json
+{
+  "summary": {
+    "total": 10,
+    "passed": 8,
+    "failed": 2,
+    "errors": 0,
+    "success_rate": 80.0,
+    "duration_seconds": 12.5
+  },
+  "endpoints": [
+    {
+      "endpoint": "POST /auth/login",
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "errors": 0,
+      "scenarios": [
+        {
+          "scenario_id": 123,
+          "scenario_name": "Valid login",
+          "status": "passed",
+          "execution_status": "success",
+          "http_status": 200,
+          "response_time_ms": 145,
+          "validations": [...]
+        }
+      ]
+    }
+  ],
+  "results": [...]
+}
+```
+
+**Parse with jq:**
+```bash
+# Get success rate
+jq '.summary.success_rate' results.json
+
+# List failed scenarios
+jq '.results[] | select(.status == "failed") | .scenario_name' results.json
+
+# Get endpoint statistics
+jq '.endpoints[] | {endpoint: .endpoint, passed: .passed, failed: .failed}' results.json
+```
+
+### Combined Output
+
+Generate both JSON and JUnit XML:
+
+```bash
+smarttest --system-id 123 --format json --report junit.xml > results.json
+```
+
+**Use Cases:**
+- CI/CD dashboards need JSON for metrics
+- Test reporting tools need JUnit XML
+- Both formats complement each other
+
+### Quiet Mode (Future)
+
+For minimal output in scripts:
+
+```bash
+# Coming soon
+smarttest --system-id 123 --quiet
+# Output: 8/10 passed (80%)
+```
+
+## Configuration
+
+### Optional Configuration File
+
+Create `.smarttest.yml` in your project root for advanced configuration:
+
+```yaml
+# API Configuration
+api_url: "https://api.smarttest.com"
+
+# Execution Settings
+concurrency: 5
+timeout: 30
+
+# Enterprise Network Settings
+proxy:
+  http_proxy: "http://proxy.company.com:8080"
+  https_proxy: "https://proxy.company.com:8080"
+
+tls:
+  ca_bundle_path: "/path/to/ca-bundle.pem"
+  verify_ssl: true
+```
+
+**Configuration Options:**
+- `api_url`: SmartTest API endpoint (default: https://api.smarttest.com)
+- `concurrency`: Number of scenarios to run in parallel (default: 5)
+- `timeout`: Request timeout in seconds (default: 30)
+- `proxy`: HTTP/HTTPS proxy settings for corporate networks
+- `tls`: Custom CA bundle and SSL verification options
+
+## Authentication
+
+### SmartTest Authentication (Required)
+
+The CLI requires a **Personal Access Token (PAT)** to authenticate with SmartTest:
+
+```bash
+export SMARTTEST_TOKEN=your_pat_token_here
+```
+
+**How to get your PAT token:**
+1. Visit https://ai-smart-test.vercel.app/
+2. Go to **Settings** → **API Tokens**
+3. Generate a new PAT token
+4. Copy and save it securely
+
+### Zero-Credential Exposure (Advanced)
+
+**When testing APIs that require authentication**, SmartTest uses a zero-credential-exposure model to keep your API credentials secure.
+
+#### How It Works
+
+1. **SmartTest backend sends auth config references** (metadata only, no actual credentials)
+2. **CLI resolves credentials locally** from your environment variables
+3. **Credentials never leave your network** or reach SmartTest servers
+4. **Requests are made directly from your environment** to the target API
+
+#### Setting Up Target API Credentials
+
+Only needed if you're testing APIs that require authentication:
+
+```bash
+# Bearer Token Authentication
+export AUTH_CONFIG_123_TOKEN=your_api_bearer_token
+
+# Basic Authentication
+export AUTH_CONFIG_456_USERNAME=api_username
+export AUTH_CONFIG_456_PASSWORD=api_password
+
+# API Key Authentication
+export AUTH_CONFIG_789_API_KEY=your_api_key
+```
+
+**Pattern:** `AUTH_CONFIG_{ID}_{CREDENTIAL_TYPE}`
+- `{ID}`: Auth configuration ID from SmartTest dashboard
+- `{CREDENTIAL_TYPE}`: TOKEN, USERNAME, PASSWORD, or API_KEY
+
+**Example Scenario:**
+- You're testing your company's API at `https://api.company.com`
+- The API requires a bearer token for authentication
+- SmartTest knows the API needs auth (config ID: 123)
+- You set: `export AUTH_CONFIG_123_TOKEN=company_bearer_token_xyz`
+- CLI resolves the token locally and includes it in requests
+- SmartTest never sees `company_bearer_token_xyz`
+
+## CI/CD Integration
+
+### GitHub Actions
+
+**Basic Example (SmartTest token only):**
+```yaml
+name: API Tests
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install SmartTest CLI
+        run: pip install smarttest-cli
+
+      - name: Run API Tests
+        env:
+          # PAT token for SmartTest authentication
+          SMARTTEST_TOKEN: ${{ secrets.SMARTTEST_TOKEN }}
+        run: |
+          smarttest --system-id 123 --report junit.xml
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: SmartTest Results
+          path: junit.xml
+          reporter: java-junit
+```
+
+**Advanced Example (with target API credentials):**
+```yaml
+name: API Tests with Auth
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install SmartTest CLI
+        run: pip install smarttest-cli
+
+      - name: Run API Tests
+        env:
+          # PAT token for SmartTest authentication
+          SMARTTEST_TOKEN: ${{ secrets.SMARTTEST_TOKEN }}
+          
+          # Target API credentials (zero-credential exposure)
+          AUTH_CONFIG_123_TOKEN: ${{ secrets.PRODUCTION_API_TOKEN }}
+          AUTH_CONFIG_456_USERNAME: ${{ secrets.STAGING_USERNAME }}
+          AUTH_CONFIG_456_PASSWORD: ${{ secrets.STAGING_PASSWORD }}
+        run: |
+          smarttest --system-id 123 --format json --report junit.xml > results.json
+
+      - name: Check Success Rate
+        run: |
+          SUCCESS_RATE=$(jq '.summary.success_rate' results.json)
+          echo "Test Success Rate: ${SUCCESS_RATE}%"
+          
+          # Fail if success rate < 80%
+          if (( $(echo "$SUCCESS_RATE < 80" | bc -l) )); then
+            echo "❌ Test success rate below 80% threshold"
+            exit 1
+          fi
+
+      - name: Upload Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            junit.xml
+            results.json
+
+      - name: Publish Test Report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: API Test Results
+          path: junit.xml
+          reporter: java-junit
+```
+
+### GitLab CI
+
+**Basic Example:**
+```yaml
+api-tests:
+  stage: test
+  image: python:3.11
+  before_script:
+    - pip install smarttest-cli
+  script:
+    - smarttest --system-id 123 --report junit.xml
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+  variables:
+    # PAT token for SmartTest authentication
+    SMARTTEST_TOKEN: $SMARTTEST_TOKEN
+```
+
+**Advanced Example (with JSON output):**
+```yaml
+api-tests:
+  stage: test
+  image: python:3.11
+  before_script:
+    - pip install smarttest-cli
+  script:
+    - smarttest --system-id 123 --format json --report junit.xml > results.json
+    - |
+      SUCCESS_RATE=$(jq '.summary.success_rate' results.json)
+      echo "API Tests: ${SUCCESS_RATE}% passed"
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+    paths:
+      - results.json
+  variables:
+    # PAT token for SmartTest authentication
+    SMARTTEST_TOKEN: $SMARTTEST_TOKEN
+    # Target API credentials (if needed)
+    AUTH_CONFIG_123_TOKEN: $PRODUCTION_API_TOKEN
+```
+
+### Jenkins
+
+**Basic Pipeline:**
+```groovy
+pipeline {
+    agent any
+    environment {
+        // PAT token for SmartTest authentication
+        SMARTTEST_TOKEN = credentials('smarttest-token')
+    }
+    stages {
+        stage('Install CLI') {
+            steps {
+                sh 'pip install smarttest-cli'
+            }
+        }
+        stage('Run API Tests') {
+            steps {
+                sh 'smarttest --system-id 123 --format json --report junit.xml > results.json'
+
+                script {
+                    def results = readJSON file: 'results.json'
+                    echo "Success Rate: ${results.summary.success_rate}%"
+                    echo "Passed: ${results.summary.passed}"
+                    echo "Failed: ${results.summary.failed}"
+
+                    if (results.summary.success_rate < 80) {
+                        error("Test success rate below 80%")
+                    }
+                }
+            }
+            post {
+                always {
+                    junit 'junit.xml'
+                    archiveArtifacts artifacts: 'results.json', fingerprint: true
+                }
+            }
+        }
+    }
+}
+```
+
+**With Target API Credentials:**
+```groovy
+pipeline {
+    agent any
+    environment {
+        // PAT token for SmartTest authentication
+        SMARTTEST_TOKEN = credentials('smarttest-token')
+        
+        // Target API credentials (zero-credential exposure)
+        AUTH_CONFIG_123_TOKEN = credentials('production-api-token')
+        AUTH_CONFIG_456_USERNAME = credentials('staging-username')
+        AUTH_CONFIG_456_PASSWORD = credentials('staging-password')
+    }
+    stages {
+        // ... same as above
+    }
+}
+```
+
+## Command Reference
+
+### Basic Commands
+
+```bash
+# Run by scenario ID
+smarttest --scenario-id 123
+
+# Run by endpoint ID
+smarttest --endpoint-id 456
+
+# Run by system ID
+smarttest --system-id 789
+```
+
+### Output Options
+
+```bash
+# Terminal output (default, with colors and progress)
+smarttest --system-id 123
+
+# JSON output (machine-readable)
+smarttest --system-id 123 --format json
+
+# Generate JUnit XML report
+smarttest --system-id 123 --report junit.xml
+
+# JSON + JUnit combined
+smarttest --system-id 123 --format json --report junit.xml > results.json
+```
+
+### Configuration
+
+```bash
+# Use custom config file
+smarttest --system-id 123 --config my-config.yml
+
+# Config file + custom output
+smarttest --system-id 123 --config prod.yml --format json
+```
+
+### Exit Codes
+
+- **0**: All scenarios passed
+- **1**: One or more scenarios failed or had errors
+- **130**: Execution interrupted (Ctrl+C)
+
+The exit code is the same regardless of `--format` option.
+
+## Error Handling
+
+The CLI provides comprehensive error classification:
+
+- **✅ Success**: HTTP request succeeded, all validations passed
+- **❌ Failed**: HTTP request succeeded, but validations failed
+- **⚠️  Network Timeout**: Request timed out
+- **⚠️  Network Error**: Connection failed
+- **⚠️  Auth Error**: Authentication resolution failed
+- **⚠️  Unknown Error**: Unexpected error occurred
+
+## Architecture
+
+```
+┌─ Scenario Discovery (API with rate limiting)
+├─ Skip scenarios without validations
+├─ Concurrent Execution (max 5)
+│  ├─ Fetch definition (auth config references only)
+│  ├─ Resolve auth locally (zero credential exposure)
+│  ├─ Execute HTTP request (with comprehensive error handling)
+│  └─ Submit results (continue on any error)
+└─ Generate reports and exit
+```
+
+## Troubleshooting
+
+### Authentication Issues
+
+**SmartTest Authentication:**
+```bash
+# Verify your PAT token is set
+echo $SMARTTEST_TOKEN
+
+# Test connection to SmartTest
+curl -H "Authorization: Bearer $SMARTTEST_TOKEN" https://api.smarttest.com/health
+```
+
+**Target API Authentication:**
+```bash
+# Verify target API credentials are set
+echo $AUTH_CONFIG_123_TOKEN
+
+# Check which auth configs your scenarios use in the SmartTest dashboard
+```
+
+### Network Issues
+
+```bash
+# Test with custom config
+smarttest --scenario-id 123 --config .smarttest.yml
+
+# Enable request debugging
+SMARTTEST_DEBUG=1 smarttest --scenario-id 123
+
+# Test single scenario first
+smarttest --scenario-id 123 --format json
+```
+
+### Rate Limiting
+
+The CLI automatically handles rate limiting with exponential backoff. If you encounter persistent rate limiting:
+
+1. Reduce concurrency in `.smarttest.yml`
+2. Contact support to increase rate limits
+3. Spread execution across longer time periods
+
+## Support
+
+- 🌐 Platform: https://ai-smart-test.vercel.app/
+- 📚 Documentation: https://ai-smart-test.vercel.app/docs
+- 💬 Support: ai.smart.test.contact@gmail.com
