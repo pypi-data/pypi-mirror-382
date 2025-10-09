@@ -1,0 +1,2 @@
+CREATE TABLE db_version (version INTEGER NOT NULL) STRICT;
+INSERT INTO db_version VALUES(0);

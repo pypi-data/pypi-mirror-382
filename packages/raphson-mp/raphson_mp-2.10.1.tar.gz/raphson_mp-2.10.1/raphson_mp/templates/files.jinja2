@@ -1,0 +1,94 @@
+{% if base_path %}
+    {% set title = gettext('Files in: %(dir)s', dir=base_path) %}
+{% else %}
+    {% set title = gettext('File manager') %}
+{% endif %}
+{% set script = "files" %}
+{% extends "base_static.jinja2" %}
+
+{% block content %}
+
+{% if show_trashed %}
+    <a href="{{ base_url }}" class="button">{% trans %}Show regular files{% endtrans %}</a>
+{% else %}
+    {% if base_url == "/files" %}
+        {% set trash_url = "/files?trash"%}
+    {% else %}
+        {% set trash_url = base_url + "&trash" %}
+    {% endif %}
+
+    <a href="{{ trash_url }}" class="button">{% trans %}Show trashed files{% endtrans %}</a>
+{% endif %}
+
+{% if write_permission %}
+    {% if base_path %} {# if in a subdirectory #}
+        <button id="upload-files-button">{% trans %}Upload files{% endtrans %}</button>
+        <form method="POST" action="/files/upload" enctype="multipart/form-data" class="form" id="upload-files-form" hidden>
+            <input type="hidden" name="csrf" value="{{ user.csrf }}">
+            <input type="hidden" name="dir" value="{{ base_path }}">
+            <label for="upload">{% trans %}Upload files{% endtrans %}</label>
+            <input type="file" name="upload" id="upload" accept="{{ music_extensions }}" multiple required>
+            <input type="submit" value="{% trans %}Upload{% endtrans %}">
+        </form>
+    {% endif %}
+
+    <button id="create-directory-button">{% trans %}Create directory{% endtrans %}</button>
+    <form method="POST" action="/files/mkdir" class="form" id="create-directory-form" hidden>
+        <label for="dirname">{% trans %}Create directory{% endtrans %}</label>
+        <input type="hidden" name="csrf" value="{{ user.csrf }}">
+        <input type="hidden" name="path" value="{{ base_path }}">
+        <input type="text" name="dirname" id="dirname" placeholder="{% trans %}Directory name{% endtrans %}">
+        <input type="submit" value="{% trans %}Create{% endtrans %}">
+    </form>
+
+    {% trans info_url="/info#webdav" %}Tip: Use <a href="{{ info_url }}">WebDAV</a> to manage files more conveniently.{% endtrans %}
+{% else %}
+    <p>{% trans %}You don't have permission to upload files or create directories here.{% endtrans %}</p>
+{% endif %}
+
+<br><br>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>{% trans %}Type{% endtrans %}</th>
+            <th>{% trans %}File name{% endtrans %}</th>
+            <th class="collapse">{% trans %}Artists{% endtrans %}</th>
+            <th class="collapse">{% trans %}Title{% endtrans %}</th>
+            {% if write_permission %}
+                {% set action_count = 3 %}
+            {% else %}
+                {% set action_count = 1 %}
+            {% endif %}
+            <th colspan="{{ action_count }}">{% trans %}Actions{% endtrans %}</th>
+        </tr>
+    </thead>
+
+    <tbody id="tbody">
+        {% for file in files %}
+        <tr class="file-tr" data-path="{{ file['path'] }}">
+            {% if file['type'] == 'd' %}
+            <td class="icon-col">{{ icon('folder') }}</td>
+            <td><a href="?path={{ file['path'] | urlencode }}">{{ file.displayname }}/</a></td>
+            <td class="collapse"></td>
+            <td class="collapse"></td>
+            {% elif file['type'] == 'm' %}
+            <td class="icon-col">{{ icon('music') }}</td>
+            <td>{{ file.displayname }}</td>
+            <td class="collapse">{{ file['artist'] }}</td>
+            <td class="collapse">{{ file['title'] }}</td>
+            {% else %}
+            <td class="icon-col">{{ icon('file-question') }}</td>
+            <td>{{ file.displayname }}</td>
+            <td class="collapse"></td>
+            <td class="collapse"></td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<input type="hidden" id="upload_csrf" value="{{ user.csrf }}">
+<input type="hidden" id="upload_dir" value="{{ base_path }}">
+
+{% endblock content %}

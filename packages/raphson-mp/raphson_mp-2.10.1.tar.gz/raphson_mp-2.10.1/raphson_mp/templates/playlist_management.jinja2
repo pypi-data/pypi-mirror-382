@@ -1,0 +1,83 @@
+{% set title = gettext("Playlist management") %}
+{% set back_url = "/" %}
+{% set script = "playlist_management" %}
+{% extends "base_static.jinja2" %}
+
+{% block content %}
+
+<h2>{% trans %}Primary playlist{% endtrans %}</h2>
+<p>{% trans %}Your primary playlist is selected by default when a single playlist needs to be chosen.{% endtrans %}</p>
+<form method="POST" action="/playlist_management/set_primary" class="form">
+    <label for="playlist">{% trans %}Playlist{% endtrans %}</label>
+    <select id="playlist" name="playlist">
+        <option value="" {% if not user.primary_playlist %}selected{% endif %}></option>
+        {% for playlist in playlists %}
+        <option value="{{ playlist.name }}" {% if playlist.is_primary %}selected{% endif %}>{{ playlist.name }}</option>
+        {% endfor %}
+    </select>
+    <input type="hidden" name="csrf" value="{{ user.csrf }}">
+    <input type="submit" value="{% trans %}Save{% endtrans %}">
+    </form>
+
+<h2>{% trans %}Favorites{% endtrans %}</h2>
+<p>{% trans %}Favorite playlists are shown in the top row and enabled by default for new sessions.{% endtrans %}</p>
+<form method="POST" action="/playlist_management/set_favorites">
+    {% for playlist in playlists %}
+    <label>
+        <input type="checkbox" id="checkbox-{{ playlist.name }}" name="{{ playlist.name }}" {% if playlist.is_favorite
+            %}checked{% endif %}>
+        {{ playlist.name }}
+    </label><br>
+    {% endfor %}
+    <input type="hidden" name="csrf" value="{{ user.csrf }}">
+    <input type="submit" value="{% trans %}Save{% endtrans %}">
+</form>
+
+<h2>{% trans %}Sharing{% endtrans %}</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>{% trans %}Name{% endtrans %}</th>
+            <th>{% trans %}Actions{% endtrans %}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for playlist in playlists %}
+            <tr>
+                <td>
+                    {{ playlist.name }}
+                </td>
+                <td>
+                    {% if playlist.is_writable %}
+                        <form action="/playlist/share" method="GET" class="inline">
+                            <input type="hidden" name="playlist" value="{{ playlist.name }}">
+                            <input type="submit" value="{% trans %}Give edit rights{% endtrans %}">
+                        </form>
+                    {% endif %}
+                    <form action="/share/create" method="POST" class="inline">
+                        <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                        <input type="hidden" name="playlist" value="{{ playlist.name }}">
+                        <input type="submit" value="{% trans %}Create public share link{% endtrans %}">
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if spotify_available %}
+<h2>{% trans %}Compare to Spotify playlist{% endtrans %}</h2>
+<div class="form">
+    <label for="spotify-compare-local-playlist">{% trans %}Local playlist{% endtrans %}</label>
+    <select id="spotify-compare-local-playlist">
+        {% for playlist in playlists %}
+        <option value="{{ playlist.name }}" {% if playlist.is_primary %}selected{% endif %}>{{ playlist.name }}</option>
+        {% endfor %}
+    </select>
+    <label for="spotify-compare-remote-playlist">{% trans %}Spotify playlist URL{% endtrans %}</label>
+    <input id="spotify-compare-remote-playlist" type="text" placeholder="https://open.spotify.com/playlist/49Fh8IQU36G28uEGJxaDcI">
+    <input id="spotify-submit" type="submit" value="{% trans %}Compare (will take a while){% endtrans %}">
+</div>
+{% endif %}
+
+{% endblock content %}

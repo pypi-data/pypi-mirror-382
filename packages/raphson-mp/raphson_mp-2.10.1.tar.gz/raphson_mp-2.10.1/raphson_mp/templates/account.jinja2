@@ -1,0 +1,119 @@
+{% set title = gettext("Account settings") %}
+{% set back_url = "/" %}
+{% set script = "account" %}
+{% extends "base_static.jinja2" %}
+
+{% block content %}
+
+<h2>{% trans %}Settings{% endtrans %}</h2>
+<form method="POST" action="/account/change_settings" class="form">
+    <input type="hidden" value="{{ user.csrf }}" name="csrf">
+
+    <label for="username">{% trans %}Username{% endtrans %}</label>
+    <input type="text" value="{{ user.username }}" id="username" readonly>
+
+    <label for="nickname">{% trans %}Nickname{% endtrans %}</label>
+    <input type="text" value="{{ user.nickname if user.nickname }}" name="nickname" id="nickname">
+
+    <label for="language-select">{% trans %}Language{% endtrans %}</label>
+    <select name="language" id="language">
+        <option value="" {% if not user.language %}selected{% endif %}>{% trans %}System language{% endtrans %}</option>
+        {% for lang_code, lang_display in languages.items() %}
+            <option value="{{ lang_code }}" {% if lang_code == user.language %}selected{% endif %}>{{ lang_display }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="theme">{% trans %}Theme{% endtrans %}</label>
+    <select name="theme" id="theme">
+        {% for theme, theme_display in themes %}
+            <option value="{{ theme }}" {% if theme == user.theme %}selected{% endif %}>{{ theme_display }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="privacy-select">{% trans %}Recording of listening activity{% endtrans %}</label>
+    <select name="privacy" id="privacy-select">
+        <option value="" {% if user.privacy.name == 'NONE' %}selected{% endif %}>{% trans %}Activity and statistics{% endtrans %}</option>
+        <option value="aggregate" {% if user.privacy.name == 'AGGREGATE' %}selected{% endif %}>{% trans %}Not in activity, only in statistics{% endtrans %}</option>
+        <option value="hidden" {% if user.privacy.name == 'HIDDEN' %}selected{% endif %}>{% trans %}No data recording{% endtrans %}</option>
+    </select>
+
+    <input type="submit" value="{% trans %}Save{% endtrans %}">
+</form>
+
+<h2>{% trans %}Data export{% endtrans %}</h2>
+<p>{% trans %}This export contains personal data stored in the database. It does not include music files, which can be downloaded separately using the file manager.{% endtrans %}</p>
+<p><a class="button" target="_blank" href="/export/data">{% trans %}Download{% endtrans %}</a></p>
+
+{% if lastfm_enabled %}
+    <h2>{% trans %}Last.fm{% endtrans%}</h2>
+    <p>
+        {% if lastfm_name %}
+            {% trans name=lastfm_name %}Connected to last.fm account: {{ name }}{% endtrans%}<br>
+            <form action="/lastfm/disconnect" method="POST">
+                <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                <input type="submit" value="{% trans %}Disconnect last.fm account{% endtrans %}">
+            </form>
+        {% else %}
+            <a href="{{ lastfm_connect_url }}">{% trans %}Connect your last.fm account{% endtrans %}</a>
+        {% endif %}
+    </p>
+{% endif %}
+
+<h2>{% trans %}Password{% endtrans %}</h2>
+<p>{% trans %}After changing your password, you will be logged out of all sessions and any linked WebAuthn credentials will be removed.{% endtrans %}</p>
+<form method="POST" action="/account/change_password" class="form">
+    <input type="hidden" value="{{ user.csrf }}" name="csrf">
+    <label for="current-password">{% trans %}Current password{% endtrans %}</label>
+    <input type="password" value="" name="current_password" id="current-password">
+
+    <label for="new-password">{% trans %}New password{% endtrans %}</label>
+    <input type="password" value="" name="new_password" id="new-password">
+
+    <input type="submit" value="{% trans %}Change password{% endtrans %}">
+</form>
+
+<h2>WebAuthn</h2>
+<p>{% trans %}Set up WebAuthn (also known as Passkey) to log in using a key stored on your device or hardware token.{% endtrans %}</p>
+<br>
+<button id="webauthn-setup">{% trans %}Set up{% endtrans %}</button>
+
+<script id="webauthn-vars" type="application/json">
+{
+    "challenge": {{ webauthn_challenge | tojson }},
+    "identifier": {{ webauthn_identifier | tojson }},
+    "username": {{ webauthn_username | tojson }},
+    "displayname": {{ webauthn_displayname | tojson }}
+}
+</script>
+
+<h2>{% trans %}Sessions{% endtrans%}</h2>
+
+<form method="POST" action="/account/logout">
+    <input type="hidden" value="{{ user.csrf }}" name="csrf">
+    <input type="submit" value="{% trans %}Log out this session{% endtrans %}">
+</form>
+
+<br>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>{% trans %}Login date{% endtrans %}</th>
+            <th>{% trans %}Last used{% endtrans %}</th>
+            <th>{% trans %}Program{% endtrans %}</th>
+            <th>{% trans %}IP address{% endtrans %}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for session in sessions %}
+            <tr>
+                <td>{{ session.creation_date }}</td>
+                <td>{{ session.last_use_ago }}</td>
+                <td>{{ session.program }}</td>
+                <td>{{ session.remote_address }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock content %}

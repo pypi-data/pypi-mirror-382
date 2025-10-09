@@ -1,0 +1,366 @@
+{% set title = gettext("Music player") %}
+{% set script = "player" %}
+{% set styles = ["player"] %}
+{% extends "base.jinja2" %}
+
+{% macro window_header(id, title, back_id = None) %}
+    <div class="window-header padding">
+        {% if back_id %}
+            {{ icon_button('arrow-left', back_id) }}
+        {% endif %}
+        <h2>{{ title }}</h2>
+        <button class="window-close-button icon-button" data-for="{{id}}">
+            <div class="icon icon-close"></div>
+        </button>
+    </div>
+{% endmacro %}
+
+{% block body %}
+<div id="bg-image-1" class="bg-image"></div>
+<div id="bg-image-2" class="bg-image"></div>
+<div class="dither"></div>
+
+<div class="sidebars padding">
+    <div class="sidebar boxes" id="left-sidebar">
+        <div class="box padding flex-vcenter flex-smallgap" id="sync-banner" hidden>
+            <div class="icon icon-remote"></div>
+            <div id="sync-banner-text"></div>
+        </div>
+
+        <div class="box padding" id="playlist-checkboxes">
+            {% trans %}Loading&mldr;{% endtrans %}
+        </div>
+
+        <div class="box padding">
+            <p>
+                <span id="current-track"></span>
+            </p>
+
+            <div id="seek-bar">
+                <span id="seek-bar-text-position" class="seek-bar-time"></span>
+                <span id="seek-bar-text-duration" class="seek-bar-time"></span>
+            </div>
+
+            <div id="playback-controls" class="flex-space-between">
+                <div class="flex-smallgap flex-wrap">
+                    {{ icon_button('home', 'button-home', title=gettext('Open home page in a new tab.')) }}
+                    {{ icon_button('skip-previous', 'button-prev', title=gettext('Go to beginning of current track, or previous track.')) }}
+                    {{ icon_button('play', 'button-play', title=gettext('Start playing currently playing track')) }}
+                    {{ icon_button('pause', 'button-pause', title=gettext('Pause currently playing track.')) }}
+                    {{ icon_button('skip-next', 'button-next', title=gettext('Skip to next track.')) }}
+                    {% if not offline_mode %}
+                        {{ icon_button('thumb-down', 'button-dislike', title=gettext('Never play this track again, without deleting it. You can still manually queue the track.')) }}
+                        {{ icon_button('delete', 'button-delete', title=gettext('Delete currently playing track from playlist. Shortly after deletion, deleted tracks can be covered using the file manager.')) }}
+                        {{ icon_button('alert-circle', 'button-problem', title=gettext('Report problem with this track. The track will not be queued for anyone until it is fixed.')) }}
+                        {{ icon_button('pencil', 'button-edit', title=gettext('Open metadata editor.')) }}
+                        {{ icon_button('content-duplicate', 'button-copy', title=gettext('Copy track to a different playlist.')) }}
+                        {{ icon_button('share', 'button-share', title=gettext('Open public share link.')) }}
+                        {{ icon_button('video', 'button-video', title=gettext('Play video.')) }}
+                        {{ icon_button('cog', 'open-window-settings', title=gettext('Open settings')) }}
+                    {% endif %}
+
+                    <div hidden id="delete-spinner" class="raphson-spinner"></div>
+                </div>
+                <div class="flex-vcenter">
+                    {% if mobile %}
+                        {# 'data-restore=false' ensures volume is not overwritten from cookie #}
+                        <input type="hidden" value="100" id="settings-volume" data-restore="false">
+                    {% else %}
+                        <input type="range" min="0" max="100" value="60" id="settings-volume">
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="box padding" id="box-queue">
+            <div class="flex-space-between">
+                <div id="queue-text">
+                    <h3>{% trans %}Queue{% endtrans %}</h3>
+                    <span id="current-queue-size">0</span>
+                </div>
+                <div id="queue-buttons" class="flex-smallgap">
+                    <!-- {{ icon_button('web', 'open-window-online', title=gettext('Queue track from online source')) }}-->
+                    {{ icon_button('notification-clear-all', 'queue-clear', title=gettext('Clear queue')) }}
+                    {{ icon_button('tag-multiple', 'open-window-tags', title=gettext('Open tag selection')) }}
+                    {{ icon_button('playlist-music', 'browse-all', title=gettext('Browse all tracks')) }}
+                    {{ icon_button('text-search', 'open-window-search', title=gettext('Search in tracks')) }}
+                </div>
+            </div>
+            <div class="scroll" id="queue"></div>
+        </div>
+    </div>
+
+<div class="sidebar boxes" id="right-sidebar">
+        <div class="box" id="album-cover-box">
+            <div id="album-cover-1" class="cover-img"></div>
+            <div id="album-cover-2" class="cover-img"></div>
+            <canvas id="visualiser"></canvas>
+        </div>
+
+        <div hidden class="box" id="video-box"></div>
+        <div hidden class="box padding scroll" id="lyrics-box"></div>
+    </div>
+</div>
+
+<div id="window-settings" class="full-page-overlay window-overlay overlay-hidden">
+    <div class="window">
+        {{ window_header('window-settings', gettext('Settings')) }}
+        <div class="window-body form form-wide form-gap">
+            <label for="settings-queue-size">
+                {% trans %}Minimum queue size{% endtrans %}<br>
+                <span class="secondary">{% trans %}Tracks in the queue can be played without an internet connection.{% endtrans %}</span>
+            </label>
+            <input type="number" value="5" min="0" max="100" id="settings-queue-size">
+
+            {% if offline_mode %}
+                <input type="hidden" id="settings-audio-type" value="webm_opus_high">
+            {% else %}
+                <label for="settings-audio-type">
+                    {% trans %}Audio format{% endtrans %}<br>
+                    <span class="secondary">{% trans %}Opus 128k provides excellent quality at a low bit rate, audibly indistinguishable from uncompressed music. Select 48k Opus to save even more data at the cost of audio quality. In addition to the lower audio bit rate, smaller images will be loaded. MP3 is available if your browser does not support Opus (Safari, in some cases), but should otherwise not be used.{% endtrans %}</span>
+                </label>
+                <select id="settings-audio-type">
+                    <option value="webm_opus_high" selected>{% trans %}Very high quality (128k Opus){% endtrans %}</option>
+                    <option value="webm_opus_low">{% trans %}Low quality (48k Opus){% endtrans %}</option>
+                    <option value="mp3_with_metadata">{% trans %}Decent quality MP3 (VBR 190k){% endtrans %}</option>
+                </select>
+            {% endif %}
+
+            <label for="settings-queue-removal-behaviour">
+                {% trans %}Queue removal behaviour{% endtrans %}<br>
+                <span class="secondary">{% trans %}From which playlist is a replacement track chosen, when a track is removed from the queue?{% endtrans %}</span>
+            </label>
+            <select id="settings-queue-removal-behaviour">
+                <option value="roundrobin" selected>{% trans %}New track from next round-robin playlist{% endtrans %}</option>
+                <option value="same">{% trans %}New track from same playlist{% endtrans %}</option>
+            </select>
+
+            <label for="settings-audio-gain">
+                {% trans %}Audio gain{% endtrans %}<br>
+                <span class="secondary">{% trans %}Last resort if you cannot get enough volume out of your system. Try setting everything else to maximum volume first, as setting a gain here will worsen audio quality.{% endtrans %}</span>
+            </label>
+            <input type="number" value="1" min="1" max="20" id="settings-audio-gain">
+
+            {% if offline_mode %}
+                <input id="settings-meme-mode" type="hidden">
+            {% else %}
+                <label for="settings-meme-mode">
+                    {% trans %}Album cover art memes{% endtrans %}<br>
+                    <span class="secondary">{% trans %}Show memes relevant to the album title instead of the original album cover image.{% endtrans %}</span>
+                </label>
+                <input id="settings-meme-mode" type="checkbox">
+            {% endif %}
+
+            <label for="settings-theater">
+                {% trans %}Theater mode{% endtrans %}<br>
+                <span class="secondary">{% trans %}Hide controls when there hasn't been any mouse movement for a while.{% endtrans %}</span>
+            </label>
+            <input id="settings-theater" type="checkbox">
+
+            <label for="settings-touch">
+                {% trans %}Touch mode{% endtrans %}<br>
+                <span class="secondary">{% trans %}Enlarge buttons.{% endtrans %}</span>
+            </label>
+            <input id="settings-touch" type="checkbox">
+
+            {% if offline_mode %}
+                <input hidden id="settings-news" type="checkbox">
+            {% else %}
+                <label for="settings-news">
+                    {% trans %}Hourly news{% endtrans %}<br>
+                    <span class="secondary">{% trans %}Add news to the queue every hour.{% endtrans %}</span>
+                </label>
+                <input id="settings-news" type="checkbox">
+            {% endif %}
+
+            <label for="settings-visualiser">
+                {% trans %}Visualiser{% endtrans %}<br>
+                <span class="secondary">{% trans %}Display music visualiser on top of album cover. Enabling this option will increase energy usage.{% endtrans %}</span>
+            </label>
+            <input id="settings-visualiser" type="checkbox">
+
+            <label for="settings-lyrics">
+                {% trans %}Lyrics{% endtrans %}<br>
+                <span class="secondary">{% trans %}Show lyrics below album cover. Can also be toggled quickly by clicking the album cover.{% endtrans %}</span>
+            </label>
+            <input id="settings-lyrics" type="checkbox" checked>
+
+            {% if offline_mode %}
+                <input id="settings-name" type="hidden">
+            {% else %}
+                <label for="settings-name">
+                    {% trans %}Name{% endtrans %}<br>
+                    <span class="secondary">{% trans %}Give this device a name, to be shown on the activity page.{% endtrans %}</span>
+                </label>
+                <input id="settings-name" type="text" placeholder="Jopie">
+            {% endif %}
+
+            <label for="settings-auto-clear-queue">
+                {% trans %}Auto clear queue{% endtrans %}<br>
+                <span class="secondary">{% trans %}Clear queue when active playlists have been changed.{% endtrans %}</span>
+            </label>
+            <input id="settings-auto-clear-queue" type="checkbox">
+        </div>
+    </div>
+</div>
+
+<div id="window-tags" class="full-page-overlay window-overlay overlay-hidden">
+    <div class="window">
+        {{ window_header('window-tags', gettext('Tags')) }}
+        <div class="window-body">
+            <label for="tag-mode">{% trans %}Tag mode{% endtrans %}</label>
+            <select id="tag-mode">
+                <option value="none" selected>{% trans %}Ignore tags when choosing tracks{% endtrans %}</option>
+                <option value="allow">{% trans %}Only choose tracks with selected tags (untagged tracks are not chosen){% endtrans %}</option>
+                <option value="deny">{% trans %}Don't choose tracks with selected tags (untagged tracks are chosen){% endtrans %}</option>
+            </select>
+            <button id="tag-select-all">{% trans %}(Un)select all{% endtrans %}</button>
+            <div id="tag-checkboxes"></div>
+        </div>
+    </div>
+</div>
+
+<div id="window-browse" class="full-page-overlay window-overlay overlay-hidden">
+    <div class="window">
+        {{ window_header('window-browse', 'placeholder', back_id='browse-back') }}
+        <div class="window-body" id="browse-scroll">
+            <div id="browse-content"></div>
+        </div>
+    </div>
+</div>
+
+<div id="window-search" class="full-page-overlay window-overlay overlay-hidden">
+    <div class="window">
+        {{ window_header('window-search', gettext('Search')) }}
+        <div class="window-body">
+            <input id="search-query" type="search" placeholder="{% trans %}Search query{% endtrans %}"><br>
+
+            <div hidden id="search-result-parent">
+                <h3>{% trans %}Tracks{% endtrans %}</h3>
+                <div id="search-result-tracks"></div>
+
+                <h3>{% trans %}Artists{% endtrans %}</h3>
+                <div id="search-result-artists"></div>
+
+                <h3>{% trans %}Albums{% endtrans %}</h3>
+                <div id="search-result-albums"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="window-editor" class="full-page-overlay window-overlay overlay-hidden">
+    <div class="window">
+        {{ window_header('window-editor', gettext('Metadata editor')) }}
+        <div class="window-body" id="editor-content">
+            <div class="form form-wide">
+                <label for="editor-path">{% trans %}File path{% endtrans %}</label>
+                <input type="text" id="editor-path" value="" readonly>
+
+                <label for="editor-title">{% trans %}Title{% endtrans %}</label>
+                <input type="text" id="editor-title" value="">
+
+                <label for="editor-album">{% trans %}Album{% endtrans %}</label>
+                <input type="text" id="editor-album" value="">
+
+                <label for="editor-artists">
+                    {% trans %}Artists{% endtrans %}<br>
+                    <span class="secondary">Delimit multiple using <code>;</code></span>
+                </label>
+                <input type="text" id="editor-artists" value="">
+
+                <label for="editor-album-artist">{% trans %}Album artist{% endtrans %}</label>
+                <input type="text" id="editor-album-artist" value="">
+
+                <label for="editor-album-tags">
+                    {% trans %}Tags{% endtrans %}<br>
+                    <span class="secondary">Delimit multiple using <code>;</code></span>
+                </label>
+                <input type="text" id="editor-tags" value="">
+
+                <label for="editor-year">{% trans %}Year{% endtrans %}</label>
+                <input type="text" id="editor-year" value="">
+
+                <label for="editor-number">{% trans %}Track number{% endtrans %}</label>
+                <input type="number" id="editor-number" value="">
+
+                <label for="editor-lyrics">
+                    {% trans %}Lyrics{% endtrans %}<br>
+                    <span class="secondary">{% trans %}The server will search for lyrics if this field is empty. Set to <code>{{ instrumental }}</code> if the song has no lyrics.{% endtrans %}</span>
+                </label>
+                <textarea id="editor-lyrics" class="resize-vertical"></textarea>
+
+                <div class="flex-end flex-smallgap">
+                    {{ icon_button('auto-fix', 'editor-lookup', title=gettext('Find metadata')) }}
+                    {{ icon_button('content-save', 'editor-save', title=gettext('Save')) }}
+                </div>
+            </div>
+
+            <p hidden id="editor-writing">{% trans %}Writing metadata...{% endtrans %}</p>
+
+            <div hidden id="editor-lookup-no-result">
+                {% trans %}Nothing found in the AcoustID database.{% endtrans %}
+            </div>
+
+            <div hidden id="editor-lookup-result">
+                <a href="" id="editor-lookup-acoustid" target="_blank">{% trans %}Incorrect result? Please remove the incorrect recording in the AcoustID database.{% endtrans %}</a>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>{% trans %}Title{% endtrans %}</th>
+                            <th>{% trans %}Artist{% endtrans %}</th>
+                            <th>{% trans %}Album{% endtrans %}</th>
+                            <th>{% trans %}Year{% endtrans %}</th>
+                            <th>{% trans %}Type{% endtrans %}</th>
+                            <th>{% trans %}Packaging{% endtrans %}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="editor-lookup-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if not offline_mode %}
+    <div id="window-online" class="full-page-overlay window-overlay overlay-hidden">
+        <div class="window">
+            {{ window_header('window-online', gettext('Add from online source (beta)')) }}
+            <div class="window-body form" id="editor-content">
+                <label for="online-url">{% trans %}URL{% endtrans %}</label>
+                <input type="text" id="online-url" value="" placeholder="https://youtube.com/watch?v=...">
+
+                {{ icon_button('playlist-plus', 'online-add') }}
+            </div>
+        </div>
+    </div>
+
+    <div id="window-copy" class="full-page-overlay window-overlay overlay-hidden">
+        <div class="window">
+            {{ window_header('window-copy', gettext('Copy track')) }}
+            <div class="window-body">
+                <p>{% trans %}Select playlist to copy track to:{% endtrans %}</p>
+                <input type="hidden" id="copy-track">
+                <select id="copy-playlist" class="playlist-select playlist-select-writable"></select>
+                <button id="copy-do-button">{% trans %}Copy{% endtrans %}</button>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<div id="window-debug" class="full-page-overlay window-overlay overlay-hidden">
+    <div class="window">
+        {{ window_header('window-debug', 'debug menu') }}
+        <div class="window-body">
+            <button id="debug-error">error</button>
+            <button id="debug-news">news</button>
+            <button id="debug-queue">log queue</button>
+            <button id="debug-layout">alternative layout</button>
+        </div>
+    </div>
+</div>
+
+<audio hidden autoplay id="audio"></audio>
+
+<div hidden id="primary-playlist">{{ user.primary_playlist or "" }}</div>
+{% endblock body %}

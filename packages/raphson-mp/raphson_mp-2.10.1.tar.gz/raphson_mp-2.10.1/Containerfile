@@ -1,0 +1,149 @@
+FROM docker.io/library/python:3.13-slim-trixie AS base
+
+FROM base AS ffmpeg-build
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends wget bzip2 g++ cmake make nasm pkg-config libopus-dev libwebp-dev zlib1g-dev libmp3lame-dev
+
+RUN mkdir /build && \
+    cd /build && \
+    wget -O ffmpeg-snapshot.tar.bz2 https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2 && \
+    tar xjf ffmpeg-snapshot.tar.bz2 && \
+    rm ffmpeg-snapshot.tar.bz2
+
+RUN cd /build/ffmpeg && \
+    ./configure \
+        --prefix="/build/ffmpeg" \
+        --extra-cflags="-I/build/ffmpeg/include" \
+        --extra-ldflags="-L/build/ffmpeg/lib" \
+        --extra-libs="-lm" \
+        --ld="g++" \
+        --enable-shared \
+        # External libraries
+        --enable-libopus \
+        --enable-libwebp \
+        --enable-libmp3lame \
+        # Required for PNG
+        --enable-zlib \
+        # Configuration options
+        --disable-autodetect \
+        # Program options
+        --disable-ffplay \
+        # Documentation options
+        --disable-doc \
+        # Component options
+        --disable-avdevice \
+        --disable-network \
+        # Individual component options
+        --disable-everything \
+        --enable-protocol=file \
+        --enable-decoder=libopus \
+        --enable-decoder=mp3 \
+        --enable-decoder=aac \
+        --enable-decoder=flac \
+        --enable-decoder=vorbis \
+        --enable-decoder=pcm_s16le \
+        --enable-decoder=pcm_s24le \
+        --enable-decoder=mjpeg  \
+        --enable-decoder=webp \
+        --enable-decoder=png \
+        --enable-encoder=libopus \
+        --enable-encoder=libwebp \
+        --enable-encoder=pcm_s16le \
+        --enable-encoder=mjpeg \
+        --enable-encoder=libmp3lame \
+        --enable-decoder=alac \
+        --enable-demuxer=aac \
+        --enable-demuxer=flac \
+        --enable-demuxer=mjpeg \
+        --enable-demuxer=matroska \
+        --enable-demuxer=mp3 \
+        --enable-demuxer=ogg \
+        --enable-demuxer=pcm_s16le \
+        --enable-demuxer=wav \
+        --enable-demuxer=webm \
+        --enable-demuxer=image_png_pipe \
+        --enable-demuxer=image_jpeg_pipe \
+        --enable-demuxer=image_webp_pipe \
+        --enable-demuxer=mov \
+        --enable-muxer=aac \
+        --enable-muxer=flac \
+        --enable-muxer=mjpeg \
+        --enable-muxer=matroska \
+        --enable-muxer=matroska_audio \
+        --enable-muxer=mp4 \
+        --enable-muxer=mp3 \
+        --enable-muxer=ogg \
+        --enable-muxer=wav \
+        --enable-muxer=webm \
+        --enable-muxer=webp \
+        --enable-muxer=ipod \
+        --enable-muxer=null \
+        --enable-filter=loudnorm \
+        --enable-filter=aresample \
+        --enable-filter=scale \
+        --enable-filter=crop \
+        && \
+    make -j $(nproc) install
+
+RUN cd /build && \
+    wget -O chromaprint.tar.gz https://github.com/acoustid/chromaprint/releases/download/v1.6.0/chromaprint-1.6.0.tar.gz && \
+    tar xf chromaprint.tar.gz && \
+    rm chromaprint.tar.gz && \
+    mv chromaprint-* chromaprint
+
+RUN cd /build/chromaprint && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TOOLS=ON -DFFMPEG_ROOT=/build/ffmpeg . && \
+    make -j $(nproc)
+
+###############################################################################
+
+FROM base AS common
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends bubblewrap libopus0 libwebp7 libmp3lame0 libsharpyuv0 && \
+    rm -r /var/cache/apt/* /var/lib/apt/lists/*
+
+COPY container/requirements.txt /
+RUN PYTHONDONTWRITEBYTECODE=1 pip install --break-system-packages --no-cache-dir -r /requirements.txt
+
+# Copy binaries from build layer
+COPY --from=ffmpeg-build \
+    /build/ffmpeg/ffmpeg \
+    /build/ffmpeg/ffprobe \
+    /build/chromaprint/src/cmd/fpcalc \
+    /usr/local/bin/
+
+# Copy libraries from build layer
+COPY --from=ffmpeg-build \
+    /build/ffmpeg/lib/*.so.* \
+    /build/chromaprint/src/libchromaprint.so.1 \
+    /lib
+
+COPY ./container/manage.sh /usr/local/bin/manage
+
+ENV PYTHONUNBUFFERED=1
+ENV MUSIC_MUSIC_DIR=/music
+ENV MUSIC_DATA_PATH=/data
+
+WORKDIR "/mp"
+
+###############################################################################
+
+FROM common AS prod
+
+COPY ./raphson_mp /mp/raphson_mp
+
+RUN PYTHONDONTWRITEBYTECODE=1 pybabel compile -d /mp/raphson_mp/translations
+
+ENTRYPOINT ["python3", "-m", "raphson_mp"]
+CMD ["start", "--host", "0.0.0.0"]
+
+###############################################################################
+
+FROM common AS dev
+
+COPY ./container/entrypoint-dev.sh /entrypoint-dev.sh
+
+ENTRYPOINT ["/entrypoint-dev.sh"]
+CMD ["start", "--host", "0.0.0.0", "--dev"]

@@ -1,0 +1,67 @@
+{% set title = gettext("User management") %}
+{% set back_url = "/" %}
+{% extends "base_static.jinja2" %}
+
+{% block content %}
+
+{% trans %}To create admin users or to delete users, please use the CLI.{% endtrans %}
+<h2>{% trans %}Create new user{% endtrans %}</h2>
+
+<form method="POST" action="/users/new" class="form">
+    <input type="hidden" name="csrf" value="{{ user.csrf }}">
+
+    <label for="username">{% trans %}Username{% endtrans %}</label>
+    <input type="text" name="username" id="username">
+
+    <label for="password">{% trans %}Password{% endtrans %}</label>
+    <input type="password" name="password" id="password">
+
+    <input type="submit" value="{% trans %}Create{% endtrans %}">
+</form>
+
+<h2>{% trans %}Users{% endtrans %}</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>{% trans %}Username{% endtrans %}</th>
+            <th>{% trans %}Admin{% endtrans %}</th>
+            <th>{% trans %}Last used{% endtrans %}</th>
+            <th>{% trans %}Primary playlist{% endtrans %}</th>
+            <th>{% trans %}Editable playlists{% endtrans %}</th>
+            <th>{% trans %}Edit{% endtrans %}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+            <tr>
+                <td>
+                    {{ user.username }}
+                </td>
+                <td>
+                    {% if user.admin  %}
+                        {% trans %}Yes{% endtrans %}
+                    {% else %}
+                        {% trans%}No{% endtrans %}
+                    {% endif %}
+                </td>
+                <td>
+                    {{ user.last_use }}
+                </td>
+                <td>
+                    {{ user.primary_playlist }}
+                </td>
+                <td>
+                    {{ user.writable_playlists_str }}
+                </td>
+                <td>
+                    <form action="/users/edit">
+                        <input type="hidden" name="username" value="{{ user.username }}">
+                        <input type="submit" value="{% trans %}Edit{% endtrans %}">
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock content %}

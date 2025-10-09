@@ -1,0 +1,32 @@
+services:
+
+  music:
+    image: codeberg.org/raphson/music-server
+    volumes:
+      - type: bind
+        source: ./music
+        target: /music
+      - type: bind
+        source: ./data
+        target: /data
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 5G
+    user: '1000'
+    read_only: true
+    cap_drop: ['all']
+    environment:
+      TZ: Europe/Amsterdam
+      MUSIC_PROXY_COUNT: 1
+
+  # optional: for slightly better performance
+  # otherwise, remove this container and expose port 8080 on the other container
+  music-nginx:
+    image: codeberg.org/raphson/music-server-nginx
+    ports:
+      - 8080:8080
+    user: '1000'
+    environment:
+      TZ: Europe/Amsterdam
+      BACKEND_ADDRESS: http://music:8080

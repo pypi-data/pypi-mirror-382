@@ -1,0 +1,103 @@
+{% macro icon(icon_name) %}
+    <div class="icon icon-{{ icon_name }}"></div>
+{% endmacro %}
+
+{% macro icon_button(icon_name, id = None, title = None) %}
+    <button {% if id %}id="{{id}}"{% endif %} class="icon-button" {% if title %} title="{{title}}"{% endif %}>
+        {{ icon(icon_name) }}
+    </button>
+{% endmacro %}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#202020">
+
+    <title>{{ title }}</title>
+
+    <link rel="icon" href="/static/img/favicon.ico">
+    <link rel="manifest" href="/static/manifest.json">
+
+    {% if not user or user.theme == "default" %}
+        <link rel="preload" href="/static/font/quicksand-v30-latin-regular.woff2" as="font" crossorigin="anonymous">
+    {% endif %}
+
+    <link rel="stylesheet" href="/static/css/base.css">
+    {% for style in styles | default([]) %}
+        <link rel="stylesheet" href="/static/css/{{ style }}.css">
+    {% endfor %}
+
+    {% if user %}
+        <link rel="stylesheet" href="/static/css/theme/{{ user.theme }}.css">
+    {% else %}
+        <link rel="stylesheet" href="/static/css/theme/default.css">
+    {% endif %}
+
+    {# When changing this, also update static/js/types.d.ts #}
+    <script id="vars" type="application/json">
+        {
+            "csrfToken": {{ (user.csrf if user else None) | tojson }},
+            "offlineMode": {{ offline_mode | tojson }},
+            "loadTimestamp": {{ load_timestamp | tojson }},
+            "tBrowseArtist": {{ gettext("Artist: ") | tojson }},
+            "tBrowseAlbum": {{ gettext("Album: ") | tojson }},
+            "tBrowseTag": {{ gettext("Tag: ") | tojson }},
+            "tBrowsePlaylist": {{ gettext("Playlist: ") | tojson }},
+            "tBrowseYear": {{ gettext("Year: ") | tojson }},
+            "tBrowseTitle": {{ gettext("Title: ") | tojson }},
+            "tBrowseRecentlyAdded": {{ gettext("Recently added") | tojson }},
+            "tBrowseRecentlyReleased": {{ gettext("Recently released") | tojson }},
+            "tBrowseRandom": {{ gettext("Random") | tojson }},
+            "tBrowseMissingMetadata": {{ gettext("Missing metadata") | tojson }},
+            "tBrowseNothing": {{ gettext("Browse") | tojson }},
+            "tActivityFileAdded": {{ gettext("Added") | tojson }},
+            "tActivityFileModified": {{ gettext("Modified") | tojson }},
+            "tActivityFileDeleted": {{ gettext("Deleted") | tojson }},
+            "tActivityFileMoved": {{ gettext("Moved") | tojson }},
+            "tTrackInfoUnavailable": {{ gettext("[track info unavailable]") | tojson }},
+            "tTheaterModeEnabled": {{ gettext("Theater mode enabled") | tojson }},
+            "tTheaterModeDisabled": {{ gettext("Theater mode disabled") | tojson }},
+            "tLyricsEnabled": {{ gettext("Lyrics shown") | tojson }},
+            "tLyricsDisabled": {{ gettext("Lyrics hidden") | tojson }},
+            "tVisualiserEnabled": {{ gettext("Visualiser enabled") | tojson }},
+            "tVisualiserDisabled": {{ gettext("Visualiser disabled") | tojson }},
+            "tQueueCleared": {{ gettext("Queue cleared") | tojson }},
+            "tErrorOccurredReported": {{ gettext("An error has occurred, it has been reported to the system administrator") | tojson }},
+            "tErrorOccurredUnreported": {{ gettext("An error has occurred, reporting the error also failed") | tojson }},
+            "tTokenSetUpSuccessfully": {{ gettext("Token set up successfully") | tojson }},
+            "tInvalidSpotifyPlaylistUrl": {{ gettext("Invalid Spotify playlist URL") | tojson }},
+            "tFingerprintFailed": {{ gettext("Could not fingerprint audio file, maybe it is corrupt?") | tojson }},
+            "tControlPause": {{ gettext("Paused by remote control") | tojson }},
+            "tControlPlay": {{ gettext("Started playing by remote control") | tojson }},
+            "tControlPrevious": {{ gettext("Skipped to previous track by remote control") | tojson }},
+            "tControlNext": {{ gettext("Skipped to next track by remote control") | tojson }},
+            "tControlSeek": {{ gettext("Seeked by remote control") | tojson }},
+            "tControlQueue": {{ gettext("Queue changed by remote control") | tojson }},
+            "tControlPlaylist": {{ gettext("Playlists changed by remote control") | tojson }},
+            "tTrackProblemReported": {{ gettext("Problem reported") | tojson }},
+            "tTooltipPlayNow": {{ gettext("Play now") | tojson }},
+            "tTooltipAddToQueue": {{ gettext("Add to queue") | tojson }},
+            "tTooltipEditMetadata": {{ gettext("Open metadata editor") | tojson }},
+            "tActivityNothingPlaying": {{ gettext("No one is playing music.") | tojson }},
+            "tLoading": {{ gettext("loading...") | tojson }},
+            "tUnknownAlbum": {{ gettext("Unknown album") | tojson }},
+            "tLyricsNotTimeSynced": {{ gettext("not time-synced") | tojson }},
+            "tPlaylist": {{ gettext("Playlist") | tojson }},
+            "tAutoPlayBlocked": {{ gettext("Audio playback was blocked by your browser") | tojson }}
+        }
+    </script>
+    <script src="/static/js/base.js" type="module"></script>
+    {% if script is defined %}
+        <script src="/static/js/{{ script }}.js" type="module"></script>
+    {% endif %}
+</head>
+
+<body>
+    {% block body %}{% endblock body %}
+
+    <div id="toasts"></div>
+</body>
+
+</html>
