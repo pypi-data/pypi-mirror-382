@@ -1,0 +1,87 @@
+Metadata-Version: 2.4
+Name: aws-resource-toggler
+Version: 0.1.0
+Summary: A Python library to start and stop AWS resources (EC2, RDS, ECS) based on tags.
+Home-page: https://github.com/yourusername/aws-resource-toggler
+Author: Your Name or Company
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: System :: Systems Administration
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: boto3>=1.34.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+AWS Resource Toggler
+
+A powerful Python package designed to automatically manage the state (start/stop/scale) of multiple AWS services (EC2, RDS, ECS) based on custom resource tags. This is ideal for managing non-production environments to save costs.
+Installation
+
+    Structure the files: Create the following directory structure:
+
+    .
+    ├── setup.py
+    ├── README.md
+    └── resource_toggler/
+        ├── __init__.py
+        └── manager.py
+
+    Build the package: From the root directory (where setup.py is located), run:
+
+    python setup.py sdist
+
+    Install the package:
+
+    pip install dist/aws-resource-toggler-0.1.0.tar.gz
+
+    (Replace 0.1.0 with your package version)
+
+Usage as a Library
+
+The main function is toggle_resources. You must have AWS credentials configured (e.g., via AWS CLI or environment variables) for Boto3 to work.
+Example
+
+import json
+from resource_toggler import toggle_resources
+
+# Define the tags you want to match
+
+# This example will toggle resources tagged with both 'Stage=Dev' AND 'Schedule=Workhours'
+
+required_tags = [
+{'Key': 'Stage', 'Value': 'Dev'},
+{'Key': 'Schedule', 'Value': 'Workhours'}
+]
+
+# Run the toggler for a specific region
+
+try:
+report = toggle_resources(
+tag_filters=required_tags,
+region='us-east-1' # Specify your target region
+)
+
+    print("--- Execution Complete ---")
+    print(json.dumps(report, indent=4))
+
+except Exception as e:
+print(f"An error occurred during execution: {e}")
+
+Usage in AWS Lambda
+
+The package retains the original lambda_handler for direct use as a Lambda entry point.
+
+    Lambda Handler: Set the Lambda handler to resource_toggler.manager.lambda_handler.
+
+    Environment Variables: Define the required tags as environment variables (e.g., TAG_0_KEY=Stage, TAG_0_VALUE=Dev).
