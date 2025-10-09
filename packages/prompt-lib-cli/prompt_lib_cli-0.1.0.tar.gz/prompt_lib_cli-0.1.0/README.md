@@ -1,0 +1,26 @@
+# Prompt Library CLI
+
+一个简单的提示词库管理命令行工具。
+
+## 功能特性
+
+- `add <name> <content>`: 添加新的提示词
+- `ls`:                   交互式列表管理提示词
+- `-h`, `--help`:         show this help message and exit
+- `-v`, `--version`:      显示版本信息
+
+
+## 交互式界面操作
+
+- `↑/↓`: 上下选择
+- `回车`: 查看并复制提示词内容
+- `r`: 重命名选中的提示词
+- `d`: 删除选中的提示词
+- `e`: 编辑选中的提示词内容
+- `q`: 退出程序
+
+## 安装
+
+```bash
+pip install --user prompt-lib-cli
+```
