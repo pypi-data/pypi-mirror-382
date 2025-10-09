@@ -1,0 +1,102 @@
+"""Configuration management for LLM Provider Factory."""
+
+from typing import Dict, Any, Optional
+from pydantic import BaseModel, Field
+import os
+
+
+class ProviderConfig(BaseModel):
+    """Base configuration for LLM providers."""
+    
+    api_key: Optional[str] = None
+    model: str = Field(..., description="Model name to use")
+    max_tokens: int = Field(default=1000, ge=1, le=100000)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    timeout: int = Field(default=30, ge=1, le=300)
+    
+    class Config:
+        extra = "allow"  # Allow additional fields for provider-specific configs
+
+
+class OpenAIConfig(ProviderConfig):
+    """Configuration for OpenAI provider."""
+    
+    model: str = Field(default="gpt-3.5-turbo")
+    organization: Optional[str] = None
+    base_url: Optional[str] = None
+    
+    @classmethod
+    def from_env(cls) -> "OpenAIConfig":
+        """Create config from environment variables."""
+        return cls(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            organization=os.getenv("OPENAI_ORGANIZATION"),
+            model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
+            max_tokens=int(os.getenv("OPENAI_MAX_TOKENS", "1000")),
+            temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
+            timeout=int(os.getenv("OPENAI_TIMEOUT", "30")),
+        )
+
+
+class AnthropicConfig(ProviderConfig):
+    """Configuration for Anthropic provider."""
+    
+    model: str = Field(default="claude-3-sonnet-20240229")
+    
+    @classmethod
+    def from_env(cls) -> "AnthropicConfig":
+        """Create config from environment variables."""
+        return cls(
+            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            model=os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229"),
+            max_tokens=int(os.getenv("ANTHROPIC_MAX_TOKENS", "1000")),
+            temperature=float(os.getenv("ANTHROPIC_TEMPERATURE", "0.7")),
+            timeout=int(os.getenv("ANTHROPIC_TIMEOUT", "30")),
+        )
+
+
+class GeminiConfig(ProviderConfig):
+    """Configuration for Google Gemini provider."""
+    
+    model: str = Field(default="gemini-pro")
+    
+    @classmethod
+    def from_env(cls) -> "GeminiConfig":
+        """Create config from environment variables."""
+        return cls(
+            api_key=os.getenv("GOOGLE_API_KEY"),
+            model=os.getenv("GEMINI_MODEL", "gemini-pro"),
+            max_tokens=int(os.getenv("GEMINI_MAX_TOKENS", "1000")),
+            temperature=float(os.getenv("GEMINI_TEMPERATURE", "0.7")),
+            timeout=int(os.getenv("GEMINI_TIMEOUT", "30")),
+        )
+
+
+class ConfigManager:
+    """Manages configurations for all providers."""
+    
+    def __init__(self) -> None:
+        self._configs: Dict[str, ProviderConfig] = {}
+    
+    def set_config(self, provider_name: str, config: ProviderConfig) -> None:
+        """Set configuration for a provider."""
+        self._configs[provider_name.lower()] = config
+    
+    def get_config(self, provider_name: str) -> Optional[ProviderConfig]:
+        """Get configuration for a provider."""
+        return self._configs.get(provider_name.lower())
+    
+    def load_from_env(self) -> None:
+        """Load configurations from environment variables."""
+        if os.getenv("OPENAI_API_KEY"):
+            self.set_config("openai", OpenAIConfig.from_env())
+        
+        if os.getenv("ANTHROPIC_API_KEY"):
+            self.set_config("anthropic", AnthropicConfig.from_env())
+        
+        if os.getenv("GOOGLE_API_KEY"):
+            self.set_config("gemini", GeminiConfig.from_env())
+
+
+# Global config manager
+config_manager = ConfigManager()
