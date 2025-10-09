@@ -1,0 +1,291 @@
+Metadata-Version: 2.4
+Name: llm-adapter-service
+Version: 1.0.0
+Summary: A comprehensive LLM adapter service with safety checks and logging
+Author-email: Annu Priya <a.priya@astreya.com>
+License: MIT
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.32.0
+Requires-Dist: pydantic>=2.11.0
+Requires-Dist: httpx>=0.28.0
+Requires-Dist: python-dotenv>=1.1.0
+
+# LLM Adapter Service
+
+A comprehensive service for managing multiple LLM providers and vector stores with RAG capabilities.
+
+## Features
+
+- **Multiple LLM Providers**: Support for OpenAI, Anthropic, Azure, and Google
+- **Vector Stores**: Support for ChromaDB, FAISS, and Pinecone
+- **RAG (Retrieval-Augmented Generation)**: Advanced document retrieval and generation
+- **Content Safety**: Built-in content filtering and safety checks
+- **Rate Limiting**: Configurable rate limiting for API endpoints
+- **Logging**: Comprehensive logging and monitoring
+- **Authentication**: JWT-based authentication
+
+## Vector Store Support
+
+### ChromaDB
+- Local persistent storage
+- Automatic metadata handling
+- Cosine similarity search
+
+### FAISS
+- High-performance similarity search
+- Local index storage
+- Configurable distance metrics
+
+### Pinecone
+- Cloud-based vector database
+- Scalable and managed service
+- Real-time similarity search
+- Automatic index management
+
+## Setup
+
+### Prerequisites
+
+- Python 3.8+
+- Required API keys for your chosen providers
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Configuration
+
+Create a `.env` file with your API keys:
+
+```env
+# LLM Provider API Keys
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+GOOGLE_API_KEY=your_google_api_key
+
+# Vector Store Configuration
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_ENVIRONMENT=us-west1-gcp
+PINECONE_INDEX_PREFIX=llm_adapter
+```
+
+### Pinecone Setup
+
+1. Create a Pinecone account at [pinecone.io](https://pinecone.io)
+2. Get your API key from the Pinecone console
+3. Note your environment (e.g., `us-west1-gcp`)
+4. Set the environment variables:
+   ```bash
+   export PINECONE_API_KEY=your_api_key
+   export PINECONE_ENVIRONMENT=your_environment
+   ```
+
+## Usage
+
+### Starting the Service
+
+```bash
+python main.py
+```
+
+The service will be available at `http://localhost:8001`
+
+### API Endpoints
+
+#### Vector Store Operations
+
+- `POST /create_collection` - Create a new collection
+- `POST /list_all_collections` - List all collections
+- `POST /upload_file` - Upload a file to a collection
+- `POST /upload_documents_folder` - Upload multiple files from a folder
+- `POST /query_rag` - Execute RAG query
+
+#### LLM Operations
+
+- `POST /query_llm` - Query an LLM provider
+- `POST /create_embedding` - Create embeddings for text
+- `GET /list_all_llm_providers` - List available LLM providers
+- `POST /list_chatmodels_inprovider` - List models for a provider
+
+#### Metrics and Analytics
+
+- `POST /metrics` - Get cost and token usage metrics for a specific period
+- `POST /user_projects` - Get all projects for a specific user
+- `POST /project_users` - Get all users for a specific project
+- `GET /metrics/summary` - Get a summary of metrics for all periods (day, week, month)
+
+### Example: Using Pinecone Vector Store
+
+```python
+# Create a collection
+curl -X POST "http://localhost:8001/create_collection" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -F "vector_store=pinecone" \
+  -F "collection_name=my_documents" \
+  -F "embedding_model=text-embedding-ada-002"
+
+# Upload a document
+curl -X POST "http://localhost:8001/upload_file" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -F "file=@document.txt" \
+  -F "vector_store=pinecone" \
+  -F "collection_name=my_documents" \
+  -F "embedding_provider=openai" \
+  -F "embedding_model=text-embedding-ada-002" \
+  -F "embedding_api_key=your_openai_api_key"
+
+# Query with RAG
+curl -X POST "http://localhost:8001/query_rag" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What is machine learning?",
+    "vector_store": "pinecone",
+    "collection_name": "my_documents",
+    "llm_provider": "openai",
+    "llm_api_key": "your_openai_api_key",
+    "embedding_provider": "openai",
+    "embedding_api_key": "your_openai_api_key",
+    "embedding_model": "text-embedding-ada-002",
+    "model_id": "gpt-3.5-turbo"
+  }'
+```
+
+### Example: Using the Metrics API
+
+```python
+# Get daily metrics for a user and project
+curl -X POST "http://localhost:8001/metrics" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user123",
+    "project_id": "project456",
+    "period": "day"
+  }'
+
+# Get weekly metrics for all users in a project
+curl -X POST "http://localhost:8001/metrics" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "project456",
+    "period": "week"
+  }'
+
+# Get monthly metrics for a specific user
+curl -X POST "http://localhost:8001/metrics" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user123",
+    "period": "month"
+  }'
+
+# Get all projects for a user
+curl -X POST "http://localhost:8001/user_projects" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user123"
+  }'
+
+# Get all users for a project
+curl -X POST "http://localhost:8001/project_users" \
+  -H "Authorization: Bearer your_jwt_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "project456"
+  }'
+
+# Get metrics summary for all periods
+curl -X GET "http://localhost:8001/metrics/summary?user_id=user123&project_id=project456" \
+  -H "Authorization: Bearer your_jwt_token"
+```
+
+### Metrics API Response Format
+
+The metrics API returns detailed information including:
+
+- **Total Cost**: Total cost in USD for the specified period
+- **Total Tokens**: Total tokens used (input + output)
+- **Total Input Tokens**: Estimated input tokens based on prompt length
+- **Total Output Tokens**: Estimated output tokens based on response length
+- **Total Requests**: Number of API requests made
+- **Model Breakdown**: Cost and usage breakdown by model
+- **Average Metrics**: Average cost and tokens per request
+- **Date Range**: Start and end dates for the period
+
+Example response:
+```json
+{
+  "period": "week",
+  "start_date": "2024-01-01T00:00:00",
+  "end_date": "2024-01-08T00:00:00",
+  "user_id": "user123",
+  "project_id": "project456",
+  "total_cost": 0.0025,
+  "total_tokens": 1500,
+  "total_input_tokens": 800,
+  "total_output_tokens": 700,
+  "total_requests": 10,
+  "model_breakdown": {
+    "gpt-3.5-turbo": {
+      "cost": 0.0025,
+      "tokens": 1500,
+      "requests": 10
+    }
+  },
+  "average_cost_per_request": 0.00025,
+  "average_tokens_per_request": 150.0
+}
+```
+
+## Testing
+
+Run the Pinecone test:
+
+```bash
+python pineconetest.py
+```
+
+Make sure to set your `PINECONE_API_KEY` environment variable first.
+
+## Architecture
+
+The service follows a modular architecture:
+
+- **Core**: Core functionality and data structures
+- **API**: FastAPI routes and endpoints
+- **LLM**: Provider-specific LLM adapters
+- **Vector Store**: Vector database implementations
+- **RAG**: Retrieval-augmented generation logic
+- **Safety**: Content filtering and validation
+- **Logging**: Logging and monitoring utilities
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
+# llmadapterservice
