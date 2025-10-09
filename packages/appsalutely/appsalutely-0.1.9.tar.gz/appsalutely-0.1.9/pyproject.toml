@@ -1,0 +1,78 @@
+[project]
+name = "appsalutely"
+version = "0.1.9"
+description = "A utility library for building apps with FastAPI and Vue.js"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+keywords = ["fastapi", "vue", "utility", "library"]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+homepage = "https://github.com/merlinz01/appsalutely"
+repository = "https://github.com/merlinz01/appsalutely"
+
+[project.optional-dependencies]
+fastapi = [
+    "fastapi>=0.115.12",
+]
+tortoise = [
+    "tortoise-orm>=0.25.0",
+]
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = "backend"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+    "poethepoet>=0.34.0",
+    "ruff>=0.11.10",
+]
+
+[tool.poe.tasks.lint-backend]
+cmd = "ruff check backend"
+
+[tool.poe.tasks.lint-frontend]
+cwd = "frontend"
+cmd = "npm run lint"
+
+[tool.poe.tasks.format-backend]
+cmd = "ruff format backend"
+
+[tool.poe.tasks.format-frontend]
+cwd = "frontend"
+cmd = "npm run format"
+
+[tool.poe.tasks.type-check-backend]
+cmd = "mypy backend"
+
+[tool.poe.tasks.type-check-frontend]
+cwd = "frontend"
+cmd = "npm run type-check"
+
+[tool.poe.tasks.prerelease]
+sequence = [
+    { ref = "lint-backend" },
+    { ref = "lint-frontend" },
+    { ref = "format-backend" },
+    { ref = "format-frontend" },
+    { ref = "type-check-backend" },
+    { ref = "type-check-frontend" }
+]
+
+[tool.poe.tasks.ci-tasks]
+sequence = [
+    { ref = "lint-backend" },
+    { ref = "format-backend" },
+    { ref = "type-check-backend" }
+]
