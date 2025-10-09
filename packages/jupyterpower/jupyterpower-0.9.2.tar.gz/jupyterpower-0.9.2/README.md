@@ -1,0 +1,121 @@
+# JupyterPower
+
+This is a project to work wtih Jupyter Notebooks for end-to-end ML Engineering, MLOps, Data Science productions tasks
+
+## Repo Layout
+
+JupyterPower/ ├─ PowerDemo.ipynb ├─ data/ ├─ src/ ├─ results/ ├─ requirements.txt └─ README.md
+
+## Quickstart
+`python -m venv .venv`
+
+`source .venv/bin/activate # Windows: .venv\\Scripts\\activate`
+
+`pip install -r requirements.txt`
+
+## How to View vs Re-Run
+
+### View only (no setup required)
+- Open `YOUR_NOTEBOOK.ipynb` in VS Code, JupyterLab, or GitHub’s viewer.
+- The notebook is saved **with outputs embedded**, so plots and tables should appear immediately.
+- If VS Code shows a trust prompt, choose **Trust** for this workspace.
+
+### Re-run the notebook
+# from repo root
+`python -m venv .venv && source .venv/bin/activate`   # Windows: .venv\Scripts\activate
+
+`python -m pip install --upgrade pip`
+
+`python -m pip install -r requirements.txt`
+
+`code .`  # open VS Code here (or use JupyterLab)
+
+The `requirements.lock.baseline.txt` file was created using: 
+
+`pip freeze > requirements.lock.baseline.txt`
+
+To restore or setup a new .venv in VS Code, run this:
+
+`python -m pip install -r requirements.lock.baseline.txt`
+
+# Release Process — jupyterpower (import: jpower)
+
+1. Bump version (both places)
+- `src/jpower/_version.py` → `__version__ = "0.1.x"`
+- `pyproject.toml` → `[project].version = "0.1.x"`
+
+2. Test locally
+```bash
+./.venv/bin/python -m pytest -q
+
+3. Commit and Push
+git add -A
+git commit -m "chore(release): v0.1.x"
+git push
+
+
+4. Clean Build
+rm -rf dist build *.egg-info
+./.venv/bin/python -m pip install --upgrade build twine
+./.venv/bin/python -m build
+./.venv/bin/python -m twine check dist/*
+
+5. Dry Run
+export TEST_PYPI_TOKEN='pypi-xxxxxxxx'
+./.venv/bin/python -m twine upload -r testpypi -u __token__ -p "$TEST_PYPI_TOKEN" dist/*
+# Verify in a fresh env:
+python3 -m venv /tmp/jp-test && source /tmp/jp-test/bin/activate
+python -m pip install --upgrade pip
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ jupyterpower==0.1.x
+deactivate
+
+6. Publish PyPi
+export PYPI_TOKEN='pypi-xxxxxxxx'
+./.venv/bin/python -m twine upload -u __token__ -p "$PYPI_TOKEN" dist/*
+
+7. Tag the release in GitHub
+git tag v0.1.x && git push origin v0.1.x
+
+
+
+## Install
+From PyPI:
+```bash
+pip install jupyterpower
+
+## Check install
+python -c "import jpower; print(jpower.__version__)"
+
+## Load a CSV, smooth a column, fit a simple baseline, and save a plot:
+from jpower import DATA_DIR, RESULTS_DIR, load_csv, moving_average, fit_linear_time
+from jpower.viz import plot_series_with_smooth, save_fig
+
+# explicit columns for this demo schema
+time_col  = "time"
+value_col = "signal"
+
+df = load_csv(DATA_DIR / "sample.csv", create_placeholder=True)
+smooth = moving_average(df, value_col=value_col, window=7)
+model, X, y, pred = fit_linear_time(df, time_col=time_col, y_col=value_col)
+
+fig, ax = plot_series_with_smooth(df, time_col=time_col, value_col=value_col, smooth=smooth)
+out_png = RESULTS_DIR / "quickstart_plot.png"
+save_fig(fig, out_png)
+print("Saved:", out_png)
+
+
+
+## Using a Jupyter Notebook
+%load_ext autoreload
+%autoreload 2
+import jpower; print("jpower", jpower.__version__)
+
+
+## Development (editable install)
+If you’re working from a cloned repo:
+
+python -m pip install -e .
+python -m pip install pytest
+pytest -q
+
+
