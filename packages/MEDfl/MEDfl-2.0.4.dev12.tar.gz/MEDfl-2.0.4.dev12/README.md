@@ -1,0 +1,192 @@
+# 🧠 MEDfl
+
+### MEDfl: A Collaborative Framework for Federated Learning in Medicine
+
+<p align="center">
+  <img src="./medfl_logo.png" alt="MEDfl Logo" width="250"/>
+</p>
+
+![Python Versions](https://img.shields.io/badge/python-3.9%2B-blue)
+![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)
+![Build Status](https://img.shields.io/github/actions/workflow/status/MEDomics-UdeS/MEDfl/tests.yml?branch=main)
+![Contributors](https://img.shields.io/github/contributors/MEDomics-UdeS/MEDfl)
+![PyPI version](https://img.shields.io/pypi/v/MEDfl)
+![Downloads](https://img.shields.io/pypi/dm/MEDfl)
+
+---
+
+## 📚 Table of Contents
+
+1. [Introduction](#1-introduction)
+2. [Key Features](#2-key-features)
+3. [Installation](#3-installation)
+4. [Modes of Operation](#4-modes-of-operation)
+5. [Quick Start](#5-quick-start)
+6. [Documentation](#6-documentation)
+7. [Contributing](#7-contributing)
+8. [Acknowledgment](#8-acknowledgment)
+9. [Authors](#9-authors)
+
+---
+
+## 1. Introduction
+
+**MEDfl** is an open-source **Federated Learning (FL)** framework designed for both **simulation** and **real-world distributed training**in the **medical and healthcare domains**. 
+It integrates **Differential Privacy (DP)**, **Transfer Learning (TL)**, and secure communication to enable privacy-preserving model training across multiple institutions—particularly suited for **medical and clinical data**.
+
+
+---
+
+## 2. Key Features
+
+- 🧩 **Two Operation Modes**
+
+  - **Simulation Mode:** Run FL experiments locally for testing and benchmarking.
+  - **Real-World Mode:** Connect remote clients through Tailscale VPN + WebSockets for production-grade FL.
+
+- 🔒 **Differential Privacy (Opacus Integration)**  
+  Ensures client updates are mathematically protected against data leakage.
+
+- 🧠 **Transfer Learning Integration**  
+  Improve convergence and accuracy in small or heterogeneous datasets.
+
+- ⚙️ **Modular Design**  
+  Plug-and-play components for models, optimizers, datasets, and aggregation strategies.
+
+---
+
+## 3. Installation
+
+```bash
+pip install medfl
+```
+
+> ✅ Requires **Python 3.9+** and optionally **MySQL** for local experiment storage.
+
+If you prefer the development version:
+
+```bash
+git clone https://github.com/MEDomics-UdeS/MEDfl.git
+cd MEDfl
+pip install -e .
+```
+
+---
+
+## 4. Modes of Operation
+
+| Mode              | Description                                                        | Typical Use Case                                         |
+| ----------------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
+| **Simulation FL** | Runs all clients locally in a controlled environment.              | Benchmarking, debugging, or prototyping.                 |
+| **Real-World FL** | Connects distributed client machines using Tailscale + WebSockets. | Multi-institution collaboration, production deployments. |
+
+---
+
+## 5. Quick Start
+
+### 🌍 Real-World Federated Learning Example
+
+**Server Setup**
+
+```python
+from MEDfl.rw.server import FederatedServer, Strategy
+
+custom_strategy = Strategy(
+    name="FedAvg",
+    fraction_fit=1,
+    min_fit_clients=1,
+    min_evaluate_clients=1,
+    min_available_clients=1,
+    local_epochs=1,
+    threshold=0.5,
+    learning_rate=0.01,
+    optimizer_name="SGD",
+    saveOnRounds=3,
+    savingPath="./",
+    total_rounds=10,
+    datasetConfig={"isGlobal": True, "globalConfig": {"target": "label", "testFrac": 0.2}},
+)
+
+server = FederatedServer(
+    host="0.0.0.0",
+    port=8080,
+    num_rounds=10,
+    strategy=custom_strategy,
+)
+server.start()
+```
+
+**Client Setup**
+
+```python
+from MEDfl.rw.client import FlowerClient, DPConfig
+
+# Example: XGBoost client
+xgb_params = {
+    "objective": "binary:logistic",
+    "eval_metric": "logloss",
+    "eta": 0.1,
+    "max_depth": 6,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "tree_method": "hist",  # GPU: "gpu_hist"
+}
+
+client = FlowerClient(
+    server_address="100.65.215.27:8080",
+    data_path="../data/client1.csv",
+    dp_config=None,            # DP only applies to neural networks
+    model_type="xgb",
+    xgb_params=xgb_params,
+    xgb_rounds=10,
+)
+client.start()
+```
+
+> 💡 **Tip:**  
+> Use [Tailscale](https://tailscale.com) to connect clients and server under the same secure VPN for real-world deployments.
+
+---
+
+## 6. Documentation
+
+You can generate and host the documentation locally with **Sphinx**:
+
+```bash
+cd docs
+make clean && make html
+cd _build/html
+python -m http.server
+```
+
+Or visit the hosted documentation (coming soon):  
+👉 **[MEDfl Documentation Portal](https://medomics-udes.gitbook.io/medfl)**
+
+---
+
+## 7. Contributing
+
+We welcome contributions of all kinds — from bug fixes to new modules.
+
+1. Fork the repo and create a feature branch.
+2. Run tests and format your code with `black` and `flake8`.
+3. Submit a Pull Request with clear details on your changes.
+
+---
+
+## 8. Acknowledgment
+
+MEDfl is part of the **MEDomicsLab initiative** at the **Université de Sherbrooke**.  
+It was developed to enable **secure, privacy-preserving, and reproducible** machine learning across distributed medical datasets.
+
+---
+
+## 9. Authors
+
+- 🧑‍💻 [Ouael Nedjem Eddine Sahbi](https://github.com/ouaelesi) — Master’s Research Student, Université de Sherbrooke
+- 👨‍💻 [Haithem Lamri](https://github.com/HaithemLamri) — Research Intern
+- 🧬 [MEDomics-UdeS](https://www.medomics-udes.org/en/)
+
+---
+
+⭐ **If you find this project useful, please consider starring it on GitHub to support continued development.**
