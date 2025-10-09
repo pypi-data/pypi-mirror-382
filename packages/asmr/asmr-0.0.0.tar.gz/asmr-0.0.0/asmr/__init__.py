@@ -1,0 +1,1 @@
+print('from __init__ of the project asmr: this version of this project doesn't do anything besides printing this')

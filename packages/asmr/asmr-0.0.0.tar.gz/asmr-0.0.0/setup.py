@@ -1,0 +1,1 @@
+from setuptools import setup;setup(name='asmr',version='0.0.0',packages=('asmr',))
