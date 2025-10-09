@@ -1,0 +1,95 @@
+Metadata-Version: 2.4
+Name: AdsbAnomalyDetector
+Version: 0.9
+Summary: Low altitude aircraft anomaly detector
+Author: Pirolley Melvyn
+Author-email: 
+Keywords: python,deep learning,tensorflow,aircraft,classification,ADS-B
+Classifier: Intended Audience :: Education
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: Microsoft :: Windows
+Description-Content-Type: text/markdown
+Requires-Dist: tensorflow
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: scikit-learn
+Requires-Dist: matplotlib
+Requires-Dist: pickle-mixin
+Requires-Dist: cartopy
+Requires-Dist: numpy_typing
+Requires-Dist: flask
+Requires-Dist: flask-cors
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: keywords
+Dynamic: requires-dist
+Dynamic: summary
+
+[![GitHub](https://img.shields.io/badge/GitHub-View_on_GitHub-blue?logo=GitHub)](https://github.com/DApIA-Project/Anomaly-Detection)
+
+This library is a tool to detect anomalies in ADS-B messages. It is based on an artificial intelligence model that has been trained to detect spoofing, flooding and replay attacks.
+
+All the used models are pre-trained and weight are stored in the library. On first use, the library will download the hashtable needed for the detection of replay attacks. Do not stop the program during the download
+process.
+
+<!-- make an image link to github -->
+If you meet any problem with the library, feel free to open an issue our GitHub repository.
+
+## Installation
+
+```bash
+pip install AdsbAnomalyDetector
+```
+
+## Usage
+
+The library provides a function `predict` that should be connected to an ADS-B stream.
+The function takes as input a list of ADS-B messages in a JSON format.
+
+Every call should correspond to a unique timestamp, and so every messages should have the same timestamp.
+If you want to process a whole timeseries, you should call the function multiple times.
+
+The function stores the messages in caches, hence do not go backwards in time. Or the cache will automatically be cleared.
+
+Here is an example of how to use the library, and show the format of the messages :
+
+```python
+from AdsbAnomalyDetector import predict, AnomalyType
+
+messages = [ # list of flights messages at t = 1609459200
+    {
+        "icao24": "3C4A4D",
+        "callsign": "AFR123",
+        "timestamp": "1609459200",
+        "latitude": "48.8583",
+        "longitude": "2.2945",
+        "altitude": "10000",
+        "geoaltitude": "10000",
+        "velocity": "250",
+        "vertical_rate": "0",
+        "track": "90",
+        "alert": "False",
+        "spi": "False"
+    },
+    {
+        "icao24": "39AC45",
+        "callsign": "SAMU31",
+        "timestamp": "1609459200",
+        ...
+    }, ...
+]
+
+messages = predict(messages)
+```
+
+By default the function will return for each message a json object with the following fields :
+- anomaly : equals AnomalyType.VALID if the message is valid, else it will be equal to the type of anomaly detected (AnomalyType.SPOOFING, AnomalyType.REPLAY, AnomalyType.FLOODING)
+- tag : a string useful under saturation to separate messages of simultaneous flights with identical ICAO24
+
+You can set the parameter `compress` to False if you want the function to return the full message + the anomaly field.
+
+You can also activate the debug mode by setting the parameter `debug` to True. In this case, the function will return some additional information about the predictions of each models.
+
