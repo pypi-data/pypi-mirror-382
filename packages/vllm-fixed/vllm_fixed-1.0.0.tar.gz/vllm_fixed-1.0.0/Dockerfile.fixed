@@ -1,0 +1,61 @@
+# Dockerfile with vLLM xgrammar concurrency fix
+# Builds for linux/amd64 (x86)
+
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-dev \
+    python3-pip \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN python3.10 -m pip install --upgrade pip
+
+# Option 1: Install from your Git repository (RECOMMENDED)
+# Replace with your actual git URL and branch
+# ARG GITHUB_TOKEN
+# RUN pip install --no-cache-dir \
+#     git+https://${GITHUB_TOKEN}@github.com/yourorg/vllm.git@fix/xgrammar-concurrency-0.8.5.post1
+
+# Option 2: Install official vLLM and apply fix via patch
+WORKDIR /tmp
+
+# Install vLLM 0.8.5.post1
+RUN pip install --no-cache-dir vllm==0.8.5.post1
+
+# Copy and apply the fix
+COPY fix_xgrammar_concurrency.py /tmp/
+RUN python3.10 /tmp/fix_xgrammar_concurrency.py && rm /tmp/fix_xgrammar_concurrency.py
+
+# Verify fix is applied
+RUN python3.10 -c "import inspect; \
+    from vllm.model_executor.guided_decoding.xgrammar_decoding import XGrammarLogitsProcessor; \
+    source = inspect.getsource(XGrammarLogitsProcessor.clone); \
+    assert 'allocate_token_bitmask' in source, 'Fix not applied!'; \
+    print('✅ Fix verified')"
+
+# Set working directory for application
+WORKDIR /app
+
+# Copy your application code
+# COPY . /app
+# RUN pip install -r requirements.txt
+
+# Default command (override as needed)
+CMD ["bash"]
+
+# Build instructions:
+# For x86 from ARM Mac:
+#   docker buildx build --platform linux/amd64 -t yourorg/vllm-fixed:0.8.5.post1 .
+# 
+# For x86 on x86:
+#   docker build -t yourorg/vllm-fixed:0.8.5.post1 .
+
