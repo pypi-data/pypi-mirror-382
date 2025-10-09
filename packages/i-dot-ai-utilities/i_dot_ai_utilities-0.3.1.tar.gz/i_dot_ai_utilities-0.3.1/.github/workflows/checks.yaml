@@ -1,0 +1,43 @@
+name: Check code
+
+env:
+  DOCKER_BUILDKIT: 1
+  ENVIRONMENT: test
+  IAI_FS_BUCKET_NAME: test-bucket
+  IAI_FS_AWS_REGION: eu-west-2
+  IAI_FS_MINIO_ADDRESS: http://localhost:9000
+  IAI_FS_AWS_ACCESS_KEY_ID: minioadmin
+  IAI_FS_AWS_SECRET_ACCESS_KEY: minioadmin
+  AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+  AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+  LITELLM_MASTER_KEY: sk-1234567890abcdef
+
+on:
+  push:
+
+jobs:
+  check_web:
+    name: Check Python
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Run lint
+      run: uv run make lint
+
+    - name: Run unit tests
+      run: uv run make test

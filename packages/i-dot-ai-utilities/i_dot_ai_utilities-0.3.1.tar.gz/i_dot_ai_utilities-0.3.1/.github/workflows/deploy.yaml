@@ -1,0 +1,84 @@
+name: Publish python package
+
+on:
+  release:
+    types:
+      - released
+      - prereleased
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+        id-token: write
+        contents: read
+    steps:
+    - name: Validate semantic version
+      uses: matt-usurp/validate-semver@7bbc9584679de1aeef57aa531504ab00438481ab
+      with:
+        version: ${{ github.event.release.tag_name }}
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+          fetch-depth: 0
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Set test release version
+      if: github.event.release.prerelease == true
+      run: |
+        timestamp=$(date +"%Y%m%d%H%M")
+        uv version ${{ github.event.release.tag_name }}.$timestamp
+
+    - name: Set prod release version
+      if: github.event.release.prerelease == false
+      run: uv version ${{ github.event.release.tag_name }}
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Build
+      run: uv build
+
+    - name: Publish to test pypi
+      uses: pypa/gh-action-pypi-publish@release/v1
+      if: github.event.release.prerelease == true
+      with:
+        repository-url: 'https://test.pypi.org/legacy/'
+        verbose: true
+
+    - name: Publish to prod pypi
+      uses: pypa/gh-action-pypi-publish@release/v1
+      if: github.event.release.prerelease == false
+
+  determine-success:
+    if: always()
+    needs:
+      - deploy
+    runs-on: ubuntu-latest
+    outputs:
+      success: ${{ steps.success.outputs.success }}
+    steps:
+      - id: success
+        run: |
+          if [[ "${{ needs.deploy.result }}" == "success" ]]; then
+              echo "success=true" >> $GITHUB_OUTPUT
+          else
+              echo "success=false" >> $GITHUB_OUTPUT
+          fi
+
+  notify-slack:
+    if: always()
+    uses: i-dot-ai/i-dot-ai-core-github-actions/.github/workflows/slack-notify.yml@main
+    needs:
+      - deploy
+      - determine-success
+    with:
+      WORKFLOW_PASSED: ${{ needs.determine-success.outputs.success == 'true' }}
+      SUCCESS_PAYLOAD: "{\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":airplane: ${{ github.repository }} - Successfully deployed ${{ github.event.release.tag_name }}${{ github.event.release.prerelease && ' (Pre-Release)' || '' }} :large_green_circle:\"}},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"Package published to${{ github.event.release.prerelease && ' test' || '' }} PyPI successfully\"}}]}"
+      FAILURE_PAYLOAD: "{\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":x: ${{ github.repository }} - Failed to deploy ${{ github.event.release.tag_name }}${{ github.event.release.prerelease && ' (Pre-Release)' || '' }} :x:\"}},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"Failed to publish package to PyPI\"}}]}"
+    secrets:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
