@@ -1,0 +1,48 @@
+name: pytest
+on:
+  pull_request:
+    paths:
+      - 'tofuref/**'
+      - 'tests/**'
+      - 'helpers/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+
+permissions:
+  contents: read # needed for actions/checkout
+  actions: write # needed for actions/upload-artifact
+
+jobs:
+  build:
+    name: pytest
+    runs-on: ubuntu-latest
+    env:
+      LANG: en_US.UTF-8
+    strategy:
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Run pytest
+        run: uv run --env-file=tests.env pytest tests -v
+
+      - name: Upload snapshot report
+        if: ${{ matrix.python-version == '3.13' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot_report_textual
+          path: snapshot_report.html
+          overwrite: true
