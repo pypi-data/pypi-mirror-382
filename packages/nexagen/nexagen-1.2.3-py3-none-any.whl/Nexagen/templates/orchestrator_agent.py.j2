@@ -1,0 +1,329 @@
+from mcp_client import MCPClient
+import json
+import os
+import re
+from pathlib import Path
+from dotenv import load_dotenv
+import requests
+import logging
+
+load_dotenv(dotenv_path=".env")
+
+# 配置日志 - 只输出到文件，不输出到控制台
+logging.basicConfig(
+    filename='orchestrator.log',
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+def extract_json(text: str) -> dict:
+    """从文本中提取 JSON，处理各种格式问题"""
+    # 移除 markdown 代码块标记
+    text = text.replace("```json", "").replace("```", "").strip()
+    
+    # 尝试直接解析
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        logger.debug(f"Direct JSON parse failed: {e}")
+    
+    # 尝试提取 JSON 对象
+    json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError as e:
+            logger.debug(f"Regex object parse failed: {e}")
+    
+    # 尝试提取 JSON 数组
+    json_match = re.search(r'\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\]', text, re.DOTALL)
+    if json_match:
+        try:
+            result = json.loads(json_match.group())
+            if isinstance(result, list):
+                return {"tasks": result} if "task" in str(result) else {"items": result}
+            return result
+        except json.JSONDecodeError as e:
+            logger.debug(f"Regex array parse failed: {e}")
+    
+    logger.error(f"Cannot extract JSON from: {text[:200]}")
+    raise ValueError(f"Cannot extract valid JSON from text")
+
+
+class OrchestratorAgent:
+    def __init__(self):
+        self.agent_cards = self.load_agent_cards()
+        self.mcp_client = MCPClient()
+        logger.info("OrchestratorAgent initialized")
+
+    def load_agent_cards(self):
+        cards = []
+        agent_cards_dir = Path(__file__).parent / "agent_cards"
+        if not isinstance(agent_cards_dir.exists(), bool):
+            logger.warning(f"Agent cards directory not found: {agent_cards_dir}")
+            return cards
+        for card_file in agent_cards_dir.glob("*.json"):
+            try:
+                with open(card_file, "r", encoding="utf-8") as f:
+                    cards.append(json.load(f))
+                logger.info(f"Loaded agent card: {card_file.name}")
+            except Exception as e:
+                logger.error(f"Failed to load {card_file}: {e}")
+        return cards
+
+    def call_llm(self, prompt: str, json_mode: bool = True, max_retries: int = 2) -> str:
+        """调用 LLM API，带重试机制"""
+        api_key = os.getenv("API_KEY")
+        base_url = os.getenv("BASE_URL")
+        model_name = os.getenv("model_name")
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "max_tokens": 4000
+        }
+        
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"LLM API call attempt {attempt + 1}/{max_retries}")
+                response = requests.post(
+                    f"{base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=60
+                )
+                response.raise_for_status()
+                result = response.json()
+                content = result['choices'][0]['message']['content']
+                logger.debug(f"LLM response: {content[:200]}...")
+                return content
+            except Exception as e:
+                logger.error(f"LLM API call failed (attempt {attempt + 1}): {e}")
+                if attempt == max_retries - 1:
+                    raise
+                continue
+
+    def split_task(self, main_task_description: str) -> list:
+        """将大型任务拆分成多个子任务"""
+        logger.info(f"Splitting task: {main_task_description}")
+        agent_cards = self.load_agent_cards()
+        
+        if not isinstance(agent_cards, list):
+            logger.error(f"agent_cards is not a list: {type(agent_cards)}")
+            agent_cards = []
+        
+        # 简化 agent 信息 - 使用循环避免列表推导式问题
+        simplified_cards = []
+        try:
+            for card in agent_cards:
+                if isinstance(card, dict):
+                    simplified_cards.append({
+                        "name": str(card.get("name", "unknown")),
+                        "description": str(card.get("description", ""))
+                    })
+        except Exception as e:
+            logger.error(f"Error simplifying cards: {e}")
+            simplified_cards = []
+        
+        # 转换为 JSON 字符串
+        try:
+            agents_info_str = json.dumps(simplified_cards, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Error converting to JSON: {e}")
+            agents_info_str = "[]"
+
+        prompt = f"""你是任务规划AI。将任务拆分成子任务。
+
+可用Agent:
+{agents_info_str}
+
+任务: {main_task_description}
+
+要求:
+1. 严格输出JSON
+2. 格式: {{"tasks": [{{"task_number": "1", "task_name": "名称", "task_details": "详情"}}]}}
+3. 每个子任务对应一次Agent调用
+4. 如果一个Agent就能完成，只拆分成一个子任务
+5. 不要输出任何解释文字，只输出JSON
+
+输出JSON:"""
+
+        try:
+            response = self.call_llm(prompt, json_mode=True)
+            data = extract_json(response)
+            
+            if isinstance(data, dict) and "tasks" in data:
+                subtasks = data["tasks"]
+            elif isinstance(data, list):
+                subtasks = data
+            else:
+                subtasks = [data] if isinstance(data, dict) else []
+            
+            for i, task in enumerate(subtasks, 1):
+                if "task_number" not in task:
+                    task["task_number"] = str(i)
+                if "task_name" not in task:
+                    task["task_name"] = f"子任务{i}"
+                if "task_details" not in task:
+                    task["task_details"] = main_task_description
+
+            logger.info(f"Task split into {len(subtasks)} subtasks")
+            return subtasks if subtasks else [{
+                "task_number": "1",
+                "task_name": "执行任务",
+                "task_details": main_task_description
+            }]
+
+        except Exception as e:
+            logger.error(f"Task split failed: {e}, using fallback")
+            return [{
+                "task_number": "1",
+                "task_name": "执行任务",
+                "task_details": main_task_description
+            }]
+
+    def decide_agent(self, task_description: str) -> dict:
+        """决定使用哪个agent"""
+        logger.info(f"Deciding agent for: {task_description}")
+        cards = self.load_agent_cards()
+        
+        if not isinstance(cards, list):
+            logger.error(f"cards is not a list: {type(cards)}")
+            cards = []
+        
+        # 简化 agent 信息 - 使用循环
+        simplified_cards = []
+        try:
+            for card in cards:
+                if isinstance(card, dict):
+                    simplified_cards.append({
+                        "name": str(card.get("name", "unknown")),
+                        "description": str(card.get("description", ""))
+                    })
+        except Exception as e:
+            logger.error(f"Error simplifying cards in decide_agent: {e}")
+            simplified_cards = []
+        
+        # 转换为 JSON
+        try:
+            agents_info_str = json.dumps(simplified_cards, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Error converting to JSON: {e}")
+            agents_info_str = "[]"
+        
+        prompt = f"""选择最合适的Agent执行任务。
+
+可用Agents:
+{agents_info_str}
+
+任务: {task_description}
+
+要求:
+1. 严格输出JSON
+2. 格式: {{"agent": "agent名称"}}
+3. 不要输出任何解释文字
+
+输出JSON:"""
+
+        try:
+            response = self.call_llm(prompt, json_mode=True)
+            data = extract_json(response)
+            
+            if "agent" in data:
+                logger.info(f"Selected agent: {data['agent']}")
+                return data
+            else:
+                if cards:
+                    default_agent = cards[0].get("name", "unknown")
+                    logger.warning(f"No agent in response, using first: {default_agent}")
+                    return {"agent": default_agent}
+                return {"agent": "unknown"}
+                
+        except Exception as e:
+            logger.error(f"Agent decision failed: {e}")
+            if cards:
+                default_agent = cards[0].get("name", "unknown")
+                return {"agent": default_agent}
+            return {"agent": "unknown"}
+
+    def decide_agent_parameters(self, task_description: str, agent_name: str) -> dict:
+        """生成agent调用参数"""
+        logger.info(f"Generating parameters for {agent_name}: {task_description}")
+        
+        try:
+            mcp_agent_cards_path = Path(__file__).parent / "mcp_agents" / "mcp_cards.json"
+            with open(mcp_agent_cards_path, "r", encoding="utf-8") as f:
+                all_agents = json.load(f)
+            
+            if agent_name not in all_agents:
+                logger.error(f"Agent {agent_name} not found")
+                return {"agent": agent_name, "tool_name": "unknown", "tool_args": {}}
+            
+            agent_details = all_agents[agent_name]
+            tools = agent_details.get("tools", [])
+            
+            # 简化工具信息
+            tools_info = []
+            for tool in tools:
+                tools_info.append({
+                    "name": tool.get("name", ""),
+                    "description": tool.get("description", "").split('\n')[0],
+                    "required_params": list(tool.get("input_schema", {}).get("required", []))
+                })
+            
+            tools_info_str = json.dumps(tools_info, ensure_ascii=False)
+            
+            prompt = f"""为Agent调用生成参数。
+
+Agent: {agent_name}
+工具: {tools_info_str}
+
+任务: {task_description}
+
+要求:
+1. 严格输出JSON
+2. 格式: {{"agent": "{agent_name}", "tool_name": "工具名", "tool_args": {{"参数": "值"}}}}
+3. tool_args必须是对象，不能是字符串
+4. 根据任务推断合理的参数值
+5. 不要输出任何解释文字
+
+输出JSON:"""
+
+            response = self.call_llm(prompt, json_mode=True)
+            data = extract_json(response)
+            
+            if "agent" not in data:
+                data["agent"] = agent_name
+            if "tool_name" not in data:
+                data["tool_name"] = tools[0].get("name", "unknown") if tools else "unknown"
+            if "tool_args" not in data:
+                data["tool_args"] = {}
+            
+            if isinstance(data["tool_args"], str):
+                try:
+                    data["tool_args"] = json.loads(data["tool_args"])
+                except:
+                    logger.warning("Failed to parse tool_args string, using empty dict")
+                    data["tool_args"] = {}
+            
+            logger.info(f"Generated parameters: tool={data['tool_name']}, args_keys={list(data['tool_args'].keys())}")
+            return data
+            
+        except Exception as e:
+            logger.error(f"Parameter generation failed: {e}")
+            return {
+                "agent": agent_name,
+                "tool_name": "unknown",
+                "tool_args": {}
+            }

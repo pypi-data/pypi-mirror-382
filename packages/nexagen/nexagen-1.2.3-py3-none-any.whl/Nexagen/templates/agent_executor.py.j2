@@ -1,0 +1,40 @@
+import mcp_client
+import json
+import asyncio
+
+
+# --1<-- [start:MCPAgent]
+class MCPAgent:
+    """MCP Agent."""
+
+    def invoke(self, decision) -> str:
+        """同步调用 - 用于向后兼容"""
+        agent_name = decision["agent"]
+        tool_name = decision["tool_name"]
+        tool_args = decision["tool_args"]
+        
+        # 如果在异步环境中，需要特殊处理
+        try:
+            loop = asyncio.get_running_loop()
+            # 在异步环境中，不能直接调用同步版本
+            # 需要使用 create_task 或其他异步方法
+            raise RuntimeError("Use async_invoke() in async context")
+        except RuntimeError as e:
+            if "no running event loop" in str(e).lower():
+                # 没有运行中的循环，可以使用同步版本
+                if isinstance(tool_args, dict):
+                    tool_args = json.dumps(tool_args)
+                rst = mcp_client.main(agent_name, tool_name, tool_args)
+                return rst
+            else:
+                raise
+    
+    async def async_invoke(self, decision) -> str:
+        """异步调用 - 推荐在 MCP server 中使用"""
+        agent_name = decision["agent"]
+        tool_name = decision["tool_name"]
+        tool_args = decision["tool_args"]
+        
+        # 使用异步版本的 mcp_client
+        rst = await mcp_client.async_run(agent_name, tool_name, tool_args)
+        return rst

@@ -1,0 +1,325 @@
+"""
+Nexagen MCP Server - 自动生成的 MCP 服务器
+将整个多智能体系统封装为单个 MCP Agent
+"""
+from typing import List, Dict, Any
+import json
+import asyncio
+import logging
+from pathlib import Path
+from mcp.server.fastmcp import FastMCP
+from dotenv import load_dotenv
+
+# 导入内部模块
+from orchestrator_agent import OrchestratorAgent
+from agent_executor import MCPAgent
+
+logger = logging.getLogger(__name__)
+
+load_dotenv(dotenv_path=".env")
+
+# 初始化 MCP 服务器
+mcp = FastMCP(name="nexagen_agent")
+
+# 初始化协调器和执行器
+orchestrator = OrchestratorAgent()
+executor = MCPAgent()
+
+
+def load_mcp_cards() -> Dict[str, Any]:
+    """加载 MCP cards"""
+    mcp_cards_path = Path(__file__).parent / "mcp_agents" / "mcp_cards.json"
+    
+    if not mcp_cards_path.exists():
+        return {}
+    
+    with open(mcp_cards_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def generate_route_description() -> str:
+    """动态生成 nexagen_route 工具的描述，基于实际的 agents"""
+    mcp_cards = load_mcp_cards()
+    
+    if not mcp_cards:
+        return """智能多Agent协调系统：自动理解任务、选择合适的Agent、生成参数并执行。
+
+使用方式：直接描述你想做什么，系统会自动完成。"""
+    
+    # 收集所有 agents 和 tools 的信息
+    capabilities = []
+    
+    try:
+        for agent_name, agent_info in mcp_cards.items():
+            if not isinstance(agent_info, dict):
+                continue
+            tools = agent_info.get("tools", [])
+            if not isinstance(tools, list):
+                continue
+            for tool in tools:
+                if not isinstance(tool, dict):
+                    continue
+                tool_name = tool.get("name", "")
+                tool_desc = tool.get("description", "").strip()
+                
+                # 提取工具的核心功能描述（去除参数说明）
+                if tool_desc and isinstance(tool_desc, str):
+                    # 只取第一行或第一句话作为核心描述
+                    core_desc = tool_desc.split('\n')[0].split('。')[0].split('.')[0]
+                    if core_desc and len(core_desc) > 10:
+                        capabilities.append(f"• {core_desc}")
+    except Exception as e:
+        print(f"Error collecting capabilities: {e}")
+    
+    # 去重 - 确保所有元素是字符串
+    try:
+        capabilities = list(set([c for c in capabilities if isinstance(c, str)]))
+        capabilities.sort()
+    except Exception as e:
+        print(f"Error deduplicating capabilities: {e}")
+        capabilities = []
+    
+    # 构建描述
+    description = f"""智能多Agent协调系统：自动理解任务、选择合适的Agent、生成参数并执行。
+
+本系统包含 {len(mcp_cards)} 个专业 Agents，提供以下能力：
+
+{chr(10).join(capabilities[:20])}  {'...' if len(capabilities) > 20 else ''}
+
+使用方式：
+直接描述你想做什么，系统会自动：
+1. 理解任务需求
+2. 拆分为子任务（如需要）
+3. 选择最合适的 Agent 和工具
+4. 生成正确的参数
+5. 执行并返回结果
+
+示例：
+- 直接说 "生成XXX报告"
+- 直接说 "绘制XXX图表"
+- 直接说 "分析XXX数据"
+
+无需指定具体的 Agent 或工具名称，系统会自动处理。"""
+    
+    return description
+
+
+# ============ 核心智能路由工具 ============
+# 动态生成描述
+_route_description = generate_route_description()
+
+@mcp.tool(description=_route_description)
+async def nexagen_route(task_description: str) -> str:
+    """
+    Nexagen 智能路由核心功能
+    自动将用户任务拆分、选择合适的 agent、生成参数并执行
+    
+    参数:
+        task_description (str): 用户任务描述 - 直接说你想做什么
+    
+    返回:
+        str: 执行结果
+    """
+    try:
+        print(f"\n🎯 收到任务: {task_description}")
+        
+        # 1. 任务拆分
+        print("📋 正在分析任务...")
+        subtasks = orchestrator.split_task(task_description)
+        print(f"✓ 任务拆分完成，共 {len(subtasks)} 个子任务")
+        
+        results = []
+        for i, task in enumerate(subtasks, 1):
+            task_desc = task.get("task_details", "")
+            task_name = task.get("task_name", f"子任务{i}")
+            
+            print(f"\n🔄 执行子任务 {i}/{len(subtasks)}: {task_name}")
+            
+            # 2. 选择 agent
+            print(f"  🤖 选择 Agent...")
+            agent_decision = orchestrator.decide_agent(task_desc)
+            agent_name = agent_decision.get("agent", "")
+            print(f"  ✓ 选择: {agent_name}")
+            
+            # 3. 生成参数
+            print(f"  ⚙️ 生成参数...")
+            params = orchestrator.decide_agent_parameters(task_desc, agent_name)
+            tool_name = params.get("tool_name", "")
+            tool_args = params.get("tool_args", {})
+            print(f"  ✓ 工具: {tool_name}")
+            
+            # 4. 执行（使用异步版本）
+            print(f"  ▶️ 执行中...")
+            result = await executor.async_invoke(params)
+            print(f"  ✅ 完成")
+            
+            results.append({
+                "task": task_name,
+                "agent": agent_name,
+                "tool": tool_name,
+                "result": str(result)
+            })
+        
+        print(f"\n🎉 所有任务完成！")
+        return json.dumps(results, ensure_ascii=False, indent=2)
+    
+    except Exception as e:
+        import traceback
+        error_msg = f"执行失败: {str(e)}"
+        error_detail = traceback.format_exc()
+        print(f"\n❌ {error_msg}")
+        print(f"详细错误:\n{error_detail}")
+        logger.error(f"Task execution failed: {error_detail}")
+        return f"{error_msg}\n\n详细信息：{error_detail}"
+
+
+@mcp.tool(description="查看系统中所有可用的 Agents 及其详细能力")
+async def list_available_agents() -> str:
+    """
+    列出所有可用的 agents 和它们的工具
+    
+    返回:
+        str: JSON 格式的 agents 列表，包含每个 agent 的工具和能力描述
+    """
+    try:
+        mcp_cards = load_mcp_cards()
+        
+        # 构建易读的格式
+        agents_summary = {}
+        for agent_name, agent_info in mcp_cards.items():
+            tools = agent_info.get("tools", [])
+            tools_summary = []
+            
+            for tool in tools:
+                tools_summary.append({
+                    "name": tool.get("name", ""),
+                    "description": tool.get("description", "").strip().split('\n')[0]
+                })
+            
+            agents_summary[agent_name] = {
+                "tools_count": len(tools),
+                "tools": tools_summary
+            }
+        
+        return json.dumps(agents_summary, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return f"Error listing agents: {str(e)}"
+
+
+# ============ 🚫 不再注册内层工具 ============
+# 所有内层 agent 的工具都通过 nexagen_route 自动调用
+# 这样用户不需要知道具体有哪些工具，只需要描述任务即可
+
+print("\n" + "="*60)
+print("🚀 Nexagen MCP Agent - 智能多Agent协调系统")
+print("="*60)
+print(f"✓ 协调器已初始化")
+print(f"✓ 执行器已就绪")
+
+# 加载并显示可用的 agents
+mcp_cards = load_mcp_cards()
+print(f"✓ 已加载 {len(mcp_cards)} 个内层 Agents:")
+for agent_name, agent_info in mcp_cards.items():
+    tools_count = len(agent_info.get("tools", []))
+    print(f"  - {agent_name}: {tools_count} 个工具")
+
+print("\n💡 使用方式:")
+print("  直接描述你想做什么，无需指定具体工具")
+print("  系统会自动选择最合适的 Agent 和工具")
+print("\n📌 暴露的工具:")
+print("  • nexagen_route - 智能任务路由和执行（包含所有内层工具能力）")
+print("  • list_available_agents - 查看可用的 Agents 详情")
+print("="*60 + "\n")
+
+
+# ============ 注册 Prompts ============
+@mcp.prompt(description="Nexagen 使用示例和最佳实践")
+def nexagen_example() -> str:
+    """
+    返回 Nexagen 的使用示例，动态基于实际的 agents
+    """
+    mcp_cards = load_mcp_cards()
+    
+    # 生成 agents 列表
+    agents_list = []
+    for agent_name, agent_info in mcp_cards.items():
+        tools = agent_info.get("tools", [])
+        agents_list.append(f"  • {agent_name} ({len(tools)} 个工具)")
+    
+    agents_info = "\n".join(agents_list) if agents_list else "  （暂无 Agents）"
+    
+    # 生成示例 - 基于实际的工具
+    examples = []
+    example_count = 0
+    for agent_name, agent_info in mcp_cards.items():
+        if example_count >= 4:  # 最多4个示例
+            break
+        tools = agent_info.get("tools", [])
+        if tools:
+            tool = tools[0]
+            tool_name = tool.get("name", "")
+            tool_desc = tool.get("description", "").strip().split('\n')[0]
+            if tool_desc and len(tool_desc) > 10:
+                examples.append(f"""
+### 示例 {example_count + 1}: {agent_name}
+**直接说**: 根据你的需求描述任务
+
+系统会自动：
+- 选择 {agent_name} Agent
+- 调用 {tool_name} 工具
+- 生成正确的参数
+- 执行并返回结果""")
+                example_count += 1
+    
+    examples_text = "\n".join(examples) if examples else "（根据实际 Agents 提供示例）"
+    
+    return f"""
+# Nexagen 智能多Agent系统使用指南
+
+## 🎯 核心理念
+Nexagen 是一个智能协调系统，您只需要描述想做什么，系统会自动：
+1. 理解任务需求
+2. 拆分为子任务（如需要）
+3. 选择合适的 Agent
+4. 生成正确的参数
+5. 执行并返回结果
+
+## 📋 当前系统中的 Agents
+{agents_info}
+
+## 💡 使用示例
+{examples_text}
+
+## ⚡ 最佳实践
+
+1. **清晰描述目标**
+   - ✅ 提供具体、明确的任务描述
+   - ✅ 包含必要的信息（数据、参数等）
+   - ❌ 避免过于模糊的描述
+
+2. **提供必要信息**
+   - ✅ 如果任务需要数据，请提供数据
+   - ✅ 如果有特定要求，请说明
+   - ⚠️ 系统会尽量推断缺失的信息
+
+3. **复杂任务自动拆分**
+   - 系统会自动处理需要多个步骤的任务
+   - 你不需要手动拆分或指定执行顺序
+
+4. **无需了解技术细节**
+   - ❌ 不需要知道 Agent 名称
+   - ❌ 不需要知道工具名称
+   - ❌ 不需要知道参数格式
+   - ✅ 只需要说明你想做什么
+
+## 🔍 查看能力
+使用 `list_available_agents` 工具查看所有可用的 Agents 和它们的具体功能
+
+## 🎉 开始使用
+现在就试试直接描述你想做什么吧！
+系统会自动理解并执行你的任务。
+"""
+
+
+if __name__ == '__main__':
+    mcp.run(transport="stdio")
