@@ -1,0 +1,5 @@
+from canopy.visualization.map import make_simple_map, make_diff_map
+from canopy.visualization.time_series import make_time_series
+from canopy.visualization.static_plot import make_static_plot
+from canopy.visualization.comparison_plot import make_comparison_plot
+from canopy.visualization.plot_functions import multiple_figs
