@@ -1,0 +1,119 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://promptcontracts.org/schemas/pcsl-ep.schema.json",
+  "title": "PCSL Evaluation Profile",
+  "description": "Schema for Evaluation Profile (EP) artefacts",
+  "type": "object",
+  "required": ["pcsl", "targets", "fixtures"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference"
+    },
+    "pcsl": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "PCSL version (SemVer)"
+    },
+    "targets": {
+      "type": "array",
+      "description": "Model/provider targets",
+      "items": {
+        "type": "object",
+        "required": ["type", "model"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["openai", "ollama"],
+            "description": "Provider type"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model identifier"
+          },
+          "params": {
+            "type": "object",
+            "description": "Provider-specific parameters"
+          }
+        }
+      }
+    },
+    "fixtures": {
+      "type": "array",
+      "description": "Test input fixtures",
+      "items": {
+        "type": "object",
+        "required": ["id", "input"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Fixture identifier"
+          },
+          "input": {
+            "type": "string",
+            "description": "Input text"
+          }
+        }
+      }
+    },
+    "tolerances": {
+      "type": "object",
+      "description": "Map of check type to tolerance thresholds",
+      "patternProperties": {
+        ".*": {
+          "type": "object",
+          "properties": {
+            "max_fail_rate": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "description": "Maximum acceptable failure rate (0.0-1.0)"
+            }
+          }
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "description": "Execution configuration for enforcement and retries",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["auto", "enforce", "assist", "observe"],
+          "default": "auto",
+          "description": "Execution mode: auto (try enforce->assist->observe), enforce (schema-guided JSON), assist (prompt augmentation), observe (validation only)"
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1,
+          "description": "Maximum number of retry attempts on validation failure"
+        },
+        "strict_enforce": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true and mode=enforce but not supported, mark NONENFORCEABLE instead of falling back"
+        },
+        "auto_repair": {
+          "type": "object",
+          "description": "Auto-repair configuration for output normalization",
+          "properties": {
+            "lowercase_fields": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "JSONPath fields to lowercase (e.g., ['$.priority'])"
+            },
+            "strip_markdown_fences": {
+              "type": "boolean",
+              "default": true,
+              "description": "Strip markdown code fences (```)"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
+
