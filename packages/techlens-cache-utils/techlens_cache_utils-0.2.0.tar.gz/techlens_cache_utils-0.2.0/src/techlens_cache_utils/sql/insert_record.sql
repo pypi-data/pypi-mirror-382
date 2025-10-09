@@ -1,0 +1,1 @@
+insert into <table_name> values (:key, :hash, json(:value))
