@@ -1,0 +1,123 @@
+###
+# #%L
+# aiSSEMBLE::Test::MDA::Data Delivery Pyspark Basic
+# %%
+# Copyright (C) 2021 Booz Allen
+# %%
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# #L%
+###
+from abc import ABC, abstractmethod
+from pyspark.sql import SparkSession
+from krausening.properties import PropertyManager
+from aissemble_core_metadata.metadata_model import MetadataModel
+from aissemble_core_metadata.metadata_api import MetadataAPI
+from aissemble_security.pdp_client import PDPClient
+from aissembleauth.json_web_token_util import AissembleSecurityException
+from aissembleauth.auth_config import AuthConfig
+
+
+class AbstractDataAction(ABC):
+    """
+    Contains the general concepts needed to perform a base aiSSEMBLE Reference Architecture Data Action.
+    A Data Action is a step within a Data Flow.
+
+    GENERATED CODE - DO NOT MODIFY (add your customizations in the step implementations).
+
+    Generated from: templates/data-delivery-pyspark/abstract.data.action.py.vm
+    """
+
+
+    def __init__(self, data_action_type, descriptive_label):
+        self.data_action_type = data_action_type
+        self.descriptive_label = descriptive_label
+
+        self.spark = self.create_spark_session('PysparkDataDeliveryBasic')
+        self.tailor_spark_logging_levels(self.spark)
+
+
+    def create_spark_session(self, app_name: str) -> SparkSession:
+        properties = PropertyManager.get_instance().get_properties(
+            "spark-data-delivery.properties"
+        )
+        builder = SparkSession.builder
+        if properties.getProperty("execution.mode.legacy", "false") == "true":
+            builder = builder\
+                .master("local[*]")\
+                .config("spark.driver.host", "localhost")
+        return builder.getOrCreate()
+
+    def tailor_spark_logging_levels(self, spark: SparkSession) -> None:
+        """
+        Allows Spark logging levels to be tailored to prevent excessive logging.
+        Override this method if needed.
+        """
+        logger = spark._jvm.org.apache.log4j
+        logger.LogManager.getRootLogger().setLevel(logger.Level.WARN)
+        logger.LogManager.getLogger('org.apache.spark.sql').setLevel(logger.Level.ERROR)
+
+
+    def authorize(self, token: str, action: str):
+        """
+        Calls the Policy Decision Point server to authorize a jwt
+        """
+        auth_config = AuthConfig()
+
+        if auth_config.is_authorization_enabled():
+            pdp_client = PDPClient(auth_config.pdp_host_url())
+            decision = pdp_client.authorize(token, "", action)
+
+            if 'PERMIT' == decision:
+                self.get_logger().info('User is authorized to run ' + self.get_step_phase())
+            else:
+                raise AissembleSecurityException('User is not authorized')
+
+
+    def set_metadata_api_service(self, service: MetadataAPI):
+        self.metadata_api_service = service
+
+    def get_metadata_api_service(self) -> MetadataAPI:
+        return self.metadata_api_service
+
+    def get_provenance_resource_identifier(self) -> str:
+        return "Unspecified " + self.get_step_phase() + " resource"
+
+    @abstractmethod
+    def get_logger(self):
+        return
+    
+    @abstractmethod
+    def get_step_phase(self):
+        return
+
+    def create_provenance_metadata(self) -> MetadataModel:
+        """
+        Controls creating the metadata that will be recorded for provenance purposes.
+        """
+        resource = self.get_provenance_resource_identifier()
+        return MetadataModel(subject=self.data_action_type, action=self.descriptive_label, resource=resource)
+
+    def record_provenance(self) -> None:
+        """
+        Records provenance for this step.
+        """
+        if self.get_metadata_api_service():
+            self.get_logger().info('Recording provenance...')
+
+            metadata = self.create_provenance_metadata()
+            self.metadata_api_service.create_metadata(metadata)
+
+            self.get_logger().info('Provenance recorded')
+        else:
+            self.get_logger().error('Provenance cannot be recorded without a valid Metadata API Service! '
+                + 'Please make sure the service is set!')
