@@ -1,0 +1,77 @@
+# fintrace
+
+
+
+## Description
+
+This repository is meant to be a generalized combination of finesse and gtrace, two interferometer modeling packages. Through the CLI you can create both a Finesse model as well as *gtrace* to create a physical picture of your setup. Currently, only `.yaml` files are accepted as input for the models, and the syntax of them must be very specific; error messages and helpful text are being added.
+
+You can also use this created model just like you would use a `Finesse` model, as it inherits from `Model`; that is to say we can do all of the interferometric modeling we would be able to do with `Finesse` with the created `Fintrace` model. See the [documentation](https://fintrace.readthedocs.io/en/latest/index.html) for examples.
+
+## Installation
+This repository uses its own conda environment `fintrace`, which can be installed with instructions below. The environment must be activate when running scripts.
+
+To install:
+Make sure that you have a python package manager installed such as `conda` or `mamba`.
+[Anaconda](https://www.anaconda.com/)  
+[mamba](https://mamba.readthedocs.io/en/latest/) 
+
+1. cd into the desired folder you'd like to place this repository
+```
+cd /path/to/desired/folder
+```
+
+2. git clone this repo, then `cd` into it
+```
+git clone git@gitlab.com:mactodd315/fintrace.git
+cd fintrace
+```
+
+3. build the `fintrace` environment contained in `environment.yml`:
+```
+conda env create -f environment.yml
+```
+or
+```
+mamba env create -f environment.yml
+```
+
+4. Then, enter the environment:
+```
+conda activate fintrace
+```
+or
+```
+mamba activate fintrace
+```
+You should see `(fintrace)` written before the beginning of your terminal prompt, indicating everything was built successfully.
+
+5. Finally, the code in this repository makes heavy use of the cosmic explorer repo, so it must also be cloned and installed. Clone the cosmic-explorer repo inside some repos folder (it doesn't matter where) and install it:
+```
+cd /path/to/repos folder
+git clone git@gitlab.com:cosmic-explorer/cosmic-explorer.git
+cd cosmic-explorer
+pip install -e .
+```
+
+Then to get back to fintrace, cd back and install it.:
+```
+cd /path/to/fintrace
+pip install -e .
+```
+You should successfully be able to run code.
+
+
+## Usage
+To use, one must create a `.yaml` file with the right syntax, describing the locations and properties of each optic in the model. Generally, the more specific you are about each optic, the better; however, the examples provided show a good minimum number of parameters for each. 
+
+Connections are described using the Finesse syntax, so the user must know how the optical system will be connected before hand.
+
+As an example, the `bowtie.yaml` features 4 mirrors, however all of them are technically beamsplitters in the `.yaml` file because of a non-zero angle of incidence. If you know an optic will have a zero angle of incidence, you should consider its type to be `Mirror`. Using a cavity declaration shown in this example file, we can produce a beam trace of the eigenmode by running:
+
+```
+fintrace_plot_yaml bowtie_test.yaml --gtrace figures/bowtie_cavity --beam-origin cavity --draw-width --grid
+```
+
+![alt text](examples/bowtie/figures/bowtie_cavity.png "Examples")
+
