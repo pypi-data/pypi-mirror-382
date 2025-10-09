@@ -1,0 +1,75 @@
+@startuml TopolibModularClassDiagram
+
+package topolib.topology {
+    class Topology {
+        - {static} topologies
+        -nodes: List<Node>
+        -links: List<Link>
+        +add_node(node: Node)
+        +remove_node(node_id: int)
+        +add_link(link: Link)
+        +remove_link(link_id: int)
+        +update_metrics()
+        +export_json(): str
+        +get_geographic_area(): float
+        +get_diameter(): float
+        +calculate_laplacian(): Matrix
+        +get_shortest_paths(s: int, d: int, N: int): List<Path>
+        +get_disjoint_paths(s: int, d: int, N: int): List<Path>
+    }
+
+    class Path {
+        -nodes: List<Node>
+        -total_length: float
+        +get_summary(): str
+    }
+}
+
+package topolib.elements {
+    class Node {
+        -id: int
+        -name: str
+        -latitude: float
+        -longitude: float
+        +coordinates(): Tuple[float, float]
+    }
+
+    class Link {
+        -id: int
+        -source: Node
+        -target: Node
+        -length: float
+    }
+}
+
+package topolib.analysis {
+    class Metrics {
+        +get_max_node_degree(topology: Topology): int
+        +get_min_node_degree(topology: Topology): int
+        +get_avg_node_degree(topology: Topology): float
+        +get_max_link_length(topology: Topology): float
+        +get_min_link_length(topology: Topology): float
+        +get_avg_link_length(topology: Topology): float
+        +get_connection_matrix(topology: Topology): numpy.ndarray
+        +get_link_value_matrix(topology: Topology): numpy.ndarray
+        +get_node_degree_matrix(topology: Topology): numpy.ndarray
+    }
+}
+
+package topolib.visualization {
+    class MapView {
+        +display_osm(topology: Topology)
+        +display_paper(topology: Topology)
+    }
+}
+
+topolib.topology.Topology --> topolib.elements.Node : uses
+topolib.topology.Topology --> topolib.elements.Link : uses
+topolib.topology.Topology --> topolib.analysis.Metrics : calculates
+topolib.topology.Topology --> topolib.visualization.MapView : visualizes
+topolib.topology.Topology --> topolib.topology.Path : generates
+
+topolib.elements.Link --> topolib.elements.Node : connects
+topolib.topology.Path --> topolib.elements.Node : traverses
+
+@enduml
