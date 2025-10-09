@@ -1,0 +1,626 @@
+# Introducing the Co-DataScientist
+
+<!-- <div align="center">
+  <img src="figures/Co-DataScientist.png" alt="Co-DataScientist Logo" width="420"/>
+</div> -->
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version"/>
+  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"/>
+  
+</p>
+
+> **Beat the competition.**
+
+---
+
+## Why is everyone talking about the Co-DataScientist
+
+- **Idea Explosion** — Launches a swarm of models, feature recipes & hyper-parameters you never knew existed.
+- **Full-Map Exploration** — Charts the entire optimization galaxy so you can stop guessing and start winning.
+- **Hands-Free Mode** — Hit run and the search party works through the night.
+- **KPI Fanatic** — Every evolutionary step is focused on improving your target metric.
+- **Data Stays Home** — Your training and testing data never leaves your server; everything runs locally.
+
+
+---
+
+
+## Quickstart — 60-Second Setup
+
+## 1. **Install**
+
+```bash
+pip install co-datascientist
+```
+
+## 2. **Prepare Your Project**
+
+Co-DataScientist works with both single files and multi-file projects. Just mark the code you want to evolve with special blocks.
+
+### Single File Example (e.g. `xor.py`)
+
+```python
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+import numpy as np
+
+# XOR toy-set
+X = np.array([[0,0],[0,1],[1,0],[1,1]])
+y = np.array([0,1,1,0])
+
+# CO_DATASCIENTIST_BLOCK_START
+
+pipe = Pipeline([
+    ("scale", StandardScaler()),
+    ("clf", LogisticRegression(random_state=0))
+])
+
+pipe.fit(X, y)
+acc = accuracy_score(y, pipe.predict(X))
+
+# CO_DATASCIENTIST_BLOCK_END
+
+
+print(f"KPI: {acc:.4f}")  # Tag your metric!
+
+# comments
+# This is the classic XOR problem — it's not linearly separable!
+# A linear model like LogisticRegression can't solve it perfectly,
+# because no straight line can separate the classes in 2D.
+# This makes it a great test for feature engineering or non-linear models.
+```
+
+Test that it runs:
+```bash
+python xor.py  # Should print "KPI: 0.5000"
+```
+
+### Multi-File Project Example
+
+For larger projects, organize your code across multiple files and use a run script:
+
+**Project structure:**
+```
+my_ml_project/
+├── main.py           # Orchestration
+├── data_loader.py    # Data processing
+├── model.py          # Model training
+└── run.sh            # How to run everything
+```
+
+**main.py:**
+```python
+from data_loader import load_data
+from model import train_model
+
+# CO_DATASCIENTIST_BLOCK_START
+def run_pipeline():
+    data = load_data()
+    score = train_model(data)
+    return score
+# CO_DATASCIENTIST_BLOCK_END
+
+if __name__ == "__main__":
+    result = run_pipeline()
+    print(f"KPI: {result}")
+```
+
+**data_loader.py:**
+```python
+import numpy as np
+
+# CO_DATASCIENTIST_BLOCK_START
+def load_data():
+    # Your data loading logic
+    return np.array([1, 2, 3, 4, 5])
+# CO_DATASCIENTIST_BLOCK_END
+```
+
+**model.py:**
+```python
+import numpy as np
+
+# CO_DATASCIENTIST_BLOCK_START
+def train_model(data):
+    # Your model training logic
+    return np.mean(data) * 10
+# CO_DATASCIENTIST_BLOCK_END
+```
+
+**run.sh:**
+```bash
+#!/bin/bash
+python main.py
+```
+
+Test your project:
+```bash
+bash run.sh  # Should print "KPI: 30.0"
+```
+
+> **Note:** Co-DataScientist auto-detects `run.sh`, `main.py`, or `run.py`. For custom entry points, use the simple syntax: `co-datascientist run bash your_script.sh`
+
+## 3. **Set your API Token (one time only!)**
+
+Before running any commands, you need to set your Co-DataScientist API token. You only need to do this once per machine.
+
+```bash
+co-datascientist set-token --token <YOUR_TOKEN>
+```
+
+
+## 4. **Run Co-DataScientist**
+
+**Simple syntax - just wrap your normal command:**
+```bash
+# Single file
+co-datascientist run python xor.py
+
+# Multi-file project (auto-detects run.sh or main.py)
+cd my_ml_project
+co-datascientist run python main.py
+```
+
+**With options (put them BEFORE the command):**
+```bash
+# Run 3 versions in parallel
+co-datascientist run --parallel 3 python xor.py
+
+# Skip interactive Q&A with cached answers
+co-datascientist run --use-cached-qa python main.py
+
+# Complex commands with arguments
+co-datascientist run --parallel 5 python train.py --epochs 100 --lr 0.001
+
+# Use -- separator if needed for clarity
+co-datascientist run --parallel 3 -- bash train.sh --gpu --batch-size 32
+```
+
+**Traditional syntax (still supported):**
+```bash
+# Explicit script path
+co-datascientist run --script-path xor.py --parallel 3
+
+# Explicit run command
+co-datascientist run --script-path . --run-command "bash run.sh" --parallel 3
+```
+
+> **Pro tips:** 
+> - Use `--parallel N` to evolve multiple code versions simultaneously!
+> - Auto-detects `run.sh`, `main.py`, or `run.py` in your project root
+> - Your data never leaves your machine - everything runs locally
+
+Watch your KPI improve over generations. You'll find optimized checkpoints in the `co_datascientist_checkpoints/` directory.
+
+Each checkpoint is saved as a separate directory containing all evolved files:
+```
+co_datascientist_checkpoints/
+└── best_0_baseline/
+    ├── main.py
+    ├── data_loader.py
+    ├── model.py
+    └── metadata.json    # Contains KPI and other info
+```
+
+## 5. **Deploy Your Best Checkpoint**
+
+Once you find a checkpoint you like, deploy it as a complete, ready-to-use project:
+
+```bash
+# Deploy the best checkpoint
+co-datascientist deploy co_datascientist_checkpoints/best_6_explore/
+
+# Or with a custom name
+co-datascientist deploy best_6_explore/ --output-dir my_optimized_pipeline
+```
+
+This creates a **complete copy** of your project with the evolved code integrated, ready to use:
+
+```
+my_ml_project_deployed_best_6_explore_20251002_123456/
+├── main.py              # Evolved! ✨
+├── data_loader.py       # Evolved! ✨
+├── model.py             # Evolved! ✨
+├── run.sh               # Original
+├── data/                # Original
+├── configs/             # Original
+└── deployment_info.json # Checkpoint metadata
+```
+
+The deployed project is **completely standalone** - just copy it to production and run it!
+
+### Yes, it's that simple
+
+<h2 align="center"><b>
+Try it on <i>your</i> toughest problem and see how your KPI improves.<br>
+<b>Co-DataScientist helps you get better results—no matter how big your challenge.</b>
+</b></h2>
+
+---
+
+> **Important Notes About Your Input Script**
+
+
+## KPI Tagging
+
+Co-DataScientist scans your stdout for the pattern `KPI: <number>` — that’s the metric it maximizes. Use **anything**: accuracy, F1, revenue per click, unicorns-per-second… you name it!
+
+---
+
+## 📁 Hardcode Your Data Paths
+
+> **Important:** Please hardcode any data file paths directly in your script.  
+> For example, use `data = np.loadtxt("full/path/to/my/my_data.csv")` or similar.  
+> Do **not** use `input()` or command-line arguments to specify file paths.  
+> This ensures Co-DataScientist can run your script automatically without manual intervention.
+
+
+## 🧬 Blocks to evolve
+
+As you will see in the XOR example, Co-DataScientist uses **# CO_DATASCIENTIST_BLOCK_START** and **# CO_DATASCIENTIST_BLOCK_END** tags to identify the parts of the system you want it to improve. Make sure to tag parts of your system you care about improving! It will help to Co-DataScientist stay focused on its job.
+
+---
+
+## 📂 Project Structure
+
+Co-DataScientist supports both **single-file scripts** and **multi-file projects**:
+
+- **Single File**: `co-datascientist run python my_script.py`
+- **Multi-File**: Auto-detects `run.sh`, `main.py`, or `run.py` in your project root
+- **Custom Entry Point**: Just wrap your command: `co-datascientist run bash custom_script.sh`
+
+The system automatically detects which files contain `CO_DATASCIENTIST_BLOCK` markers and evolves them intelligently.
+
+---
+
+## Add Domain-Specific Notes for Best Results
+
+After your code, add **comments** with any extra context, known issues, or ideas you have about your problem. This helps Co-DataScientist understand your goals and constraints! The Co-Datascientist UNDERSTANDS your problem. It's not just doing a blind search! 
+
+---
+
+## 🎯 How Multi-File Evolution Works
+
+When you run Co-DataScientist on a multi-file project:
+
+1. **Scanning**: It scans all `.py` files in your project for `CO_DATASCIENTIST_BLOCK` markers
+2. **Selection**: Each generation, it randomly picks ONE file to evolve
+3. **Evolution**: The AI generates hypotheses and modifies the selected block
+4. **Stitching**: Modified code is integrated back into your full project
+5. **Testing**: Your entire project runs with the new code using your `run.sh` or custom command
+6. **Checkpointing**: Best results are saved as complete directories with all files
+
+This means:
+- ✅ You can have complex multi-file ML pipelines
+- ✅ Each file evolves independently but is tested as a complete system
+- ✅ Your project structure is preserved
+- ✅ Dependencies between files are maintained
+
+**Example Evolution Flow:**
+```
+Generation 1: Evolve model.py → Test full project → KPI: 30.0
+Generation 2: Evolve data_loader.py → Test full project → KPI: 45.0
+Generation 3: Evolve main.py → Test full project → KPI: 60.0
+```
+
+> **Other helpful stuff**
+
+#### Skip Q&A on Repeat Runs
+
+For faster iterations, use cached answers from your previous run:
+
+```bash
+co-datascientist run --use-cached-qa python xor.py
+```
+
+This skips the interactive questions and uses your previous answers, jumping straight to the optimization process.
+
+#### Deploy Checkpoints to Production
+
+The `deploy` command makes it easy to take your best checkpoint and create a production-ready project:
+
+```bash
+# Basic usage - auto-detects original project location
+co-datascientist deploy co_datascientist_checkpoints/best_6_explore/
+
+# Specify original project path manually
+co-datascientist deploy best_6_explore/ --original-path /path/to/my_project
+
+# Use custom output directory name
+co-datascientist deploy best_6_explore/ --output-dir my_optimized_v2
+```
+
+**What it does:**
+1. Copies your entire original project (including data, configs, assets)
+2. Integrates the evolved code from the checkpoint
+3. Excludes Co-DataScientist artifacts (checkpoints, cache, etc.)
+4. Creates a `deployment_info.json` with checkpoint metadata
+
+The result is a **complete, standalone project** ready to deploy to production!
+
+
+---
+
+## 📝 Before vs After
+<table>
+<tr>
+<th>Before <br><sub>KPI ≈ 0.50</sub></th>
+<th>After <br><sub>KPI 1.00</sub></th>
+</tr>
+<tr>
+<td>
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import accuracy_score
+import numpy as np
+
+# XOR data
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
+y = np.array([0, 1, 1, 0])
+
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('clf', RandomForestClassifier(n_estimators=10, random_state=0))
+])
+
+pipeline.fit(X, y)
+preds = pipeline.predict(X)
+accuracy = accuracy_score(y, preds)
+print(f'Accuracy: {accuracy:.2f}')
+print(f'KPI: {accuracy:.4f}')
+```
+
+</td>
+<td>
+
+```python
+import numpy as np
+from sklearn.base import TransformerMixin, BaseEstimator
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import accuracy_score
+from tqdm import tqdm
+
+class ChebyshevPolyExpansion(BaseEstimator, TransformerMixin):
+    def __init__(self, degree=3):
+        self.degree = degree
+    def fit(self, X, y=None):
+        return self
+    def transform(self, X):
+        X = np.asarray(X)
+        X_scaled = 2 * X - 1
+        n_samples, n_features = X_scaled.shape
+        features = []
+        for f in tqdm(range(n_features), desc='Chebyshev features'):
+            x = X_scaled[:, f]
+            T = np.empty((self.degree + 1, n_samples))
+            T[0] = 1
+            if self.degree >= 1:
+                T[1] = x
+            for d in range(2, self.degree + 1):
+                T[d] = 2 * x * T[d - 1] - T[d - 2]
+            features.append(T.T)
+        return np.hstack(features)
+
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
+y = np.array([0, 1, 1, 0])
+
+pipeline = Pipeline([
+    ('cheb', ChebyshevPolyExpansion(degree=3)),
+    ('scaler', StandardScaler()),
+    ('clf', RandomForestClassifier(n_estimators=10, random_state=0))
+])
+
+pipeline.fit(X, y)
+preds = pipeline.predict(X)
+accuracy = accuracy_score(y, preds)
+print(f'Accuracy: {accuracy:.2f}')
+print(f'KPI: {accuracy:.4f}')
+```
+
+</td>
+</tr>
+</table>
+
+---
+
+
+## We now support Databricks
+
+<img src="data:image/png;base64,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" alt="Databricks Logo" width="300"/>
+
+
+Databricks setup
+
+1. Download the databricks CLI package
+```
+curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+```
+
+2. Get a databricks token : and test the CLI works
+[Get your Databricks token here](https://docs.databricks.com/aws/en/dev-tools/auth/pat)
+3. Prepare a config file with all of your compute/environmental requirements in  databricks_config.yaml example below
+
+```yaml
+# Enable Databricks integration
+databricks: true
+
+# Databricks configuration for XOR demo
+databricks:
+  cli: "databricks"  # databricks CLI command (optional, defaults to "databricks")
+  volume_uri: "dbfs:/Volumes/workspace/default/volume"  # DBFS volume URI for file uploads
+  code_path: "dbfs:/Volumes/workspace/default/volume/xor.py"  # Specific code path (optional, overrides volume_uri + temp filename)
+  timeout: "30m"  # Job timeout duration
+  
+  job:
+    name: "run-<script-stem>-<timestamp>"  # Job name template (supports <script-stem> and <timestamp>)
+    tasks:
+      - task_key: "t"
+        spark_python_task:
+          python_file: "<remote_path>"  # Will be automatically replaced with actual remote path
+        environment_key: "default"
+    environments:
+      - environment_key: "default"
+        spec:
+          client: "1"
+          dependencies:
+            - "scikit-learn>=1.0.0"
+            - "numpy>=1.20.0"
+```
+
+Then run the co-datascientist with: 
+```bash
+co-datascientist run --cloud-config databricks_config.yaml
+```
+
+Now your new optimized model checkpoints will save in : dbfs:/Volumes/workspace/default/volume/co-datascientist-checkpoints
+
+## ☁️ Google Cloud Run Jobs Integration
+
+Execute and optimize your Python code at scale using Google Cloud Run Jobs.
+
+### Setup
+
+1. **Prerequisites:**
+   - Google Cloud project with Cloud Run enabled
+   - Authenticated gcloud CLI: `gcloud auth login`
+   - A Cloud Run Job template (e.g., `test-job-clean`)
+
+2. **Create a config file** (e.g., `gcloud_config.yaml`):
+```yaml
+gcloud:
+  enabled: true
+  script_path: "/path/to/your/script.py"
+  job_template: "your-job-name"
+  region: "europe-west3"
+  timeout: "30m"
+  code_injection_method: "args"
+```
+
+3. **Run Co-DataScientist:**
+```bash
+co-datascientist run --cloud-config gcloud_config.yaml --no-preflight
+```
+
+Your code will be executed in Google Cloud Run Jobs, with results and KPIs retrieved automatically. Perfect for scaling compute-intensive optimizations!
+
+📖 **See the complete demo:** [`/demos/gcloud/`](../demos/gcloud/)
+
+## ☁️ AWS ECS Fargate Integration
+
+Execute and optimize your Python code at scale using AWS ECS Fargate.
+
+### Setup
+
+1. **Prerequisites:**
+   - AWS account with ECS Fargate enabled
+   - Authenticated AWS CLI: `aws configure`
+   - An ECS cluster and task definition configured for your needs
+
+2. **Create a config file** (e.g., `aws_config.yaml`):
+```yaml
+aws:
+  enabled: true
+  script_path: "/path/to/your/script.py"
+  cluster: "my-cluster"
+  task_definition: "my-job-taskdef"
+  launch_type: "FARGATE"
+  region: "us-east-1"
+  network_configuration:
+    subnets: ["subnet-abc123", "subnet-def456"]
+    security_groups: ["sg-123456"]
+    assign_public_ip: "ENABLED"
+  timeout: 1800  # seconds
+```
+
+3. **Run Co-DataScientist:**
+```bash
+co-datascientist run --cloud-config aws_config.yaml
+```
+
+Your code will be executed in AWS ECS Fargate containers, with results and KPIs retrieved automatically. Perfect for serverless compute scaling!
+
+---
+
+## Analysis and Visualization Tools
+
+Co-DataScientist includes built-in visualization tools to help you analyze your optimization results and compare different versions of your code.
+
+### Plot KPI Progression
+
+Visualize how your KPI improves over iterations from checkpoint JSON files:
+
+```bash
+# Basic usage - plot KPI progression from checkpoints directory
+co-datascientist plot-kpi --checkpoints-dir /path/to/co_datascientist_checkpoints
+
+# Advanced usage with custom options
+co-datascientist plot-kpi \
+  --checkpoints-dir /path/to/checkpoints \
+  --max-iteration 350 \
+  --title "AUC Training Progress" \
+  --kpi-label "AUC" \
+  --output my_kpi_plot.png
+```
+
+**Options:**
+- `--checkpoints-dir, -c`: Directory containing checkpoint JSON files (required)
+- `--max-iteration, -m`: Maximum iteration to include in plot
+- `--title, -t`: Custom title for the plot
+- `--output, -o`: Output file path (auto-generated if not specified)
+- `--kpi-label, -k`: Label for the KPI metric (default: "RMSE")
+
+### Generate PDF Code Diffs
+
+Create beautiful PDF reports comparing two versions of your Python code:
+
+```bash
+# Basic usage - compare two Python files
+co-datascientist diff-pdf baseline.py improved.py
+
+# Advanced usage with custom options
+co-datascientist diff-pdf \
+  baseline.py \
+  optimized.py \
+  --output "optimization_report.pdf" \
+  --title "XOR Problem Optimization Results"
+```
+
+**Options:**
+- `file1`: Path to the baseline/original file (required)
+- `file2`: Path to the modified/new file (required)
+- `--output, -o`: Output PDF file path (auto-generated if not specified)
+- `--title, -t`: Custom title for the diff report
+
+**Example workflow:**
+```bash
+# 1. Run optimization
+co-datascientist run --parallel 3 python xor.py
+
+# 2. Plot the KPI progression
+co-datascientist plot-kpi --checkpoints-dir co_datascientist_checkpoints --title "XOR Optimization"
+
+# 3. Compare best result with baseline
+co-datascientist diff-pdf xor.py co_datascientist_checkpoints/best_iteration_50.py --title "XOR Improvements"
+```
+
+These tools help you understand your optimization journey and create professional reports showing the improvements Co-DataScientist achieved.
+
+## Need help
+
+We’d love to chat: [oz.kilim@tropiflo.io](mailto:oz.kilim@tropiflo.io)
+
+---
+
+<p align="center"><strong>All set? Run your pipelines and track the results.</strong></p>
+
+<p align="center"><em>⚠️  Disclaimer: Co-DataScientist executes your scripts on your own machine. Make sure you trust the code you feed it!</em></p>
+
+<p align="center">Made by the Tropiflo team</p>
