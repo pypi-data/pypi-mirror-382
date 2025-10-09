@@ -1,0 +1,1 @@
+print('from __init__ of the project guess_r: this version of this project doesn't do anything besides printing this')
