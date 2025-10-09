@@ -1,0 +1,138 @@
+name: create-feature-branch
+description: Create and checkout a new feature branch from base branch
+version: "1.0"
+author: Workflows MCP Team
+tags: [git, branch, feature, workflow]
+
+inputs:
+  branch_name:
+    type: string
+    description: Name of the feature branch to create
+    default: "feature/new-feature"
+
+  base_branch:
+    type: string
+    description: Base branch to branch from (main, master, develop)
+    default: "main"
+
+  working_dir:
+    type: string
+    description: Git repository directory
+    default: "."
+
+  fetch_first:
+    type: boolean
+    description: Fetch from remote before creating branch
+    default: true
+
+  push_to_remote:
+    type: boolean
+    description: Push new branch to remote repository
+    default: false
+
+blocks:
+  # Fetch latest changes if requested
+  - id: fetch_remote
+    type: BashCommand
+    inputs:
+      command: "git fetch origin"
+      working_dir: "${working_dir}"
+      timeout: 60
+    condition: "${fetch_first}"
+
+  # Checkout base branch
+  - id: checkout_base
+    type: BashCommand
+    inputs:
+      command: "git checkout ${base_branch}"
+      working_dir: "${working_dir}"
+      timeout: 30
+      check_returncode: false
+    depends_on:
+      - fetch_remote
+
+  # Pull latest changes on base branch
+  - id: pull_base
+    type: BashCommand
+    inputs:
+      command: "git pull origin ${base_branch}"
+      working_dir: "${working_dir}"
+      timeout: 60
+      check_returncode: false
+    depends_on:
+      - checkout_base
+    condition: "${fetch_first} and ${checkout_base.exit_code} == 0"
+
+  # Create new feature branch
+  - id: create_branch
+    type: BashCommand
+    inputs:
+      command: "git checkout -b ${branch_name}"
+      working_dir: "${working_dir}"
+      timeout: 30
+    depends_on:
+      - pull_base
+    condition: "${checkout_base.exit_code} == 0"
+
+  # Get current branch name to verify
+  - id: verify_branch
+    type: BashCommand
+    inputs:
+      command: "git branch --show-current"
+      working_dir: "${working_dir}"
+      timeout: 10
+    depends_on:
+      - create_branch
+
+  # Push to remote if requested
+  - id: push_branch
+    type: BashCommand
+    inputs:
+      command: "git push -u origin ${branch_name}"
+      working_dir: "${working_dir}"
+      timeout: 60
+      check_returncode: false
+    depends_on:
+      - verify_branch
+    condition: "${push_to_remote} and ${create_branch.exit_code} == 0"
+
+  # Get push status
+  - id: get_push_status
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${push_to_remote}" = "true" ]; then
+          if [ ${push_branch.exit_code} -eq 0 ]; then
+            echo 'Yes'
+          else
+            echo 'Failed'
+          fi
+        else
+          echo 'No'
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - push_branch
+
+  # Generate summary
+  - id: summary
+    type: EchoBlock
+    inputs:
+      message: |
+        Feature Branch Created:
+        - Branch: ${branch_name}
+        - Base: ${base_branch}
+        - Current branch: ${verify_branch.stdout}
+        - Pushed to remote: ${get_push_status.stdout}
+    depends_on:
+      - verify_branch
+      - get_push_status
+
+outputs:
+  success: "${create_branch.exit_code} == 0"
+  branch_name: "${branch_name}"
+  current_branch: "${verify_branch.stdout}"
+  base_branch: "${base_branch}"
+  pushed_to_remote: "${push_to_remote} and ${push_branch.exit_code} == 0"
+  summary: "${summary.echoed}"

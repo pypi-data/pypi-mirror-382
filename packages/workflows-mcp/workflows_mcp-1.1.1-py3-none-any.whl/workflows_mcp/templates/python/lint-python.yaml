@@ -1,0 +1,256 @@
+name: lint-python
+description: Run comprehensive Python code quality checks (ruff, mypy, formatting) (supports auto-install)
+version: "1.0"
+author: Workflows MCP Team
+tags: [python, linting, ruff, mypy, code-quality, static-analysis]
+
+inputs:
+  working_dir:
+    type: string
+    description: Project directory to lint
+    default: "."
+
+  src_path:
+    type: string
+    description: Source code directory or file path
+    default: "src/"
+
+  strict_mode:
+    type: boolean
+    description: Enable strict type checking (mypy --strict)
+    default: false
+
+  fix_issues:
+    type: boolean
+    description: Auto-fix issues where possible (ruff --fix and ruff format)
+    default: false
+
+  skip_mypy:
+    type: boolean
+    description: Skip mypy type checking
+    default: false
+
+  venv_path:
+    type: string
+    description: Virtual environment path (will use ${venv_path}/bin/ruff and ${venv_path}/bin/mypy if available)
+    default: ""
+
+  auto_install:
+    type: boolean
+    description: Automatically install ruff and mypy if not found
+    default: true
+
+blocks:
+  # Ensure ruff is installed (only if auto_install is enabled)
+  - id: ensure_ruff
+    type: ExecuteWorkflow
+    inputs:
+      workflow: ensure-tool
+      inputs:
+        tool_name: ruff
+        tool_type: python_package
+        version: ""
+        venv_path: "${venv_path}"
+        auto_install: true
+    condition: "${auto_install}"
+
+  # Ensure mypy is installed (only if auto_install is enabled and skip_mypy is false)
+  - id: ensure_mypy
+    type: ExecuteWorkflow
+    inputs:
+      workflow: ensure-tool
+      inputs:
+        tool_name: mypy
+        tool_type: python_package
+        version: ""
+        venv_path: "${venv_path}"
+        auto_install: true
+    condition: "${auto_install} and not ${skip_mypy}"
+
+  # Build ruff command
+  - id: build_ruff_command
+    type: BashCommand
+    inputs:
+      command: |
+        # Determine ruff executable path (prefer venv if available)
+        if [ -n "${venv_path}" ] && [ -f "${venv_path}/bin/ruff" ]; then
+          RUFF="${venv_path}/bin/ruff"
+        else
+          RUFF="ruff"
+        fi
+
+        # Build command with options
+        CMD="$RUFF check"
+        if [ "${fix_issues}" = "true" ]; then
+          CMD="$CMD --fix"
+        fi
+        CMD="$CMD ${src_path}"
+        echo "$CMD"
+      timeout: 5
+
+  # Run ruff linting
+  - id: run_ruff
+    type: BashCommand
+    inputs:
+      command: "${build_ruff_command.stdout}"
+      working_dir: "${working_dir}"
+      timeout: 300
+      check_returncode: false
+    depends_on:
+      - build_ruff_command
+
+  # Build mypy command
+  - id: build_mypy_command
+    type: BashCommand
+    inputs:
+      command: |
+        # Determine mypy executable path (prefer venv if available)
+        if [ -n "${venv_path}" ] && [ -f "${venv_path}/bin/mypy" ]; then
+          MYPY="${venv_path}/bin/mypy"
+        else
+          MYPY="mypy"
+        fi
+
+        # Build command with options
+        CMD="$MYPY"
+        if [ "${strict_mode}" = "true" ]; then
+          CMD="$CMD --strict"
+        fi
+        CMD="$CMD ${src_path}"
+        echo "$CMD"
+      timeout: 5
+    depends_on:
+      - run_ruff
+
+  # Run mypy type checking
+  - id: run_mypy
+    type: BashCommand
+    inputs:
+      command: "${build_mypy_command.stdout}"
+      working_dir: "${working_dir}"
+      timeout: 300
+      check_returncode: false
+    depends_on:
+      - build_mypy_command
+    condition: "not ${skip_mypy}"
+
+  # Check or fix formatting with ruff format
+  - id: check_format
+    type: BashCommand
+    inputs:
+      command: |
+        # Determine ruff executable path (prefer venv if available)
+        if [ -n "${venv_path}" ] && [ -f "${venv_path}/bin/ruff" ]; then
+          RUFF="${venv_path}/bin/ruff"
+        else
+          RUFF="ruff"
+        fi
+
+        # Apply fixes or just check based on fix_issues flag
+        if [ "${fix_issues}" = "true" ]; then
+          $RUFF format ${src_path}
+        else
+          $RUFF format --check ${src_path}
+        fi
+      working_dir: "${working_dir}"
+      timeout: 300
+      check_returncode: false
+    depends_on:
+      - run_ruff
+
+  # Determine result statuses
+  - id: get_ruff_status
+    type: BashCommand
+    inputs:
+      command: "test ${run_ruff.exit_code} -eq 0 && echo '✓ PASSED' || echo '✗ FAILED'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - run_ruff
+
+  - id: get_mypy_status
+    type: BashCommand
+    inputs:
+      command: "test ${run_mypy.exit_code} -eq 0 && echo '✓ PASSED' || echo '✗ FAILED'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - run_mypy
+    condition: "not ${skip_mypy}"
+
+  - id: get_format_status
+    type: BashCommand
+    inputs:
+      command: "test ${check_format.exit_code} -eq 0 && echo '✓ PASSED' || echo '✗ FAILED'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - check_format
+
+  # Generate mypy status display
+  - id: get_mypy_display
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${skip_mypy}" = "true" ]; then
+          echo '⊘ SKIPPED'
+        else
+          test ${run_mypy.exit_code} -eq 0 && echo '✓ PASSED' || echo '✗ FAILED'
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - get_mypy_status
+
+  - id: get_overall_status
+    type: BashCommand
+    inputs:
+      command: |
+        if [ ${run_ruff.exit_code} -eq 0 ] && \
+           ([ "${skip_mypy}" = "true" ] || [ ${run_mypy.exit_code} -eq 0 ]) && \
+           [ ${check_format.exit_code} -eq 0 ]; then
+          echo '✓ ALL PASSED'
+        else
+          echo '✗ ISSUES FOUND'
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - get_ruff_status
+      - get_mypy_display
+      - get_format_status
+
+  # Aggregate results
+  - id: aggregate_results
+    type: EchoBlock
+    inputs:
+      message: |
+        Code Quality Results:
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Ruff Linting:  ${get_ruff_status.stdout}
+        Mypy:          ${get_mypy_display.stdout}
+        Formatting:    ${get_format_status.stdout}
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Overall: ${get_overall_status.stdout}
+    depends_on:
+      - get_overall_status
+
+outputs:
+  # Individual tool results
+  ruff_passed: "${run_ruff.exit_code} == 0"
+  ruff_output: "${run_ruff.stdout}"
+  ruff_errors: "${run_ruff.stderr}"
+
+  mypy_passed: "${skip_mypy} or ${run_mypy.exit_code} == 0"
+  mypy_output: "${run_mypy.stdout}"
+  mypy_errors: "${run_mypy.stderr}"
+
+  format_passed: "${check_format.exit_code} == 0"
+  format_output: "${check_format.stdout}"
+
+  # Overall status
+  all_passed: "${run_ruff.exit_code} == 0 and (${skip_mypy} or ${run_mypy.exit_code} == 0) and ${check_format.exit_code} == 0"
+  summary: "${aggregate_results.echoed}"
+
+  # Execution metadata
+  total_execution_time_ms: "${aggregate_results.execution_time_ms}"

@@ -1,0 +1,464 @@
+name: ensure-tool
+description: Idempotent workflow to ensure tool availability (validate + install if needed)
+version: "1.0"
+author: Workflows MCP Team
+tags: [tools, validation, installation, ensure, idempotent, core]
+
+inputs:
+  tool_name:
+    type: string
+    description: Tool name (e.g., "pytest", "ruff", "git")
+    required: true
+
+  tool_type:
+    type: string
+    description: Tool type ("python_package", "system_command", "node_package")
+    required: true
+
+  provider:
+    type: string
+    description: "Installation provider (default: auto-detect based on tool_type)"
+    default: ""
+
+  version:
+    type: string
+    description: Version constraint (e.g., ">=7.0.0", "~=7.4", "==7.4.3")
+    default: ""
+
+  venv_path:
+    type: string
+    description: Virtual environment path (for Python tools)
+    default: ""
+
+  auto_install:
+    type: boolean
+    description: Automatically install if missing or version mismatch
+    default: true
+
+  fail_if_missing:
+    type: boolean
+    description: Fail workflow if tool unavailable and auto_install=false
+    default: true
+
+  version_check_command:
+    type: string
+    description: Command to check version (e.g., "pytest --version")
+    default: ""
+
+blocks:
+  # Step 1: Validate if command already exists
+  - id: validate_command
+    type: ExecuteWorkflow
+    inputs:
+      workflow: validate-command
+      inputs:
+        command: "${tool_name}"
+        version_check_command: "${version_check_command}"
+        required_version: "${version}"
+
+  # Step 2: Determine if installation needed
+  - id: check_installation_needed
+    type: BashCommand
+    inputs:
+      command: |
+        # Installation needed if:
+        # 1. Tool not found AND auto_install=true
+        # 2. Tool found but doesn't meet constraints AND auto_install=true
+        if [ "${auto_install}" = "true" ]; then
+          if [ "${validate_command.outputs.found}" != "true" ]; then
+            exit 0  # Exit 0 = installation needed
+          elif [ "${validate_command.outputs.found}" = "true" ] && [ -n "${version}" ] && [ "${validate_command.outputs.meets_constraints}" != "true" ]; then
+            exit 0  # Exit 0 = installation needed
+          else
+            exit 1  # Exit 1 = no installation needed
+          fi
+        else
+          exit 1  # Exit 1 = no installation needed
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - validate_command
+
+  # Step 3: Detect platform for provider selection
+  - id: detect_platform
+    type: BashCommand
+    inputs:
+      command: |
+        case "$(uname -s)" in
+          Darwin*) echo "macos" ;;
+          Linux*)  echo "linux" ;;
+          CYGWIN*|MINGW*|MSYS*) echo "windows" ;;
+          *) echo "unknown" ;;
+        esac
+      timeout: 5
+      check_returncode: false
+
+  # Step 4: Select installation provider
+  - id: select_provider
+    type: BashCommand
+    inputs:
+      command: |
+        EXPLICIT_PROVIDER="${provider}"
+        TOOL_TYPE="${tool_type}"
+        PLATFORM="${detect_platform.stdout}"
+        VENV_PATH="${venv_path}"
+
+        # 1. Use explicit provider if specified
+        if [ -n "$EXPLICIT_PROVIDER" ]; then
+          echo "$EXPLICIT_PROVIDER"
+          exit 0
+        fi
+
+        # 2. Python packages
+        if [ "$TOOL_TYPE" = "python_package" ]; then
+          if [ -n "$VENV_PATH" ]; then
+            # Virtual environment: check for uv, fallback to pip
+            if command -v uv >/dev/null 2>&1; then
+              echo "uv"
+            else
+              echo "pip"
+            fi
+          else
+            # System installation: use platform package manager
+            case "$PLATFORM" in
+              macos) echo "brew" ;;
+              linux) echo "apt" ;;
+              *) echo "pip" ;;
+            esac
+          fi
+          exit 0
+        fi
+
+        # 3. System commands
+        if [ "$TOOL_TYPE" = "system_command" ]; then
+          case "$PLATFORM" in
+            macos) echo "brew" ;;
+            linux) echo "apt" ;;
+            windows) echo "choco" ;;
+            *) echo "manual" ;;
+          esac
+          exit 0
+        fi
+
+        # 4. Node packages
+        if [ "$TOOL_TYPE" = "node_package" ]; then
+          echo "npm"
+          exit 0
+        fi
+
+        # Fallback
+        echo "manual"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - detect_platform
+
+  # Step 5: Install via pip (if provider is pip and installation needed)
+  - id: install_via_pip
+    type: BashCommand
+    inputs:
+      command: |
+        TOOL="${tool_name}"
+        VERSION="${version}"
+        VENV="${venv_path}"
+
+        # Build pip command
+        if [ -n "$VENV" ] && [ -f "$VENV/bin/pip" ]; then
+          PIP="$VENV/bin/pip"
+        else
+          PIP="pip"
+        fi
+
+        # Build package spec
+        if [ -n "$VERSION" ]; then
+          # Remove constraint operators for pip install
+          VERSION_SPEC=$(echo "$VERSION" | sed 's/>=//;s/>//;s/<=//;s/<//;s/==//;s/~=//')
+          PACKAGE_SPEC="$TOOL>=$VERSION_SPEC"
+        else
+          PACKAGE_SPEC="$TOOL"
+        fi
+
+        # Install package
+        echo "Installing $PACKAGE_SPEC using pip..."
+        $PIP install "$PACKAGE_SPEC" --upgrade
+      working_dir: "."
+      timeout: 300
+      check_returncode: false
+    condition: "${check_installation_needed.success} and ${select_provider.stdout} == 'pip'"
+    depends_on:
+      - check_installation_needed
+      - select_provider
+
+  # Step 6: Install via uv (if provider is uv and installation needed)
+  - id: install_via_uv
+    type: BashCommand
+    inputs:
+      command: |
+        TOOL="${tool_name}"
+        VERSION="${version}"
+        VENV="${venv_path}"
+
+        # Determine uv command
+        if command -v uv >/dev/null 2>&1; then
+          UV="uv"
+        else
+          echo "Error: uv not found"
+          exit 1
+        fi
+
+        # Build package spec
+        if [ -n "$VERSION" ]; then
+          VERSION_SPEC=$(echo "$VERSION" | sed 's/>=//;s/>//;s/<=//;s/<//;s/==//;s/~=//')
+          PACKAGE_SPEC="$TOOL>=$VERSION_SPEC"
+        else
+          PACKAGE_SPEC="$TOOL"
+        fi
+
+        # Install using uv pip
+        if [ -n "$VENV" ]; then
+          echo "Installing $PACKAGE_SPEC using uv pip into $VENV..."
+          $UV pip install --python "$VENV/bin/python" "$PACKAGE_SPEC"
+        else
+          echo "Installing $PACKAGE_SPEC using uv pip..."
+          $UV pip install "$PACKAGE_SPEC"
+        fi
+      working_dir: "."
+      timeout: 300
+      check_returncode: false
+    condition: "${check_installation_needed.success} and ${select_provider.stdout} == 'uv'"
+    depends_on:
+      - check_installation_needed
+      - select_provider
+
+  # Step 7: Install via brew (if provider is brew and installation needed)
+  - id: install_via_brew
+    type: BashCommand
+    inputs:
+      command: |
+        TOOL="${tool_name}"
+
+        if command -v brew >/dev/null 2>&1; then
+          echo "Installing $TOOL using Homebrew..."
+          brew install "$TOOL"
+        else
+          echo "Error: Homebrew not found"
+          exit 1
+        fi
+      timeout: 600
+      check_returncode: false
+    condition: "${check_installation_needed.success} and ${select_provider.stdout} == 'brew'"
+    depends_on:
+      - check_installation_needed
+      - select_provider
+
+  # Step 8: Validate installation was successful
+  - id: validate_installation
+    type: ExecuteWorkflow
+    inputs:
+      workflow: validate-command
+      inputs:
+        command: "${tool_name}"
+        version_check_command: "${version_check_command}"
+        required_version: "${version}"
+    condition: "${check_installation_needed.success}"
+    depends_on:
+      - install_via_pip
+      - install_via_uv
+      - install_via_brew
+
+  # Step 9: Determine action taken
+  - id: determine_action
+    type: BashCommand
+    inputs:
+      command: |
+        # Determine action based on initial state
+        if [ "${validate_command.outputs.found}" != "true" ]; then
+          echo "installed"
+        else
+          echo "upgraded"
+        fi
+      timeout: 5
+      check_returncode: false
+    condition: "${check_installation_needed.success}"
+    depends_on:
+      - check_installation_needed
+      - validate_command
+
+  # Fallback action for when installation not needed
+  - id: determine_action_no_install
+    type: BashCommand
+    inputs:
+      command: echo "already_available"
+      timeout: 5
+      check_returncode: false
+    condition: "not ${check_installation_needed.success}"
+    depends_on:
+      - check_installation_needed
+      - validate_command
+
+  # Step 10: Check if tool is now available (after installation)
+  - id: check_final_availability_installed
+    type: BashCommand
+    inputs:
+      command: echo "${validate_installation.outputs.found}"
+      timeout: 5
+      check_returncode: false
+    condition: "${check_installation_needed.success}"
+    depends_on:
+      - determine_action
+
+  # Check final availability (no installation needed)
+  - id: check_final_availability_existing
+    type: BashCommand
+    inputs:
+      command: echo "${validate_command.outputs.found}"
+      timeout: 5
+      check_returncode: false
+    condition: "not ${check_installation_needed.success}"
+    depends_on:
+      - determine_action_no_install
+
+  # Step 11: Get final version (after installation)
+  - id: get_final_version_installed
+    type: BashCommand
+    inputs:
+      command: echo "${validate_installation.outputs.version}"
+      timeout: 5
+      check_returncode: false
+    condition: "${check_installation_needed.success}"
+    depends_on:
+      - determine_action
+
+  # Get final version (no installation needed)
+  - id: get_final_version_existing
+    type: BashCommand
+    inputs:
+      command: echo "${validate_command.outputs.version}"
+      timeout: 5
+      check_returncode: false
+    condition: "not ${check_installation_needed.success}"
+    depends_on:
+      - determine_action_no_install
+
+  # Step 12: Get final path (after installation)
+  - id: get_final_path_installed
+    type: BashCommand
+    inputs:
+      command: echo "${validate_installation.outputs.path}"
+      timeout: 5
+      check_returncode: false
+    condition: "${check_installation_needed.success}"
+    depends_on:
+      - determine_action
+
+  # Get final path (no installation needed)
+  - id: get_final_path_existing
+    type: BashCommand
+    inputs:
+      command: echo "${validate_command.outputs.path}"
+      timeout: 5
+      check_returncode: false
+    condition: "not ${check_installation_needed.success}"
+    depends_on:
+      - determine_action_no_install
+
+  # Step 13: Consolidate outputs for summary
+  - id: consolidate_action
+    type: BashCommand
+    inputs:
+      command: |
+        # Return action from whichever path was taken
+        ACTION_INSTALLED="${determine_action.stdout}"
+        ACTION_EXISTING="${determine_action_no_install.stdout}"
+        if [ -n "$ACTION_INSTALLED" ]; then
+          echo "$ACTION_INSTALLED"
+        else
+          echo "$ACTION_EXISTING"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - determine_action
+      - determine_action_no_install
+
+  - id: consolidate_availability
+    type: BashCommand
+    inputs:
+      command: |
+        AVAIL_INSTALLED="${check_final_availability_installed.stdout}"
+        AVAIL_EXISTING="${check_final_availability_existing.stdout}"
+        if [ -n "$AVAIL_INSTALLED" ]; then
+          echo "$AVAIL_INSTALLED"
+        else
+          echo "$AVAIL_EXISTING"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - check_final_availability_installed
+      - check_final_availability_existing
+
+  - id: consolidate_version
+    type: BashCommand
+    inputs:
+      command: |
+        VER_INSTALLED="${get_final_version_installed.stdout}"
+        VER_EXISTING="${get_final_version_existing.stdout}"
+        if [ -n "$VER_INSTALLED" ]; then
+          echo "$VER_INSTALLED"
+        else
+          echo "$VER_EXISTING"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - get_final_version_installed
+      - get_final_version_existing
+
+  - id: consolidate_path
+    type: BashCommand
+    inputs:
+      command: |
+        PATH_INSTALLED="${get_final_path_installed.stdout}"
+        PATH_EXISTING="${get_final_path_existing.stdout}"
+        if [ -n "$PATH_INSTALLED" ]; then
+          echo "$PATH_INSTALLED"
+        else
+          echo "$PATH_EXISTING"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - get_final_path_installed
+      - get_final_path_existing
+
+  # Step 14: Generate summary
+  - id: ensure_summary
+    type: EchoBlock
+    inputs:
+      message: |
+        Ensure Tool Summary:
+        - Tool: ${tool_name}
+        - Type: ${tool_type}
+        - Provider: ${select_provider.stdout}
+        - Action: ${consolidate_action.stdout}
+        - Available: ${consolidate_availability.stdout}
+        - Version: ${consolidate_version.stdout}
+        - Path: ${consolidate_path.stdout}
+    depends_on:
+      - select_provider
+      - consolidate_action
+      - consolidate_availability
+      - consolidate_version
+      - consolidate_path
+
+outputs:
+  available: "${consolidate_availability.stdout}"
+  installed_by_workflow: "${check_installation_needed.success}"
+  version: "${consolidate_version.stdout}"
+  provider_used: "${select_provider.stdout}"
+  tool_path: "${consolidate_path.stdout}"
+  action_taken: "${consolidate_action.stdout}"
+  validation_output: "${validate_command.outputs.summary}"
+  summary: "${ensure_summary.echoed}"
