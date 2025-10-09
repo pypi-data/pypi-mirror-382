@@ -1,0 +1,71 @@
+name: Autorelease
+
+on:
+  push:
+    branches:
+    - main
+    tags:
+    - '*'
+  workflow_dispatch:
+    inputs:
+      new_version:
+        description: 'New tag version'
+        default: 'patch'
+  schedule:
+    - cron: '0 2 * * 6' # saturday 2am
+
+jobs:
+  autorelease:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Install tools
+      uses: jdx/mise-action@v3
+
+    - name: Setup git config
+      run: |
+        git config user.name actions-bot
+        git config user.email actions-bot@users.noreply.github.com
+
+    - name: Check
+      run: ruff check --fix
+    - name: Format
+      run: ruff format
+
+    - name: Build wheel
+      run: uv build
+
+    - name: Make release if everything looks right
+      env:
+        NEW_VERSION: ${{ github.event.inputs.new_version }}
+      run: |
+        if [[ ! -z "$NEW_VERSION" ]]; then
+          NO_TAG=1 ./make_release "$NEW_VERSION"
+          echo "New version: $(cat ./VERSION)" >> $GITHUB_STEP_SUMMARY
+          echo "RELEASE_VERSION=$(cat ./VERSION)" >> $GITHUB_ENV
+        fi
+
+    - name: Create release
+      if: env.RELEASE_VERSION != ''
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ env.RELEASE_VERSION }}
+          TITLE: Release ${{ env.RELEASE_VERSION }}
+      run: |
+        gh release create "$TAG" \
+          --title "$TITLE" \
+          --generate-notes
+
+    - name: Build and publish to PyPI
+      if: env.RELEASE_VERSION != ''
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        uvx twine upload dist/*
