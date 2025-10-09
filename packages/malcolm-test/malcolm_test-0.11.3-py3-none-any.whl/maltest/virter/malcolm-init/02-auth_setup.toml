@@ -1,0 +1,36 @@
+version = 1
+
+[env]
+VERBOSE = ""
+
+AUTH_METHOD = 'basic'
+# username: maltest
+# password: M@lc0lm
+AUTH_USERNAME = 'maltest'
+# openssl passwd -1
+AUTH_PASSWORD_OPENSSL = '$1$eL6r6.9S$6cRYiBNnOPd1fZZG3Z50P0'
+# htpasswd -n -B username | cut -d: -f2
+AUTH_PASSWORD_HTPASSWD = '$2y$05$PMhfXVcC.8ztE5yx/IJV9ud59XcwZI7/1Z3mW2QRvs5DMz61G0ynS'
+
+[[steps]]
+[steps.shell]
+script = '''
+if [[ -d "$HOME"/Malcolm ]]; then
+    echo "Setting up authentication..."
+    pushd "$HOME"/Malcolm
+    python3 ./scripts/auth_setup $VERBOSE \
+        --auth-noninteractive \
+        --auth-method "$AUTH_METHOD" \
+        --auth-admin-username "$AUTH_USERNAME" \
+        --auth-admin-password-openssl "$AUTH_PASSWORD_OPENSSL" \
+        --auth-admin-password-htpasswd "$AUTH_PASSWORD_HTPASSWD" \
+        --auth-generate-webcerts \
+        --auth-generate-fwcerts \
+        --auth-generate-netbox-passwords \
+        --auth-generate-redis-password \
+        --auth-generate-postgres-password \
+        --auth-generate-keycloak-db-password \
+        --auth-generate-opensearch-internal-creds || true
+    popd
+fi
+'''
