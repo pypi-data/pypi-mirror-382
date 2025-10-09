@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Generate Release Notes
+      id: release_notes
+      run: |
+        # Get the previous tag
+        PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+          # First release
+          COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" ${{ github.ref_name }})
+        else
+          # Get commits since previous tag
+          COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" ${PREVIOUS_TAG}..${{ github.ref_name }})
+        fi
+        
+        # Create release notes
+        cat > release_notes.md << EOF
+        ## What's Changed
+        
+        ${COMMITS}
+        
+        ## Installation
+        
+        \`\`\`bash
+        # Using UV (recommended - fastest)
+        uv pip install gauge-pybuild-plugin
+        
+        # Using Poetry
+        poetry add gauge-pybuild-plugin
+        
+        # Using pip
+        pip install gauge-pybuild-plugin
+        \`\`\`
+        
+        ## Full Changelog
+        
+        See the [CHANGELOG.md](https://github.com/lirany1/gauge-pybuild-plugin/blob/master/CHANGELOG.md) for details.
+        EOF
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: release_notes.md
+        draft: false
+        prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
