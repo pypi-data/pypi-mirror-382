@@ -1,0 +1,201 @@
+.\" SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+.\" SPDX-License-Identifier: BSD-2-Clause
+.Dd March 8, 2025
+.Dt UVOXEN 1
+.Os
+.Sh NAME
+.Nm uvoxen
+.Nd configure and run tests
+.Sh SYNOPSIS
+.Nm
+.Cm list
+.Cm envs
+.Pp
+.Nm
+.Cm list
+.Cm pythons
+.Pp
+.Nm
+.Cm list
+.Cm reqs
+.Pp
+.Nm
+.Cm req
+.Cm generate
+.Op Fl Fl check
+.Op Fl f | Fl Fl force
+.Op Fl N | Fl Fl noop
+.Op Fl o Ar path | Fl Fl output Ar path
+.Fl g Ar group | Fl Fl group Ar group
+.Pp
+.Nm
+.Op Fl p Ar python | Fl Fl python Ar python
+.Cm tox
+.Cm generate
+.Op Fl Fl check
+.Op Fl f | Fl Fl force
+.Op Fl N | Fl Fl noop
+.Op Fl o Ar path | Fl Fl output Ar path
+.Nm
+.Op Fl p Ar python | Fl Fl python Ar python
+.Cm tox
+.Cm run
+.Op Fl e Ar envlist | Fl Fl env Ar envlist
+.Op Fl f | Fl Fl force
+.Op Fl N | Fl Fl noop
+.Pp
+.Nm
+.Op Fl p Ar python | Fl Fl python Ar python
+.Cm uv
+.Cm run
+.Op Fl e Ar envlist | Fl Fl env Ar envlist
+.Op Fl f | Fl Fl force
+.Op Fl N | Fl Fl noop
+.Op Fl Fl resolution Ar strategy
+.Pp
+.Nm
+.Fl Fl features
+.Nm
+.Fl h | Fl Fl help
+.Sh DESCRIPTION
+The
+.Nm
+tool allows test environments to be defined in
+the
+.Pa pyproject.toml
+file with a syntax relatively similar to
+the one used for Tox configuration.
+It can then:
+.Bl -bullet -offset left -compact
+.It
+run tests defined in these environments using the `uv` tool
+.It
+output Tox configuration and run Tox instead
+.It
+export the dependency groups into text files
+.El
+.Pp
+See the full documentation in the
+.Pa /usr/share/doc/uvoxen
+directory or at
+.Lk https://uvoxen.readthedocs.org/
+for more information.
+.Sh SUBCOMMANDS
+.Ss list envs - list the defined test environments
+The
+.Cm list envs
+subcommand displays the environments defined in the
+.Va tool.uvoxen.env
+table in the
+.Pa pyproject.toml
+file.
+.Ss list pythons - list the supported Python versions
+The
+.Cm list pythons
+subcommand displays the Python versions listed as supported in the
+.Va project.classifiers
+list in the
+.Pa pyproject.toml
+file.
+.Ss list reqs - list the defined dependency groups
+The
+.Cm list reqs
+subcommand displays the dependency groups in the
+.Va dependency-groups
+table in the
+.Pa pyproject.toml
+file.
+.Ss tox generate - generate the tox.ini file
+The
+.Cm tox generate
+subcommand generates the
+.Pa tox.ini
+Tox configuration file.
+.Pp
+If the
+.Fl Fl check
+option is specified, the file is not modified, and
+.Nm
+exits with a non-zero code if any changes would be made.
+.Pp
+If a single dash
+.Pq Dq \-
+is specified as the argument of the
+.Fl Fl output
+option, the file is not modified, and
+.Nm
+displays the generated contents on its standard output instead.
+.Ss tox run - run tests using Tox
+The
+.Cm tox run
+command regenerates the
+.Pa tox.ini
+Tox configuration file if necessary and then uses the
+.Xr uvx 1
+tool to run
+.Cm tox run-parallel
+with either the specified list of environments or the
+.Va tool.uvoxen.envlist
+list in the
+.Pa pyproject.toml
+file.
+.Pp
+If the
+.Fl p
+.Pq Fl Fl python
+command-line option is specified, it is passed on to
+.Xr uvx 1
+to use the specified Python version instead of the defualt one.
+If the special value
+.Dq supported
+is passed as a Python version, then
+.Nm
+invokes Tox for each of the Python versions listed as supported in the
+.Va project.classifiers
+list in the
+.Pa pyproject.toml
+file in succession.
+.Ss uv run - run tests using the uv tool
+The
+.Cm uv run
+command runs either the specified list of environments or the
+.Va tool.uvoxen.envlist
+list in the
+.Pa pyproject.toml
+file.
+For each environment it invokes the
+.Xr uv 1
+tool several times:
+.Bl -bullet -offset left -compact
+.It
+.Cm uv sync
+to install the specified dependencies into the
+.Pa .venv
+virtual environment
+.It
+.Cm uv run
+for each of the specified commands in succession
+.El
+.Pp
+If the
+.Fl p
+.Pq Fl Fl python
+command-line option is specified, it is passed on to
+.Nm uv
+to use the specified Python version instead of the defualt one.
+If the special value
+.Dq supported
+is passed as a Python version, then
+.Nm
+runs all test environments for each of the Python versions listed as
+supported in the
+.Va project.classifiers
+list in the
+.Pa pyproject.toml
+file in succession.
+.Sh AUTHORS
+The
+.Nm
+tool was developed by
+.An Peter Pentchev
+.Aq roam@ringlet.net .

@@ -1,0 +1,282 @@
+# SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+[build-system]
+requires = [
+  "hatchling >= 1.26, < 2",
+
+  # Transitive; needed for`uv --resolution=lowest`
+  "trove-classifiers >= 2024.5.17",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "uvoxen"
+description = "Generate test configuration files and run tests"
+readme = "README.md"
+license = "BSD-2-Clause"
+license-files = ["LICENSES/BSD-2-Clause.txt"]
+requires-python = ">= 3.11"
+dynamic = ["version"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Software Development :: Testing :: Unit",
+  "Typing :: Typed",
+]
+dependencies = [
+  "cappa >= 0.27.3, < 0.31",
+  "media-type-version >= 0.1, < 0.3",
+  "pyparsing >= 3.1, < 4",
+  "typedload >= 2.22, < 3",
+  "uv >= 0.5, < 0.9",
+]
+
+[[project.authors]]
+name = "Peter Pentchev"
+email = "roam@ringlet.net"
+
+[project.scripts]
+"uvoxen" = "uvoxen.__main__:main"
+
+[project.urls]
+Homepage = "https://devel.ringlet.net/devel/uvoxen/"
+Changes = "https://devel.ringlet.net/devel/uvoxen/changes/"
+"Issue Tracker" = "https://gitlab.com/ppentchev/uvoxen/-/issues"
+"Source Code" = "https://gitlab.com/ppentchev/uvoxen"
+
+[dependency-groups]
+docs = [
+  "mkdocs >= 1.4.2, < 2",
+  "mkdocs-material >= 9.1.2, < 10",
+  "mkdocstrings >= 0.27, < 0.30",
+  "mkdocstrings-python >= 1, < 2",
+]
+testenv-mypy = [
+  {include-group = "testenv-unit-tests"},
+  "mypy >= 1.12, < 2",
+]
+testenv-pyupgrade = [
+  "pyupgrade >= 3, < 4",
+]
+testenv-reuse = [
+  "reuse >= 5, < 6",
+
+  # Transitive; needed for`uv --resolution=lowest`
+  "six >= 1.4, < 2",
+]
+testenv-ruff = [
+  "ruff == 0.11.13",
+]
+testenv-unit-tests = [
+  "feature-check >= 2, < 3",
+  "packaging >= 21.3, < 26",
+  "pygments >= 2.7, < 3",
+  "pytest >= 8, < 9",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uvoxen"]
+
+[tool.hatch.version]
+path = "src/uvoxen/defs.py"
+pattern = '(?x) ^ VERSION \s* (?: : \s* Final \s* )? = \s* " (?P<version> [^\s"]+ ) " \s* $'
+
+[tool.mypy]
+strict = true
+
+[tool.publync]
+mediaType = "vnd.ringlet.misc.publync.config/publync.v0.1+toml"
+
+[tool.publync.build.tox]
+
+[tool.publync.sync.rsync]
+remote = "marla.ludost.net:vhosts/devel.ringlet.net/public_html/devel/uvoxen"
+
+[tool.ruff]
+extend = "ruff-base.toml"
+output-format = "concise"
+preview = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+
+[tool.test-stages]
+stages = [
+  "(@check or @docs) and @quick and not @manual",
+  "(@check or @docs) and not @manual",
+  "@tests and not @manual",
+]
+
+[tool.uvoxen]
+mediaType = "vnd.ringlet.devel.uvoxen.config/uvoxen.v0.3+toml"
+envlist = [
+  "ruff",
+  "format",
+  "reuse",
+  "mypy",
+  "unit-tests",
+  "uvoxen-sync-check",
+  "var-expand-test",
+]
+
+[tool.uvoxen.defs]
+pyfiles_source = [
+  "src/uvoxen",
+]
+pyfiles = [
+  "{[defs]pyfiles_source}",
+  "tests/unit",
+]
+
+[tool.uvoxen.req]
+header = """
+# SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+"""
+
+[tool.uvoxen.tox]
+env-order = [
+  "ruff",
+  "format",
+  "reformat",
+]
+
+header = """
+# SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+"""
+
+[tool.uvoxen.env.format]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check --config ruff-base.toml --select=D,I --diff -- {[defs]pyfiles}",
+  "ruff format --config ruff-base.toml --check --diff -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.reformat]
+tags = [
+  "format",
+  "manual",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check --config ruff-base.toml --select=D,I --fix -- {[defs]pyfiles}",
+  "ruff format --config ruff-base.toml -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.ruff]
+tags = [
+  "check",
+  "ruff",
+  "quick",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.reuse]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-reuse",
+]
+commands = [
+  "reuse lint",
+]
+
+[tool.uvoxen.env.mypy]
+tags = [
+  "check",
+]
+dependency-groups = [
+  "testenv-mypy",
+]
+install-dependencies = true
+commands = [
+  "mypy {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.unit-tests]
+tags = [
+  "tests",
+]
+dependency-groups = [
+  "testenv-unit-tests",
+]
+install-project = true
+commands = [
+  "pytest {posargs} tests/unit",
+]
+
+[tool.uvoxen.env.var-expand-test]
+tags = [
+  "tests",
+]
+dependency-groups = []
+commands = [
+  "{envdir}/bin/python3 -c 'import sys; print(sys.executable);'"
+]
+
+[tool.uvoxen.env.pyupgrade]
+tags = [
+  "check",
+  "manual",
+]
+dependency-groups = [
+  "testenv-pyupgrade",
+]
+allowlist-externals = [
+  "sh",
+]
+commands = [
+  "sh -c 'pyupgrade --py311-plus src/uvoxen/*.py tests/unit/*.py'",
+]
+
+[tool.uvoxen.env.docs]
+tags = [
+  "docs",
+]
+dependency-groups = [
+  "docs",
+]
+commands = [
+  "mkdocs build",
+]
+
+[tool.uvoxen.env.uvoxen-sync-check]
+tags = [
+  "tests",
+]
+install-project = true
+commands = [
+  "uvoxen req generate -g testenv-mypy -o -",
+  "uvoxen req generate --check -g docs",
+  "uvoxen tox generate --check",
+]
