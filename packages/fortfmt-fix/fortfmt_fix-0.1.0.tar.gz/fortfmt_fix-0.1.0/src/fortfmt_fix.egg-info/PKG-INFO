@@ -1,0 +1,177 @@
+Metadata-Version: 2.4
+Name: fortfmt-fix
+Version: 0.1.0
+Summary: Codemod to replace Intel/DEC omitted-width FORMATs with standard-conforming Fortran I/O
+Author-email: David Bross <brossdh@anl.gov>
+License: BSD-3-Clause
+Project-URL: Homepage, https://github.com/dbross/fortfmt-fix
+Project-URL: Repository, https://github.com/dbross/fortfmt-fix
+Project-URL: Issues, https://github.com/dbross/fortfmt-fix/issues
+Keywords: fortran,compiler,modernization,portability,gfortran,intel,format
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development :: Code Generators
+Classifier: Intended Audience :: Science/Research
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Dynamic: license-file
+
+# fortfmt-fix
+
+A small, deterministic codemod that rewrites Intel/DEC omitted-width Fortran FORMAT
+descriptors (e.g., `I`, `F.d`, `E.dE#`, `G.d`, `L`) to **standard-conforming**
+forms (e.g., `I12`, `F25.16`), improving portability across compilers (gfortran, ifx, etc.).
+
+## Quickstart
+
+### Installation
+
+```bash
+# From PyPI (when available)
+pip install fortfmt-fix
+
+# From source (development mode)
+git clone https://github.com/anl-cec/fortfmt-fix.git
+cd fortfmt-fix
+pip install -e .
+```
+
+### Command Line Usage
+
+```bash
+# Show proposed changes without modifying files
+fortfmt-fix --dry-run path/to/src
+
+# Apply changes in-place
+fortfmt-fix --in-place path/to/src
+
+# Process specific files
+fortfmt-fix --dry-run file1.f90 file2.f90
+
+# Process directories recursively
+fortfmt-fix --in-place src/
+```
+
+### Python API
+
+```python
+from fortran_format_codemod import transform_source
+
+# Basic usage
+result = transform_source("WRITE(*,'(I)') i")
+# Returns: "WRITE(*,'(I12)') i"
+
+# With flags
+result = transform_source(
+    "WRITE(*,'(I)') i", 
+    int64=True,           # Use I23 instead of I12
+    listify_reads=True,   # Convert safe READ statements to list-directed
+    trace=True            # Enable debug output
+)
+```
+
+## Default Widths
+
+The tool applies the following default widths when omitted:
+
+| Descriptor | Default | With `--int64` |
+|------------|---------|----------------|
+| `I`        | `I12`   | `I23`          |
+| `L`        | `L2`    | `L2`           |
+| `F`        | `F25.16`| `F25.16`       |
+| `E`        | `E25.16E3` | `E25.16E3`  |
+| `D`        | `D25.16E3` | `D25.16E3`  |
+| `G`        | `G25.16`| `G25.16`       |
+| `ES`       | `ES25.16E3` | `ES25.16E3` |
+| `EN`       | `EN25.16E3` | `EN25.16E3` |
+
+## Examples
+
+### Basic FORMAT Statement
+```fortran
+! Before
+FORMAT(I, F.6, E.12E3)
+
+! After
+FORMAT(I12, F25.6, E25.12E3)
+```
+
+### Nested Groups with Repeat Counts
+```fortran
+! Before
+WRITE(*,'(1X, 2(F.6, 1X), I)') a, b, c
+
+! After  
+WRITE(*,'(1X, 2(F25.6, 1X), I12)') a, b, c
+```
+
+### READ Statement Listification
+```fortran
+! Before (with --listify-reads)
+read(5, '(I, I, F.6)') i, j, x
+
+! After
+read(5, *) i, j, x
+```
+
+## Command Line Options
+
+- `--dry-run` - Show proposed changes without modifying files
+- `--in-place` - Apply changes directly to files
+- `--int64` - Use wider integer defaults (I23 instead of I12) for 64-bit I/O
+- `--listify-reads` - Convert safe READ statements to list-directed form
+- `--trace` - Enable verbose debug output
+
+## Safety & Idempotence
+
+**fortfmt-fix** is designed to be safe and idempotent:
+
+- **Conservative**: Only transforms omitted-width descriptors, never touches explicit widths
+- **Idempotent**: Running the tool multiple times produces identical results
+- **Preserves semantics**: Quoted strings and non-format content are never modified
+- **Deterministic**: No random behavior or network calls
+
+### Recommended Usage
+
+For best results, use as a **pre-commit hook** to catch format issues early:
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Add to .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: fortfmt-fix
+        name: fortfmt-fix
+        entry: fortfmt-fix --dry-run
+        language: system
+        files: \.(f90|F90|f|F)$
+```
+
+## Testing
+
+The package includes comprehensive tests covering:
+
+- Basic descriptor transformations
+- Nested groups and continuation lines  
+- Flag behavior (`--int64`, `--listify-reads`)
+- Idempotence verification
+- Edge cases and malformed input handling
+- CLI smoke tests
+
+Run tests with:
+```bash
+pytest -q
+```
+
+## See Also
+
+- `docs/OSS-Approval-OnePager.md` - Project overview and approval
+- `JOSS/paper.md` - Academic paper describing the tool
+- `CHANGELOG.md` - Version history and changes
