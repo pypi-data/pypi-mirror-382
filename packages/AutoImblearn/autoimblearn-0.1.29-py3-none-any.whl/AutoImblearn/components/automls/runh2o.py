@@ -1,0 +1,106 @@
+import logging
+import os
+import sys
+
+import docker
+import numpy as np
+import requests
+
+sys.path.append("..")
+from ...processing.utils import DATA_VOLUME_PATH
+from time import sleep
+import json
+
+
+class Arguments:
+    def __init__(self):
+        self.dataset = "nhanes.csv"
+        self.metric = "auroc"
+        self.target = "Status"
+
+        self.device = "cpu"
+        self.cuda = "0"
+
+        self.val_ratio = 0.1,
+        self.test_raito = 0.1,
+
+
+class RunH2O:
+    def __init__(self):
+        self.flags = Arguments()
+        os.environ["CUDA_VISIBLE_DEVICES"] = self.flags.cuda
+        np.random.seed(42)
+        self.supported_metrics = ["auroc, macro_f1"]
+        self.result = None
+
+    def fit(self,metric=None):
+        self.flags.metric = metric
+
+        # Start training
+        client = docker.from_env()
+        image_name = 'h2o:version1.0'
+        # Get the image build
+        try:
+            client.images.get(image_name)
+            logging.info('found image')
+        except docker.errors.ImageNotFound:
+            logging.info("Building h2o 1.0 image")
+            client.images.build(path="h2o/", tag=image_name, nocache=True)
+
+        volume1 = os.path.abspath("h2o")
+        volume2 = os.path.abspath(DATA_VOLUME_PATH)
+        container_name = "h2o-flask"
+
+        try:
+            container = client.containers.get(container_name)
+            # container.remove(force=True, v=True)
+            # print("container remove")
+            logging.info('found container')
+        except:
+            container = client.containers.run(
+                #docker run -v /var/run/docker.sock:/var/run/docker.sock --name containerB myimage ...
+                name=container_name,
+                image=image_name,
+                ports={"8081": 8081},
+                volumes=['{}:/code'.format(volume1),
+                         # start container from a container code
+                         # '/var/run/docker.sock:/var/run/docker.sock',
+                         '{}:/data'.format(volume2)],
+                entrypoint="python3 /code/app/app.py",
+                detach=True,
+            )
+
+        timeout = 120
+        stop_time = 3
+        elapsed_time = 0
+        logging.info('waiting container to be ready')
+        print(container.status)
+        while container.status != 'running' and elapsed_time < timeout:
+            if container.status == 'exited':
+                raise Exception("H2O docker container build error")
+            sleep(stop_time)
+            elapsed_time += stop_time
+            container = client.containers.get(container_name)
+            continue
+        print(container.status)
+        post_url = 'http://127.0.0.1:8081/set'
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(post_url, json.dumps(self.flags.__dict__), headers=headers)
+        if response.status_code != 201:
+            raise Exception("There is an error in setting H2O parameters")
+
+        # GET -- get result
+        logging.info('Getting result from REST API')
+        get_url = 'http://127.0.0.1:8081/results/' + self.flags.dataset
+        response_API = requests.get(get_url)
+        self.result = response_API.json()
+        container.remove(force=True, v=True)
+
+    def predict(self):
+        return self.result
+
+
+if __name__ == "__main__":
+
+    tmp = RunH2O()
+    tmp.fit("auroc")
