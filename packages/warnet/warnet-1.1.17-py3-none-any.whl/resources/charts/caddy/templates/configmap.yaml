@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "caddy.fullname" . }}
+  labels:
+    {{- include "caddy.labels" . | nindent 4 }}
+data:
+  Caddyfile: |
+    :80 {
+      respond /live 200
+      respond /ready 200
+
+      root * /usr/share/caddy
+      file_server
+
+      {{- range .Values.services }}
+      handle_path {{ .path }}* {
+        reverse_proxy {{ .host }}:{{ .port }}
+      }
+      {{- end }}
+    }
+  index: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Warnet Dashboard</title>
+    </head>
+    <body>
+        <h1>Welcome to the Warnet dashboard</h1>
+        <p>You can access the following services:</p>
+        <ul>
+            {{- range .Values.services }}
+            <li><a href="{{ .path }}">{{ .title }}</a></li>
+            {{- end }}
+        </ul>
+    </body>
+    </html>
