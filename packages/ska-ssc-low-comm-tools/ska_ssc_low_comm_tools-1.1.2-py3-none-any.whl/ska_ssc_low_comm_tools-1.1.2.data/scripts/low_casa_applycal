@@ -1,0 +1,30 @@
+#!/usr/bin/env -S casa --nologfile --log2term --nologger -c  # noqa: EXE003
+from __future__ import annotations
+
+from argparse import ArgumentParser
+from pathlib import Path
+
+
+def get_parser() -> ArgumentParser:
+    parser = ArgumentParser(description="Get the field name from a MS")
+
+    parser.add_argument("ms", type=Path, help="Path to MeasurementSet.")
+    parser.add_argument(
+        "caltable", type=Path, help="Path to calibration table(s).", nargs="+"
+    )
+
+    return parser
+
+
+def main() -> None:
+    parser = get_parser()
+    args = parser.parse_args()
+
+    _ = applycal(
+        vis=args.ms.as_posix(),
+        gaintable=[caltable.as_posix() for caltable in args.caltable],
+    )
+
+
+if __name__ == "__main__":
+    main()
