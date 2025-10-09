@@ -1,0 +1,312 @@
+# run-r
+
+A lightweight partially vibecoded Python module to execute R scripts (with optional inputs) and retrieve all workspace variables. I wanted to avoid rpy2 as installing it on my machine led to a compatibility/dependency nightmare.  
+
+## Features
+
+- **Simple Interface**: Execute R scripts with a single function call
+- **Workspace Extraction**: Automatically captures all variables from the R global environment
+- **Bidirectional Data Transfer**: Pass Python data to R and get results back
+- **Type Handling**: Handles various R data types (vectors, data frames, matrices, lists, S4 objects)
+- **No Heavy Dependencies**: Uses only standard library - no need for `rpy2`
+- **Cross-Platform**: Works on Windows, Linux, and macOS
+- **Statistical Models**: Full support for complex R objects like lme4 mixed-effects models
+
+## Requirements
+
+- Python 3.7+
+- R installation (the plugin will auto-detect R on Windows)
+- R package `jsonlite` (will be automatically installed if missing)
+
+## Installation
+
+```bash
+pip install run-r
+```
+
+## Quick Start
+
+### Basic Usage
+
+```python
+from run_r import run_r_script
+
+# Run an R script and get all workspace variables
+variables = run_r_script("my_script.R")
+
+# Access variables
+print(variables['my_variable'])
+print(variables['my_dataframe'])
+```
+
+### Pass Data from Python to R
+
+```python
+import pandas as pd
+from run_r import run_r_script
+
+# Create a pandas DataFrame
+df = pd.DataFrame({
+    'x': [1, 2, 3, 4, 5],
+    'y': [2, 4, 6, 8, 10]
+})
+
+# Pass it to R along with other parameters
+result = run_r_script(
+    "analysis.R",
+    input_data={
+        "data": df,
+        "threshold": 5,
+        "method": "linear"
+    }
+)
+
+print(result['model_summary'])
+```
+
+### Work with Statistical Models
+
+```python
+import numpy as np
+import pandas as pd
+from run_r import run_r_script
+
+# Generate sample data
+df = pd.DataFrame({
+    'subject_id': np.repeat(range(20), 30),
+    'predictor': np.random.randn(600),
+    'response': np.random.binomial(1, 0.5, 600)
+})
+
+# Fit a mixed-effects model in R
+result = run_r_script(
+    "fit_glmer.R",
+    input_data={"study_data": df}
+)
+
+# Access model results
+print(result['model']['fixed_effects'])
+print(result['model']['fit_stats'])
+```
+
+## Supported Data Types
+
+### Python to R
+- **Basic types**: int, float, str, bool, list, dict
+- **NumPy arrays**: Converted to R vectors/matrices
+- **Pandas DataFrames**: Converted to R data.frames
+- **Pandas Series**: Converted to R vectors
+
+### R to Python
+- **Scalars**: Numbers, strings, booleans
+- **Vectors**: Numeric, character, logical vectors
+- **Data Frames**: Converted to dictionaries of lists
+- **Lists**: Nested R lists
+- **Matrices**: Stored with dimension information
+- **S4 Objects**: Complex objects like lme4 models with full metadata
+- **Functions/Environments**: Captured as string representations
+
+## Command Line Usage
+
+```bash
+run-r path/to/script.R
+```
+
+Or using Python:
+
+```bash
+python -m run_r path/to/script.R
+```
+
+## Advanced Usage
+
+### Custom R Executable
+
+```python
+from run_r import RScriptRunner
+
+runner = RScriptRunner(r_executable="/custom/path/to/Rscript")
+variables = runner.run_script("analysis.R")
+```
+
+### Control Output Verbosity
+
+```python
+# Suppress R output
+variables = run_r_script("script.R", verbose=False)
+
+# Enable debug mode (keeps temporary files)
+runner = RScriptRunner()
+variables = runner.run_script("script.R", debug=True)
+```
+
+### Reusable Runner Instance
+
+```python
+from run_r import RScriptRunner
+
+# Create runner once
+runner = RScriptRunner()
+
+# Run multiple scripts
+result1 = runner.run_script("script1.R")
+result2 = runner.run_script("script2.R", input_data={"x": 10})
+result3 = runner.run_script("script3.R", verbose=False)
+```
+
+## Examples
+
+### Example 1: Basic R Script
+
+**my_script.R:**
+```r
+x <- 1:10
+y <- x^2
+result <- sum(y)
+```
+
+**Python:**
+```python
+from run_r import run_r_script
+
+vars = run_r_script("my_script.R")
+print(vars['x'])      # [1, 2, 3, ..., 10]
+print(vars['y'])      # [1, 4, 9, ..., 100]
+print(vars['result']) # 385
+```
+
+### Example 2: Pass DataFrame to R
+
+**analysis.R:**
+```r
+# Input data is automatically loaded
+model <- lm(y ~ x, data = df)
+predictions <- predict(model)
+r_squared <- summary(model)$r.squared
+```
+
+**Python:**
+```python
+import pandas as pd
+from run_r import run_r_script
+
+df = pd.DataFrame({'x': [1, 2, 3, 4], 'y': [2, 4, 6, 8]})
+result = run_r_script("analysis.R", input_data={"df": df})
+
+print(result['predictions'])
+print(result['r_squared'])
+```
+
+### Example 3: Mixed-Effects Model
+
+**fit_model.R:**
+```r
+library(lme4)
+
+# Fit generalized linear mixed-effects model
+model <- glmer(
+    response ~ predictor + (1|subject_id),
+    data = study_data,
+    family = binomial()
+)
+```
+
+**Python:**
+```python
+import pandas as pd
+import numpy as np
+from run_r import run_r_script
+
+# Generate sample data
+np.random.seed(42)
+df = pd.DataFrame({
+    'subject_id': np.repeat(range(20), 30),
+    'predictor': np.random.randn(600),
+    'response': np.random.binomial(1, 0.5, 600)
+})
+
+# Fit model in R
+result = run_r_script("fit_model.R", input_data={"study_data": df})
+
+# Access extracted model components
+model = result['model']
+print("Fixed effects:")
+print(model['fixed_effects'])
+print("\nModel fit:")
+print(f"AIC: {model['fit_stats']['AIC']}")
+print(f"BIC: {model['fit_stats']['BIC']}")
+```
+
+## How It Works
+
+1. **Script Execution**: The plugin sources your R script in a fresh R environment
+2. **Data Transfer**: Input data is serialized to JSON and loaded into R
+3. **Variable Capture**: After execution, all objects are collected from the global environment
+4. **Serialization**: Variables are converted to JSON-compatible format using R's `jsonlite`
+5. **Return**: Variables are returned as a Python dictionary
+
+## Error Handling
+
+```python
+try:
+    variables = run_r_script("script.R")
+except FileNotFoundError as e:
+    print(f"Script not found: {e}")
+except RuntimeError as e:
+    print(f"R execution error: {e}")
+```
+
+## Design Philosophy
+
+This plugin uses a **subprocess-based approach** rather than `rpy2` for several reasons:
+
+1. **Lightweight**: No heavy dependencies or compiled extensions
+2. **Isolation**: Each script runs in a clean R process
+3. **Simplicity**: Easy to understand and modify
+4. **Portability**: Works anywhere R is installed
+5. **Auto-detection**: Automatically finds R on Windows in common installation locations
+
+## Platform Notes
+
+### Windows
+- Automatically searches for R in common Windows locations
+- `jsonlite` package auto-installed on first run if missing
+
+### Linux/macOS
+- Ensure `Rscript` is in your PATH
+- Install R from your package manager or from https://cran.r-project.org/
+
+## Building and Publishing
+
+To build the package:
+
+```bash
+cd package
+python -m build
+```
+
+To install locally for testing:
+
+```bash
+pip install -e .
+```
+
+To upload to PyPI:
+
+```bash
+python -m twine upload dist/*
+```
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Links
+
+- **GitHub**: https://github.com/bsgarcia/run-r
+- **PyPI**: https://pypi.org/project/run-r/
+- **Issues**: https://github.com/bsgarcia/run-r/issues
