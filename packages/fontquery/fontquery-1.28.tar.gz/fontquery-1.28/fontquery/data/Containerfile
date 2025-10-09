@@ -1,0 +1,65 @@
+ARG release=38
+ARG registry=registry.fedoraproject.org/fedora
+FROM ${registry}:${release} AS base
+ARG release
+ARG setup=./fontquery/scripts/fontquery-setup.sh
+ARG dist
+ENV NAME=fontquery/fedora/base
+ENV RELEASE=${release}
+ENV DIST=${dist}
+# LABEL
+LABEL org.opencontainers.image.ref.name="$NAME" \
+      org.opencontainers.image.version="$RELEASE" \
+      org.opencontainers.image.source=https://github.com/fedora-i18n/fontquery \
+      org.opencontainers.image.description="Base image based on Fedora for fontquery" \
+      org.opencontainers.image.licenses="MIT"
+
+# Install
+COPY ${setup} /usr/local/bin/fontquery-setup.sh
+COPY ${setup} ${dist} /tmp
+RUN echo "* Setup base image"; /usr/local/bin/fontquery-setup.sh -t base
+
+#
+# minimal image
+#
+FROM base as minimal
+ARG release
+ENV RELEASE ${release}
+
+# LABEL
+LABEL description="Working environment for fontquery - minimal"
+# Install
+RUN echo "* Installing default fonts packages"; fontquery-setup.sh -t minimal
+
+CMD ["/usr/local/bin/fontquery-client", "--pattern", "minimal"]
+ENTRYPOINT ["/usr/local/bin/fontquery-client", "--pattern", "minimal"]
+
+#
+# extra image
+#
+FROM minimal AS extra
+ARG release
+ENV RELEASE ${release}
+
+# LABEL
+LABEL description="Working environment for fontquery - extra"
+# Install
+RUN echo "* Installing langpacks extra font packages"; fontquery-setup.sh -t extra
+
+CMD ["/usr/local/bin/fontquery-client", "--pattern", "extra"]
+ENTRYPOINT ["/usr/local/bin/fontquery-client", "--pattern", "extra"]
+
+#
+# all
+#
+FROM extra AS all
+ARG release
+ENV RELEASE ${release}
+
+# LABEL
+LABEL description="Working environment for fontquery - All fonts packages"
+# Install
+RUN echo "* Installing all fonts packages"; fontquery-setup.sh -t all
+
+CMD ["/usr/local/bin/fontquery-client", "--pattern", "all"]
+ENTRYPOINT ["/usr/local/bin/fontquery-client", "--pattern", "all"]
