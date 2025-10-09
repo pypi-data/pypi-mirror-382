@@ -1,0 +1,84 @@
+Metadata-Version: 2.4
+Name: ctf_common
+Version: 0.1.5
+Summary: Common library for CTF projects
+Home-page: https://github.com/joanne-cyw/ctf_common
+Author: Joanney Wang
+Author-email: joanne.cyw@hotmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.31.0
+Requires-Dist: pyyaml>=6.0.1
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+## Environment Requirements
+
+- Python 3.7 and higher
+- pip
+
+## update report API host name
+- default value of API host is : http://127.0.0.1:8000/api
+- To update the API host to other path, update the environment parameter
+os.setenv("CTF_REPORT_HOST", "http://your.api.host/api")
+
+## Use in automation project
+### Create run/case/steps in automation environment 
+- import "report_manager"
+```
+from ctf_common.reports.report_manager import ReportManager
+```
+
+- before all features:
+```
+ReportManager.create_test_run(scope_name="Debug",tags=tags_string)
+context.run_result = run_result
+```
+- after all features:
+```
+ ReportManager.complete_test_run(context.run_result)
+```
+- before scenario
+```
+ReportManager.create_test_case(context.run_result.id,scenario.name, feature=context.feature_name)
+ context.case_result = case_result
+```
+
+- after scenario
+```
+ ReportManager.complete_test_case(context.case_result)
+ ```
+
+- before step
+```
+ step_result = ReportManager.create_test_step(context.case_result.id, step.name)
+ context.step_result = step_result
+```
+- after step
+```
+ ReportManager.complete_test_step(context.step_result)
+```
+
+### add logs for test steps
+- import "report_logger"
+ ```
+from ctf_common.reports.report_logger import ReportLogger
+ ```
+
+- add logs with defined log level
+```
+-  ReportLogger.info("test step log information")
+-  ReportLogger.error("test step failed with error message")
+-  ReportLogger.warn("test step warning message")
+-  ReportLogger.success("step passed with green color highlights on screen")
+```
