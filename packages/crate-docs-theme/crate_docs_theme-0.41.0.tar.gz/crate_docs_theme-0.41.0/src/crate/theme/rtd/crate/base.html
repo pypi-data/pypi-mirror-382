@@ -1,0 +1,143 @@
+<!doctype html>
+<html class="no-js"{% if language is not none %} lang="{{ language }}"{% endif %} data-content_root="{{ content_root }}">
+  <head>
+    {%- block site_meta -%}
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark">
+
+    {%- if metatags %}{{ metatags }}{% endif -%}
+
+    {%- block linktags %}
+        {%- if hasdoc('about') -%}
+          <link rel="author" title="{{ _('About these documents') }}" href="{{ pathto('about') }}" />
+        {%- endif -%}
+        {#%- if hasdoc('genindex') -%}
+          <link rel="index" title="{{ _('Index') }}" href="{{ pathto('genindex') }}" />
+        {%- endif -%#}
+        {%- if hasdoc('search') -%}
+          <link rel="search" title="{{ _('Search') }}" href="{{ pathto('search') }}" />
+        {%- endif -%}
+        {#%- if hasdoc('copyright') -%}
+          <link rel="copyright" title="{{ _('Copyright') }}" href="{{ pathto('copyright') }}" />
+        {%- endif -%#}
+        {%- if next -%}
+          <link rel="next" title="{{ next.title|striptags|e }}" href="{{ next.link|e }}" />
+        {%- endif -%}
+        {%- if prev -%}
+          <link rel="prev" title="{{ prev.title|striptags|e }}" href="{{ prev.link|e }}" />
+        {%- endif -%}
+        {#- rel="canonical" (set by html_baseurl) -#}
+        {#%- if pageurl %}
+        <link rel="canonical" href="{{ pageurl|e }}" />
+        {%- endif %#}
+    {%- endblock linktags %}
+
+    {# Favicon #}
+    <link rel="icon" type="image/png" href="{{ pathto('_static', 1) }}/images/favicon.png"/>
+
+    {%- endblock site_meta -%}
+
+    {% block head_extra %}
+    <!-- Algolia DNS Prefetch -->
+    <link rel="preconnect" href="https://az1nev7cg0-dsn.algolia.net" crossorigin />
+    <!-- Algolia stylesheet -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@docsearch/css@3" />
+
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+      new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+      j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+      'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+      })(window,document,'script','dataLayer','GTM-WHMDSK');</script>
+      <!-- End Google Tag Manager -->
+
+    <noscript>
+        <style>
+            .cr-nojs-hide { display: none; }
+        </style>
+    </noscript>
+
+    {%- if custom_baseurl %}
+    {%- set canonical_page = pagename + ".html" %}
+    <!--
+    Always link to the latest version, as canonical.
+    https://docs.readthedocs.io/en/stable/canonical-urls.html
+    -->
+    <link rel="canonical" href="{{ custom_baseurl|e }}{{ canonical_page }}" />
+    {%- endif %}
+    {% endblock %}
+
+    {#- Site title -#}
+    {%- block htmltitle -%}
+      {% if not docstitle %}
+        <title>{{ title|striptags|e }}</title>
+      {% elif pagename == master_doc %}
+        <title>{{ docstitle|striptags|e }}</title>
+      {% else %}
+        <title>{{ title|striptags|e }} - {{ docstitle|striptags|e }}</title>
+      {% endif %}
+    {%- endblock -%}
+
+    {%- block styles -%}
+
+    {# Custom stylesheets #}
+    {%- block regular_styles -%}
+    {% if not omit_skeleton_css -%}
+    <link rel="stylesheet" href="{{ pathto('_static/skeleton.css', 1) }}" type="text/css" />
+    {%- endif -%}
+
+    {%- for css in css_files -%}
+      {% if css|attr("filename") -%}
+        {{ css_tag(css) }}
+      {%- else -%}
+        <link rel="stylesheet" href="{{ pathto(css, 1)|e }}" type="text/css" />
+      {%- endif %}
+    {% endfor -%}
+    {%- endblock regular_styles -%}
+
+    {#- Theme-related stylesheets -#}
+    {%- block theme_styles %}
+    {% include "partials/_head_css_variables.html" with context %}
+    {%- endblock -%}
+
+    {%- block extra_styles %}
+    {%- endblock -%}
+
+    {%- endblock styles -%}
+
+    <script src="{{ pathto('_static/bundle/main.js', 1) }}?ver={{ theme_ver }}"></script>
+    {#- Custom front matter #}
+    {%- block extrahead -%}{%- endblock -%}
+  </head>
+  <body>
+    {% block body %}
+    <script>
+      document.documentElement.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    {% endblock %}
+
+    {%- block scripts -%}
+
+    {# Custom JS #}
+    {%- block regular_scripts -%}
+    {% for path in script_files -%}
+      {{ js_tag(path) }}
+    {% endfor -%}
+    {%- endblock regular_scripts -%}
+
+    {# Theme-related JavaScript code #}
+    {%- block theme_scripts -%}
+    {%- endblock -%}
+
+    {%- endblock scripts -%}
+
+    {% block footer %}
+    <footer class="sb-footer">
+      <div class="sb-footer__inner sb-page-width">
+        {% include "sections/footer.html" %}
+      </div>
+    </footer>
+    {% endblock footer %}
+  </body>
+</html>
