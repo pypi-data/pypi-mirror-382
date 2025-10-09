@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KOSPI-KOSDAQ SSE Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .connection-status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .connected {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .disconnected {
+            background: #f44336;
+            color: white;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h2 {
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .control-group input,
+        .control-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .control-group input:focus,
+        .control-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #5a67d8;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .events-log {
+            grid-column: span 2;
+        }
+        
+        .event-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            padding: 10px;
+            background: #f9f9f9;
+        }
+        
+        .event-item {
+            padding: 8px;
+            margin-bottom: 5px;
+            background: white;
+            border-radius: 3px;
+            border-left: 3px solid #667eea;
+            font-size: 13px;
+        }
+        
+        .event-item.error {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+        
+        .event-item.success {
+            border-left-color: #4CAF50;
+            background: #e8f5e9;
+        }
+        
+        .event-time {
+            color: #999;
+            font-size: 11px;
+        }
+        
+        .search-results {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        
+        .search-item {
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .search-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .data-display {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .data-display pre {
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .events-log {
+                grid-column: span 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>KOSPI-KOSDAQ SSE 실시간 데이터 클라이언트</h1>
+            <div>
+                <span id="connection-status" class="connection-status disconnected">연결 끊김</span>
+                <span style="margin-left: 10px; color: #666;">서버: <input type="text" id="server-url" value="http://localhost:8000" style="width: 200px; padding: 3px;"></span>
+                <button onclick="toggleConnection()" style="width: auto; margin-left: 10px;">연결/해제</button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <!-- Ticker Management -->
+            <div class="card">
+                <h2>종목 관리</h2>
+                
+                <div class="button-group">
+                    <button onclick="loadTickers(false)">종목 로드</button>
+                    <button onclick="loadTickers(true)">새로고침</button>
+                </div>
+                
+                <div class="control-group">
+                    <label>종목 검색</label>
+                    <input type="text" id="search-query" placeholder="종목명 또는 코드 입력">
+                    <button onclick="searchTickers()" style="margin-top: 5px;">검색</button>
+                </div>
+                
+                <div id="search-results" class="search-results"></div>
+            </div>
+            
+            <!-- Stock Data Query -->
+            <div class="card">
+                <h2>주식 데이터 조회</h2>
+                
+                <div class="control-group">
+                    <label>종목 코드</label>
+                    <input type="text" id="ticker" placeholder="예: 005930" value="005930">
+                </div>
+                
+                <div class="control-group">
+                    <label>시작일</label>
+                    <input type="date" id="fromdate" value="2024-01-01">
+                </div>
+                
+                <div class="control-group">
+                    <label>종료일</label>
+                    <input type="date" id="todate" value="2024-01-10">
+                </div>
+                
+                <div class="control-group">
+                    <label>데이터 유형</label>
+                    <select id="data-type">
+                        <option value="ohlcv">OHLCV (가격/거래량)</option>
+                        <option value="market_cap">시가총액</option>
+                        <option value="fundamental">재무지표 (PER/PBR)</option>
+                        <option value="trading_volume">투자자별 거래량</option>
+                    </select>
+                </div>
+                
+                <button onclick="fetchStockData()">데이터 조회</button>
+                
+                <div id="data-display" class="data-display" style="display: none;">
+                    <pre id="data-content"></pre>
+                </div>
+            </div>
+            
+            <!-- Events Log -->
+            <div class="card events-log">
+                <h2>실시간 이벤트 로그</h2>
+                <button onclick="clearEvents()" style="width: auto; margin-bottom: 10px;">로그 삭제</button>
+                <div id="event-list" class="event-list"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let eventSource = null;
+        let connectionId = null;
+        
+        // Utility function to format date
+        function formatDate(date) {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}${month}${day}`;
+        }
+        
+        // Add event to log
+        function addEvent(message, type = 'info') {
+            const eventList = document.getElementById('event-list');
+            const eventItem = document.createElement('div');
+            eventItem.className = `event-item ${type}`;
+            const time = new Date().toLocaleTimeString('ko-KR');
+            eventItem.innerHTML = `
+                <span class="event-time">${time}</span>
+                <div>${message}</div>
+            `;
+            eventList.insertBefore(eventItem, eventList.firstChild);
+            
+            // Keep only last 50 events
+            while (eventList.children.length > 50) {
+                eventList.removeChild(eventList.lastChild);
+            }
+        }
+        
+        // Clear events
+        function clearEvents() {
+            document.getElementById('event-list').innerHTML = '';
+        }
+        
+        // Toggle SSE connection
+        function toggleConnection() {
+            if (eventSource) {
+                disconnectSSE();
+            } else {
+                connectSSE();
+            }
+        }
+        
+        // Connect to SSE
+        function connectSSE() {
+            const serverUrl = document.getElementById('server-url').value;
+            
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            eventSource = new EventSource(`${serverUrl}/sse/connect`);
+            
+            eventSource.addEventListener('connected', (event) => {
+                const data = JSON.parse(event.data);
+                connectionId = data.connection_id;
+                document.getElementById('connection-status').className = 'connection-status connected';
+                document.getElementById('connection-status').textContent = '연결됨';
+                addEvent(`SSE 연결 성공: ${connectionId}`, 'success');
+            });
+            
+            eventSource.addEventListener('heartbeat', (event) => {
+                console.log('Heartbeat received:', event.data);
+            });
+            
+            eventSource.addEventListener('tickers_loaded', (event) => {
+                const data = JSON.parse(event.data);
+                addEvent(`종목 ${data.count}개 로드 완료`, 'success');
+            });
+            
+            eventSource.addEventListener('processing', (event) => {
+                const data = JSON.parse(event.data);
+                addEvent(`처리 중: ${data.type} - ${data.ticker}`);
+            });
+            
+            eventSource.addEventListener('stock_data', (event) => {
+                const data = JSON.parse(event.data);
+                addEvent(`데이터 수신: ${data.type} - ${data.ticker}`, 'success');
+                displayData(data.data);
+            });
+            
+            eventSource.addEventListener('error', (event) => {
+                if (event.data) {
+                    const data = JSON.parse(event.data);
+                    addEvent(`오류: ${data.error}`, 'error');
+                }
+            });
+            
+            eventSource.onerror = (error) => {
+                console.error('SSE Error:', error);
+                document.getElementById('connection-status').className = 'connection-status disconnected';
+                document.getElementById('connection-status').textContent = '연결 끊김';
+                addEvent('SSE 연결 오류', 'error');
+            };
+        }
+        
+        // Disconnect SSE
+        function disconnectSSE() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                connectionId = null;
+                document.getElementById('connection-status').className = 'connection-status disconnected';
+                document.getElementById('connection-status').textContent = '연결 끊김';
+                addEvent('SSE 연결 종료');
+            }
+        }
+        
+        // Load tickers
+        async function loadTickers(refresh = false) {
+            const serverUrl = document.getElementById('server-url').value;
+            
+            try {
+                const response = await fetch(`${serverUrl}/api/tickers/load`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ refresh })
+                });
+                
+                const data = await response.json();
+                addEvent(`종목 ${data.count}개 로드 완료`, 'success');
+            } catch (error) {
+                addEvent(`종목 로드 실패: ${error.message}`, 'error');
+            }
+        }
+        
+        // Search tickers
+        async function searchTickers() {
+            const serverUrl = document.getElementById('server-url').value;
+            const query = document.getElementById('search-query').value;
+            
+            if (!query) {
+                addEvent('검색어를 입력하세요', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${serverUrl}/api/tickers/search?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                const resultsDiv = document.getElementById('search-results');
+                resultsDiv.innerHTML = '';
+                
+                if (data.results.length === 0) {
+                    resultsDiv.innerHTML = '<div style="padding: 10px; color: #999;">검색 결과가 없습니다</div>';
+                } else {
+                    data.results.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'search-item';
+                        div.innerHTML = `<strong>${item.ticker}</strong> - ${item.name}`;
+                        div.onclick = () => {
+                            document.getElementById('ticker').value = item.ticker;
+                            resultsDiv.innerHTML = '';
+                        };
+                        resultsDiv.appendChild(div);
+                    });
+                }
+                
+                addEvent(`검색 결과: ${data.count}개 찾음`);
+            } catch (error) {
+                addEvent(`검색 실패: ${error.message}`, 'error');
+            }
+        }
+        
+        // Fetch stock data
+        async function fetchStockData() {
+            const serverUrl = document.getElementById('server-url').value;
+            const ticker = document.getElementById('ticker').value;
+            const fromdate = formatDate(document.getElementById('fromdate').value);
+            const todate = formatDate(document.getElementById('todate').value);
+            const dataType = document.getElementById('data-type').value;
+            
+            if (!ticker || !fromdate || !todate) {
+                addEvent('모든 필드를 입력하세요', 'error');
+                return;
+            }
+            
+            const endpoints = {
+                'ohlcv': '/api/stock/ohlcv',
+                'market_cap': '/api/stock/market_cap',
+                'fundamental': '/api/stock/fundamental',
+                'trading_volume': '/api/stock/trading_volume'
+            };
+            
+            try {
+                const response = await fetch(`${serverUrl}${endpoints[dataType]}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ticker,
+                        fromdate,
+                        todate,
+                        adjusted: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    addEvent(`${dataType} 데이터 조회 성공: ${ticker}`, 'success');
+                    displayData(data.data);
+                } else {
+                    addEvent(`데이터 조회 실패`, 'error');
+                }
+            } catch (error) {
+                addEvent(`데이터 조회 오류: ${error.message}`, 'error');
+            }
+        }
+        
+        // Display data
+        function displayData(data) {
+            const displayDiv = document.getElementById('data-display');
+            const contentDiv = document.getElementById('data-content');
+            
+            displayDiv.style.display = 'block';
+            contentDiv.textContent = JSON.stringify(data, null, 2);
+        }
+        
+        // Auto-connect on load
+        window.addEventListener('load', () => {
+            // Set default dates
+            const today = new Date();
+            const tenDaysAgo = new Date(today);
+            tenDaysAgo.setDate(today.getDate() - 10);
+            
+            document.getElementById('todate').value = today.toISOString().split('T')[0];
+            document.getElementById('fromdate').value = tenDaysAgo.toISOString().split('T')[0];
+        });
+        
+        // Cleanup on unload
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>
