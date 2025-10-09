@@ -1,0 +1,153 @@
+Metadata-Version: 2.1
+Name: sat-utils
+Version: 1.7.5
+Summary: Contains a collection of shared utility functions
+Author-email: Ryan Semmler <rsemmle@ncsu.edu>, Shawn Taylor <staylor8@ncsu.edu>, Jeremy Gibson <jmgibso3@ncsu.edu>, John Champion <jtchampi@ncsu.edu>
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: slack-sdk==3.27.1
+Requires-Dist: requests==2.31.0
+Requires-Dist: cx_Oracle==8.3.0
+Requires-Dist: oracledb==2.0.1
+Requires-Dist: pyodbc==5.1.0
+Requires-Dist: requests_oauthlib==1.3.1
+Requires-Dist: pydantic==2.6.4
+Requires-Dist: pydantic[email]==2.6.4
+Requires-Dist: pytest>=6.2.5, <7.0.0 ; extra == "dev"
+Requires-Dist: pytest-mock>=3.10.0, <4.0.0 ; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0, <5.0.0 ; extra == "dev"
+Requires-Dist: coverage[toml]>=6.2 ; extra == "dev"
+Requires-Dist: black>=23.3.0, <24.0.0 ; extra == "dev"
+Requires-Dist: mypy>=1.2.0, <2.0.0 ; extra == "dev"
+Requires-Dist: ruff==0.0.263 ; extra == "dev"
+Requires-Dist: mkdocs-material>=9.1.6, <10.0.0 ; extra == "dev"
+Requires-Dist: Pygments>=2.10.0, <3.0.0 ; extra == "dev"
+Requires-Dist: bandit>=1.7.4, <2.0.0 ; extra == "dev"
+Requires-Dist: pre-commit>=2.16.0, <3.0.0 ; extra == "dev"
+Requires-Dist: isort>=5.10.1, <6.0.0 ; extra == "dev"
+Requires-Dist: pyupgrade>=2.29.1, <3.0.0 ; extra == "dev"
+Requires-Dist: jupyterlab>=3.2.0, <4.0.0 ; extra == "dev"
+Requires-Dist: flit>=3.8.0, <4.0.0 ; extra == "dev"
+Project-URL: Homepage, https://github.com/ncstate-sat/sat-utils
+Provides-Extra: dev
+
+# SAT Utilities
+
+This repository contains a collection of shared utility functions.
+
+- Slack: A class to upload files to our Slack workspace
+- SATLogger: A standard logger for SAT projects
+
+## Installation
+
+```shell
+# Install the package from private PyPI (CLI)
+$ pip install sat-utils
+```
+
+## Usage
+
+### Slack
+
+```python
+from sat.slack import Slack
+
+message = Slack(token="abc123-8dkhnna-97hasdj-xyz")
+message.upload_file(channel="support", file_path="C:/files", file_name="support.pdf", file_type="", title="Support manual v3.2", initial_comment="Woot!")
+```
+
+### SATLogger
+
+```python
+from sat.logs import SATLogger
+logger = SATLogger(__name__)
+
+...
+logger.info("Hello, world!")
+```
+
+### Gravity Forms
+
+Three environment variables are required to authenticate with the Gravity Forms API.
+
+- GRAVITY_FORMS_CONSUMER_KEY
+- GRAVITY_FORMS_CONSUMER_SECRET
+- GRAVITY_FORMS_BASE_URL
+
+Alternatively, these values can be passed into the GravityForms initialization as parameters.
+
+```python
+from sat.gravity_forms import GravityForms
+
+
+gravity = GravityForms()
+cards_requested = gravity.get("/forms/3/entries")
+```
+
+## Development
+
+### Setup
+
+Ensure you are in a virtual environment with Python 3.9.6 or higher.
+
+```shell
+> make setup
+```
+
+### Add dependencies
+
+#### Updating Requirements
+
+This project uses `pip-tools` to manage requirements. To update the requirements add your requirement
+to the `pyproject.toml` file.
+
+For dependencies required to run the app in production, add them to the `pyproject.toml` file under the `[project]` section.
+
+```toml
+[project]
+...
+dependencies = [
+    "fastapi>=0.95.1, <1.0.0",
+    "pyjwt>=2.6.0, <3.0.0",
+    "...",
+    "<YOUR NEW REQUIREMENT HERE>",
+    "...",
+]
+```
+
+For developer dependencies required or nice to have for development, add them to the `pyproject.toml` file under the `[project.optional-dependencies]` section.
+
+```toml
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.2.5, <7.0.0",
+    "...",
+    "<YOUR NEW DEV REQUIREMENT HERE>",
+    "...",
+]
+```
+
+When you have add the dependency run:
+
+```shell
+> make update-requirements
+```
+
+## Build and Publish
+
+Update the version in `pyproject.toml` before building.
+
+### Build
+
+```shell
+> flit build
+```
+
+### Publish
+
+As long as your PyPI credentials are set up correctly, you can publish to PyPI with the following command:
+
+```shell
+> flit publish
+```
+
