@@ -1,0 +1,34 @@
+<%page args="map"/>
+%if map.image:
+<data:Image>
+    <%include file="localized_image.xml" args="image=map.image"/>
+</data:Image>
+%endif
+%if map.reference_wms:
+<data:ReferenceWMS>
+    <%include file="multilingual_text.xml" args="text=map.reference_wms, not_null=True"/>
+</data:ReferenceWMS>
+%endif
+%if map.legends:
+<%
+    accessor = lambda element: element.legend_text
+    sorted_legends = sort_by_localized_text(map.legends, accessor)
+%>
+%for legend_entry in sorted_legends:
+<data:OtherLegend>
+    <%include file="legend_entry.xml" args="legend_entry=legend_entry"/>
+</data:OtherLegend>
+%endfor
+%endif
+%if map.min is not None:
+<data:min>
+    <%include file="geometry/point.xml" args="coords=map.min.coords[0]"/>
+</data:min>
+%endif
+%if map.max is not None:
+<data:max>
+    <%include file="geometry/point.xml" args="coords=map.max.coords[0]"/>
+</data:max>
+%endif
+<data:layerIndex>${map.layer_index | x}</data:layerIndex>
+<data:layerOpacity>${map.layer_opacity | x}</data:layerOpacity>
