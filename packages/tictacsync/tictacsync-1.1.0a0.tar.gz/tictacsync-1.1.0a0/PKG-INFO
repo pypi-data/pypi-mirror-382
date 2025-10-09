@@ -1,0 +1,108 @@
+Metadata-Version: 2.1
+Name: tictacsync
+Version: 1.1.0a0
+Summary: commands for syncing audio video recordings
+Home-page: https://tictacsync.org/
+Author: Raymond Lutz
+Author-email: lutzrayblog@mac.com
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Multimedia :: Sound/Audio
+Classifier: Topic :: Utilities
+Classifier: Topic :: Multimedia :: Sound/Audio :: Capture/Recording
+Classifier: Topic :: Multimedia :: Video :: Non-Linear Editor
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+# tictacsync
+
+## Warning: this is at pre-alpha stage
+
+Unfinished sloppy code ahead, but should run without errors. Some functionalities are still missing. Don't run the code without parental supervision. Suggestions and enquiries are welcome via the [lists hosted on sourcehut](https://sr.ht/~proflutz/TicTacSync/lists).
+
+## Description
+
+`tictacsync` is a python script to sync, cut and join audio files against camera files shot using a specific hardware timecode generator
+called [Tic Tac Sync](https://tictacsync.org). The timecode is named TicTacCode and should be recorded on a scratch
+track on each device for `tictacsync` to work.
+## Status
+
+Feature complete! `tictacsync`  scans for audio video files and then merges overlapping audio and video recordings, It
+
+* Decodes the TicTacCode audio track alongside your audio tracks
+* Establishes UTC start time (and end time) within 100 μs!
+* Syncs, cuts and joins any concurrent audio to camera files (using `FFmpeg`)
+* Processes _multiple_ audio recorders
+* Corrects device clock drift so _both_ ends coincide (thanks to `sox`)
+* Sets video metadata TC of multicam files for NLE timeline alignement
+* Writes _synced_ ISO files with dedicated file names declared in `tracks.txt`
+* Produces nice plots.
+
+
+## Installation
+
+This uses the [python interpreter](https://www.python.org/downloads/) and multiple packages (so you need python 3 + pip). Also, you need to install two non-python command line executables: [ffmpeg](https://windowsloop.com/install-ffmpeg-windows-10/) and [sox](https://sourceforge.net/projects/sox/files/). Make sure those are _accessible through your `PATH` system environment variable_.
+Then pip install the syncing program:
+
+
+   	> pip install tictacsync
+
+
+This should install python dependencies _and_ the `tictacsync` command.
+## Usage
+
+Download multiple sample files [here](https://nuage.lutz.quebec/s/4jw4xgqysLPS8EQ/download/dailies1_3.zip) (700+ MB, sorry) unzip and run:
+
+    > tictacsync dailies/loose
+The program `tictacsync` will recursively scan the directory given as argument, find all audio that coincide with any video and merge them into a subfolder named `SyncedMedia`. When the argument is an unique media file (not a directory), no syncing will occur but the decoded starting time will be printed to stdout:
+	
+	> tictacsync dailies/loose/MVI_0024.MP4
+
+	Recording started at 2024-03-12 23:07:01.4281 UTC
+	true sample rate: 48000.736 Hz
+	first sync at 27450 samples in channel 0
+	N.B.: all results are precise to the displayed digits!
+
+If shooting multicam, put clips in their respective directories (using the camera name as folder name) _and_ the audio under their own directory. `tictacsync` will detect that structured input and will generate multicam folders ready to be imported into your NLE (for now only DaVinci Resolve has been validated).
+
+## Options
+#### `-v`
+
+For a very verbose output add the `-v` flag:
+
+    > tictacsync -v dailies/loose/MVI_0024.MP4
+#### `--terse`
+For a one line output (or to suppress the progress bars) use the `--terse` flag:
+
+	> tictacsync --terse dailies/loose/MVI_0024.MP4 
+	dailies/loose/MVI_0024.MP4 UTC:2024-03-12 23:07:01.4281 pulse: 27450 in chan 0
+#### `--isos`
+
+Specifying `--isos` produces _synced_ ISO audio files: for each synced \<video-clip\> a directory named `<video-clip>_ISO` will contain a set of ISO audio files each of exact same length, padded or trimmed to coincide with the video start. After re-editing and re-mixing in your DAW of choice a `remergemix` command will resync the new audio with the video and _the new sound track will be updated on your NLE timeline_, _automagically_ on some NLEs or on command for [Davinci Resolve](https://www.niwa.nu/dr-scripts/).
+
+	> tictacsync --isos dailies/structured
+#### `-p`
+
+When called with the `-p` flag, zoomable plots will be produced for diagnostic purpose (close the plotting window for the 2nd one) and the decoded starting time will be output to stdin:
+
+    > tictacsync -p dailies/loose/MVI_0024.MP4
+
+Typical first plot produced :
+
+![word](https://mamot.fr/system/media_attachments/files/110/279/794/002/305/269/original/0198908c6eb5c592.png)
+
+Typical second plot produced (note the 34 [FSK](https://en.wikipedia.org/wiki/Frequency-shift_keying) encoded bits `0010111101001111100110000110010000`):
+![slicing](https://mamot.fr/system/media_attachments/files/110/279/794/021/372/766/original/6ec62bb417115f52.png)
+
+
+<!-- To run some tests, from top level `git cloned` dir:
+
+    cd tictacsync ; python -m pytest
+ Yes, the coverage is low. -->
