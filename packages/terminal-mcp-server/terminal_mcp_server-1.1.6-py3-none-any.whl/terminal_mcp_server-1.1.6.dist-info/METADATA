@@ -1,0 +1,331 @@
+Metadata-Version: 2.4
+Name: terminal-mcp-server
+Version: 1.1.6
+Summary: Smart terminal session management for AI assistants
+Home-page: https://github.com/kanniganfan/terminal-mcp
+Author: kanniganfan
+Author-email: kanniganfan <cao673100060@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/kanniganfan/terminal-mcp
+Project-URL: Repository, https://github.com/kanniganfan/terminal-mcp
+Project-URL: Bug Tracker, https://github.com/kanniganfan/terminal-mcp/issues
+Keywords: mcp,terminal,ai,cursor,automation,async
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: psutil>=5.9.6
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# Terminal MCP Server
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+
+> Smart terminal session management for AI assistants. Solve terminal blocking issues with async execution, auto cleanup, and real-time web monitoring.
+
+**Support up to 64 concurrent terminals** with intelligent idle detection, system monitoring, and auto browser opening.
+
+---
+
+## ✨ Key Features
+
+- 🚀 **Async Execution** - Commands never block AI operations
+- 🔢 **Multi-Terminal** - Up to 64 concurrent sessions
+- 🧹 **Auto Cleanup** - Intelligent idle session detection
+- ⚡ **Broadcast** - Execute commands across multiple terminals
+- 📊 **System Monitor** - Real-time CPU/Memory/GPU tracking
+- 🌐 **Web Interface** - Auto-open browser with full terminal view
+- 🖥️ **Smart Shell** - Auto-detect best shell (Git Bash > PowerShell > cmd)
+- 🛑 **Resource Control** - One-click shutdown button
+
+---
+
+## 🚀 Quick Start
+
+### Step 1: Add MCP Configuration
+
+Add to your Cursor MCP config:
+
+```json
+{
+  "mcpServers": {
+    "terminal": {
+      "command": "uvx",
+      "args": ["terminal-mcp-server"]
+    }
+  }
+}
+```
+
+Or for Node.js:
+```json
+{
+  "mcpServers": {
+    "terminal": {
+      "command": "npx",
+      "args": ["-y", "@kanniganfan/terminal-mcp"]
+    }
+  }
+}
+```
+
+### Step 2: ⚠️ IMPORTANT - Add IDE Rule
+
+**To make AI always use this MCP for terminal operations**, add this rule to your IDE's **Project Rules** or **User Rules**:
+
+```
+All terminal operations (read/write) must be proxied through the Terminal MCP.
+Use MCP tools for all terminal commands instead of direct terminal access.
+```
+
+**In Cursor**:
+- Settings → Rules → Add this rule
+- Or in `.cursorrules` file in your project root
+
+**Why this is important**:
+- ✅ Prevents AI from getting stuck in terminal
+- ✅ All commands run asynchronously
+- ✅ Can monitor all terminals in web interface
+- ✅ Better resource management
+
+### Step 3: Restart Cursor
+
+### Step 4: Start Using
+
+In Cursor:
+```
+Create a terminal session named "dev"
+Execute "npm run dev" in dev session
+```
+
+**Browser auto-opens** → View real-time output → Monitor system resources!
+
+---
+
+## 📊 Web Interface
+
+Auto-opens at `http://localhost:18888`
+
+### Dashboard Features
+
+**Top Panel**:
+- 📊 CPU Usage (real-time)
+- 💾 Memory Usage (% + GB)
+- 🖥️ GPU Info (Windows)
+- 📈 Session Stats
+- 🛑 **Shutdown Server Button**
+
+**Layout**:
+- **Left**: Terminal session list
+- **Right**: Full-screen xterm.js terminal (click to expand)
+- **Bottom**: Command input
+
+### Actions
+
+- Click session → Full terminal expands
+- Type commands → Real-time execution
+- Click 🛑 → Shutdown all sessions + release port
+
+---
+
+## 🛠️ Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `create_session` | Create new terminal session |
+| `execute_command` | Execute command (async, non-blocking) |
+| `broadcast_command` | Execute across multiple terminals |
+| `get_all_sessions` | List all sessions |
+| `get_session_status` | Get session status |
+| `get_output` | Get terminal output |
+| `kill_session` | Terminate session |
+| `cleanup_idle_sessions` | Clean idle sessions |
+| `get_stats` | Get statistics |
+
+---
+
+## ⚙️ Configuration
+
+Edit `config.json`:
+
+```json
+{
+  "max_sessions": 64,
+  "idle_timeout": 300,
+  "auto_cleanup_interval": 60,
+  "max_output_lines": 10000,
+  "web_port": 18888,
+  "auto_open_browser": true
+}
+```
+
+---
+
+## 🖥️ Smart Shell Detection
+
+**Windows Priority**:
+1. Git Bash (`C:\Program Files\Git\bin\bash.exe`)
+2. PowerShell 7 / Windows PowerShell
+3. cmd.exe (fallback)
+
+**Linux/Mac**: Uses `$SHELL` environment variable
+
+---
+
+## 📁 Project Structure
+
+```
+terminal-mcp/
+├── src/terminal_mcp_server/
+│   ├── server.py          # Core MCP server (all-in-one)
+│   └── config.json        # Default configuration
+├── config.json            # User configuration
+├── mcp_config_example.json # Cursor config template
+├── requirements.txt       # Dependencies
+└── README.md             # This file
+```
+
+---
+
+## 🎯 Use Cases
+
+### Development Workflow
+```
+1. Create "frontend" → npm run dev
+2. Create "backend" → python manage.py runserver
+3. Create "database" → docker-compose up
+4. Monitor all in web interface
+5. Click any terminal to view full output
+```
+
+### Batch Operations
+```
+1. Create 5 sessions
+2. Broadcast "git status" to all
+3. View results in web interface
+```
+
+### Long-running Tasks
+```
+1. Create session
+2. Execute "npm run build"
+3. AI continues other work
+4. Check output anytime in browser
+```
+
+---
+
+## 🛑 Resource Management
+
+**When switching IDEs or done working**:
+
+1. Open web interface
+2. Click **🛑 Shutdown Server** button
+3. All sessions terminated
+4. Port 18888 released
+5. Process fully exits
+
+**No more port conflicts or resource leaks!**
+
+---
+
+## 📦 Installation
+
+### Python Users (PyPI)
+
+```json
+{
+  "mcpServers": {
+    "terminal": {
+      "command": "uvx",
+      "args": ["terminal-mcp-server"]
+    }
+  }
+}
+```
+
+### Node.js Users (npm)
+
+```json
+{
+  "mcpServers": {
+    "terminal": {
+      "command": "npx",
+      "args": ["-y", "@kanniganfan/terminal-mcp"]
+    }
+  }
+}
+```
+
+Or install globally first:
+```bash
+npm install -g @kanniganfan/terminal-mcp
+```
+
+Then use:
+```json
+{
+  "mcpServers": {
+    "terminal": {
+      "command": "terminal-mcp"
+    }
+  }
+}
+```
+
+**No download, no install, just works!**
+
+---
+
+## 🔧 Troubleshooting
+
+### Web Interface Not Opening
+
+**Solution**: Manually visit `http://localhost:18888`
+
+### Port Already in Use
+
+**Solution**: 
+1. Change `web_port` in config.json
+2. Or click shutdown button in existing web interface
+
+### Shell Not Detected
+
+**Solution**: Check that Git Bash/PowerShell is installed
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
+
+## 🌟 Star History
+
+If this helps you, please give it a star! ⭐
+
+---
+
+**Made with ❤️ for AI Assistants | [Report Issues](https://github.com/yourusername/terminal-mcp/issues)**
+
