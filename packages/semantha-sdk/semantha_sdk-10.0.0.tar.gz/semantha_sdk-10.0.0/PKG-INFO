@@ -1,0 +1,757 @@
+Metadata-Version: 2.3
+Name: semantha-sdk
+Version: 10.0.0
+Summary: This is a python client sdk for accessing semantha (the semantic platform)
+License: Apache-2.0
+Author: Sebastian Weigelt
+Author-email: sebastian.weigelt@semantha.ai
+Maintainer: semantha support
+Maintainer-email: support@semantha.de
+Requires-Python: >=3.10
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Requires-Dist: jproperties (>=2.1.1,<3.0.0)
+Requires-Dist: marshmallow (>=4.0.0,<5.0.0)
+Requires-Dist: marshmallow-dataclass (>=8.7,<9.0)
+Requires-Dist: pyhumps (>=3.8.0,<4.0.0)
+Requires-Dist: requests (>=2.32,<3.0)
+Project-URL: Bug Tracker, https://github.com/semantha/semantha-python-client/issues
+Project-URL: Homepage, https://github.com/semantha/semantha-python-client
+Description-Content-Type: text/markdown
+
+![](https://www.semantha.de/wp-content/uploads/semantha-inverted.svg)
+
+# 💜 semantha SDK
+
+The semantha SDK is a high-level REST client to access the [semantha](http://semantha.ai) API.
+The SDK is updated in parallel to each new version of semantha (typically every 2 weeks). Use the same SDK version as your semantha server version.
+An overview of the currently supported endpoints may be found at the end of this document (see section "State of Development").
+The semantha SDK is compatible with python >= 3.10.
+
+## 🔬 Design guideline/idea
+Every api call can easily be translated into a python sdk call where the HTTP method becomes the last method:
+* `GET /api/info -> api.info.get()`
+
+Parameters in the URL become method parameters:
+* `POST /api/domains/<your_domain>/referencedocuments -> api.domains("<your_domain>").referencedocuments.post(file=somefile)`
+
+The SDK offers type hints and doc strings for services, parameters, input types and return types within your IDE.
+
+## 📝 Changelog
+See list of changes below.
+
+## 🚀 Quickstart
+1. If you have access to semantha you can create your own login credentials: As a domain administrator go to "Administration" App -> then select "Client Administration" in the upper dropdown. Here you can add a new "client" by clicking "+ Add new". Configure "Domain Access", "App Access" (not used so far) and Roles. Click "Add" and download the credentials.properties file via the action menu. You can use this properties file to login with the SDK. See an example below.
+1. In case you are not a semantha user already you can request a demo access to semantha's API via [this contact form](https://www.semantha.de/request/).
+
+### Authentication with client credentials.properties file
+
+```python
+import semantha_sdk
+# file name has to end with '.properties'!
+api = semantha_sdk.login(key_file="credentials.properties")
+print("Talking to semantha server: " + api.info.get().version)
+```
+
+Alternatively you can set the 4 parameters: server_url, client_id, client_secret and token_url with the values from your credentials.properties files.
+
+```python
+import semantha_sdk
+api = semantha_sdk.login(server_url="<semantha server URL>", client_id="<id>", client_secret="<secret>", token_url="<url>")
+print("Talking to semantha server: " + api.info.get().version)
+```
+
+### Old: Authentication with API key
+
+```python
+import semantha_sdk
+api = semantha_sdk.login(server_url="<semantha server URL>", key="<your key>")
+print("Talking to semantha server: " + api.info.get().version)
+```
+
+### Old: Authentication with json key file
+
+```python
+import semantha_sdk
+#file name has to end with '.json'!
+api = semantha_sdk.login(server_url="<semantha server URL>", key_file="<path to your key file (json format)>")
+# end-points (resp. resources) can be used like objects
+my_domain = api.domains("my_domain")
+# they may have sub-resources, which can be retrieved as objects as well
+reference_documents = my_domain.referencedocuments
+# GET all reference documents
+print("Library contains "+ len(reference_documents.get()) + " entries")
+```
+
+Example key file in json format:
+
+```json
+{ "API_Key" : "<your key>",
+  "server_url": "<your serverurl>" }
+```
+
+### CRUD on End-points
+
+```python
+# CRUD operations are functions
+domain_settings = my_domain.settings.get()
+#Warning: this deletes ALL reference documents/library entries
+my_domain.referencedocuments.delete() 
+```
+
+### Function Return Types & semantha Data Model
+
+```python
+# some functions only return None, e.g.
+my_domain.referencedocuments.delete() # returns NoneType
+
+# others return built in types, e.g
+roles_list = currentuser.roles.get() # returns List[str]
+
+# but most return objects of the semantha Data Model
+# (all returned objects are instances of frozen dataclasses)
+settings = my_domain.settings.get() # returns instance of Settings
+# attributes can be accessed as properties, e.g.
+settings.enable_tagging # returns true or false
+# Data Model objects may be complex
+document = my_domain.references.post(file=a, referencedocument=b) # returns instance of Document
+# the following returns the similarity value of the first references of the first sentence of the
+# the first paragraph on the first page of the document (if a reference was found for this sentence)
+similarity = pages[0].contents[0].paragraphs[0].references[0].similarity # returns float
+```
+
+### Getting an annotated pdf and saving it locally
+
+```python
+import semantha_sdk
+api = semantha_sdk.login(server_url="<semantha server URL>", key="<your key>")
+domain = "<your domain>"
+pdf = open('<your_file>.pdf', 'rb')
+annotated_pdf = api.domains(domain).documentannotations.post_as_pdf(file=pdf, similaritythreshold=0.85)
+with open('annotated.pdf', 'wb') as annotated_file:
+    annotated_file.write(annotated_pdf.getbuffer())
+```
+
+# Changelog for the Python SDK for the semantha platform
+
+## [10.0.0] 2025-10-09
+### Removed
+- **Matrix endpoints** - Removed matrix endpoints from platform server
+- **has_opposite_meaning field** - Removed from Reference model and examples
+- **do_contradiction_detection field** - Removed from DocumentTypeChange and DocumentTypeConfig models
+
+### Added
+- **New error codes** - Added JPEG2000_NOT_SUPPORTED and TRANSLATION_ERROR to ErrorFieldCodeEnum
+- **Enhanced tag filtering** - Updated answers endpoint to support negation with "!" for tag groups
+
+### Changed
+- **Role requirements** - Updated document type endpoints to include 'Advanced User' role alongside existing 'Domain Admin' and 'Expert User' roles
+
+## [9.0.0] 2025-06-17
+### Added
+- New endpoint to initiate a chat with a GenAI service: **/domains/{domainname}/chats/{id}** (POST)
+
+## [8.12.0] 2025-05-14
+### Added
+- New endpoint to get and change domain-specific text types: **/domains/{domainname}/texttypes** (GET/PATCH)
+
+## [8.10.0] 2025-04-23
+### Added
+- New parameter: _icon_name_ for prompts endpoint.
+- New parameter _withreferenceimage_ for: **/bulk/domains/{domainname}/references**
+- New endpoint to convert a Microsoft document (docx, pptx, xlsx) to PDF: **/conversions** (POST)
+
+### Removed
+- Parameter: _similarity_calculator_ has been removed from **/domains/{domainname}/settings**
+
+## [8.9.0] 2025-04-02
+### Added
+- New endpoint to retrieve images of a document in library: **/domains/{domainname}/referencedocuments/{documentid}/images/{imageid}**
+- New query parameter _addsourcedocument_ for: **/domains/{domainname}/referencedocuments**
+- New output parameter: _was_chunked_ for answers and summarizations endpoints.
+
+## [8.8.1] 2025-03-19
+### Fixed
+- fixed a bug which prevented dependencies from being correctly resolved (in version 8.8.0 only)
+
+## [8.8.0] 2025-03-12
+### Changed
+- Error response is now specified: error_container.py, error_field.py, error_field_code_enum.py
+
+### Added
+- New parameter _addsourcedocument_ for: **/domains/{domainname}/referencedocuments**
+- New parameter _withreferenceimage_ for: **/domains/{domainname}/references**
+
+### Removed
+- Parameters s and u have been removed from **/domains/{domainname}/summarizations**
+
+## [8.6.0] 2025-02-04
+### Changed
+- Removed dependency to numpy
+
+### Added
+- Added top_k parameter to execution of prompts.
+
+## [8.5.1] 2025-01-22
+### Changed
+- Return type of POST **/domains/{domainname}/prompts/{id}** is json object now
+
+## [8.5.0] 2025-01-22
+### Changed
+- dropped support for Python 3.8 and 3.9
+
+### Removed
+- removed library_as_dataframe function in use case SDK
+
+### Added
+- new entity: Prompt with 6 CRUD services and an execution endpoint.
+- new service to return (parts) of pdf page as png image: **/domains/{domainname}/documents** with accept header: image/png
+- new field in Document and Documentinformation: "attachments", information about embedded files within a document
+- new field in Document and Documentinformation: "mime_type"
+
+## [8.3.0] 2024-11-28
+### Added
+- new parameter **tags** for endpoint: **/domains/{domainname}/answers** which filters the library.
+- new parameter **maxanswerreferences** for endpoint: **/domains/{domainname}/answers** limits the number of references sent to a GenAI service.
+
+## [8.2.0] 2024-11-14
+### Added
+- new endpoint **/domains/{domainname}/documentclasses/{id}/referencedocuments/tags**.
+
+## [8.1.0] 2024-10-30
+### Added
+- new field in Settings: "enable_paragraph_length_comparison".
+
+## [8.0.0] 2024-10-16
+### Added
+- new field in CellType: "hidden".
+- new field in DocumentTypeChange: "viewport" and "ignoredPages".
+
+## [7.13.0] 2024-10-02
+### Added
+- support for enums as part of objects in request/response.
+- new field in document_type
+- new field in settings
+
+## [7.11.0] 2024-09-09
+### Added
+- support for reqifz as output document format.
+
+## [7.10.0] 2024-08-28
+### Added
+- New parameters for  **/api/domains/{domainname}/documents** endpoint: 'withformatinfo'. Enable return of aggregated formatting information of paragraphs. 
+
+## [7.9.0] 2024-08-09
+no changes
+
+## [7.8.0] 2024-07-24
+### Added
+- New parameters for  **/api/domains/{domainname}/documents** endpoint: 'withcharacters' and 'withsentences'. Enable/disable character and sentence data in the response.
+
+## [7.5.0] 2024-06-13
+### Added
+- New field in domain settings: max_number_of_rows.
+
+## [7.3.0] 2024-05-17
+### Added
+- New field in domain settings.
+
+## [7.1.1] 2024-04-26
+### Fixed
+- wrong POST of IOBase in body.
+
+## [7.1.0] 2024-04-23
+### Added
+- Client for accessing "Administration Product" where you can create an export/import of the content of domain.
+
+### Fixed
+- Fixed a bug where list of strings as an input parameter was not serialized properly.
+
+## [7.0.0] 2024-04-09
+- no changes
+
+## [6.11.1] 2024-03-27
+### Improved
+- Better handling of circular imports.
+
+## [6.11.0] 2024-03-20
+### Added
+- SDK supports enum input parameter now.
+- Added summarylength parameter to **/api/domains/{domainname}/summarizations** endpoint.
+
+### Improved
+- Error message for bad requests on value errors contain a detailed explanation of what went wrong now.
+
+## [6.10.0] 2024-03-07
+### Added
+- Added temperature parameter to **/api/domains/{domainname}/summarizations** endpoint.
+
+### Improved
+- More method and parameter comments
+
+## [6.9.0] 2024-02-23
+### Added
+Added implementation method "post_json" for "overloaded" services where we have content type multipart/form-data as well as application/json: 
+ - **/bulk/domains/{domainname}/referencedocuments** **POST**
+ - **/domains/{domainname}/modelinstances** **POST**
+ - **/domains/{domainname}/referencedocuments** **POST**
+ - **/domains/{domainname}/similaritymatrix/cluster** **POST**
+
+
+## [6.8.0] 2024-02-09
+### Removed
+- Removed two setting values: similarity_matcher and similarity_threshold for endpoint: **/domains/{domainname}/settings** **GET**
+
+### Improved
+- More method and parameter comments
+- Endpoint **/domains** **GET** returns DomainInfo object now instead of Domain
+
+## [6.7.0] 2024-01-29
+### Improved
+- More class and method comments, improved styling
+
+## [6.6.0] 2024-01-18
+### Added
+- Added transactions endpoint: **/domains/{domainname}/transactions** **GET**
+
+### Removed
+- Removed deprecated endpoint: **/domains/{domainname}/documentcomparisons**
+
+## [6.5.0] 2023-12-21
+### Improved
+
+- Reuse session object of requests library to increase performance on multiple calls
+
+## [6.4.0] 2023-12-07
+### Removed
+- **/model/domains/{domainname}/documentcomparisons** **POST** (Accept: xlsx)
+
+## [6.3.0] 2023-11-21
+### Fixed
+- PATCH and PUT methods with a list of dataclasses wasn't working.
+
+### Added
+- Added language parameter to /answers and /summarizations endpoints.
+
+## [6.2.1] 2023-11-13
+### Fixed
+- Dataclasses aren't frozen anymore.
+- Improved permission denied message with url.
+
+## [6.2.0] 2023-11-09
+### Added
+- server_url is read from credentials.properties file now -> semantha_sdk.login(key_file = "credentials.properties") parameter key_file is enough now.
+- server_url is read from json config file if present.
+- Checks to normalize server_url
+
+## [6.1.0] 2023-10-25
+This version should only be used with a semantha server version >= 6.1
+
+### Changed
+- /api/info is versioned now and SDK calls /api/v3/info internally. This is a breaking change
+- login() function and SemanthaAPI class are generated now
+
+## [6.0.1] 2023-10-17
+### Added
+- Support for OAuth 2.0 Client Credentials Flow for credentials created via Semantha Administration UI.
+
+## [6.0.0] 2023-10-04
+### Fixed
+- GET of files with different mimetype than application/json (e.g. get_as_docx)
+
+## [5.11.1] 2023-09-21
+### Removed
+- **/model/domains/{domainname}/extractortables** has been removed
+- **/model/domains/{domainname}/extractortables/{id}** has been removed
+
+### Fixed
+- fixed serialization on post of bulk endpoints with list of objects
+
+## [5.11.0]
+### Changed
+- **/api/domains/{domainname}/summarizations** returns an object now instead of string.
+- renamed class Metadata to ModelMetadata
+
+## [5.10.0]
+Improved Use Case SDK
+
+## [5.9.0]
+### Removed
+- **/api/domains/{domainname}/referencedocuments/{documentid}/paragraphs/{id}/links**
+
+## [5.8.0]
+### Added
+- **/api/domains/{domainname}/documentclasses/{id}/documentclasses**
+- **/api/domains/{domainname}/documentclasses/{id}/referencedocuments**
+- **/api/domains/{domainname}/referencedocuments/{documentid}/paragraphs/{id}/links**
+- **/api/model/domains/{domainname}/backups**
+
+SDK covers now 193/197 services.
+
+## [5.7.0]
+Added new endpoints in:
+- **/api/domains/{domainname}/documenttypes/*** 
+- **/api/domains/{domainname}/documentclasses/{id}/customfields**
+- **/api/model/domains/{domainname}/classes/***
+
+SDK covers now 184/197 services.
+
+
+## [5.6.0]
+Added most endpoints in **/api/models/* **
+SDK covers now 158/180 services.
+
+## [5.5.0]
+Removed language parameter on **/api/domains/{domainname}/references**
+Fixed bug on serialization of **/api/domains/{domainname}/modelinstances** response.
+Fixed return of binary responses of bulk services.
+
+## [5.4.0]
+Added **new** service: 
+- **/api/domains/{domainname}/summarizations** which generations a summarization for a given list of texts and a given topic.
+
+Added support for **existing** services: 
+- /api/model/domains/{domainname}/boostwords/{id}
+- /api/model/domains/{domainname}/namedentities
+- /api/model/domains/{domainname}/namedentities/{id}
+- /api/model/domains/{domainname}/stopwords
+- /api/model/domains/{domainname}/stopwords/{id}
+- /api/model/domains/{domainname}/synonyms/{id}
+
+## [5.3.0]
+
+Added new service: **/api/domains/{domainid}/answers** with retrieval augemented answer generation based on your library entries.
+Added new parameter on /modelinstances
+
+## [5.2.0]
+
+The SDK is now automatically generated from our openapi.json specification. It covers 71/169 (=42%) of all available services. Many class names and package names have been changed.
+
+## [4.5.0]
+Major restructuring of the SDK.
+All sub-resources are directly accessible (instead of invoking getters).
+That also means that (except for a few) all functions are plain get/post/delete/put/patch.
+For example, in Versions < 4.5.0 a domain resource was fetched using `semantha_sdk.domains.get_one("domain_name")`.
+Starting with 4.5.0 it is `semantha_sdk.domains("domain_name")`.
+That also means that get/post/put/patch functions return semantha model objects (and never resources), which makes usage more consistent.
+
+# State of Development
+
+The following resources and end-points are fully functional and (partially) tested:
+
+- [x] **/bulk** -> BulkEndpoint
+- [x] **/bulk/domains** -> BulkDomainsEndpoint
+- [x] **/bulk/domains/{domainname}** -> BulkdomainsDomainEndpoint
+- [x] **/bulk/domains/{domainname}/documentclasses** -> BulkdomainsDocumentclassesEndpoint
+    - [x] **GET** -> List[DocumentClassBulk]
+    - [x] **POST** -> None
+- [x] **/bulk/domains/{domainname}/documenttypes** -> BulkdomainsDocumenttypesEndpoint
+    - [x] **GET** -> List[DocumentType]
+    - [x] **POST** -> None
+- [ ] **/bulk/domains/{domainname}/prompts** 
+- [x] **/bulk/domains/{domainname}/referencedocuments** -> BulkdomainsReferencedocumentsEndpoint
+    - [x] **GET** -> List[Document]
+    - [x] **POST** -> None
+    - [x] **POST** -> None
+    - [x] **DELETE** -> None
+- [x] **/bulk/domains/{domainname}/references** -> BulkdomainsReferencesEndpoint
+    - [x] **POST** -> List[Document]
+- [x] **/bulk/model** -> BulkModelEndpoint
+- [x] **/bulk/model/domains** -> BulkmodelDomainsEndpoint
+- [x] **/bulk/model/domains/{domainname}** -> BulkmodelDomainEndpoint
+- [x] **/bulk/model/domains/{domainname}/boostwords** -> BulkmodelBoostwordsEndpoint
+    - [x] **POST** -> None
+- [x] **/bulk/model/domains/{domainname}/classes** -> BulkmodelClassesEndpoint
+    - [x] **GET** -> List[ClassBulk]
+    - [x] **POST** -> None
+- [x] **/bulk/model/domains/{domainname}/classes/{classid}** -> BulkmodelClassEndpoint
+- [x] **/bulk/model/domains/{domainname}/classes/{classid}/instances** -> BulkmodelclassInstancesEndpoint
+    - [x] **GET** -> List[Instance]
+- [x] **/bulk/model/domains/{domainname}/dataproperties** -> BulkmodelDatapropertiesEndpoint
+    - [x] **GET** -> List[DataProperty]
+    - [x] **POST** -> None
+- [x] **/bulk/model/domains/{domainname}/instances** -> BulkmodelInstancesEndpoint
+    - [x] **GET** -> List[Instance]
+    - [x] **POST** -> None
+- [x] **/bulk/model/domains/{domainname}/metadata** -> BulkmodelMetadataEndpoint
+    - [x] **GET** -> List[ModelMetadata]
+    - [x] **POST** -> None
+- [x] **/bulk/model/domains/{domainname}/namedentities** -> BulkmodelNamedentitiesEndpoint
+    - [x] **POST** -> None
+- [x] **/bulk/model/domains/{domainname}/rules** -> BulkmodelRulesEndpoint
+    - [x] **GET** -> List[Rule]
+    - [x] **POST** -> None
+- [x] **/bulk/model/domains/{domainname}/stopwords** -> BulkmodelStopwordsEndpoint
+    - [x] **POST** -> None
+- [x] **/bulk/model/domains/{domainname}/synonyms** -> BulkmodelSynonymsEndpoint
+    - [x] **POST** -> None
+- [x] **/celltypes** -> CelltypesEndpoint
+    - [x] **GET** -> List[CellType]
+- [x] **/conversions** -> ConversionsEndpoint
+    - [x] **POST** -> IOBase
+- [x] **/currentuser** -> CurrentuserEndpoint
+    - [x] **GET** -> CurrentUser
+- [x] **/currentuser/roles** -> RolesEndpoint
+    - [x] **GET** -> List[str]
+- [x] **/diff** -> DiffEndpoint
+    - [x] **POST** -> List[Difference]
+- [x] **/domains** -> DomainsEndpoint
+    - [x] **GET** -> List[DomainInfo]
+- [x] **/domains/{domainname}** -> DomainEndpoint
+    - [x] **GET** -> Domain
+- [x] **/domains/{domainname}/answers** -> AnswersEndpoint
+    - [x] **POST** -> Answer
+- [x] **/domains/{domainname}/chats** -> ChatsEndpoint
+- [x] **/domains/{domainname}/chats/{id}** -> ChatEndpoint
+    - [x] **POST** -> ChatResponse
+- [x] **/domains/{domainname}/documentannotations** -> DocumentannotationsEndpoint
+    - [x] **POST** (Accept: docx) -> IOBase
+    - [x] **POST** (Accept: pdf) -> IOBase
+- [x] **/domains/{domainname}/documentclasses** -> DocumentclassesEndpoint
+    - [x] **GET** -> List[DocumentClass]
+    - [x] **POST** -> DocumentClass
+    - [x] **DELETE** -> None
+- [ ] **/domains/{domainname}/documentclasses/tree** 
+- [x] **/domains/{domainname}/documentclasses/{id}** -> DocumentclassEndpoint
+    - [x] **GET** -> DocumentClass
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> DocumentClass
+- [x] **/domains/{domainname}/documentclasses/{id}/customfields** -> DocclassCustomfieldsEndpoint
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> None
+- [x] **/domains/{domainname}/documentclasses/{id}/documentclasses** -> DocclassDocumentclassesEndpoint
+    - [x] **GET** -> List[DocumentClass]
+    - [x] **POST** -> DocumentClass
+    - [x] **DELETE** -> List[DocumentClass]
+    - [x] **PATCH** -> List[DocumentClass]
+- [x] **/domains/{domainname}/documentclasses/{id}/referencedocuments** -> DocclassReferencedocumentsEndpoint
+    - [x] **GET** -> List[DocumentInformation]
+    - [x] **DELETE** -> None
+    - [x] **PATCH** -> None
+- [x] **/domains/{domainname}/documentclasses/{id}/referencedocuments/tags** -> DocclassTagsEndpoint
+    - [x] **GET** -> List[str]
+- [x] **/domains/{domainname}/documents** -> DocumentsEndpoint
+    - [x] **POST** -> List[Document]
+    - [x] **POST** (Accept: xlsx) -> IOBase
+    - [x] **POST** (Accept: docx) -> IOBase
+    - [x] **POST** (Accept: png) -> IOBase
+    - [x] **POST** (Accept: reqifz) -> IOBase
+- [x] **/domains/{domainname}/documenttypes** -> DocumenttypesEndpoint
+    - [x] **GET** -> List[DocumentType]
+    - [x] **POST** -> DocumentType
+    - [x] **DELETE** -> None
+- [x] **/domains/{domainname}/documenttypes/{id}** -> DocumenttypeEndpoint
+    - [x] **GET** -> DocumentType
+    - [x] **DELETE** -> None
+    - [x] **PATCH** -> DocumentType
+- [x] **/domains/{domainname}/documenttypes/{id}/clone** -> CloneEndpoint
+    - [x] **POST** -> DocumentType
+- [x] **/domains/{domainname}/modelclasses** -> ModelclassesEndpoint
+    - [x] **GET** -> List[ModelClass]
+- [x] **/domains/{domainname}/modelinstances** -> ModelinstancesEndpoint
+    - [x] **POST** -> SemanticModel
+    - [x] **POST** -> SemanticModel
+    - [x] **POST** (Accept: xlsx) -> IOBase
+- [x] **/domains/{domainname}/prompts** -> PromptsEndpoint
+    - [x] **GET** -> List[PromptOverview]
+    - [x] **POST** -> Prompt
+    - [x] **DELETE** -> None
+- [x] **/domains/{domainname}/prompts/{id}** -> PromptEndpoint
+    - [x] **GET** -> Prompt
+    - [x] **POST** -> PromptResponse
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> Prompt
+- [x] **/domains/{domainname}/referencedocuments** -> ReferencedocumentsEndpoint
+    - [x] **GET** -> ReferenceDocumentsResponseContainer
+    - [x] **GET** (Accept: xlsx) -> IOBase
+    - [x] **POST** -> List[DocumentInformation]
+    - [x] **POST** -> List[DocumentInformation]
+    - [x] **DELETE** -> None
+    - [x] **PATCH** -> None
+- [x] **/domains/{domainname}/referencedocuments/clusters** -> ClustersEndpoint
+    - [x] **GET** -> SmartClusterResponseContainer
+    - [x] **PUT** -> SmartClusterResponseContainer
+- [x] **/domains/{domainname}/referencedocuments/namedentities** -> NamedentitiesEndpoint
+    - [x] **GET** -> List[DocumentNamedEntity]
+- [x] **/domains/{domainname}/referencedocuments/statistic** -> StatisticEndpoint
+    - [x] **GET** -> Statistic
+- [x] **/domains/{domainname}/referencedocuments/{documentid}** -> ReferencedocumentEndpoint
+    - [x] **GET** -> Document
+    - [x] **DELETE** -> None
+    - [x] **PATCH** -> DocumentInformation
+- [x] **/domains/{domainname}/referencedocuments/{documentid}/images** -> ImagesEndpoint
+- [x] **/domains/{domainname}/referencedocuments/{documentid}/images/{id}** -> ImageEndpoint
+    - [x] **GET** (Accept: binary) -> IOBase
+- [x] **/domains/{domainname}/referencedocuments/{documentid}/paragraphs** -> ParagraphsEndpoint
+- [x] **/domains/{domainname}/referencedocuments/{documentid}/paragraphs/{id}** -> ParagraphEndpoint
+    - [x] **GET** -> Paragraph
+    - [x] **DELETE** -> None
+    - [x] **PATCH** -> Paragraph
+- [x] **/domains/{domainname}/referencedocuments/{documentid}/sentences** -> SentencesEndpoint
+- [x] **/domains/{domainname}/referencedocuments/{documentid}/sentences/{id}** -> SentenceEndpoint
+    - [x] **GET** -> Sentence
+- [x] **/domains/{domainname}/references** -> ReferencesEndpoint
+    - [x] **POST** -> Document
+    - [x] **POST** (Accept: xlsx) -> IOBase
+    - [x] **POST** (Accept: docx) -> IOBase
+    - [x] **POST** (Accept: pdf) -> IOBase
+- [x] **/domains/{domainname}/settings** -> SettingsEndpoint
+    - [x] **GET** -> Settings
+    - [x] **PATCH** -> Settings
+- [x] **/domains/{domainname}/summarizations** -> SummarizationsEndpoint
+    - [x] **POST** -> Summarization
+- [x] **/domains/{domainname}/tags** -> TagsEndpoint
+    - [x] **GET** -> List[str]
+- [x] **/domains/{domainname}/tags/{tagname}** -> TagEndpoint
+- [x] **/domains/{domainname}/tags/{tagname}/referencedocuments** -> TagReferencedocumentsEndpoint
+    - [x] **GET** -> List[DocumentInformation]
+    - [x] **DELETE** -> None
+- [x] **/domains/{domainname}/texttypes** -> TexttypesEndpoint
+    - [x] **GET** -> List[TextType]
+    - [x] **DELETE** -> None
+    - [x] **PATCH** -> None
+- [x] **/domains/{domainname}/transactions** -> TransactionsEndpoint
+    - [x] **GET** -> List[TransactionSummary]
+- [x] **/domains/{domainname}/validation** -> ValidationEndpoint
+    - [x] **POST** -> SemanticModel
+- [x] **/info** -> InfoEndpoint
+    - [x] **GET** -> Info
+- [x] **/languages** -> LanguagesEndpoint
+    - [x] **POST** -> LanguageDetection
+- [x] **/model** -> ModelEndpoint
+- [x] **/model/datatypes** -> ModelDatatypesEndpoint
+    - [x] **GET** -> List[str]
+- [x] **/model/domains** -> ModelDomainsEndpoint
+- [x] **/model/domains/{domainname}** -> ModelDomainEndpoint
+    - [x] **GET** (Accept: xlsx) -> IOBase
+    - [x] **PATCH** -> IOBase
+- [x] **/model/domains/{domainname}/attributes** -> ModelAttributesEndpoint
+    - [x] **GET** -> List[AttributeOverview]
+- [x] **/model/domains/{domainname}/backups** -> ModelBackupsEndpoint
+    - [x] **POST** -> None
+- [x] **/model/domains/{domainname}/boostwords** -> ModelBoostwordsEndpoint
+    - [x] **GET** -> List[BoostWord]
+    - [x] **POST** -> BoostWord
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/boostwords/{id}** -> ModelBoostwordEndpoint
+    - [x] **GET** -> BoostWord
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> BoostWord
+- [x] **/model/domains/{domainname}/classes** -> ModelontClassesEndpoint
+    - [x] **GET** -> List[ClassesOverview]
+    - [x] **POST** -> Clazz
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/classes/{classid}** -> ModelontClassEndpoint
+    - [x] **GET** -> Clazz
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> Clazz
+- [x] **/model/domains/{domainname}/classes/{classid}/attributes** -> ModelontAttributesEndpoint
+    - [x] **GET** -> List[Attribute]
+    - [x] **POST** -> Attribute
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/classes/{classid}/attributes/{id}** -> ModelontAttributeEndpoint
+    - [x] **GET** -> Attribute
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> Attribute
+- [x] **/model/domains/{domainname}/classes/{classid}/instances** -> ModelontclassInstancesEndpoint
+    - [x] **GET** -> List[Instance]
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/dataproperties** -> ModelDatapropertiesEndpoint
+    - [x] **GET** -> List[Overview]
+    - [x] **POST** -> DataProperty
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/dataproperties/{id}** -> ModelDatapropertyEndpoint
+    - [x] **GET** -> DataProperty
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> DataProperty
+- [x] **/model/domains/{domainname}/extractorclasses** -> ModelExtractorclassesEndpoint
+    - [x] **GET** -> List[ExtractorClassOverview]
+    - [x] **POST** -> ExtractorClass
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> None
+- [x] **/model/domains/{domainname}/extractorclasses/{id}** -> ModelExtractorclassEndpoint
+    - [x] **GET** -> ExtractorClass
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> ExtractorClass
+- [x] **/model/domains/{domainname}/extractorclasses/{id}/extractorclasses** -> ChildExtractorclassesEndpoint
+    - [x] **POST** -> ExtractorClass
+- [x] **/model/domains/{domainname}/extractors** -> ModelExtractorsEndpoint
+    - [x] **GET** -> List[Entity]
+- [x] **/model/domains/{domainname}/formatters** -> ModelFormattersEndpoint
+    - [x] **GET** -> List[Formatter]
+- [x] **/model/domains/{domainname}/instances** -> ModelontInstancesEndpoint
+    - [x] **GET** -> List[InstanceOverview]
+    - [x] **GET** (Accept: xlsx) -> IOBase
+    - [x] **POST** -> Instance
+    - [x] **DELETE** -> None
+    - [x] **PATCH** -> None
+- [x] **/model/domains/{domainname}/instances/{id}** -> ModelontInstanceEndpoint
+    - [x] **GET** -> Instance
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> Instance
+- [x] **/model/domains/{domainname}/metadata** -> ModelMetadataEndpoint
+    - [x] **GET** -> List[ModelMetadata]
+    - [x] **POST** -> ModelMetadata
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/metadata/{id}** -> ModelOnemetadataEndpoint
+    - [x] **GET** -> ModelMetadata
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> ModelMetadata
+- [x] **/model/domains/{domainname}/namedentities** -> ModelNamedentitiesEndpoint
+    - [x] **GET** -> List[NamedEntity]
+    - [x] **POST** -> NamedEntity
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/namedentities/{id}** -> ModelNamedentityEndpoint
+    - [x] **GET** -> NamedEntity
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> NamedEntity
+- [x] **/model/domains/{domainname}/objectproperties** -> ModelObjectpropertiesEndpoint
+    - [x] **GET** -> List[Overview]
+- [x] **/model/domains/{domainname}/regexes** -> ModelRegexesEndpoint
+    - [x] **GET** -> List[Regex]
+    - [x] **POST** -> Regex
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/regexes/{id}** -> ModelRegexEndpoint
+    - [x] **GET** -> Regex
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> Regex
+- [x] **/model/domains/{domainname}/relations** -> ModelRelationsEndpoint
+    - [x] **GET** -> List[Relation]
+    - [x] **POST** -> Relation
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/relations/{id}** -> ModelRelationEndpoint
+    - [x] **GET** -> Relation
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> Relation
+- [x] **/model/domains/{domainname}/rulefunctions** -> ModelRulefunctionsEndpoint
+    - [x] **GET** -> List[RuleFunction]
+- [x] **/model/domains/{domainname}/rules** -> ModelRulesEndpoint
+    - [x] **GET** -> List[RuleOverview]
+    - [x] **POST** -> Rule
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/rules/{id}** -> ModelRuleEndpoint
+    - [x] **GET** -> Rule
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> Rule
+- [x] **/model/domains/{domainname}/stopwords** -> ModelStopwordsEndpoint
+    - [x] **GET** -> List[StopWord]
+    - [x] **POST** -> StopWord
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/stopwords/{id}** -> ModelStopwordEndpoint
+    - [x] **GET** -> StopWord
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> StopWord
+- [x] **/model/domains/{domainname}/synonyms** -> ModelSynonymsEndpoint
+    - [x] **GET** -> List[Synonym]
+    - [x] **POST** -> Synonym
+    - [x] **DELETE** -> None
+- [x] **/model/domains/{domainname}/synonyms/{id}** -> ModelSynonymEndpoint
+    - [x] **GET** -> Synonym
+    - [x] **DELETE** -> None
+    - [x] **PUT** -> Synonym
+- [x] **/model/extractortypes** -> ModelExtractortypesEndpoint
+    - [x] **GET** -> List[str]
+- [x] **/model/metadatatypes** -> ModelMetadatatypesEndpoint
+    - [x] **GET** -> List[str]
+
