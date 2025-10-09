@@ -1,0 +1,150 @@
+# vim: ts=4 sw=4 et
+# -*- coding: utf-8 -*-
+
+# Build using setuptools & wheel.
+[build-system]
+requires = [
+    "setuptools >= 66.1.1",
+    "wheel < 0.46.0 ; python_version < '3.13'"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stanford-mais"
+dynamic = ["version"]
+description = "Python client for Stanford MaIS APIs"
+
+authors = [
+    {name = "Stanford Research Computing", email = "srcc-support@stanford.edu"},
+]
+maintainers = [
+    {name = "A. Karl Kornel", email = "akkornel@stanford.edu"},
+]
+
+readme = {file = "README.rst", content-type = "text/x-rst"}
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+requires-python = ">=3.11, <4.0"
+dependencies = [
+    "requests >=2.28.2, <3.0",
+]
+
+[project.optional-dependencies]
+docs = [
+    "sphinx >=5.0, <9.0",
+    "sphinx-rtd-theme",
+]
+test = [
+    "coverage >= 5.3",
+    "mypy >= 1.0.0",
+    "types-requests",
+    "pytest >=8.4.1, <8.5.0",
+    "pytest-cov",
+    "pytest-responses",
+    "requests >=2.30.0, <3.0",
+    "responses",
+    "bandit >=1.7.0",
+]
+
+[project.urls]
+Source = "https://github.com/stanford-rc/mais-apis-python"
+Documentation = "https://mais-apis-python.readthedocs.io"
+Changelog = "https://github.com/stanford-rc/mais-apis-python/blob/main/CHANGELOG.rst"
+Issues = "https://github.com/stanford-rc/mais-apis-python/issues"
+
+[tool.coverage.paths]
+account = [
+    "src/stanford/mais/account",
+    "**/site-packages/stanford/mais/account",
+]
+client = [
+    "src/stanford/mais/client",
+    "**/site-packages/stanford/mais/client",
+]
+workgroup = [
+    "src/stanford/mais/workgroup",
+    "**/site-packages/stanford/mais/workgroup",
+]
+
+[tool.coverage.run]
+source = [
+    "./tests",
+]
+source_pkgs = [
+    "stanford.mais.account",
+    "stanford.mais.client",
+    "stanford.mais.workgroup",
+]
+
+[tool.mypy]
+explicit_package_bases = true
+namespace_packages = true
+pretty = true
+no_color_output = true
+mypy_path = [
+    "src"
+]
+# There is no support for putting `-p` / `-package` in the MyPy config file.
+# Feature requested: https://github.com/python/mypy/issues/10728
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+
+[tool.tox]
+requires = [
+    "tox>=4.28.3",
+]
+env_list = "py{311,312,313}-{minimal,latest}"
+
+[tool.tox.env_run_base]
+deps = [
+    "mypy >=0.910, <1.0",
+    "types-requests",
+    "pytest >=8.4.1, <8.5.0",
+    "pytest-cov >=4.0.0",
+    "pytest-responses",
+    "responses",
+]
+commands = [
+    ["pytest", "--cov", "--cov-append", "--cov-report=", "--strict-config", "--strict-markers", "-W", "error"],
+]
+set_env = { PYTHONTRACEMALLOC = "20" }
+
+[tool.tox.env.minimal]
+deps = [
+    "requests==2.30.0",
+    "setuptools==66.1.1",
+]
+
+[tool.tox.env.latest]
+deps = [
+    "requests >2.32.4, <3.0",
+    "setuptools >=80.9.0",
+]
+
+[tool.tox.env.report]
+commands = [
+    ["coverage", "report"],
+]
+
+[tool.tox.gh.python]
+"3.11" = ["py311-minimal", "py311-latest", "report"]
+"3.12" = ["py312-minimal", "py312-latest", "report"]
+"3.13" = ["py313-minimal", "py313-latest", "report"]
+
+[tool.bandit.assert_used]
+skips = [ "tests/*.py" ]
