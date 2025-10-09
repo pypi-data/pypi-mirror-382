@@ -1,0 +1,41 @@
+#!/bin/bash
+# --- Multi-node Cluster Information ---
+echo "[multinode] Extracting cluster configuration from /etc/hosts"
+
+instance_hosts="$(awk '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ && !/^127\./ {print $1, $2}' /etc/hosts)"
+
+# Get cluster configuration from /etc/hosts
+head_line="$(echo "$instance_hosts" | tail -1)"
+head_node_ip="$(awk '{print $1}' <<<"$head_line")"
+head_node="$(awk '{print $2}' <<<"$head_line")"
+current_node="$(hostname -s)"
+
+# Count total number of nodes in cluster
+num_nodes="$(echo "$instance_hosts" | wc -l | awk '{print $1}')"
+
+# Calculate node rank counting from bottom (head node = rank 0)
+node_rank="$(echo "$instance_hosts" | awk -v current="$current_node" -v total="$num_nodes" '{if ($2 == current) print total - NR}')"
+
+# Detect GPUs per node (assumes all nodes have same GPU count)
+gpu_count="$(nvidia-smi --list-gpus 2>/dev/null | wc -l | awk '{print $1}')"
+
+# Export environment variables for distributed training
+export HEAD_NODE_IP="$head_node_ip"
+export HEAD_NODE="$head_node"
+export NUM_NODES="$num_nodes"
+export NODE_RANK="$node_rank"
+export GPU_COUNT="$gpu_count"
+
+# Logging
+if [ "$current_node" = "$head_node" ]; then
+    echo "[multinode] I am the head node (last IP): $head_node"
+else
+    echo "[multinode] Head node is $head_node (last IP), I am $current_node"
+fi
+
+echo "[multinode] Exported environment variables:"
+echo "  HEAD_NODE_IP=$HEAD_NODE_IP"
+echo "  HEAD_NODE=$HEAD_NODE"
+echo "  NUM_NODES=$NUM_NODES"
+echo "  NODE_RANK=$NODE_RANK"
+echo "  GPU_COUNT=$GPU_COUNT" 
