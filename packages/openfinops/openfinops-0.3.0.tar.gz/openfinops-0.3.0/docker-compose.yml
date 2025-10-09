@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # OpenFinOps Server - Main application backend
+  openfinops-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: openfinops-server
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENFINOPS_HOST=0.0.0.0
+      - OPENFINOPS_PORT=8080
+      - OPENFINOPS_DEBUG=false
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - openfinops-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - openfinops-network
+
+  # Marketing Website - Static site with Nginx
+  openfinops-website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+    container_name: openfinops-website
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      openfinops-server:
+        condition: service_healthy
+    volumes:
+      - ./website/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ssl-certs:/etc/nginx/certs:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - openfinops-network
+
+  # Telemetry Agents (optional - uncomment to enable)
+
+  # AWS Telemetry Agent
+  # aws-agent:
+  #   build:
+  #     context: ./agents
+  #     dockerfile: Dockerfile.aws
+  #   container_name: openfinops-aws-agent
+  #   environment:
+  #     - OPENFINOPS_ENDPOINT=http://openfinops-server:8080
+  #     - AWS_REGION=us-west-2
+  #     - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+  #     - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+  #   depends_on:
+  #     - openfinops-server
+  #   restart: unless-stopped
+  #   networks:
+  #     - openfinops-network
+
+  # Databricks Telemetry Agent
+  # databricks-agent:
+  #   build:
+  #     context: ./agents
+  #     dockerfile: Dockerfile.databricks
+  #   container_name: openfinops-databricks-agent
+  #   environment:
+  #     - OPENFINOPS_ENDPOINT=http://openfinops-server:8080
+  #     - DATABRICKS_HOST=${DATABRICKS_HOST}
+  #     - DATABRICKS_TOKEN=${DATABRICKS_TOKEN}
+  #   depends_on:
+  #     - openfinops-server
+  #   restart: unless-stopped
+  #   networks:
+  #     - openfinops-network
+
+  # Snowflake Telemetry Agent
+  # snowflake-agent:
+  #   build:
+  #     context: ./agents
+  #     dockerfile: Dockerfile.snowflake
+  #   container_name: openfinops-snowflake-agent
+  #   environment:
+  #     - OPENFINOPS_ENDPOINT=http://openfinops-server:8080
+  #     - SNOWFLAKE_ACCOUNT=${SNOWFLAKE_ACCOUNT}
+  #     - SNOWFLAKE_USER=${SNOWFLAKE_USER}
+  #     - SNOWFLAKE_PASSWORD=${SNOWFLAKE_PASSWORD}
+  #   depends_on:
+  #     - openfinops-server
+  #   restart: unless-stopped
+  #   networks:
+  #     - openfinops-network
+
+volumes:
+  openfinops-data:
+    driver: local
+  ssl-certs:
+    driver: local
+
+networks:
+  openfinops-network:
+    driver: bridge

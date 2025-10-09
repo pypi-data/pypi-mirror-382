@@ -1,0 +1,485 @@
+{% extends "base.html" %}
+
+{% block title %}Infrastructure Leader Dashboard - OpenFinOps{% endblock %}
+
+{% block extra_head %}
+<style>
+    .infra-card {
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .infra-card::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(90deg, #00d4aa, #00a8ff);
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+    }
+
+    .infra-card:hover::after {
+        transform: scaleX(1);
+    }
+
+    .capacity-indicator {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .region-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        background: rgba(0, 212, 170, 0.2);
+        color: #00d4aa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Infrastructure Header -->
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                Infrastructure Leader Dashboard
+            </h2>
+            <p class="text-gray-400 mt-2">Cloud Infrastructure & Resource Management</p>
+        </div>
+        <div class="glass rounded-xl px-6 py-3">
+            <div class="text-sm text-gray-400">Active Regions</div>
+            <div class="flex items-center gap-2 mt-2">
+                <span class="region-badge">us-east-1</span>
+                <span class="region-badge">eu-west-1</span>
+                <span class="region-badge">ap-south-1</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Infrastructure Metrics -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="glass infra-card rounded-xl p-6">
+        <div class="flex items-center justify-between mb-3">
+            <div class="p-3 rounded-lg gradient-primary">
+                <i class="fas fa-server text-2xl"></i>
+            </div>
+            <span class="capacity-indicator bg-green-500/20 text-green-400">
+                <i class="fas fa-check mr-1"></i>Healthy
+            </span>
+        </div>
+        <h3 class="text-gray-400 text-sm">Total Instances</h3>
+        <p class="text-3xl font-bold mt-2" id="infra-instances">0</p>
+        <p class="text-xs text-gray-500 mt-2">Across 3 cloud providers</p>
+    </div>
+
+    <div class="glass infra-card rounded-xl p-6">
+        <div class="flex items-center justify-between mb-3">
+            <div class="p-3 rounded-lg gradient-info">
+                <i class="fas fa-microchip text-2xl"></i>
+            </div>
+            <span class="capacity-indicator bg-yellow-500/20 text-yellow-400">
+                72%
+            </span>
+        </div>
+        <h3 class="text-gray-400 text-sm">CPU Utilization</h3>
+        <p class="text-3xl font-bold mt-2" id="infra-cpu">0%</p>
+        <p class="text-xs text-gray-500 mt-2">Average across fleet</p>
+    </div>
+
+    <div class="glass infra-card rounded-xl p-6">
+        <div class="flex items-center justify-between mb-3">
+            <div class="p-3 rounded-lg gradient-success">
+                <i class="fas fa-memory text-2xl"></i>
+            </div>
+            <span class="capacity-indicator bg-blue-500/20 text-blue-400">
+                65%
+            </span>
+        </div>
+        <h3 class="text-gray-400 text-sm">Memory Usage</h3>
+        <p class="text-3xl font-bold mt-2" id="infra-memory">0%</p>
+        <p class="text-xs text-gray-500 mt-2">12.8 TB allocated</p>
+    </div>
+
+    <div class="glass infra-card rounded-xl p-6">
+        <div class="flex items-center justify-between mb-3">
+            <div class="p-3 rounded-lg gradient-warning">
+                <i class="fas fa-database text-2xl"></i>
+            </div>
+            <span class="capacity-indicator bg-green-500/20 text-green-400">
+                48%
+            </span>
+        </div>
+        <h3 class="text-gray-400 text-sm">Storage Capacity</h3>
+        <p class="text-3xl font-bold mt-2" id="infra-storage">0%</p>
+        <p class="text-xs text-gray-500 mt-2">2.4 PB total capacity</p>
+    </div>
+</div>
+
+<!-- Multi-Cloud Distribution -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="glass rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">
+            <i class="fas fa-cloud mr-2 text-cyan-400"></i>Multi-Cloud Resource Distribution
+        </h3>
+        <div class="chart-container" style="height: 300px;">
+            <canvas id="cloudResourceChart"></canvas>
+        </div>
+    </div>
+
+    <div class="glass rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">
+            <i class="fas fa-chart-area mr-2 text-blue-400"></i>Resource Usage Over Time
+        </h3>
+        <div class="chart-container" style="height: 300px;">
+            <canvas id="resourceTrendChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Infrastructure Details -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- Compute Resources -->
+    <div class="glass rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">
+            <i class="fas fa-microchip mr-2 text-purple-400"></i>Compute Resources
+        </h3>
+        <div class="space-y-4">
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">EC2 Instances</span>
+                    <span class="text-lg font-bold">248</span>
+                </div>
+                <div class="flex gap-2 text-xs">
+                    <span class="px-2 py-1 rounded bg-green-500/20 text-green-400">142 Running</span>
+                    <span class="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">106 Stopped</span>
+                </div>
+            </div>
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">Lambda Functions</span>
+                    <span class="text-lg font-bold">1,245</span>
+                </div>
+                <div class="text-xs text-gray-400">8.2M invocations/day</div>
+            </div>
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">Container Pods</span>
+                    <span class="text-lg font-bold">382</span>
+                </div>
+                <div class="text-xs text-gray-400">Across 12 EKS clusters</div>
+            </div>
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">ML Training Nodes</span>
+                    <span class="text-lg font-bold">64</span>
+                </div>
+                <div class="text-xs text-gray-400">SageMaker & custom</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Storage Resources -->
+    <div class="glass rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">
+            <i class="fas fa-hdd mr-2 text-green-400"></i>Storage Resources
+        </h3>
+        <div class="space-y-4">
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">S3 Buckets</span>
+                    <span class="text-lg font-bold">186</span>
+                </div>
+                <div class="text-xs text-gray-400">1.8 PB total storage</div>
+            </div>
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">EBS Volumes</span>
+                    <span class="text-lg font-bold">524</span>
+                </div>
+                <div class="text-xs text-gray-400">245 TB attached</div>
+            </div>
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">RDS Databases</span>
+                    <span class="text-lg font-bold">42</span>
+                </div>
+                <div class="text-xs text-gray-400">18 TB total storage</div>
+            </div>
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">Backup Snapshots</span>
+                    <span class="text-lg font-bold">2,148</span>
+                </div>
+                <div class="text-xs text-gray-400">Auto-retention enabled</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Resources -->
+    <div class="glass rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">
+            <i class="fas fa-network-wired mr-2 text-blue-400"></i>Network Resources
+        </h3>
+        <div class="space-y-4">
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">VPCs</span>
+                    <span class="text-lg font-bold">12</span>
+                </div>
+                <div class="text-xs text-gray-400">Across 3 regions</div>
+            </div>
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">Load Balancers</span>
+                    <span class="text-lg font-bold">28</span>
+                </div>
+                <div class="text-xs text-gray-400">ALB & NLB combined</div>
+            </div>
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">CloudFront CDN</span>
+                    <span class="text-lg font-bold">18</span>
+                </div>
+                <div class="text-xs text-gray-400">Global edge locations</div>
+            </div>
+            <div class="p-3 rounded-lg glass-strong">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">Data Transfer</span>
+                    <span class="text-lg font-bold">8.4 TB</span>
+                </div>
+                <div class="text-xs text-gray-400">Last 24 hours</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cost Optimization by Infrastructure -->
+<div class="glass rounded-xl p-6 mb-8">
+    <h3 class="text-xl font-semibold mb-4">
+        <i class="fas fa-chart-line mr-2 text-cyan-400"></i>Infrastructure Cost Breakdown
+    </h3>
+    <div class="chart-container" style="height: 350px;">
+        <canvas id="infraCostChart"></canvas>
+    </div>
+</div>
+
+<!-- Optimization Recommendations -->
+<div class="glass rounded-xl p-6">
+    <h3 class="text-xl font-semibold mb-4">
+        <i class="fas fa-lightbulb mr-2 text-yellow-400"></i>Infrastructure Optimization Recommendations
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 rounded-lg glass-strong border-l-4 border-cyan-400">
+            <div class="flex items-start justify-between mb-2">
+                <h4 class="font-semibold">Resize Overprovisioned Instances</h4>
+                <span class="px-2 py-1 rounded bg-cyan-500/20 text-cyan-400 text-xs">High Impact</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">
+                42 EC2 instances consistently using <30% CPU. Downsize to save costs.
+            </p>
+            <div class="flex items-center justify-between">
+                <span class="text-2xl font-bold text-cyan-400">$12.5K/mo</span>
+                <button class="px-4 py-2 rounded-lg gradient-primary text-sm font-medium">
+                    View Details
+                </button>
+            </div>
+        </div>
+
+        <div class="p-4 rounded-lg glass-strong border-l-4 border-green-400">
+            <div class="flex items-start justify-between mb-2">
+                <h4 class="font-semibold">Enable S3 Intelligent Tiering</h4>
+                <span class="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs">Quick Win</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">
+                Auto-move infrequently accessed data to cheaper storage tiers.
+            </p>
+            <div class="flex items-center justify-between">
+                <span class="text-2xl font-bold text-green-400">$8.2K/mo</span>
+                <button class="px-4 py-2 rounded-lg gradient-success text-sm font-medium">
+                    Enable Now
+                </button>
+            </div>
+        </div>
+
+        <div class="p-4 rounded-lg glass-strong border-l-4 border-purple-400">
+            <div class="flex items-start justify-between mb-2">
+                <h4 class="font-semibold">Optimize EBS Volume Types</h4>
+                <span class="px-2 py-1 rounded bg-purple-500/20 text-purple-400 text-xs">Medium Impact</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">
+                Replace gp3 volumes with gp2 for non-performance critical workloads.
+            </p>
+            <div class="flex items-center justify-between">
+                <span class="text-2xl font-bold text-purple-400">$5.8K/mo</span>
+                <button class="px-4 py-2 rounded-lg gradient-info text-sm font-medium">
+                    Apply Changes
+                </button>
+            </div>
+        </div>
+
+        <div class="p-4 rounded-lg glass-strong border-l-4 border-yellow-400">
+            <div class="flex items-start justify-between mb-2">
+                <h4 class="font-semibold">Delete Unused Snapshots</h4>
+                <span class="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 text-xs">Cleanup</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">
+                348 snapshots older than 90 days with no restore activity.
+            </p>
+            <div class="flex items-center justify-between">
+                <span class="text-2xl font-bold text-yellow-400">$3.4K/mo</span>
+                <button class="px-4 py-2 rounded-lg gradient-warning text-sm font-medium">
+                    Review & Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Cloud Resource Distribution Chart
+    const cloudResCtx = document.getElementById('cloudResourceChart').getContext('2d');
+    const cloudResChart = new Chart(cloudResCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['AWS EC2', 'AWS Lambda', 'Azure VMs', 'GCP Compute', 'Kubernetes', 'Other'],
+            datasets: [{
+                data: [35, 22, 18, 12, 10, 3],
+                backgroundColor: [
+                    '#00d4aa',
+                    '#00a8ff',
+                    '#3742fa',
+                    '#a29bfe',
+                    '#ffa500',
+                    '#ff6b6b'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#9ca3af',
+                        font: { family: 'Inter' },
+                        padding: 12
+                    }
+                }
+            }
+        }
+    });
+
+    // Resource Trend Chart
+    const resTrendCtx = document.getElementById('resourceTrendChart').getContext('2d');
+    const resTrendChart = new Chart(resTrendCtx, {
+        type: 'line',
+        data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            datasets: [
+                {
+                    label: 'CPU %',
+                    data: [65, 68, 72, 75, 71, 72],
+                    borderColor: '#00d4aa',
+                    backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: 'Memory %',
+                    data: [58, 62, 65, 68, 63, 65],
+                    borderColor: '#00a8ff',
+                    backgroundColor: 'rgba(0, 168, 255, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#9ca3af', font: { family: 'Inter' } }
+                }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: '#9ca3af' } },
+                y: { grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: '#9ca3af' } }
+            }
+        }
+    });
+
+    // Infrastructure Cost Chart
+    const infraCostCtx = document.getElementById('infraCostChart').getContext('2d');
+    const infraCostChart = new Chart(infraCostCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Compute', 'Storage', 'Network', 'Database', 'ML/AI', 'Other'],
+            datasets: [
+                {
+                    label: 'Current Month',
+                    data: [42000, 18000, 12000, 15000, 35000, 8000],
+                    backgroundColor: 'rgba(0, 212, 170, 0.6)',
+                    borderColor: '#00d4aa',
+                    borderWidth: 2
+                },
+                {
+                    label: 'Last Month',
+                    data: [45000, 19000, 13000, 14500, 32000, 8500],
+                    backgroundColor: 'rgba(0, 168, 255, 0.3)',
+                    borderColor: '#00a8ff',
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#9ca3af', font: { family: 'Inter' } }
+                }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: '#9ca3af' } },
+                y: { grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: '#9ca3af' } }
+            }
+        }
+    });
+
+    // WebSocket updates
+    socket.on('dashboard_update', function(data) {
+        if (data.system_health) {
+            const health = data.system_health;
+            document.getElementById('infra-cpu').textContent = health.cpu_usage + '%';
+            document.getElementById('infra-memory').textContent = health.memory_usage + '%';
+            document.getElementById('infra-storage').textContent = health.disk_usage + '%';
+        }
+
+        // Update instance count (mock data)
+        document.getElementById('infra-instances').textContent = '248';
+    });
+
+    // Initial data fetch
+    fetch('/api/dashboard/infrastructure')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Infrastructure Dashboard data loaded:', data);
+        });
+</script>
+{% endblock %}
