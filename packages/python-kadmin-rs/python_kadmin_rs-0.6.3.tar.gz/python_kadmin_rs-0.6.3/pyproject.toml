@@ -1,0 +1,104 @@
+[project]
+name = "python-kadmin-rs"
+version = "0.6.3"
+description = "Python interface to the Kerberos administration interface (kadm5)"
+requires-python = ">=3.9,<3.15"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+  { name = "Marc 'risson' Schmitt", email = "marc.schmitt@risson.space" },
+  { name = "authentik community", email = "hello@goauthentik.io" },
+]
+keywords = ["krb5", "kadmin", "kadm5", "kerberos"]
+
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: System Administrators",
+  "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python",
+  "Programming Language :: Rust",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: System :: Systems Administration :: Authentication/Directory",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/authentik-community/kadmin-rs"
+Documentation = "https://github.com/authentik-community/kadmin-rs"
+Repository = "https://github.com/authentik-community/kadmin-rs.git"
+
+[build-system]
+requires = ["setuptools", "setuptools-rust", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+enable = ["cpython-freethreading", "pypy"]
+
+[tool.cibuildwheel.linux]
+before-all = [
+  "curl -sSf https://sh.rustup.rs | sh -s -- -y",
+  "yum install -y krb5-devel clang-devel openssl-devel || apk add krb5-dev clang-dev",
+]
+environment = { PATH = "$HOME/.cargo/bin:$PATH" }
+environment-pass = ["DEBIAN_FRONTEND", "CARGO_INCREMENTAL"]
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-pypy_x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+manylinux-ppc64le-image = "manylinux_2_28"
+manylinux-s390x-image = "manylinux_2_28"
+manylinux-pypy_aarch64-image = "manylinux_2_28"
+
+[tool.cibuildwheel.macos]
+before-all = [
+  "curl -sSf https://sh.rustup.rs | sh -s -- -y",
+  "brew install llvm krb5",
+]
+environment = { PKG_CONFIG_PATH = "/opt/homebrew/opt/krb5/lib/pkgconfig:/usr/local/opt/krb5/lib/pkgconfig", MACOSX_DEPLOYMENT_TARGET = "14.0", PATH = "$HOME/.cargo/bin:$PATH" }
+
+[tool.setuptools.packages]
+find = { where = ["python/src"] }
+
+[[tool.setuptools-rust.ext-modules]]
+target = "kadmin._lib"
+path = "kadmin/Cargo.toml"
+strip = "All"
+args = ["--no-default-features"]
+features = ["client", "python"]
+
+[[tool.setuptools-rust.ext-modules]]
+target = "kadmin_local._lib"
+path = "kadmin/Cargo.toml"
+strip = "All"
+args = ["--no-default-features"]
+features = ["local", "python"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.poetry]
+package-mode = false
+requires-poetry = ">=2.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "*"
+build = "*"
+cibuildwheel = "*"
+mypy = "*"
+ruff = "*"
+sphinx = "*"
+sphinx-rtd-theme = "*"
+
+[tool.poetry.group.test.dependencies]
+k5test = "*"
