@@ -1,0 +1,13 @@
+// Cytosim was created by Francois Nedelec. Copyright 2022 Cambridge University
+
+// GLUT is a platform-independent windowing library built on OpenGL
+// The place of the header 'glut.h' is platform-dependent, so we
+// include this file "glut.h" rather than <glut.h>
+
+#ifdef __APPLE__
+#   include <GLUT/glut.h>
+#else
+#   include <GL/glut.h>
+#endif
+
+
