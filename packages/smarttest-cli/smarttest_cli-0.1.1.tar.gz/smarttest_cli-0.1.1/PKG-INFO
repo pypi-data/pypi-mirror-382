@@ -1,0 +1,524 @@
+Metadata-Version: 2.4
+Name: smarttest-cli
+Version: 0.1.1
+Summary: SmartTest CLI - Execute test scenarios with secure credential handling
+Author-email: SmartTest Team <support@smarttest.com>
+Maintainer-email: SmartTest Team <support@smarttest.com>
+License-Expression: MIT
+Project-URL: Homepage, https://smarttest.com
+Project-URL: Documentation, https://docs.smarttest.com/cli
+Project-URL: Repository, https://github.com/smarttest/smarttest-cli
+Project-URL: Bug Tracker, https://github.com/smarttest/smarttest-cli/issues
+Keywords: testing,api,cli,automation,ci-cd,continuous-integration,api-testing
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Testing
+Classifier: Topic :: Software Development :: Quality Assurance
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: typer>=0.9.0
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.10.0; extra == "dev"
+Dynamic: license-file
+
+# SmartTest CLI
+
+Enterprise-ready CLI for executing test scenarios with secure, zero-credential-exposure architecture.
+
+## Features
+
+🔒 **Zero Credential Exposure**: Auth tokens never leave your network
+⚡ **Concurrent Execution**: Run up to 5 scenarios simultaneously
+🎯 **Continue-on-Error**: Individual failures don't stop execution
+📊 **Real-time Progress**: Live progress updates with rich terminal output
+📄 **CI Integration**: JUnit XML reports for CI/CD pipelines
+🌐 **Network Aware**: Proxy and custom CA support for enterprise networks
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Set Required Environment Variable
+
+```bash
+export SMARTTEST_TOKEN=your_pat_token_here
+```
+
+### 3. Run Scenarios
+
+```bash
+# Run a specific scenario
+smarttest --scenario-id 123
+
+# Run all scenarios for an endpoint
+smarttest --endpoint-id 456
+
+# Run all scenarios for a system
+smarttest --system-id 789
+
+# With JUnit XML report for CI
+smarttest --system-id 789 --report junit.xml
+
+# With JSON output for CI/CD parsing
+smarttest --system-id 789 --format json > results.json
+
+# Combined: JSON output + JUnit XML report
+smarttest --system-id 789 --format json --report junit.xml > results.json
+```
+
+## Output Formats
+
+The CLI supports multiple output formats for different use cases:
+
+| Format | Flag | Use Case | Colors | Progress | Parseable |
+|--------|------|----------|--------|----------|-----------|
+| **Terminal** | (default) | Local development | ✅ | ✅ | ❌ |
+| **JSON** | `--format json` | CI/CD pipelines | ❌ | ❌ | ✅ |
+| **JUnit XML** | `--report file.xml` | Test reporting | N/A | N/A | ✅ |
+
+**Quick Examples:**
+```bash
+# Local development (colorful output)
+smarttest --system-id 123
+
+# CI/CD (machine-readable)
+smarttest --system-id 123 --format json > results.json
+
+# Test reporting tools
+smarttest --system-id 123 --report junit.xml
+
+# All together
+smarttest --system-id 123 --format json --report junit.xml > results.json
+```
+
+---
+
+### Terminal Output (Default)
+
+Rich, colorful output with real-time progress and endpoint grouping:
+
+```bash
+smarttest --system-id 123
+```
+
+**Features:**
+- 🎨 Color-coded results (green=passed, red=failed, yellow=errors)
+- 📊 Real-time progress bar
+- 📍 Results grouped by API endpoint
+- 🔍 Detailed validation failure messages
+
+**Example:**
+```
+📋 Discovered 10 scenarios across 3 endpoints:
+   • POST /auth/login → 3 scenario(s)
+   • GET /users → 5 scenario(s)
+   • POST /orders → 2 scenario(s)
+
+⚡ Executing scenarios... ✅ 8 passed, ❌ 2 failed [██████████] 10/10
+
+Results by Endpoint:
+
+✅ POST /auth/login → 3/3 passed
+
+❌ GET /users → 3/5 passed
+     ↳ Invalid user ID: Expected status 404, got 500
+
+✅ POST /orders → 2/2 passed
+
+Overall Summary:
+✅ 8 passed
+❌ 2 failed
+
+Summary: 8/10 scenarios passed (80.0% success rate)
+```
+
+### JSON Output (CI/CD Integration)
+
+Machine-readable JSON for programmatic parsing:
+
+```bash
+smarttest --system-id 123 --format json > results.json
+```
+
+**Features:**
+- 🤖 Structured data with summary statistics
+- 📊 Endpoint-grouped results
+- 🔍 Detailed validation failures
+- 📈 Response times and error messages
+
+**Output Structure:**
+```json
+{
+  "summary": {
+    "total": 10,
+    "passed": 8,
+    "failed": 2,
+    "errors": 0,
+    "success_rate": 80.0,
+    "duration_seconds": 12.5
+  },
+  "endpoints": [
+    {
+      "endpoint": "POST /auth/login",
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "errors": 0,
+      "scenarios": [
+        {
+          "scenario_id": 123,
+          "scenario_name": "Valid login",
+          "status": "passed",
+          "execution_status": "success",
+          "http_status": 200,
+          "response_time_ms": 145,
+          "validations": [...]
+        }
+      ]
+    }
+  ],
+  "results": [...]
+}
+```
+
+**Parse with jq:**
+```bash
+# Get success rate
+jq '.summary.success_rate' results.json
+
+# List failed scenarios
+jq '.results[] | select(.status == "failed") | .scenario_name' results.json
+
+# Get endpoint statistics
+jq '.endpoints[] | {endpoint: .endpoint, passed: .passed, failed: .failed}' results.json
+```
+
+### Combined Output
+
+Generate both JSON and JUnit XML:
+
+```bash
+smarttest --system-id 123 --format json --report junit.xml > results.json
+```
+
+**Use Cases:**
+- CI/CD dashboards need JSON for metrics
+- Test reporting tools need JUnit XML
+- Both formats complement each other
+
+### Quiet Mode (Future)
+
+For minimal output in scripts:
+
+```bash
+# Coming soon
+smarttest --system-id 123 --quiet
+# Output: 8/10 passed (80%)
+```
+
+## Configuration
+
+### Environment Variables (Required)
+
+- `SMARTTEST_TOKEN`: Personal Access Token from SmartTest dashboard
+
+### Optional Configuration File
+
+Create `.smarttest.yml` in your project root:
+
+```yaml
+# API Configuration
+api_url: "https://api.smarttest.com"
+
+# Execution Settings
+concurrency: 5
+timeout: 30
+
+# Enterprise Network Settings
+proxy:
+  http_proxy: "http://proxy.company.com:8080"
+  https_proxy: "https://proxy.company.com:8080"
+
+tls:
+  ca_bundle_path: "/path/to/ca-bundle.pem"
+  verify_ssl: true
+```
+
+## Security Model
+
+The CLI implements a **zero-credential-exposure** security model:
+
+1. **API responses contain auth config references** (not actual tokens)
+2. **CLI resolves credentials locally** within your network
+3. **No credentials are ever sent to SmartTest servers**
+4. **All auth resolution happens in your environment**
+
+### Auth Resolution
+
+The CLI looks for credentials in environment variables:
+
+```bash
+# Bearer Token Authentication
+export AUTH_CONFIG_ID_TOKEN=your_bearer_token
+
+# Basic Authentication
+export AUTH_CONFIG_ID_USERNAME=username
+export AUTH_CONFIG_ID_PASSWORD=password
+
+# API Key Authentication
+export AUTH_CONFIG_ID_API_KEY=your_api_key
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+**Basic Integration (JUnit XML):**
+```yaml
+- name: Run API Tests
+  env:
+    SMARTTEST_TOKEN: ${{ secrets.SMARTTEST_TOKEN }}
+    API_TOKEN: ${{ secrets.API_TOKEN }}
+  run: |
+    pip install smarttest-cli
+    smarttest --system-id 123 --report junit.xml
+
+- name: Publish Test Results
+  uses: dorny/test-reporter@v1
+  if: always()
+  with:
+    name: SmartTest Results
+    path: junit.xml
+    reporter: java-junit
+```
+
+**Advanced Integration (JSON + Metrics):**
+```yaml
+- name: Run API Tests
+  env:
+    SMARTTEST_TOKEN: ${{ secrets.SMARTTEST_TOKEN }}
+  run: |
+    pip install smarttest-cli
+    smarttest --system-id 123 --format json --report junit.xml > results.json
+
+- name: Parse Results & Set Threshold
+  run: |
+    SUCCESS_RATE=$(jq '.summary.success_rate' results.json)
+    echo "API Test Success Rate: ${SUCCESS_RATE}%"
+
+    # Fail if success rate < 80%
+    if (( $(echo "$SUCCESS_RATE < 80" | bc -l) )); then
+      echo "❌ Test success rate below 80% threshold"
+      exit 1
+    fi
+
+- name: Upload Results
+  if: always()
+  uses: actions/upload-artifact@v3
+  with:
+    name: test-results
+    path: |
+      junit.xml
+      results.json
+
+- name: Publish Test Report
+  uses: dorny/test-reporter@v1
+  if: always()
+  with:
+    name: API Test Results
+    path: junit.xml
+    reporter: java-junit
+```
+
+### GitLab CI
+
+```yaml
+api-tests:
+  stage: test
+  image: python:3.11
+  before_script:
+    - pip install smarttest-cli
+  script:
+    - smarttest --system-id 123 --format json --report junit.xml > results.json
+    - |
+      SUCCESS_RATE=$(jq '.summary.success_rate' results.json)
+      echo "API Tests: ${SUCCESS_RATE}% passed"
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+    paths:
+      - results.json
+  variables:
+    SMARTTEST_TOKEN: $SMARTTEST_TOKEN
+```
+
+### Jenkins
+
+```groovy
+pipeline {
+    agent any
+    environment {
+        SMARTTEST_TOKEN = credentials('smarttest-token')
+    }
+    stages {
+        stage('Install CLI') {
+            steps {
+                sh 'pip install smarttest-cli'
+            }
+        }
+        stage('Run API Tests') {
+            steps {
+                sh 'smarttest --system-id 123 --format json --report junit.xml > results.json'
+
+                script {
+                    def results = readJSON file: 'results.json'
+                    echo "Success Rate: ${results.summary.success_rate}%"
+                    echo "Passed: ${results.summary.passed}"
+                    echo "Failed: ${results.summary.failed}"
+
+                    if (results.summary.success_rate < 80) {
+                        error("Test success rate below 80%")
+                    }
+                }
+            }
+            post {
+                always {
+                    junit 'junit.xml'
+                    archiveArtifacts artifacts: 'results.json', fingerprint: true
+                }
+            }
+        }
+    }
+}
+```
+
+## Command Reference
+
+### Basic Commands
+
+```bash
+# Run by scenario ID
+smarttest --scenario-id 123
+
+# Run by endpoint ID
+smarttest --endpoint-id 456
+
+# Run by system ID
+smarttest --system-id 789
+```
+
+### Output Options
+
+```bash
+# Terminal output (default, with colors and progress)
+smarttest --system-id 123
+
+# JSON output (machine-readable)
+smarttest --system-id 123 --format json
+
+# Generate JUnit XML report
+smarttest --system-id 123 --report junit.xml
+
+# JSON + JUnit combined
+smarttest --system-id 123 --format json --report junit.xml > results.json
+```
+
+### Configuration
+
+```bash
+# Use custom config file
+smarttest --system-id 123 --config my-config.yml
+
+# Config file + custom output
+smarttest --system-id 123 --config prod.yml --format json
+```
+
+### Exit Codes
+
+- **0**: All scenarios passed
+- **1**: One or more scenarios failed or had errors
+- **130**: Execution interrupted (Ctrl+C)
+
+The exit code is the same regardless of `--format` option.
+
+## Error Handling
+
+The CLI provides comprehensive error classification:
+
+- **✅ Success**: HTTP request succeeded, all validations passed
+- **❌ Failed**: HTTP request succeeded, but validations failed
+- **⚠️  Network Timeout**: Request timed out
+- **⚠️  Network Error**: Connection failed
+- **⚠️  Auth Error**: Authentication resolution failed
+- **⚠️  Unknown Error**: Unexpected error occurred
+
+## Architecture
+
+```
+┌─ Scenario Discovery (API with rate limiting)
+├─ Skip scenarios without validations
+├─ Concurrent Execution (max 5)
+│  ├─ Fetch definition (auth config references only)
+│  ├─ Resolve auth locally (zero credential exposure)
+│  ├─ Execute HTTP request (with comprehensive error handling)
+│  └─ Submit results (continue on any error)
+└─ Generate reports and exit
+```
+
+## Troubleshooting
+
+### Authentication Issues
+
+```bash
+# Check if your token is valid
+curl -H "Authorization: Bearer $SMARTTEST_TOKEN" https://api.smarttest.com/health
+
+# Verify auth config environment variables
+echo $AUTH_CONFIG_ID_TOKEN
+```
+
+### Network Issues
+
+```bash
+# Test with custom config
+smarttest --scenario-id 123 --config .smarttest.yml
+
+# Enable request debugging
+SMARTTEST_DEBUG=1 smarttest --scenario-id 123
+
+# Test single scenario first
+smarttest --scenario-id 123 --format json
+```
+
+### Rate Limiting
+
+The CLI automatically handles rate limiting with exponential backoff. If you encounter persistent rate limiting:
+
+1. Reduce concurrency in `.smarttest.yml`
+2. Contact support to increase rate limits
+3. Spread execution across longer time periods
+
+## Support
+
+- 📚 Documentation: https://docs.smarttest.com
+- 🐛 Issues: https://github.com/smarttest/cli/issues
+- 💬 Support: support@smarttest.com
