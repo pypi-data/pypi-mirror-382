@@ -1,0 +1,107 @@
+[project]
+name = "rustac"
+description = "The power of Rust for the Python STAC ecosystem"
+readme = "README.md"
+authors = [{ name = "Pete Gadomski", email = "pete.gadomski@gmail.com" }]
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Programming Language :: Rust",
+    "Typing :: Typed",
+]
+keywords = ["stac", "geospatial"]
+dynamic = ["version"]
+dependencies = []
+
+[project.optional-dependencies]
+arrow = ["arro3-core>=0.4.5"]
+
+[project.scripts]
+rustac = "rustac:main"
+
+[project.urls]
+Repository = "https://github.com/stac-utils/rustac-py"
+Documentation = "https://stac-utils.github.io/rustac-py"
+Issues = "https://github.com/stac-utils/rustac-py/issues"
+
+[tool.mypy]
+files = "tests/**/*.py"
+
+[[tool.mypy.overrides]]
+module = ["pyarrow.*", "geopandas.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = ["error"]
+
+[tool.ruff]
+exclude = [
+    "python/rustac/__init__.py",
+    "docs/examples/example_*.py",
+    "_obstore",
+]
+
+[dependency-groups]
+dev = [
+    "geopandas>=1.0.1",
+    "maturin>=1.7.4",
+    "maturin-import-hook>=0.2.0",
+    "mypy>=1.11.2",
+    "pandas>=2.2.3",
+    "pandas-stubs>=2.2.3.250308",
+    "pyarrow>=19.0.1",
+    "pystac[validation]>=1.11.0",
+    "pytest>=8.3.3",
+    "pytest-asyncio>=0.25.1",
+    "ruff>=0.6.9",
+    "stac-geoparquet>=0.6.0",
+]
+docs = [
+    "arro3-core>=0.4.5",
+    "contextily>=1.6.2",
+    "cql2>=0.3.7",
+    "duckdb>=1.3.0",
+    "griffe>=1.6.0",
+    "humanize>=4.12.1",
+    "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.7",
+    "jinja2>=3.1.4",
+    "mike>=2.1.3",
+    "mkdocs-jupyter>=0.25.1",
+    "mkdocs-material[imaging]>=9.5.45",
+    "mkdocstrings[python]>=0.27.0",
+    "obstore>=0.6.0",
+    "pystac-client>=0.8.5",
+    "tqdm>=4.67.1",
+]
+
+[tool.uv]
+default-groups = ["dev", "docs"]
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "**/*.rs" },
+]
+
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+python-source = "python"
+strip = true
+opt-level = "z"          # TODO compare with "s"
+lto = true
+codegen-units = 1
