@@ -1,0 +1,244 @@
+[project]
+name = "aiochainscan"
+version = "0.2.1"
+description = "Chainscan API async Python wrapper"
+authors = [
+    { name = "VaitaR", email = "andrey.shivalin@gmail.com" }
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "aiohttp>=3.4",
+    "asyncio-throttle>=1.0.1",
+    "aiohttp-retry>=2.8.3",
+    "pycryptodome",
+    "eth-abi",
+    "requests>=2.31.0",
+    "structlog>=23.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.1.2",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.0.0",
+    "pytest-benchmark>=4.0.0",
+    "pre-commit>=3.5.0",
+    "coveralls>=3.3.1",
+    "ruff==0.4.7",
+    "mypy",
+    "import-linter>=2.0.0",
+]
+fast = [
+    "maturin>=1.6,<2.0",
+]
+
+[project.scripts]
+aiochainscan = "aiochainscan.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/VaitaR/aiochainscan"
+Repository = "https://github.com/VaitaR/aiochainscan"
+Issues = "https://github.com/VaitaR/aiochainscan/issues"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "."
+]
+asyncio_mode = "auto"
+addopts = [
+  "-m",
+  "not benchmark and not slow",
+]
+markers = [
+    "benchmark: marks tests as benchmarks (deselect with '-m \"not benchmark\"')",
+    "slow: marks tests as slow (e.g. E2E tests, deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests requiring network access",
+]
+
+[tool.ruff]
+line-length = 99
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "B", "I", "SIM", "UP", "N", "C4"]
+ignore = [
+    "E501",  # Line too long (will be handled by formatter)
+]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.coverage.run]
+relative_files = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aiochainscan*"]
+exclude = ["tests*", "examples*"]
+
+[tool.setuptools.package-data]
+aiochainscan = ["py.typed", "*.pyi", "fastabi/Cargo.toml", "fastabi/**/*.rs"]
+
+[tool.poetry.group.dev.dependencies]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["aiochainscan"]
+plugins = []
+
+[tool.importlinter]
+root_package = "aiochainscan"
+
+[[tool.importlinter.contracts]]
+name = "Services do not import adapters"
+type = "forbidden"
+source_modules = [
+  "aiochainscan.services",
+]
+forbidden_modules = [
+  "aiochainscan.adapters",
+]
+
+[[tool.importlinter.contracts]]
+name = "Adapters do not import services"
+type = "forbidden"
+source_modules = [
+  "aiochainscan.adapters",
+]
+forbidden_modules = [
+  "aiochainscan.services",
+  "aiochainscan.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain isolated from infra"
+type = "forbidden"
+source_modules = [
+  "aiochainscan.domain",
+]
+forbidden_modules = [
+  "aiochainscan.adapters",
+  "aiochainscan.services",
+]
+
+[[tool.importlinter.contracts]]
+name = "Ports do not import adapters"
+type = "forbidden"
+source_modules = [
+  "aiochainscan.ports",
+]
+forbidden_modules = [
+  "aiochainscan.adapters",
+]
+
+[[tool.importlinter.contracts]]
+name = "Modules do not import core/network directly or services/adapters"
+type = "forbidden"
+source_modules = [
+  "aiochainscan.modules",
+]
+forbidden_modules = [
+  "aiochainscan.services",
+  "aiochainscan.adapters",
+  "aiochainscan.core",
+  "aiochainscan.network",
+]
+
+[[tool.importlinter.contracts]]
+name = "Services do not import core or network"
+type = "forbidden"
+source_modules = [
+  "aiochainscan.services",
+]
+forbidden_modules = [
+  "aiochainscan.core",
+  "aiochainscan.network",
+]
+
+[[tool.importlinter.contracts]]
+name = "Services do not import scanners"
+type = "forbidden"
+source_modules = [
+  "aiochainscan.services",
+]
+forbidden_modules = [
+  "aiochainscan.scanners",
+]
+
+[[tool.importlinter.contracts]]
+name = "Internal packages do not import modules"
+type = "forbidden"
+source_modules = [
+  "aiochainscan.domain",
+  "aiochainscan.services",
+  "aiochainscan.adapters",
+  "aiochainscan.ports",
+]
+forbidden_modules = [
+  "aiochainscan.modules",
+]
+
+[[tool.importlinter.contracts]]
+name = "Facade does not import modules (no back-edges)"
+type = "forbidden"
+source_modules = [
+  "aiochainscan",
+]
+forbidden_modules = [
+  "aiochainscan.modules",
+]
+
+[[tool.mypy.overrides]]
+module = [
+  "aiochainscan.modules.extra.*",
+]
+ignore_errors = false
+
+[[tool.mypy.overrides]]
+module = [
+  "aiochainscan.modules.transaction",
+  "aiochainscan.modules.logs",
+  "aiochainscan.modules.contract",
+  "aiochainscan.modules.token",
+  "aiochainscan.modules.stats",
+  "aiochainscan.modules.proxy",
+  "aiochainscan.modules.gas_tracker",
+ "aiochainscan.modules.block",
+ "aiochainscan.modules.account",
+ "aiochainscan.common",
+ "aiochainscan.network",
+ "aiochainscan.config",
+ "aiochainscan.decode",
+ "aiochainscan.scanners.*",
+]
+ignore_errors = false
+
+[[tool.mypy.overrides]]
+module = [
+  "aiochainscan.aiochainscan_fastabi",
+  "aiochainscan_fastabi",
+  "eth_abi.*",
+  "requests",
+  "structlog",
+]
+ignore_missing_imports = true
