@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OpenFinOps - AI/ML Cost Intelligence{% endblock %}</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0a0e27 0%, #16213e 50%, #0f3460 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+
+        /* Glassmorphism */
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-strong {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        /* Gradients */
+        .gradient-primary {
+            background: linear-gradient(135deg, #00d4aa 0%, #00a8ff 100%);
+        }
+
+        .gradient-success {
+            background: linear-gradient(135deg, #32cd32 0%, #00ff7f 100%);
+        }
+
+        .gradient-warning {
+            background: linear-gradient(135deg, #ffa500 0%, #ff6b6b 100%);
+        }
+
+        .gradient-info {
+            background: linear-gradient(135deg, #3742fa 0%, #a29bfe 100%);
+        }
+
+        /* Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 170, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(0, 212, 170, 0.6); }
+        }
+
+        .float-animation {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .glow-animation {
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 212, 170, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 212, 170, 0.8);
+        }
+
+        /* Status indicator */
+        .status-live {
+            position: relative;
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background-color: #32cd32;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(50, 205, 50, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(50, 205, 50, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(50, 205, 50, 0); }
+        }
+
+        /* Card hover effects */
+        .card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 212, 170, 0.3);
+        }
+    </style>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="text-white">
+    <!-- Navigation -->
+    <nav class="glass-strong sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <h1 class="text-2xl font-bold gradient-primary bg-clip-text text-transparent">
+                            <i class="fas fa-chart-line mr-2"></i>OpenFinOps
+                        </h1>
+                    </div>
+                    <div class="hidden md:block ml-10">
+                        <div class="flex items-baseline space-x-4">
+                            <a href="/" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition">
+                                <i class="fas fa-home mr-2"></i>Overview
+                            </a>
+                            <a href="/dashboard/cfo" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition">
+                                <i class="fas fa-chart-pie mr-2"></i>CFO
+                            </a>
+                            <a href="/dashboard/coo" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition">
+                                <i class="fas fa-cogs mr-2"></i>COO
+                            </a>
+                            <a href="/dashboard/infrastructure" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition">
+                                <i class="fas fa-server mr-2"></i>Infrastructure
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2 text-sm">
+                        <span class="status-live"></span>
+                        <span id="live-status">Live</span>
+                    </div>
+                    <div class="text-sm text-gray-300" id="last-update">
+                        Just now
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-12 py-8 glass">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-400 text-sm">
+            <p>OpenFinOps v0.1.5 - AI/ML Cost Intelligence Platform</p>
+            <p class="mt-2">Real-time FinOps monitoring with intelligent cost optimization</p>
+        </div>
+    </footer>
+
+    <!-- Base JavaScript -->
+    <script>
+        // Socket.IO connection
+        const socket = io('/live', {
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('connect', function() {
+            console.log('✅ Connected to OpenFinOps server');
+            document.getElementById('live-status').textContent = 'Live';
+            document.getElementById('live-status').classList.add('text-green-400');
+        });
+
+        socket.on('disconnect', function() {
+            console.log('❌ Disconnected from server');
+            document.getElementById('live-status').textContent = 'Disconnected';
+            document.getElementById('live-status').classList.remove('text-green-400');
+            document.getElementById('live-status').classList.add('text-red-400');
+        });
+
+        socket.on('connected', function(data) {
+            console.log('Server message:', data.message);
+        });
+
+        // Update timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            document.getElementById('last-update').textContent = `Updated ${timeString}`;
+        }
+
+        setInterval(updateTimestamp, 1000);
+    </script>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
