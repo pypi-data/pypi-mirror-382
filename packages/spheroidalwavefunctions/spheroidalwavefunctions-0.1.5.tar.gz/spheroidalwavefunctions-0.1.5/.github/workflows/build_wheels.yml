@@ -1,0 +1,71 @@
+name: Build wheels
+
+on: [push]
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # macos-13 is an intel runner, macos-14 is apple silicon
+        os: [ubuntu-latest, windows-latest, macos-14]
+        include: 
+            - os: ubuntu-latest
+              toolchain: {compiler: gcc, version: 13}
+            - os: windows-latest
+              toolchain: {compiler: gcc, version: 13}
+            - os: macos-14
+              toolchain: {compiler: gcc, version: 13}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: fortran-lang/setup-fortran@v1
+        id: setup-fortran
+        with:
+            compiler: ${{ matrix.toolchain.compiler }}
+            version: ${{ matrix.toolchain.version }}
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.1.1
+        with:
+          package-dir: .
+          output-dir: dist
+          config-file: "{package}/pyproject.toml"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          path: ./dist/*.whl
+
+  make_sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build sdist
+        run: pipx run build --sdist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-sdist
+          path: dist/*.tar.gz
+
+  pypi-publish:
+    name: Upload release to PyPI
+    needs: [build_wheels, make_sdist]
+    environment: pypi
+    permissions:
+      id-token: write
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')  # only publish on tag pushes
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
