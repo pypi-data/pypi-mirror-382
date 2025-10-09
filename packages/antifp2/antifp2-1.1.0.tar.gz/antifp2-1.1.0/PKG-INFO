@@ -1,0 +1,205 @@
+Metadata-Version: 2.4
+Name: antifp2
+Version: 1.1.0
+Summary: AntiFP2: A tool for prediction of Antifungal Proteins
+Home-page: https://github.com/patrik-ackerman/antifp2/
+Author: Pratik Shinde
+Author-email: pratiks@iiitd.ac.in
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: fair-esm
+Requires-Dist: huggingface-hub
+Requires-Dist: pandas
+Requires-Dist: torch
+Requires-Dist: biopython
+Requires-Dist: xgboost==3.0.4
+Requires-Dist: pfeature
+Requires-Dist: joblib
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# AntiFP2
+
+**AntiFP2** is a Python toolkit for predicting antifungal proteins using multiple approaches:
+
+* **ESM2** (fine-tuned language model)
+* **Machine Learning (PAAC features)**
+* **BLAST** (sequence similarity adjustment)
+* **MERCI** (motif adjustment)
+
+It provides both one-by-one protein prediction and batch processing.
+
+> ⚠️ Note: For genome or metagenome pipelines (requiring Prokka integration), please refer to the [GitHub repository](https://github.com/raghavagps/antifp2) or the [Docker version](https://hub.docker.com/repository/docker/pratik0297/antifp2/).
+
+---
+
+## 🚀 Features
+
+* Fine-tuned **ESM2** model for protein sequence prediction
+* Hybrid ML-based predictions using PAAC features
+* Post-prediction adjustments:
+
+  * **BLAST**: Sequence similarity to known antifungal/negative examples
+  * **MERCI**: Motif enrichment detection
+* One-by-one and batch prediction modes
+* Logging of rejected or invalid sequences
+
+---
+
+## 📦 Installation
+
+Install via PyPI:
+
+```bash
+pip install antifp2
+```
+
+> **Requires Python ≥ 3.12**.
+
+Ensure BLAST+ and MERCI binaries are properly configured if using BLAST/MERCI adjustments.
+
+---
+
+## 📁 Project Structure
+
+```
+antifp2/
+│
+├── antifp2.py               # Master script
+├── antifp2_esm2.py          # ESM2-only predictions
+├── antifp2_esm2_hybrid.py   # ESM2 + BLAST + MERCI hybrid predictions
+├── antifp2_ml_hybrid.py     # ML + BLAST + MERCI hybrid predictions
+├── blast_db/                # Preformatted BLAST database
+├── MERCI/                   # MERCI motif files
+├── envfile                  # Config file for BLAST/MERCI paths
+├── README.md
+└── setup.py
+```
+
+---
+
+## 🧭 Usage
+
+All pipelines are launched using the **master script**:
+
+```bash
+python3 antifp2.py --method <method-name> [options]
+```
+
+### Available Methods
+
+| Method Name   | Description                                  |
+| ------------- | -------------------------------------------- |
+| `esm2`        | ESM2-only predictions (protein sequences)    |
+| `esm2-hybrid` | ESM2 + BLAST + MERCI hybrid predictions      |
+| `ml-hybrid`   | ML (PAAC) + BLAST + MERCI hybrid predictions |
+
+> For genome/metagenome pipelines using Prokka, see GitHub or Docker version.
+
+---
+
+### 1️⃣ ESM2 Only — `esm2`
+
+Predict antifungal proteins using the fine-tuned **ESM2** model.
+
+#### Arguments:
+
+| Flag           | Description                                |
+| -------------- | ------------------------------------------ |
+| `--input`      | Input protein FASTA file                   |
+| `--output`     | Path to output CSV file                    |
+| `--threshold`  | Optional probability cutoff (default: 0.5) |
+| `--no-cleanup` | Optional: keep intermediate files          |
+
+#### Example:
+
+```bash
+python3 antifp2.py --method esm2 --input proteins.fasta --output esm2_predictions.csv
+```
+
+---
+
+### 2️⃣ ESM2 + BLAST + MERCI — `esm2-hybrid`
+
+Hybrid prediction combining **ESM2**, **BLAST**, and **MERCI** adjustments.
+
+#### Arguments:
+
+| Flag           | Description                                |
+| -------------- | ------------------------------------------ |
+| `--input`      | Input protein FASTA file                   |
+| `--outdir`     | Output directory                           |
+| `--threshold`  | Optional probability cutoff (default: 0.5) |
+| `--envfile`    | Path to `envfile` with BLAST/MERCI paths   |
+| `--no-cleanup` | Optional: keep intermediate files          |
+
+#### Example:
+
+```bash
+python3 antifp2.py --method esm2-hybrid --input proteins.fasta --outdir esm2_hybrid_results
+```
+
+---
+
+### 3️⃣ ML Hybrid — `ml-hybrid`
+
+Predict antifungal proteins using **ML (PAAC features)** with BLAST and MERCI adjustments.
+
+#### Arguments:
+
+| Flag           | Description                                |
+| -------------- | ------------------------------------------ |
+| `--input`      | Input protein FASTA file                   |
+| `--outdir`     | Output directory                           |
+| `--threshold`  | Optional probability cutoff (default: 0.6) |
+| `--envfile`    | Path to `envfile` with BLAST/MERCI paths   |
+| `--no-cleanup` | Optional: keep intermediate files          |
+
+#### Example:
+
+```bash
+python3 antifp2.py --method ml-hybrid --input proteins.fasta --outdir ml_hybrid_results
+```
+
+---
+
+## 📂 Outputs
+
+| File / Directory            | Description                              |
+| --------------------------- | ---------------------------------------- |
+| `*_predictions.csv`         | Main predictions (probabilities, labels) |
+| `*_antifp2.fasta`           | Predicted antifungal protein sequences   |
+| `blast_out.csv`, `*.locate` | Intermediate BLAST/MERCI results         |
+| `rejected_log.txt`          | Invalid or rejected sequences log        |
+
+---
+
+
+
+## 💾 Model Files
+
+ESM2 models are automatically loaded from the package or can be downloaded from Hugging Face.
+
+---
+
+## ✅ Citation
+
+If you use **AntiFP2** in your research, please cite it appropriately.
+
+---
+
+## 👨‍💻 Support
+
+* GitHub: [https://github.com/raghavagps/antifp2](https://github.com/raghavagps/antifp2)
+* Email: [raghava@iiitd.ac.in](mailto:raghava@iiitd.ac.in)
+
+---
+
