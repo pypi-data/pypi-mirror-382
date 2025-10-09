@@ -1,0 +1,75 @@
+base_paths:
+  # Base path of public configuration.
+  public: /path/to/public-config-and-templates-root
+  # [optional] Base path of private configuration.
+  private: /path/to/private-config-and-templates-root
+  # Base path for the output files generated on the 'generate' action. The directory will be cleaned from all '*.out' files.
+  output: /path/where/to/generate/output/files
+
+# Netbox configuration [optional]
+netbox:
+  # Netbox URL
+  url: https://netbox.example.com:443
+  # Netbox token
+  token: token_value
+  # Inventory parmeters. [optional]
+  # If defined the list of devices will be gathered from Netbox, not from the config file. In this case the
+  # configuration file is used only to populate the device configuration data to be used when computing the generated
+  # configuration for the device.
+  inventory:
+    # Device roles to include in the selection. Values must match Netbox's slug values.
+    device_roles:
+      - roleA
+      - roleB
+    # Device statuses to include in the selection. Values must match Netbox's statuses.
+    device_statuses:
+      - Active
+      - Staged
+  # Custom external plugin to mangle Netbox data. [optional]
+  # An optional custom external plugin in the form of a Python module, that will be dynamically loaded, if
+  # configured, to allow to make custom mangling of the Netbox data.
+  # The module must be in the Python PATH and define a NetboxDeviceDataPlugin class that inherits from
+  # homer.netbox.BaseNetboxDeviceData.
+  plugin: external.module
+
+# Capirca configuration [optional]
+capirca:
+  disabled: true # Optional - disable Capirca acl generation, overriding device definitions (default=false)
+  netbox_definitons: false # Optional - use Netbox as the source for Capirca network definitions (default=true)
+
+# Transpors configuration. [optional]
+transports:
+  # Username to use for the SSH [optional] or JSON-RPC [mandatory] connection, default to system user for SSH.
+  username: MrFoobar
+  password: secret  # Password to use for the JSON-RPC connection. [madatory for JSON-RPC, unused for SSH]
+  ssh_config: ~/.ssh/config.homer  # Path to a dedicated SSH config for Homer. [optional]
+  # The global timeout in seconds to use for all devices. Defaults to 30s [optional]
+  # It can be overriden per device in the devices.yaml configuration file.
+  timeout: 30
+  jsonrpc_port: 443 # Port to use for the JSON-RPC connection [optional]
+  json_rpc_output: text  # 'json', 'yaml', 'text' (native), controls diff format for JSON-RPC devices [optional]
+  # JunOS specific configuration. [optional]
+  # See: https://junos-pyez.readthedocs.io/en/2.3.0/jnpr.junos.utils.html#jnpr.junos.utils.config.Config.load
+  junos:
+    ignore_warning:
+      - statement must contain additional statements
+      - statement has no contents
+      - config will be applied to ports
+      - Delete all fabric member interfaces on node
+
+
+# Renderer and transport configuration.
+# Each element in the list under a renderer/transport type is a dict of attributes from
+# the device metadata to match on, for instance manufacturer, type, role etc
+selectors:
+  renderer:  # Controls which renderer is used, valid entries are 'python' and 'jinja'
+    python:  # Devices to generate the config using Python modules
+      - manufacturer: nokia
+        type: 7220-ixr-d2l
+    jinja:  # Optional, devices to generate the config using Jinja2 templates (this is default)
+      - manufacturer: juniper
+  transport:  # Controls which transport module is used, valid entries are 'json_rpc' and 'junos'
+    json_rpc:  # Devices to use the JSON-RPC HTTP API to interact with
+      - manufacturer: nokia
+    junos:  # Optional, devices to use the Juniper PyEZ library to interact with (this is default)
+      - manufacturer: juniper

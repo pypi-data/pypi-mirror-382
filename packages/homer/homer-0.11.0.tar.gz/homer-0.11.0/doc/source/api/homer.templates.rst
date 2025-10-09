@@ -1,0 +1,4 @@
+templates
+=========
+
+.. automodule:: homer.templates

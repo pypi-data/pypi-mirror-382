@@ -1,0 +1,581 @@
+Homer Changelog
+---------------
+
+`v0.11.0`_ (2025-10-08)
+^^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+Support for JSON-RPC configuration of Nokia devices.
+
+`v0.10.2`_ (2025-07-24)
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Minor improvements
+""""""""""""""""""
+
+* capirca.py: handle situation if netbox script has never run more gracefully.
+
+Bug fixes
+"""""""""
+
+* transports.junos: pass ignore_warning strings when running diff() and rollback() RPCs, which is needed
+  to handle changes in chassis port speed configuration.
+
+Miscellanea
+"""""""""""
+
+* setup.py: pin prospector to ensure it works in CI.
+
+`v0.10.1`_ (2025-05-12)
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Bug fixes
+"""""""""
+
+* setup.py: include the graphql query files that were not automatically included.
+
+`v0.10.0`_ (2025-05-12)
+^^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+* netbox: add a ``fetch_device_interfaces()`` method to ``BaseNetboxDeviceData`` to get all the device interfaces
+  using GraphQL queries. It works both with virtual chassis or plain devices.
+
+Miscellanea
+"""""""""""
+
+* docstrings: remove types from docstrings, they are now automatically detected from the type hints in the signatures.
+
+`v0.9.0`_ (2025-04-14)
+^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+* commit: allow to approve/reject diffs globally (`T250415`_):
+
+  * Add a ``diff`` module to manage device configuration diffs.
+  * Keep the implementation simple for now with just a singleton class ``DiffStore`` to be used as storage for the
+    configuration diffs approved or rejected for all next devices.
+  * Add an ``ApprovalStatus`` enum class to the ``interactive`` module to manage all the possible states a diff
+    approval can get.
+  * Make the ``ask_approval()`` method return the given choice.
+  * In the junos transport use the new features to allow to approve or reject a given configuration diff for the
+    current device only or for the current device and all future devices that will present the same diff in the
+    same Homer run.
+
+Minor improvements
+""""""""""""""""""
+
+* homer: move ``NetboxData`` initialization to ``__init__()`` given that is required for all operations if Netbox is
+  used.
+* capirca: change the ``CapircaGenerate`` constructor signature to be device-independent so that it can be
+  instantiated only once per homer run using the same script result from Netbox avoiding to get it for
+  each device. Move the device specific data to the ``generate_acls()`` method as it was already the only place
+  where it was used.
+* commit: refactor asking for approval moving the logic to ask the user for approval to commit a given device
+  configuration diff from a callbak to a dedicated interactive module. Simplify the signature of the transport commit
+  method as a result.
+
+Miscellanea
+"""""""""""
+
+* tox.ini: remove optimization for tox <4
+* doc: update documentation configuration to use sphinx type hints to automatically get the type hints from the
+  signatures and not from the docstrings. Fine tune the documentation configuration.
+
+`v0.8.0`_ (2025-04-02)
+^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+* netbox: refactor support for GraphQL queries, exposing them also to plugins, fetching the GQL queries from file.
+
+Miscellanea
+"""""""""""
+
+* tests: fix newly reported issues.
+
+`v0.7.0`_ (2024-07-22)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Breaking change
+"""""""""""""""
+
+* Netbox: Add support for Netbox 4. (`T336275`_)
+
+  * Not compatible with Netbox < 3.3.
+  * Limited support for cables with multiple terminations per sides:
+    the first termination is the only one considered.
+
+Miscellanea
+"""""""""""
+
+* Tox: Add Python 3.12 support.
+
+`v0.6.6`_ (2024-06-18)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Minor improvements
+""""""""""""""""""
+
+* Netbox: include vlans defined on IRB int in returned vlans for device.
+
+`v0.6.5`_ (2023-12-18)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Minor improvements
+""""""""""""""""""
+
+* Netbox: retry on failed API calls
+
+`v0.6.4`_ (2023-10-03)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Minor improvements
+""""""""""""""""""
+
+* transports.junos: Add more info on commit errors.
+
+Miscellanea
+"""""""""""
+
+* setup.py: remove version pin for paramiko.
+* tox.ini: use sphinx-build instead of setup.py.
+
+`v0.6.3`_ (2023-07-18)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Minor improvements
+""""""""""""""""""
+
+* NetboxInventory: use GraphQL for performance improvements (`T310577`_).
+* Replace Capirca with Aerleon (`T337082`_).
+
+Miscellanea
+"""""""""""
+
+* Add Python 3.11 support.
+* tox.ini: make it compatible with tox 4.x.
+* tests: check also a special syntax for quotes.
+* Ignore .vscode directory.
+
+
+`v0.6.2`_ (2023-04-05)
+^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+* transports: Allow different SSH port than default 22.
+
+Miscellanea
+"""""""""""
+
+* Remove support for Python 3.7 and 3.8.
+
+`v0.6.1`_ (2022-09-14)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Bug fixes
+"""""""""
+
+* homer: fix device configuration merge when using both file configuration and Netbox inventory.
+
+Miscellanea
+"""""""""""
+
+* cli: add ``--version`` command line argument.
+
+`v0.6.0`_ (2022-09-13)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Minor improvements
+""""""""""""""""""
+
+* dependencies: bump ``pynetbox`` to ``~= 6.6`` to enable the use of more recent features (`T310745`_).
+* netbox: enable pynetbox threading (`T311486`_).
+
+Bug fixes
+"""""""""
+
+* transports.junos: fix upstream regression in the JunOS Python library ``py-junos-eznc`` that requires to always set
+  the ``conn_open_timeout`` parameter when creating a new ``Device`` instance.
+
+Miscellanea
+"""""""""""
+
+* Add WMF-specific configuration file to be used by the script that makes new releases.
+* flake8: move all flake8 config to ``setup.cfg`` as the configuration is no longer read from multiple files.
+* tox: add the ``--no-external-config`` flag to prospector in order to ensure that the provided configuration is the
+  only one used independenly of existing alternative configurations locally.
+
+`v0.5.1`_ (2022-07-20)
+^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+* netbox: _get_circuits: add patch panel support.
+
+  * When an interface is connected to a patch panel, traverse it to expose the "real" z side.
+  * Requires Netbox 3.1 minimum.
+
+Miscellanea
+"""""""""""
+
+* Add Python 3.10 support.
+* config: fix type hints for YAML callables.
+* doc: set default language.
+
+`v0.5.0`_ (2022-05-26)
+^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+* transports: allow to set a global timeout in the configuration file for all transports related operations.
+* devices: allow to pass additional metadata
+
+  * When using Netbox as inventory for the device list, the device metadata comes from Netbox and any metadata present
+    in the YAML configuration file ``devices.yaml`` is discarded.
+  * Fix this behaviour loading any additional metadata present in the ``devices.yaml`` file for each device and merge
+    it with the metadata generated from Netbox data.
+  * If a key is present in both sources, the Netbox data has precedence and the data from the ``devices.yaml`` file is
+    silently discarded.
+
+* transports: allow to override the global timeout on a per-device basis through the ``devices.yaml`` file passing
+  additional metadata to the host using the ``timeout`` key.
+
+`v0.4.1`_ (2022-04-26)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Minor improvements
+""""""""""""""""""
+
+* homer: expand user paths when reading ``ssh_config`` so that ``~/some_config`` is a supported use case.
+* capirca: catch also requests exceptions that are not catched by pynetbox.
+
+Miscellanea
+"""""""""""
+
+* prospector: update config for latest version.
+* setup.py: add missing types for requests.
+
+`v0.4.0`_ (2022-02-15)
+^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+* netbox: inject in the device metadata also the device status from Netbox so that it can be used to query
+  (i.e. status:active).
+
+Bug fixes
+"""""""""
+
+* transports.junos: catch another timeout exception (``jnpr.junos.exception.RpcTimeoutError``) on close that was raised
+  in some real life usage.
+
+`v0.3.0`_ (2022-01-19)
+^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+* Added option to disable Capirca ACL generation completely
+
+Bug fixes
+"""""""""
+
+* Capirca: disable shade check
+* Force paramiko to 2.8.1
+
+Miscellanea
+"""""""""""
+
+* Bump Capirca to 2.0.4
+
+`v0.2.9`_ (2021-11-09)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Bug fixes
+"""""""""
+
+* transports: catch connection error:
+
+  * To prevent that a connection error on one device fails the entire run for all devices, catch a new
+    ``HomerConnectError`` when executing the action on the devices.
+  * JunOS transport: raise ``HomerConnectError`` when failing to connect to the device.
+  * Exceptions: add a new ``HomerConnectError`` exception class.
+  * Fix typo in retry log message on timeout.
+
+Miscellanea
+"""""""""""
+
+* Add Python 3.9 support.
+* setup.py: include type hints for dependencies.
+* pylint: fixed newly reported issues.
+
+`v0.2.8`_ (2021-04-29)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Bug fixes
+"""""""""
+
+* setup.py: limit max version of pynetbox that in release 6.0.0 introduced some breaking changes in the API.
+* doc: fix documentation generation that prevented from properly including the auto-generated documentation.
+
+`v0.2.7`_ (2021-04-20)
+^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+* Add Capirca support.
+
+  * For examples on how to use it see `gerrit/663535`_ and Homer's `Capirca documentation`_ (`T273865`_).
+
+Bug fixes
+"""""""""
+
+* tests: fix pip backtracking moving prospector to its own environment in tox.
+* tests: add missing tests for the circuits and vlan capabilities in the Netbox module.
+* tests: add missing tests for the device data inventory.
+* tests: fix typo in mocked object.
+* tests: fix deprecated pytest CLI argument.
+
+`v0.2.6`_ (2021-01-07)
+^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+* junos: colorize configuration diff (`T260769`_).
+* netbox: add device's inventory support (`T257392`_).
+* netbox: add per device ``_get_vlans()``. Get all the intefaces of a device and generate a dict with all the vlans
+  configured on those interfaces.
+
+Minor improvements
+""""""""""""""""""
+
+* junos: catch exceptions in rollbacks. The rollback operation could also fail, catch the error and log it but do not
+  make the whole run to fail.
+
+Miscellanea
+"""""""""""
+
+* dependency: remove temporary upper limit for test dependency prospector, not needed anymore.
+* tox: remove ``--skip B322`` from Bandit config, not supported anymore.
+* type hints: mark the package as type hinted, making it PEP 561 compatible.
+
+`v0.2.5`_ (2020-08-13)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Minor improvements
+""""""""""""""""""
+
+* netbox: make Netbox errors surface through Jinja:
+
+  * When an error in the calls to Netbox API occurs it currently gets swallowed by Jinja behing an ``UndefinedError``.
+  * Make it explicitely raise an ``HomerError`` that gets correctly reported from Jinja showing the original traceback,
+    needed for debug.
+
+* templates: add support for private templates:
+
+  * Tell Jinja2 to load templates also from the private path if it's set, to enable the support for private templates
+    or subtemplates.
+
+* netbox: add circuits support:
+
+  * Pulls all the cables terminating on the target device to then find the circuits attached to those cables.
+
+Miscellanea
+"""""""""""
+* setup.py: add upper limit to prospector version
+
+
+`v0.2.4`_ (2020-06-22)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Miscellanea
+"""""""""""
+
+* Packaging: define a standard ``homer_plugins`` name for the external plugins and explicitely exclude them from the
+  PyPI packaging.
+* Removed support for Python version 3.5 and 3.6.
+
+`v0.2.3`_ (2020-06-11)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Minor improvements
+""""""""""""""""""
+
+* Improve error catching (`T253795`_).
+
+  * For the diff action catch all the errors directly in the transport in order to return a consistent success and
+    diff result for each device, skipping as a result those with failure. In case of failure return ``None`` so that
+    it can be distinguished from an empty diff and reported as such both in logging and in the output.
+  * For the commit action let the exceptions raise in the transport and be catched and logged in the main ``Homer``
+    class with the same effective result that any failing device is skipped without interrupting the whole run.
+  * In both cases log also the traceback when the debug logging is enabled.
+
+`v0.2.2`_ (2020-05-06)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Bug Fixes
+"""""""""
+
+* netbox: adapt to new Netbox API
+
+  * Netbox API starting with Netbox 2.8.0 have removed the choices API endpoint. Adapt the handling of the device
+    status accordingly.
+
+
+`v0.2.1`_ (2020-04-30)
+^^^^^^^^^^^^^^^^^^^^^^
+
+Minor improvements
+""""""""""""""""""
+
+* Add Python 3.8 support
+* transports.junos: do not commit check on empty diff:
+
+  * When performing a commit check, do not actually run the ``commit_check`` on the device if there is no diff.
+  * In all cases perform a rollback, even on empty diff.
+
+`v0.2.0`_ (2020-04-06)
+^^^^^^^^^^^^^^^^^^^^^^
+
+New features
+""""""""""""
+
+* Handle commit abort separately (`T244362`_).
+
+  * Introduce a new ``HomerAbortError`` exception to specifically handle cases in which the user explicitely aborted
+    a write operation.
+  * In the commit callback raise an ``HomerAbortError`` exception when the user abort the commit or reach the limit of
+    invalid replies.
+
+* transports.junos: retry when a timeout occurs during commits (`T244363`_).
+* transports.junos: handle timeouts separately (`T244363`_).
+
+  * Handle the ``RpcTimeoutError`` junos exception separately to avoid to have a full stacktrace in the logs as it's a
+    normal failure scenario.
+  * Handle the ``TimeoutExpiredError`` ncclient exception separately to avoid failures when calling ``close()``.
+
+* allow overriding the ``ssh_config`` path in homer's config.
+* plugins: initial implementation for Netbox data.
+
+  * Allow to specify via configuration a Python module to load as a plugin for the Netbox data gathering.
+  * When configured the plugin class is dynamically loaded and exposed to the templates as netbox.device_plugin.
+  * It is basically the same implementation of ``NetboxDeviceData`` but allows for any specific selection of data from
+    Netbox that is not generic enough to be included in Homer itself.
+
+* commit: do not ``commit_check`` on initial empty diff.
+
+  * As a consequence of commit ``1edb7c2`` if a device have an empty diff and a commit is run on it, it will run a
+    ``commit_check`` anyway. Avoid this situation skipping the whole operation if at the first attempt the diff is
+    empty.
+  * In case of enough timeouts that don't allow Homer to complete the commit operation within the same run, the
+    automatic rollback should be waited before retrying, otherwise the device will just be skipped.
+  * To achieve this, passing the attempt number to all the operation callbacks, also if it's currently only used in
+    the commit one to keep the same interface for all of them.
+
+* diff: allow to omit the actual diff.
+
+  * Add the ``-o/--omit-diff`` option to the ``diff`` sub-command to allow to omit the actual diff for security reasons
+    if the diff results will be used for monitoring/alarming purposes, as the diff might contain sensitive data.
+
+* diff: use different exit code if there is a diff (`T249224`_).
+
+  * To allow to run automatic checks on outstanding diffs between the devices running configuration and the one defined
+    in Homer's config and templates, make the diff command to return a different exit code when successfull but there
+    is any diff.
+  * In case of failure the failure exit code will prevail.
+
+* netbox: silently skip devices without platform.
+
+  * Some devices might not be reachable by default because not managed. Allow to more silently skip those (debug level
+    logging only) if they are missing both the FQDN and the Platform in Netbox.
+
+Minor improvements
+""""""""""""""""""
+
+* Sort deviced by FQDN
+* netbox: skip virtual chassis devices without a domain field set, as they would not be reachable.
+
+Miscellanea
+"""""""""""
+
+* examples: add comments to example config
+* config: complete test coverage
+* doc: fix example ``config.yaml`` indentation
+* gitignore: add ``/plugins`` to gitignore to be able to link a plugin directory from other locations in a local
+  checkout.
+
+`v0.1.1`_ (2019-12-17)
+^^^^^^^^^^^^^^^^^^^^^^
+
+* Make the transport username configurable
+
+
+`v0.1.0`_ (2019-12-17)
+^^^^^^^^^^^^^^^^^^^^^^
+
+* First release (`T228388`_).
+
+.. _`Capirca documentation`: https://wikitech.wikimedia.org/wiki/Homer#Capirca_(ACL_generation)
+
+.. _`gerrit/663535`: https://gerrit.wikimedia.org/r/c/operations/homer/public/+/663535
+
+.. _`T228388`: https://phabricator.wikimedia.org/T228388
+.. _`T244362`: https://phabricator.wikimedia.org/T244362
+.. _`T244363`: https://phabricator.wikimedia.org/T244363
+.. _`T249224`: https://phabricator.wikimedia.org/T249224
+.. _`T250415`: https://phabricator.wikimedia.org/T250415
+.. _`T253795`: https://phabricator.wikimedia.org/T253795
+.. _`T257392`: https://phabricator.wikimedia.org/T257392
+.. _`T260769`: https://phabricator.wikimedia.org/T260769
+.. _`T273865`: https://phabricator.wikimedia.org/T273865
+.. _`T310577`: https://phabricator.wikimedia.org/T310577
+.. _`T310745`: https://phabricator.wikimedia.org/T310745
+.. _`T311486`: https://phabricator.wikimedia.org/T311486
+.. _`T336275`: https://phabricator.wikimedia.org/T336275
+.. _`T337082`: https://phabricator.wikimedia.org/T337082
+
+.. _`v0.1.0`: https://github.com/wikimedia/operations-software-homer/releases/tag/v0.1.0
+.. _`v0.1.1`: https://github.com/wikimedia/operations-software-homer/releases/tag/v0.1.1
+.. _`v0.2.0`: https://github.com/wikimedia/operations-software-homer/releases/tag/v0.2.0
+.. _`v0.2.1`: https://github.com/wikimedia/homer/releases/tag/v0.2.1
+.. _`v0.2.2`: https://github.com/wikimedia/homer/releases/tag/v0.2.2
+.. _`v0.2.3`: https://github.com/wikimedia/homer/releases/tag/v0.2.3
+.. _`v0.2.4`: https://github.com/wikimedia/homer/releases/tag/v0.2.4
+.. _`v0.2.5`: https://github.com/wikimedia/homer/releases/tag/v0.2.5
+.. _`v0.2.6`: https://github.com/wikimedia/homer/releases/tag/v0.2.6
+.. _`v0.2.7`: https://github.com/wikimedia/homer/releases/tag/v0.2.7
+.. _`v0.2.8`: https://github.com/wikimedia/homer/releases/tag/v0.2.8
+.. _`v0.2.9`: https://github.com/wikimedia/homer/releases/tag/v0.2.9
+.. _`v0.3.0`: https://github.com/wikimedia/homer/releases/tag/v0.3.0
+.. _`v0.4.0`: https://github.com/wikimedia/homer/releases/tag/v0.4.0
+.. _`v0.4.1`: https://github.com/wikimedia/homer/releases/tag/v0.4.1
+.. _`v0.5.0`: https://github.com/wikimedia/homer/releases/tag/v0.5.0
+.. _`v0.5.1`: https://github.com/wikimedia/homer/releases/tag/v0.5.1
+.. _`v0.6.0`: https://github.com/wikimedia/homer/releases/tag/v0.6.0
+.. _`v0.6.1`: https://github.com/wikimedia/homer/releases/tag/v0.6.1
+.. _`v0.6.2`: https://github.com/wikimedia/homer/releases/tag/v0.6.2
+.. _`v0.6.3`: https://github.com/wikimedia/homer/releases/tag/v0.6.3
+.. _`v0.6.4`: https://github.com/wikimedia/homer/releases/tag/v0.6.4
+.. _`v0.6.5`: https://github.com/wikimedia/homer/releases/tag/v0.6.5
+.. _`v0.6.6`: https://github.com/wikimedia/homer/releases/tag/v0.6.6
+.. _`v0.7.0`: https://github.com/wikimedia/homer/releases/tag/v0.7.0
+.. _`v0.8.0`: https://github.com/wikimedia/homer/releases/tag/v0.8.0
+.. _`v0.9.0`: https://github.com/wikimedia/homer/releases/tag/v0.9.0
+.. _`v0.10.0`: https://github.com/wikimedia/homer/releases/tag/v0.10.0
+.. _`v0.10.1`: https://github.com/wikimedia/homer/releases/tag/v0.10.1
+.. _`v0.10.2`: https://github.com/wikimedia/homer/releases/tag/v0.10.2
+.. _`v0.11.0`: https://github.com/wikimedia/homer/releases/tag/v0.11.0
