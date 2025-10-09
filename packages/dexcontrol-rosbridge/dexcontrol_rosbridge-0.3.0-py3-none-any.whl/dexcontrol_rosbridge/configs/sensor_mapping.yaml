@@ -1,0 +1,108 @@
+# ROS2 Plugin Sensor Configuration
+# This file defines the mapping between Zenoh topics and ROS2 topics
+# for automatic sensor data republishing.
+
+# Head camera configuration (ZED stereo camera)
+head_camera:
+  enable: true  # Enable head camera republishing
+
+  # QoS: Uses sensor data profile for optimal real-time streaming
+
+  # Compression settings for efficient bandwidth usage
+  # Set compressed: true to publish CompressedImage messages (faster, less CPU/bandwidth)
+  # Set compressed: false to publish raw Image messages (compatible with more nodes)
+  compressed: true
+  compression_format: "jpeg"  # RGB format: "jpeg" or "png". Depth ALWAYS uses "png" (forced for data integrity)
+
+  streams:
+    left_rgb:
+      enable: true
+      zenoh_topic: "camera/head/left_rgb"
+      ros2_topic: "/head_camera/left/image"
+      frame_id: "head_camera_left_link"
+      queue_size: 10
+
+    right_rgb:
+      enable: true
+      zenoh_topic: "camera/head/right_rgb"
+      ros2_topic: "/head_camera/right/image"
+      frame_id: "head_camera_right_link"
+      queue_size: 10
+
+    depth:
+      enable: true
+      zenoh_topic: "camera/head/depth"
+      ros2_topic: "/head_camera/depth/image"
+      frame_id: "head_camera_depth_link"
+      queue_size: 10
+
+  fps_tracking:
+    enable: true  # Enable FPS tracking for performance monitoring
+    log_interval: 200  # Log every N messages
+
+# Head IMU configuration
+head_imu:
+  enable: true  # Disabled by default - enable if needed
+
+  # QoS: Uses sensor data profile for optimal real-time streaming
+
+  zenoh_topic: "imu/head_camera"
+  ros2_topic: "/head_camera/head_imu"
+  frame_id: "head_imu_link"
+  queue_size: 10  # Note: queue_size is managed by sensor data QoS profile
+  fps_tracking:
+    enable: false
+    log_interval: 100
+
+# Base cameras configuration (RGB cameras on robot base)
+base_cameras:
+  enable: false  # Disabled by default - enable if needed
+  streams:
+    front:
+      enable: false
+      zenoh_topic: "camera/base/front/rgb"
+      ros2_topic: "/base_camera/front/image"
+      frame_id: "base_camera_front_link"
+      queue_size: 10
+
+    left:
+      enable: false
+      zenoh_topic: "camera/base/left/rgb"
+      ros2_topic: "/base_camera/left/image"
+      frame_id: "base_camera_left_link"
+      queue_size: 10
+
+    right:
+      enable: false
+      zenoh_topic: "camera/base/right/rgb"
+      ros2_topic: "/base_camera/right/image"
+      frame_id: "base_camera_right_link"
+      queue_size: 10
+
+    back:
+      enable: false
+      zenoh_topic: "camera/base/back/rgb"
+      ros2_topic: "/base_camera/back/image"
+      frame_id: "base_camera_back_link"
+      queue_size: 10
+
+  fps_tracking:
+    enable: false
+    log_interval: 100
+
+# Additional sensor configurations can be added here
+# Examples:
+#
+# base_imu:
+#   enable: false
+#   zenoh_topic: "imu/base"
+#   ros2_topic: "/base_imu"
+#   frame_id: "base_imu_link"
+#   queue_size: 10
+#
+# lidar:
+#   enable: false
+#   zenoh_topic: "lidar/scan"
+#   ros2_topic: "/scan"
+#   frame_id: "lidar_link"
+#   queue_size: 10

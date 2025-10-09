@@ -1,0 +1,173 @@
+Metadata-Version: 2.4
+Name: dexcontrol-rosbridge
+Version: 0.3.0
+Summary: A Python bridge for ROS2 sensor data republishing with Zenoh communication
+Project-URL: Homepage, https://github.com/dexmate-ai/dexcontrol-rosbridge
+Project-URL: Repository, https://github.com/dexmate-ai/dexcontrol-rosbridge
+Project-URL: Issues, https://github.com/dexmate-ai/dexcontrol-rosbridge/issues
+Author-email: Guofei Chen <contact@dexmate.ai>
+License: AGPL-3.0
+License-File: LICENSE
+Keywords: bridge,robotics,ros2,sensors,zenoh
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: GNU Affero General Public License v3
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering
+Requires-Python: >=3.10
+Requires-Dist: dexcontrol>=0.3.2
+Requires-Dist: eclipse-zenoh>=0.11.0
+Requires-Dist: loguru>=0.7.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: tyro
+Description-Content-Type: text/markdown
+
+# DexROSBridge
+
+A Python bridge for republishing sensor data between Zenoh and ROS2 networks when using Dexmate Robots.
+
+## Installation
+
+### Prerequisites
+
+- Ubuntu 22.04 or 24.04
+- Python 3.10+
+- ROS2 (Humble or Jazzy)
+- [dexcontrol](https://github.com/dexmate-ai/dexcontrol) library installed and configured
+
+**Deployment Flexibility:**
+
+This package can run on either:
+- **Local development machine** (recommended for development and testing)
+- **Jetson onboard computer**
+
+As long as `dexcontrol` can connect to the robot and Zenoh network, you can run this ROS bridge and other ROS applications on your local dev machine instead of the robot's Jetson.
+
+**Note:**
+We recommend using robostack and micromamba for the ROS2 and Python environments instead of the system-level ROS2 (at `/opt/ros`). [Please follow the instructions here](https://robostack.github.io/GettingStarted.html) to create a micromamba environment with ROS2 inside.
+
+If you have ROS2 installed on your system (i.e., at `/opt/ros/{ROS_DISTRO}`), please DO NOT source it before activating the micromamba environment to avoid environment conflicts. The keys to successful communication between your system ROS2 and the mamba ROS2 are:
+
+1. Make sure to use the same ROS2 distribution. (e.g., communication between Jazzy and Humble is problematic)
+2. Make sure to use the same RMW_IMPLEMENTATION (by default it's the same)
+
+### Install from source
+
+```bash
+# Activate your micromamba environment with ROS2 installed first
+# micromamba activate ros_env
+pip install dexcontrol_rosbridge
+
+# Or install from source code below
+# git clone https://github.com/dexmate-ai/dexcontrol-rosbridge.git
+# pip install -e ./dexcontrol-rosbridge/
+```
+
+## Usage
+
+### Re-publish sensor streams from Zenoh topics
+
+First, make sure you set the correct robot name. This is the prefix for Zenoh topics. You can access the robot name on your robot's onboard computer by running `echo $ROBOT_NAME`. Also ensure that the corresponding sensors (e.g., `head_camera` or `lidar`) have been started using `dexsensor launch --sensor`.
+
+```bash
+export ROBOT_NAME=[...]
+```
+
+The repository provides a unified script that handles sensor types through command-line arguments:
+
+```bash
+# Publish head cameras and IMU
+python scripts/republish_sensors.py --sensors head
+
+# Publish LIDAR only
+python scripts/republish_sensors.py --sensors lidar
+
+# Publish LIDAR and chassis IMU together
+python scripts/republish_sensors.py --sensors lidar chassis_imu
+```
+
+**Available sensor groups:**
+- `head` - Head cameras (left/right RGB) + Head IMU
+- `lidar` - Base LIDAR sensor (PointCloud2)
+- `chassis_imu` - Chassis IMU sensor (publish only when explicitly requested)
+- `wrist` - Wrist cameras (left/right RGB for manipulation, if present)
+- `all` - Enable all available sensors
+
+### Wheel odometry
+Run:
+```bash
+python scripts/publish_wheel_odometry.py
+```
+
+This will publish the wheel odometry using the differential vehicle model on Vega. The published topics are:
+
+```
+/odom # the wheel odometry
+/left_wheel_velocity
+/right_wheel_velocity
+```
+
+## Configuration
+
+Sensor configurations can be customized in `src/dexcontrol_rosbridge/sensor_configs.py`:
+
+```python
+def get_head_sensor_configs():
+    camera_configs = [
+        {
+            "name": "head_left_rgb",
+            "zenoh_topic": "camera/head/left_rgb",
+            "ros2_topic": "/head_camera/left/image",
+            "frame_id": "head_camera_left_link",
+            "compressed": True,
+            "compression_format": "jpeg",
+            "queue_size": 2,  # Small queue for low latency
+        },
+        # ... more cameras
+    ]
+    return camera_configs, imu_configs
+```
+
+## Architecture
+
+### Multi-Process Design
+
+Each sensor stream runs in a dedicated process:
+
+```
+Main Process
+├── Camera Process 1 (+ Zenoh Session + ROS2 Node)
+├── Camera Process 2 (+ Zenoh Session + ROS2 Node)
+├── IMU Process (+ Zenoh Session + ROS2 Node)
+└── LIDAR Process (+ Zenoh Session + ROS2 Node)
+```
+
+This is primarily for GIL isolation.
+
+### Data Flow
+
+```
+Zenoh Network → Zenoh Handler → Bounded Queue → Consumer Thread → Converter → ROS2 Publisher
+```
+
+1. **Zenoh Handler**: Fast callback that enqueues samples (<0.1ms) without blocking
+2. **Bounded Queue**: Small FIFO queue (size: 1-3) for maintaining temporal ordering
+3. **Consumer Thread**: Single thread that processes samples sequentially (preserves order)
+4. **Converter**: Decodes and converts data to ROS2 message format
+5. **ROS2 Publisher**: Publishes to ROS2 topics with proper timestamps and frame IDs
+
+**Congestion Handling:**
+- When processing can't keep up with incoming rate, **oldest frames are dropped**
+- Drop statistics are logged
+
+## License
+
+GNU Affero General Public License v3.0 (AGPL-3.0)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
