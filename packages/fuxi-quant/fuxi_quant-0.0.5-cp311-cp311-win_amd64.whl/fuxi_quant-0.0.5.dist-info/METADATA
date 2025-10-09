@@ -1,0 +1,97 @@
+Metadata-Version: 2.4
+Name: fuxi-quant
+Version: 0.0.5
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Requires-Dist: polars[all]==1.34.0
+Requires-Dist: ta-lib==0.6.7
+Requires-Dist: numpy==2.3.3
+Requires-Dist: setproctitle==1.3.7
+License-File: LICENSE
+Keywords: quant,trading,backtest,crypto
+Author-email: Husky <husky.robot.dog@gmail.com>
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+
+伏羲量化
+---
+
+**示例**
+```python
+from fuxi import *
+
+
+class MyStrategy(Strategy):
+    code: Codes
+    is_buy: bool = False
+
+    def on_init(self, params: Dict[str, Any]):
+        self.code = params["code"]
+
+    def on_candle(self, code: Codes, candle: DataFrame):
+        pass
+
+    def on_signal(self):
+        if not self.is_buy:
+            self.is_buy = True
+            lever = self.symbols[self.code].position.lever
+            price = self.symbols[self.code].last_price
+            size = self.safe_size(self.code, (self.cash.avail * lever / price))
+            cash = price * size / lever
+            self.debug_log(f"买入 数量: {size:16,.8f}, 价格: {price:16,.8f}, 保证金: {cash:16,.8f}, 杠杆: {lever:.0f}")
+            ok, _, msg = self.buy(self.code, size, price)
+            assert ok, msg
+
+    def on_timer(self, timer: Timer):
+        if timer != Timer.Minutely:
+            return
+        last_price = self.symbols[self.code].last_price
+        long_size = self.symbols[self.code].position.long.size
+        long_frozen_margin = self.symbols[self.code].position.long.frozen_margin
+        long_price = self.symbols[self.code].position.long.price
+        short_size = self.symbols[self.code].position.short.size
+        short_price = self.symbols[self.code].position.short.price
+        short_frozen_margin = self.symbols[self.code].position.short.frozen_margin
+        self.debug_log(
+            "\t\r\n".join(
+                [
+                    '',
+                    f'市场价   : {last_price:16,.8f}',
+                    f'浮动盈亏 : {self.pnl:16,.8f}',
+                    f'资金   总: {self.cash.total:16,.8f}, 可用: {self.cash.avail:16,.8f}, 冻结: {self.cash.frozen:16,.8f}',
+                    f'保证金 总: {self.margin.total:16,.8f}, 可用: {self.margin.avail:16,.8f}, 冻结: {self.margin.frozen:16,.8f}',
+                    f'多头   总: {long_size.total:16,.8f}, 可用: {long_size.avail:16,.8f}, 冻结: {long_size.frozen:16,.8f}, 均价: {long_price:16,.8f}, 保证金: {long_frozen_margin:16,.8f}',
+                    f'空头   总: {short_size.total:16,.8f}, 可用: {short_size.avail:16,.8f}, 冻结: {short_size.frozen:16,.8f}, 均价: {short_price:16,.8f}, 保证金: {short_frozen_margin:16,.8f}',
+                    '',
+                ]
+            )
+        )
+
+    def on_order(self, order: Order):
+        if order.status == OrderStatus.Complete:
+            self.debug_log(
+                f"订单成交 数量: {order.size:16,.8f}, 价格: {order.price:16,.8f}, 成交价格: {order.deal_price:16,.8f}"
+            )
+
+
+def main():
+    from setproctitle import setproctitle
+
+    setproctitle('swap_demo')
+    code = Codes.BTC_SWAP
+    Backtest(
+        MyStrategy,
+        {"code": code},
+        begin='202509',
+        end='202510',
+        symbols=[(code, 0.005, 0.005, 10)],
+        history_size=300,
+        log_level=(LogLevel.Info, LogLevel.Debug),
+    ).launche()
+
+
+if __name__ == '__main__':
+    main()
+
+```
