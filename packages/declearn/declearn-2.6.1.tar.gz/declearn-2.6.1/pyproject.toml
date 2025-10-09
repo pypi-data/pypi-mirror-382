@@ -1,0 +1,169 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+    "pip >= 19",
+    "setuptools >= 62.0",
+    "setuptools-scm[toml] >= 6.2",
+]
+
+[project]
+name = "declearn"
+version = "2.6.1"
+description = "A modular and extensible framework for Federated Learning."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Paul Andrey", email = "paul.andrey@inria.fr"},
+    {name = "Nathan Bigaud", email = "nathan.bigaud@inria.fr"},
+]
+maintainers = [
+    {name = "Paul Andrey", email = "paul.andrey@inria.fr"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: Unix",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
+dependencies = [
+    "cryptography >= 35.0",
+    "fire ~= 0.4",
+    "gmpy2 ~= 2.1",
+    "pandas >= 1.2, < 3.0",
+    "requests ~= 2.18",
+    "scikit-learn ~= 1.0, < 1.6",
+    "tomli ~= 2.0 ; python_version < '3.11'",
+    "tqdm ~= 4.62",
+    "typing_extensions ~= 4.0",
+]
+
+[project.optional-dependencies]
+all = [  # all non-tests extra dependencies
+    "dm-haiku >= 0.0.9, <= 0.0.11 ; python_version > '3.8'",
+    "dm-haiku >= 0.0.9, <= 0.0.10 ; python_version == '3.8'",
+    "grpcio >= 1.45",
+    "jax[cpu] ~= 0.4.1, < 0.4.36",
+    "opacus ~= 1.4",
+    "protobuf >= 3.19",
+    "tensorflow ~= 2.11, < 2.20",
+    "torch >= 1.13, < 3.0",
+    "websockets >= 10.1, < 13.0",
+]
+# thematically grouped dependencies (part of "all")
+dp = [
+    "opacus ~= 1.4",
+]
+grpc = [
+    "grpcio >= 1.45",
+    "protobuf >= 3.19",
+]
+haiku = [
+    "dm-haiku >= 0.0.9, <= 0.0.11 ; python_version > '3.8'",
+    "dm-haiku >= 0.0.9, <= 0.0.10 ; python_version == '3.8'",
+    # NOTE: GPU support for jax must be manually installed, e.g. as jax[cuda12]
+    "jax[cpu] ~= 0.4.1, < 0.4.36",
+]
+tensorflow = [
+    "tensorflow ~= 2.11",
+]
+torch = [  # generic requirements for Torch
+    "torch >= 1.13, < 3.0",
+]
+torch1 = [  # Torch 1.13 (latest pre-2.0 version)
+    "torch ~= 1.13.0",
+]
+torch2 = [  # Torch 2.X version
+    "torch ~= 2.0",
+]
+websockets = [
+    "websockets >= 10.1, < 13.0",
+]
+# docs-building dependencies
+docs = [
+    "mkdocstrings[python] ~= 0.8",
+    "mkdocs-autorefs ~= 0.4",
+    "mkdocs-literate-nav ~= 0.4",
+    "mkdocs-material ~= 9.1",
+]
+# test-specific dependencies
+tests = [
+    "black ~= 24.0",
+    "mypy ~= 1.0",
+    "pylint ~= 3.0",
+    "pytest ~= 7.4",
+    "pytest-asyncio ~= 0.20",
+    "pytest-cov ~= 4.0",
+]
+
+[project.urls]
+homepage = "https://magnet.gitlabpages.inria.fr/docs"
+repository = "https://gitlab.inria.fr/magnet/declearn/declearn2.git"
+
+[tool.black]
+line-length = 79
+extend-exclude = "(.*_pb2.*py$)"  # exclude auto-generated protobuf code files
+
+[tool.coverage.run]
+# enable coverage collection within multiprocessing
+concurrency = ["multiprocessing"]
+parallel = true
+sigterm = true
+# define rules to select the code files that need covering
+source_pkgs = ["declearn"]
+omit = [
+    "**/grpc/protobufs/*.py",  # auto-generated rotobuf code files
+    "**/test_utils/*.py",  # dev-only test-oriented utils
+]
+
+[tool.coverage.paths]
+source = ["declearn", ".tox/**/declearn"]
+
+[tool.mypy]
+exclude = [".*_pb2.*.py$"]
+follow_imports = "skip"  # otherwise excluded files are checked
+
+[tool.pylint.main]
+extension-pkg-allow-list = ["gmpy2"]
+fail-under = 10
+ignore-patterns = ["(.*_pb2.*py$)"]
+
+[tool.pylint.format]
+max-line-length = 79
+
+[tool.setuptools.packages.find]
+include = ["declearn", "declearn.*"]
+
+[tool.setuptools.package-data]
+declearn = ["py.typed"]
+
+[tool.uv]
+conflicts = [
+    [
+        { extra = "torch1" },
+        { extra = "torch2" },
+    ]
+]
+
+[dependency-groups]
+dev = [
+    "black>=24.8.0",
+    "mypy>=1.14.1",
+    "pylint>=3.2.7",
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.23.8",
+    "pytest-cov>=4.1.0",
+]
+
+
+[project.scripts]
+declearn-quickrun = "declearn.quickrun._run:main"
+declearn-split = "declearn.dataset._split_data:main"
