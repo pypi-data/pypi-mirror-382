@@ -1,0 +1,242 @@
+## batch_img
+
+Batch process (**resize, rotate, remove GPS, add border, set transparency,
+remove background, auto do all**) image files (**HEIC, JPG, PNG**) by
+utilizing **[Pillow / PIL](https://github.com/python-pillow/Pillow)** library.
+It can apply the action(s) on a single image file or all image files in the input
+folder / directory. Tested working on **macOS** and **Windows**.
+
+### Installation
+
+#### Requirements
+
+```
+python: >=3.12, <=3.14
+```
+
+#### One-time Setup
+
+Install the Astral's [`uv`](https://github.com/astral-sh/uv) tool one-time to
+prepare for **all** Python tools and packages installation. Install the Astral's
+[`uv`](https://github.com/astral-sh/uv) by its standalone installers:
+
+```
+# On macOS and Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install the latest Python by uv command
+uv python install 3.13
+
+# Create the Python virtualenv by uv command
+uv venv
+
+# Activate the Python virtualenv
+source .venv/bin/activate
+```
+
+```
+# On Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Add uv command into environment search path
+$env:Path = "C:\Users\{your_user_name}\.local\bin:$env:Path"
+
+# Create the Python virtualenv by uv command
+uv venv
+
+# Activate the Python virtualenv
+.venv\Scripts\activate
+```
+
+#### Install the `batch_img` tool
+
+Install the `batch_img` tool from PyPI by the Astral's
+[`uv`](https://github.com/astral-sh/uv) command:
+
+```
+uv pip install --upgrade batch_img
+```
+
+### Usage
+
+#### Sample command line usage:
+
+```
+✗ batch_img --version
+0.3.3
+
+
+✗ batch_img auto ~/Documents
+Resize to 1920-pixel max length. Remove GPS location info. Add 5-pixel width black color border.
+...
+Auto processed 8/8 files
+✅ Processed the image file(s)
+```
+
+### Contribution
+
+Contributions are welcome!
+Please see the details in [Contribution Guidelines](https://github.com/john-liu2/batch_img/blob/main/CONTRIBUTING.md)
+
+### Help
+
+#### Top level commands help:
+
+```
+✗ batch_img --help
+Usage: batch_img [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --update   Update the tool to the latest version.
+  --version  Show the tool's version.
+  --help     Show this message and exit.
+
+Commands:
+  auto         Auto process (resize to 1920-px, remove GPS, add border)...
+  border       Add internal border to image file(s), not expand the size.
+  do-effect    Do special effect to image file(s).
+  remove-bg    Remove background (make background transparent) in image...
+  remove-gps   Remove GPS location info in image file(s).
+  resize       Resize image file(s).
+  rotate       Rotate image file(s).
+  transparent  Set transparency on image file(s).
+```
+
+#### The `auto` sub-command CLI options:
+
+```
+✗ batch_img auto --help
+Usage: batch_img auto [OPTIONS] SRC_PATH
+
+  Auto process (resize to 1920, remove GPS, add border) image file(s).
+
+Options:
+  -ar, --auto_rotate  Auto-rotate image (experimental)
+  -o, --output TEXT   Output file path. If not specified, replace the input
+                      file.  [default: ""]
+  --help              Show this message and exit.
+```
+
+#### The `border` sub-command CLI options:
+
+```
+✗ batch_img border --help
+Usage: batch_img border [OPTIONS] SRC_PATH
+
+  Add internal border to image file(s), not expand the size.
+
+Options:
+  -bw, --border_width INTEGER RANGE
+                                  Add border to image file(s) with the
+                                  border_width. 0 - no border.  [default: 5;
+                                  0<=x<=30]
+  -bc, --border_color TEXT        Add border to image file(s) with the
+                                  border_color string.  [default: gray]
+  -o, --output TEXT               Output file path. If not specified, replace
+                                  the input file.  [default: ""]
+  --help                          Show this message and exit.
+```
+
+#### The `do-effect` sub-command CLI options:
+
+```
+✗ batch_img do-effect --help
+Usage: batch_img do-effect [OPTIONS] SRC_PATH
+
+  Do special effect to image file(s).
+
+Options:
+  -e, --effect [blur|hdr|neon]  Do special effect to image file(s): blur, hdr,
+                                neon.  [default: neon]
+  -o, --output TEXT             Output dir path. If not specified, add special
+                                effect image file(s) to the same path as the
+                                input file(s).  [default: ""]
+  --help                        Show this message and exit.
+```
+
+#### The `remove-bg` sub-command CLI options:
+
+```
+✗ batch_img remove-bg --help
+Usage: batch_img remove-bg [OPTIONS] SRC_PATH
+
+  Remove background (make background transparent) in image file(s).
+
+Options:
+  -o, --output TEXT  Output file path. If not specified, replace the input
+                     file.  [default: ""]
+  --help             Show this message and exit.
+```
+
+#### The `remove-gps` sub-command CLI options:
+
+```
+✗ batch_img remove-gps --help
+Usage: batch_img remove-gps [OPTIONS] SRC_PATH
+
+  Remove GPS location info in image file(s).
+
+Options:
+  -o, --output TEXT  Output file path. If not specified, replace the input
+                     file.  [default: ""]
+  --help             Show this message and exit.
+```
+
+#### The `resize` sub-command CLI options:
+
+```
+✗ batch_img resize --help
+Usage: batch_img resize [OPTIONS] SRC_PATH
+
+  Resize image file(s).
+
+Options:
+  -l, --length INTEGER RANGE  Resize image file(s) on original aspect ratio to
+                              the max side length. 0 - no resize.  [default:
+                              0; x>=0]
+  -o, --output TEXT           Output file path. If not specified, replace the
+                              input file.  [default: ""]
+  --help                      Show this message and exit.
+```
+
+#### The `rotate` sub-command CLI options:
+
+```
+✗ batch_img rotate --help
+Usage: batch_img rotate [OPTIONS] SRC_PATH
+
+  Rotate image file(s).
+
+Options:
+  -a, --angle [0|90|180|270]  Rotate image file(s) to the clockwise angle. 0 -
+                              no rotate.  [default: 0]
+  -o, --output TEXT           Output file path. If not specified, replace the
+                              input file.  [default: ""]
+  --help                      Show this message and exit.
+```
+
+#### The `transparent` sub-command CLI options:
+
+```
+✗ batch_img transparent --help
+Usage: batch_img transparent [OPTIONS] SRC_PATH
+
+  Set transparency on image file(s).
+
+Options:
+  -o, --output TEXT               Output file path. If not specified, replace
+                                  the input file. If the input file is JPEG,
+                                  it will be saved as PNG file because JPEG
+                                  does not support transparency  [default: ""]
+  -t, --transparency INTEGER RANGE
+                                  Set transparency on image file(s). 0 - fully
+                                  transparent, 255 - completely opaque.
+                                  [default: 127; 0<=x<=255]
+  -w, --white                     Make white pixels fully transparent.
+  --help                          Show this message and exit.
+```
+
+### License
+
+**batch_img** is distributed under MIT License. Please see details in
+[LICENSE](https://github.com/john-liu2/batch_img/blob/main/LICENSE).
