@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HKJC Race Info</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>HKJC 🏇 {{ race_info.Date }} 🏇 {{ race_info.Venue }}</h1>
+        </div>
+
+        <div class="tabs">
+            {% for race_num in race_info.Races.keys()|sort|map('int')|sort %}
+            <button class="tab-btn {% if loop.first %}active{% endif %}" onclick="showRace('{{ race_num }}')"
+                id="tab-{{ race_num }}">
+                Race {{ race_num }}
+            </button>
+            {% endfor %}
+        </div>
+
+        {% for race_num, race in race_info.Races.items()|sort %}
+        <div class="race-content {% if loop.first %}active{% endif %}" id="race-{{ race_num }}">
+            <div class="race-info">
+                <div class="race-info-item">
+                    <span class="race-info-label">Race Name</span>
+                    <span class="race-info-value">{{ race.Name }}</span>
+                </div>
+                <div class="race-info-item">
+                    <span class="race-info-label">Class</span>
+                    <span class="race-info-value">{{ race.Class }}</span>
+                </div>
+                <div class="race-info-item">
+                    <span class="race-info-label">Distance</span>
+                    <span class="race-info-value">{{ race.Dist }}m</span>
+                </div>
+                <div class="race-info-item">
+                    <span class="race-info-label">Course</span>
+                    <span class="race-info-value">{{ race.Course }}</span>
+                </div>
+                <div class="race-info-item">
+                    <span class="race-info-label">Track</span>
+                    <span class="race-info-value">{{ race.Track }}</span>
+                </div>
+                <div class="race-info-item">
+                    <span class="race-info-label">Going</span>
+                    <span class="race-info-value">{{ race.Going }}</span>
+                </div>
+                <div class="race-info-item">
+                    <button class="track-workout-btn" onclick="openTrackWorkoutVideo('{{ race_info.Date }}', '{{ race_num }}')">
+                        🎥 Track Workout Video
+                    </button>
+                </div>
+            </div>
+
+            <div class="speedmap-container">
+                <img id="speedmap-{{ race_num }}" class="speedmap-image" alt="Race {{ race_num }} Speed Map" />
+            </div>
+
+            <div class="expand-all-container">
+                <button class="expand-all-btn" onclick="toggleAllRunners('{{ race_num }}', this)">
+                    <span class="expand-all-icon">▼</span>
+                    <span class="expand-all-text">Expand All</span>
+                </button>
+            </div>
+
+            <table class="runners-table">
+                <thead>
+                    <tr>
+                        <th width="30"></th>
+                        <th>No</th>
+                        <th>Draw</th>
+                        <th>Horse No</th>
+                        <th>Name</th>
+                        <th>Wt (lbs)</th>
+                        <th>Handicap Wt (lbs)</th>
+                        <th class="sortable" onclick="sortTable('{{ race_num }}', 7, 'number')">
+                            Rating <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="sortable" onclick="sortTable('{{ race_num }}', 8, 'number')">
+                            Fitness <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="sortable" onclick="sortTable('{{ race_num }}', 9, 'number')">
+                            Energy Diff <span class="sort-arrow">⇅</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for runner in race.Runners %}
+                    <tr class="runner-row {% if is_scratched %}scratched{% endif %}" 
+                        onclick="toggleRunnerHistory(this, '{{ race_num }}', '{{ runner.HorseNo }}', '{{ race.Going }}', '{{ race.Track }}', '{{ race.Dist }}')">
+                        <td>
+                            <span class="expand-icon">▶</span>
+                        </td>
+                        <td>{{ runner.No }}</td>
+                        <td>{{ runner.Dr if runner.Dr else '-' }}</td>
+                        <td class="horse-no">
+                            <a href="https://racing.hkjc.com/racing/information/Chinese/Horse/Horse.aspx?HorseNo={{ runner.HorseNo }}"
+                                target="_blank" onclick="event.stopPropagation();"> {{ runner.HorseNo }} </a>
+                        </td>
+                        <td>{{ runner.Name }}</td>
+                        <td>{{ runner.Wt }}</td>
+                        <td>{{ runner.Handicap }}</td>
+                        <td>{{ runner.Rtg }}</td>
+                        <td>{{ runner.Fitness }}</td>
+                        <td>{{ runner.SPEnergy }}</td>
+                    </tr>
+                    <tr class="history-row" id="history-{{ race_num }}-{{ runner.HorseNo }}">
+                        <td colspan="10" class="history-cell">
+                            <div class="history-content" id="history-content-{{ race_num }}-{{ runner.HorseNo }}">
+                                <div class="history-loading">Loading history...</div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>
