@@ -1,0 +1,44 @@
+
+import rubigram
+
+from typing import Union, Optional
+from pathlib import Path
+
+
+class SendVideo:
+    async def send_video(
+            self: "rubigram.Client",
+            object_guid: str,
+            video: Union[Path, bytes],
+            caption: Optional[str] = None,
+            reply_to_message_id: Optional[str] = None,
+            is_spoil: bool = False,
+            auto_delete: Optional[int] = None,
+            progress: bool = False, *args, **kwargs,
+    ) -> "rubigram.types.Update":
+        """
+        Send a video.
+
+        Args:
+            - object_guid (str):
+                The GUID of the recipient.
+
+            - video (Union[Path, bytes]):
+                The video data.
+
+            - caption (str, optional):
+                The caption for the video. Defaults to None.
+
+            - reply_to_message_id (str, optional):
+                The ID of the message to which this is a reply. Defaults to None.
+        """
+
+        return await self.send_message(
+            object_guid=object_guid,
+            text=caption,
+            reply_to_message_id=reply_to_message_id,
+            file_inline=video,
+            type='Video',
+            is_spoil=is_spoil,
+            auto_delete=auto_delete,
+            progress=progress, *args, **kwargs)
