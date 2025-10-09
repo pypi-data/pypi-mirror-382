@@ -1,0 +1,50 @@
+{% extends 'admin/master.html' %}
+{% import 'admin/lib.html' as lib with context %}
+{% from 'govuk_frontend_jinja/components/back-link/macro.html' import govukBackLink %}
+{%- from 'govuk_frontend_jinja/components/error-summary/macro.html' import govukErrorSummary -%}
+
+
+{% block head %}
+  {{ super() }}
+  {{ lib.form_css() }}
+{% endblock %}
+
+{% block beforeContent %}
+  {{ govukBackLink(params={"href": return_url}) }}
+{% endblock %}
+
+{% block action_panel %}
+  {# Flash messages using GOV.UK Notification Banner #}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% from 'govuk_frontend_jinja/components/notification-banner/macro.html' import govukNotificationBanner %}
+
+      {% for category, message in messages %}
+        {% if category == 'success' %}
+          {{ govukNotificationBanner({
+            "type": "success",
+            "html": message
+          }) }}
+        {% else %}
+          {{ govukNotificationBanner({
+            "html": message,
+            "titleText": "Important" if category == 'error' else "Information"
+          }) }}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {% if form.errors %}
+    {{ govukErrorSummary(wtforms_errors(form)) }}
+  {% endif %}
+
+  {% block create_form %}
+    {{ lib.render_form(form, return_url, form_opts) }}
+  {% endblock %}
+{% endblock %}
+
+{% block tail %}
+  {{ super() }}
+  {{ lib.form_js() }}
+{% endblock %}
