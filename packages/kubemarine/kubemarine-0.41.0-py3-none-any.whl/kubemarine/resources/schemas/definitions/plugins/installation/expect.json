@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "type": "object",
+  "description": "Wait until the necessary Kubernetes resources are ready",
+  "properties": {
+    "daemonsets": {"$ref": "#/definitions/GenericResource"},
+    "replicasets": {"$ref": "#/definitions/GenericResource"},
+    "statefulsets": {"$ref": "#/definitions/GenericResource"},
+    "deployments": {"$ref": "#/definitions/GenericResource"},
+    "pods": {"$ref": "#/definitions/Pods"}
+  },
+  "minProperties": 1,
+  "additionalProperties": false,
+  "definitions": {
+    "GenericResource": {
+      "description": "Type of Kubernetes resources. Can be either a list of names or a dictionary with the extra parameters.",
+      "oneOf": [
+        {"$ref": "#/definitions/ResourcesList"},
+        {
+          "type": "object",
+          "allOf": [{"$ref": "#/definitions/CommonResourceProperties"}],
+          "properties": {
+            "list": {"$ref": "#/definitions/ResourcesList"}
+          },
+          "required": ["list"],
+          "propertyNames": {
+            "anyOf": [
+              {"$ref": "#/definitions/CommonResourcePropertyNames"},
+              {"enum": ["list"]}
+            ]
+          }
+        }
+      ]
+    },
+    "ResourcesList": {
+      "type": "array",
+      "description": "List of resource names, or list of dictionaries with the extra parameters",
+      "items": {
+        "oneOf": [
+          {"type": "string"},
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "namespace": {
+                "type": "string",
+                "default": "kube-system"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "Pods": {
+      "description": "Type of Kubernetes resources. Can be either a list of names or a dictionary with the extra parameters.",
+      "oneOf": [
+        {"$ref": "#/definitions/PodsList"},
+        {
+          "type": "object",
+          "allOf": [{"$ref": "#/definitions/CommonResourceProperties"}],
+          "properties": {
+            "list": {"$ref": "#/definitions/PodsList"},
+            "namespace": {
+              "type": "string"
+            }
+          },
+          "required": ["list"],
+          "propertyNames": {
+            "anyOf": [
+              {"$ref": "#/definitions/CommonResourcePropertyNames"},
+              {"enum": ["list", "namespace"]}
+            ]
+          }
+        }
+      ]
+    },
+    "PodsList": {
+      "$ref": "../../common/utils.json#/definitions/SetOfStrings",
+      "description": "List of pod names"
+    },
+    "CommonResourceProperties": {
+      "properties": {
+        "timeout": {
+          "type": "integer",
+          "default": 5,
+          "description": "The number of seconds until the next resource status check"
+        },
+        "retries": {
+          "type": "integer",
+          "default": 30,
+          "description": "The number of attempts to check the status"
+        }
+      }
+    },
+    "CommonResourcePropertyNames": {
+      "enum": ["timeout", "retries"]
+    }
+  }
+}

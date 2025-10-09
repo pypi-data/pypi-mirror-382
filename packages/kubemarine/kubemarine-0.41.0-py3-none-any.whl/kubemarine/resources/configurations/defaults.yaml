@@ -1,0 +1,910 @@
+vrrp_ips: []
+
+globals: 
+  expect:
+    deployments:
+      timeout: 5
+      retries: 45
+    pods:
+      kubernetes:
+        timeout: 5
+        retries: 30
+      plugins:
+        timeout: 5
+        retries: 150
+  nodes:
+    dpkg_lock_timeout_seconds: 1200
+    ready:
+      timeout: 5
+      retries: 15
+  timeout_download:
+    60
+  ignore_unavailable_nodes_for_etchosts_update: false
+
+node_defaults:
+  boot:
+    timeout: 600
+
+nodes: []
+
+public_cluster_ip: '{{ control_plain.external }}'
+
+services:
+  kubeadm_kubelet:
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    readOnlyPort: 0
+    enableDebuggingHandlers: true
+    protectKernelDefaults: true
+    podPidsLimit: 4096
+    cgroupDriver: systemd
+    serializeImagePulls: false
+    tlsCipherSuites: [TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256]
+  kubeadm_kube-proxy:
+    apiVersion: kubeproxy.config.k8s.io/v1alpha1
+    kind: KubeProxyConfiguration
+    conntrack: {}
+  kubeadm_flags:
+    ignorePreflightErrors: Port-6443,CoreDNSUnsupportedPlugins
+  kubeadm:
+    apiVersion: 'kubeadm.k8s.io/v1beta3'
+    kind: ClusterConfiguration
+    kubernetesVersion: v1.33.0
+    controlPlaneEndpoint: '{{ cluster_name }}:6443'
+    imageRepository: registry.k8s.io
+    dns: {}
+    networking:
+      podSubnet: '{% if nodes[0]["internal_address"]|isipv4 %}10.128.0.0/14{% else %}fd02::/48{% endif %}'
+      serviceSubnet: '{% if nodes[0]["internal_address"]|isipv4 %}172.30.0.0/16{% else %}fd03::/112{% endif %}'
+    apiServer:
+      certSANs: []
+      extraArgs:
+        tls-cipher-suites: TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,TLS_RSA_WITH_3DES_EDE_CBC_SHA,TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_256_CBC_SHA,TLS_RSA_WITH_AES_256_GCM_SHA384
+        enable-admission-plugins: NodeRestriction
+        profiling: "false"
+        audit-log-path: /var/log/kubernetes/audit/audit.log
+        audit-policy-file: /etc/kubernetes/audit-policy.yaml
+        audit-log-maxage: "30"
+        audit-log-maxbackup: "10"
+        audit-log-maxsize: "100"
+      extraVolumes:
+        - name: audit
+          hostPath: '{{ services["kubeadm"]["apiServer"]["extraArgs"]["audit-policy-file"] }}'
+          mountPath: '{{ services["kubeadm"]["apiServer"]["extraArgs"]["audit-policy-file"] }}'
+          readOnly: True
+          pathType: File
+        - name: audit-log
+          hostPath: '{% set path = services["kubeadm"]["apiServer"]["extraArgs"]["audit-log-path"].split("/") %}{{"/" + path[1] + "/" + path[2] + "/" + path[3] + "/" + path[4] + "/"}}'
+          mountPath: '{% set path = services["kubeadm"]["apiServer"]["extraArgs"]["audit-log-path"].split("/") %}{{"/" + path[1] + "/" + path[2] + "/" + path[3] + "/" + path[4] + "/"}}'
+          readOnly: False
+          pathType: DirectoryOrCreate
+    scheduler:
+      extraArgs:
+        profiling: "false"
+      extraVolumes: []
+    controllerManager:
+      extraArgs:
+        profiling: "false"
+        terminated-pod-gc-threshold: "1000"
+      extraVolumes: []
+    etcd:
+      local:
+        extraArgs: {}
+  kubeadm_patches:
+    # bind-address flag for apiServer is set in the code
+    apiServer: []
+    etcd: []
+    controllerManager: []
+    scheduler: []
+    kubelet: []
+
+  ntp:
+    chrony:
+      makestep: 5 -1
+      rtcsync: True
+    timesyncd:
+      Time:
+        RootDistanceMaxSec: 5
+        PollIntervalMinSec: 32
+        PollIntervalMaxSec: 2048
+
+  kernel_security:
+    selinux:
+      state: enforcing
+      policy: targeted
+      permissive:
+        - haproxy_t
+        - container_t
+        - keepalived_t
+
+  # Default "source" is enriched from "thirdparties" section of globals.yaml
+  # Default "sha1" is enriched from kubemarine/resources/configurations/compatibility/internal/thirdparties.yaml
+  thirdparties:
+    /usr/bin/etcdctl:
+      source: 'resources/scripts/etcdctl.sh'
+      group: control-plane
+    /usr/bin/etcd.tar.gz:
+      group: control-plane
+    /usr/bin/kubeadm: {}
+    /usr/bin/kubelet: {}
+    /usr/bin/kubectl:
+      group: control-plane
+    /usr/bin/calicoctl:
+      group: control-plane
+    /usr/bin/crictl.tar.gz:
+      unpack: /usr/bin/
+
+  cri:
+    containerRuntime: containerd
+    containerdConfig:
+      version: 2
+      plugins."io.containerd.grpc.v1.cri": {}
+      plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc:
+        runtime_type: "io.containerd.runc.v2"
+      plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options:
+        SystemdCgroup: '{% if services.kubeadm_kubelet.cgroupDriver == "systemd" %}true{% else %}false{% endif %}'
+
+  modprobe:
+    rhel:
+      - modulename: br_netfilter
+        groups: [control-plane, worker]
+      - modulename: nf_conntrack
+        groups: [control-plane, worker]
+        install: '{{ nodes[0]["internal_address"] | isipv4 }}'
+      - modulename: nf_conntrack_ipv6
+        install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+      - modulename: ip6table_filter
+        install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+      - modulename: nf_nat_masquerade_ipv6
+        install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+      - modulename: nf_reject_ipv6
+        install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+      - modulename: nf_defrag_ipv6
+        install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+    rhel8: &modprobe-default-modules
+      - modulename: br_netfilter
+        groups: [control-plane, worker]
+      - modulename: nf_conntrack
+        groups: [control-plane, worker]
+      - modulename: ip6table_filter
+        install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+      - modulename: nf_nat
+        install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+      - modulename: nf_reject_ipv6
+        install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+      - modulename: nf_defrag_ipv6
+        install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+    rhel9: *modprobe-default-modules
+    debian: *modprobe-default-modules
+
+  sysctl:
+    net.ipv4.ip_nonlocal_bind:
+      value: 1
+      # actually, need to be enabled only if balancer is combined with other roles
+      groups: [balancer]
+    net.ipv6.ip_nonlocal_bind:
+      value: 1
+      # actually, need to be enabled only if balancer is combined with other roles
+      groups: [balancer]
+      install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+    net.bridge.bridge-nf-call-iptables:
+      value: 1
+      groups: [control-plane, worker]
+    net.bridge.bridge-nf-call-ip6tables:
+      value: 1
+      groups: [control-plane, worker]
+      install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+    net.ipv4.ip_forward:
+      value: 1
+      groups: [control-plane, worker]
+    net.ipv4.conf.all.route_localnet:
+      # backward compatibility
+      # https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.21.md#no-really-you-must-read-this-before-you-upgrade-6
+      value: 1
+      groups: [control-plane, worker]
+    net.ipv6.conf.all.forwarding:
+      value: 1
+      groups: [control-plane, worker]
+      install: '{{ nodes[0]["internal_address"] | isipv6 }}'
+    net.netfilter.nf_conntrack_max:
+      value: 1000000
+      groups: [control-plane, worker]
+    kernel.panic:
+      value: 10
+      groups: [control-plane, worker]
+      install: '{{ services.kubeadm_kubelet.protectKernelDefaults }}'
+    vm.overcommit_memory:
+      value: 1
+      groups: [control-plane, worker]
+      install: '{{ services.kubeadm_kubelet.protectKernelDefaults }}'
+    kernel.panic_on_oops:
+      value: 1
+      groups: [control-plane, worker]
+      install: '{{ services.kubeadm_kubelet.protectKernelDefaults }}'
+    kernel.pid_max:
+      # default value is set in sysctl.enrich_inventory
+      groups: [control-plane, worker]
+
+  etc_hosts:
+    127.0.0.1:
+      - localhost
+      - localhost.localdomain
+    '::1':
+      - '{% if not nodes[0]["internal_address"]|isipv4 %}localhost{% endif %}'
+      - '{% if not nodes[0]["internal_address"]|isipv4 %}localhost.localdomain{% endif %}'
+
+  etc_hosts_generated: {}
+
+  audit:
+    cluster_policy:
+      apiVersion: audit.k8s.io/v1
+      kind: Policy
+      # Don't generate audit events for all requests in RequestReceived stage.
+      omitStages:
+        - "RequestReceived"
+      rules:
+        # Don't log read-only requests
+        - level: None
+          verbs: ["watch", "get", "list"]
+        # Don't log checking access by internal services
+        - level: None
+          userGroups:
+            - "system:serviceaccounts:calico-apiserver"
+            - "system:nodes"
+          verbs: ["create"]
+          resources:
+            - group: "authorization.k8s.io"
+              resources: ["subjectaccessreviews"]
+            - group: "authentication.k8s.io"
+              resources: ["tokenreviews"]
+        # Don't log update of ingress-controller-leader ConfigMap by ingress-nginx.
+        # This reproduces only for v1.2.0 and can be removed after its support stop.
+        - level: None
+          users: ["system:serviceaccount:ingress-nginx:ingress-nginx"]
+          verbs: ["update"]
+          resources:
+            - group: ""
+              resources: ["configmaps"]
+              resourceNames: ["ingress-controller-leader"]
+        # Log all other resources in core and extensions at the request level.
+        - level: Metadata
+          verbs: ["create", "update", "patch", "delete", "deletecollection"]
+          resources:
+          - group: ""
+            resources:
+            - configmaps
+            - endpoints
+            - limitranges
+            - namespaces
+            - nodes
+            - persistentvolumeclaims
+            - persistentvolumes
+            - pods
+            - replicationcontrollers
+            - resourcequotas
+            - secrets
+            - serviceaccounts
+            - services
+          - group: "apiextensions.k8s.io"
+            resources:
+            - customresourcedefinitions
+          - group: "apps"
+            resources:
+            - daemonsets
+            - deployments
+            - replicasets
+            - statefulsets
+          - group: "batch"
+            resources:
+            - cronjobs
+            - jobs
+          - group: "rbac.authorization.k8s.io"
+            resources:
+            - clusterrolebindings
+            - clusterroles
+            - rolebindings
+            - roles
+          - group: "autoscaling"
+            resources:
+            - horizontalpodautoscalers
+          - group: "storage.k8s.io"
+            resources:
+            - storageclasses
+            - volumeattachments
+          - group: "networking.k8s.io"
+            resources:
+            - ingresses
+            - ingressclasses
+            - networkpolicies
+          - group: "authentication.k8s.io"
+            resources: ["tokenreviews"]
+          - group: "authorization.k8s.io"
+          - group: "projectcalico.org"
+            resources:
+              - bgpconfigurations
+              - bgpfilters
+              - bgppeers
+              - blockaffinities
+              - caliconodestatuses
+              - clusterinformations
+              - felixconfigurations
+              - globalnetworkpolicies
+              - globalnetworksets
+              - hostendpoints
+              - ipamconfigurations
+              - ippools
+              - ipreservations
+              - kubecontrollersconfigurations
+              - networkpolicies
+              - networksets
+              - profiles
+          - group: "crd.projectcalico.org"
+            resources:
+              - bgpconfigurations
+              - bgpfilters
+              - bgppeers
+              - blockaffinities
+              - caliconodestatuses
+              - clusterinformations
+              - felixconfigurations
+              - globalnetworkpolicies
+              - globalnetworksets
+              - hostendpoints
+              - ipamblocks
+              - ipamconfigs
+              - ipamhandles
+              - ippools
+              - ipreservations
+              - kubecontrollersconfigurations
+              - networkpolicies
+              - networksets
+
+    rules:
+      - '-w /usr/bin/containerd -k docker'
+
+  coredns:
+    add_etc_hosts_generated: true
+    deployment:
+      spec:
+        template:
+          spec:
+            volumes:
+            - configMap:
+                defaultMode: 420
+                items:
+                - key: Corefile
+                  path: Corefile
+                - key: Hosts
+                  path: Hosts
+                name: coredns
+              name: config-volume
+            nodeSelector:
+              node-role.kubernetes.io/worker: worker
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                - podAffinityTerm:
+                    labelSelector:
+                      matchExpressions:
+                      - key: k8s-app
+                        operator: In
+                        values:
+                        - kube-dns
+                    topologyKey: kubernetes.io/hostname
+                  weight: 100
+    configmap:
+      Corefile:
+        '.:53':
+          errors: True
+          health: True
+          ready: True
+          prometheus: :9153
+          cache: 30
+          loop: True
+          reload: True
+          loadbalance: True
+          hosts:
+            default:
+              priority: 1
+              file: /etc/coredns/Hosts
+              data:
+                fallthrough: ''
+          kubernetes:
+            default:
+              priority: 1
+              zone:
+                - cluster.local
+                - in-addr.arpa
+                - ip6.arpa
+              data:
+                pods: insecure
+                fallthrough:
+                  - in-addr.arpa
+                  - ip6.arpa
+                ttl: 5
+          template:
+            default:
+              priority: 1
+              class: IN
+              type: A
+              zone: '{{ cluster_name }}'
+              data:
+                match: '^(.*\.)?{{ cluster_name }}\.$'
+                answer: '{{ "{{ .Name }}" }} 3600 IN A {{ control_plain["internal"] }}'
+            reject-aaaa:
+              enabled: '{{ nodes[0]["internal_address"]|isipv4 }}'
+              priority: 1
+              class: IN
+              type: AAAA
+              data:
+                authority: '{{ "{{ .Name }}" }} 3600 IN SOA coredns.kube-system.svc.cluster.local. hostmaster.coredns.kube-system.svc.cluster.local. (3600 3600 3600 3600 3600)'
+          forward:
+            - .
+            - /etc/resolv.conf
+      Hosts: |
+        127.0.0.1 localhost localhost.localdomain
+        {% if not nodes[0]["internal_address"]|isipv4 %}::1 localhost localhost.localdomain{% endif %}
+
+  loadbalancer:
+    haproxy:
+      global:
+        maxconn: 10000
+      defaults:
+        timeout_connect: '10s'
+        timeout_client: '1m'
+        timeout_server: '1m'
+        timeout_tunnel: '60m'
+        timeout_client_fin: '1m'
+        maxconn: 10000
+      keep_configs_updated: True
+      maintenance_mode: False
+      mntc_config_location: '/etc/haproxy/haproxy_mntc.cfg'
+    target_ports:
+      http: '{% if nodes | select("has_role", "balancer") | first %}20080{% else %}80{% endif %}'
+      https: '{% if nodes | select("has_role", "balancer") | first %}20443{% else %}443{% endif %}'
+    keepalived:
+      keep_configs_updated: True
+      global: {}
+
+  packages:
+    cache_versions: true
+    mandatory:
+      conntrack: true
+      iptables: true
+      openssl: true
+      curl: true
+      unzip: true
+      semanage: true
+      kmod: true
+    package_manager:
+      replace-repositories: false
+    # Associations for each OS family are merged with 'package.common_associations' section of globals.yaml.
+    # Packages for containerd, haproxy, and keepalived are calculated based on
+    # 'package.<OS family>' sections of globals.yaml, target Kubernetes version, and the compatibility map.
+    associations:
+      debian:
+        containerd: {}
+        haproxy:
+          executable_name: 'haproxy'
+          service_name: 'haproxy'
+        keepalived: {}
+        audit:
+          package_name: 'auditd'
+        conntrack:
+          package_name: 'conntrack'
+      rhel:
+        containerd: {}
+        haproxy:
+          executable_name: '/opt/rh/rh-haproxy18/root/usr/sbin/haproxy'
+          service_name: 'rh-haproxy18-haproxy'
+        keepalived: {}
+        audit:
+          package_name: 'audit'
+        conntrack:
+          package_name: 'conntrack-tools'
+        semanage:
+          package_name: 'policycoreutils-python'
+      rhel8:
+        containerd: {}
+        haproxy:
+          executable_name: '/usr/sbin/haproxy'
+          service_name: 'haproxy'
+        keepalived: {}
+        audit:
+          package_name: 'audit'
+        conntrack:
+          package_name: 'conntrack-tools'
+        semanage:
+          package_name: 'policycoreutils-python-utils'
+      rhel9:
+        containerd: {}
+        haproxy:
+          executable_name: '/usr/sbin/haproxy'
+          service_name: 'haproxy'
+        keepalived: {}
+        audit:
+          package_name: 'audit'
+        conntrack:
+          package_name: 'conntrack-tools'
+        semanage:
+          package_name: 'policycoreutils-python-utils'
+        iptables:
+          package_name: 'iptables-nft'
+
+plugin_defaults:
+  installation: {}
+
+plugins:
+
+  calico:
+    version: '{{ globals.compatibility_map.software["calico"][services.kubeadm.kubernetesVersion].version }}'
+    install: true
+    installation:
+      priority: 0
+      procedures:
+        - python:
+            module: plugins/builtin.py
+            method: apply_yaml
+            arguments:
+              plugin_name: calico
+        - &plugins-calico-expect
+          expect:
+            daemonsets:
+              - calico-node
+            deployments:
+              - calico-kube-controllers
+              - '{% if plugins.calico.typha.enabled %}calico-typha{% endif %}'
+            pods:
+              - coredns
+              - calico-kube-controllers
+              - calico-node
+              - '{% if plugins.calico.typha.enabled %}calico-typha{% endif %}'
+        - thirdparty: /usr/bin/calicoctl
+        - template:
+            source: templates/plugins/calicoctl.cfg.j2
+            destination: /etc/calico/calicoctl.cfg
+            apply_required: false
+        - template:
+            source: templates/plugins/calico-ippool.yaml.j2
+            destination: /etc/calico/ippool.yaml
+            apply_command: 'calicoctl apply -f /etc/calico/ippool.yaml'
+        - template: 'templates/plugins/calico-rr.yaml.j2'
+        - template:
+            source: templates/plugins/calico-rr.sh.j2
+            destination: /tmp/calico_rr.sh
+            apply_command: /bin/sh /tmp/calico_rr.sh
+        - *plugins-calico-expect
+        - python:
+            module: plugins/builtin.py
+            method: apply_yaml
+            arguments:
+              plugin_name: calico
+              manifest_id: apiserver
+        - python:
+            module: plugins/calico.py
+            method: renew_apiserver_certificate
+    mode: ipip
+    crossSubnet: true
+    natOutgoing: true
+    mtu: 1430
+    fullmesh: true
+    announceServices: false
+    defaultAsNumber: 64512
+    globalBgpPeers: []
+    typha:
+      # enabled by default for envs with nodes > 3
+      enabled: '{% if (nodes | select("has_roles", ["control-plane", "worker"]) | list | length) < 4 %}false{% else %}true{% endif %}'
+      # If Typha is disabled, set 0 replicas to avoid sudden configuration changes during add/remove nodes.
+      # If enabled, Let's start from 2 replicas and increment it every 50 nodes.
+      # In special case of 1 node, scale to 1 replica.
+      replicas: "\
+        {% if plugins.calico.typha.enabled | is_true %}\
+        {% set kubernetes_nodes = nodes | select('has_roles', ['control-plane', 'worker']) | list | length %}\
+        {{ (1 + ([kubernetes_nodes - 1, 1] | min) + kubernetes_nodes / 50) | round(0, 'floor') | int }}\
+        {% else %}0{% endif %}"
+      image: 'calico/typha:{{ plugins.calico.version }}'
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+    env:
+      DATASTORE_TYPE: kubernetes
+      WAIT_FOR_DATASTORE: 'true'
+      CLUSTER_TYPE: k8s,bgp
+      CALICO_ROUTER_ID: '{% if not services.kubeadm.networking.podSubnet|isipv4 %}hash{% endif %}'
+      IP: '{% if services.kubeadm.networking.podSubnet|isipv4 %}autodetect{% else %}none{% endif %}'
+      IP_AUTODETECTION_METHOD: first-found
+      CALICO_IPV4POOL_IPIP: '{% if plugins.calico.mode | default("vxlan") == "ipip" and services.kubeadm.networking.podSubnet|isipv4 %}Always{% else %}Never{% endif %}'
+      CALICO_IPV4POOL_VXLAN: '{% if plugins.calico.mode | default("vxlan") == "vxlan" and services.kubeadm.networking.podSubnet|isipv4 %}Always{% else %}Never{% endif %}'
+      CALICO_IPV4POOL_CIDR: '{{ plugins["calico"]["cni"]["ipam"]["ipv4"]["ipv4_pools"][0] }}'
+      CALICO_IPV6POOL_CIDR: '{{ plugins["calico"]["cni"]["ipam"]["ipv6"]["ipv6_pools"][0] }}'
+      IP6: '{% if not services.kubeadm.networking.podSubnet|isipv4 %}autodetect{% else %}none{% endif %}'
+      IP6_AUTODETECTION_METHOD: first-found
+      FELIX_IPV6SUPPORT: '{% if not services.kubeadm.networking.podSubnet|isipv4 %}true{% else %}false{% endif %}'
+      CALICO_IPV6POOL_IPIP: '{% if plugins.calico.mode | default("vxlan") == "ipip" and not services.kubeadm.networking.podSubnet|isipv4 %}Always{% else %}Never{% endif %}'
+      CALICO_IPV6POOL_VXLAN: '{% if plugins.calico.mode | default("vxlan") == "vxlan" and not services.kubeadm.networking.podSubnet|isipv4 %}Always{% else %}Never{% endif %}'
+      CALICO_DISABLE_FILE_LOGGING: 'true'
+      FELIX_DEFAULTENDPOINTTOHOSTACTION: ACCEPT
+      FELIX_LOGSEVERITYSCREEN: info
+      FELIX_HEALTHENABLED: 'true'
+      FELIX_USAGEREPORTINGENABLED: 'false'
+      NODENAME:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: spec.nodeName
+    cni:
+      image: 'calico/cni:{{ plugins.calico.version }}'
+      ipam:
+        ipv4:
+          assign_ipv4: 'true'
+          ipv4_pools:
+            - '{% if services.kubeadm.networking.podSubnet|isipv4 %}{{ services.kubeadm.networking.podSubnet }}{% else %}192.168.0.0/16{% endif %}'
+            - default-ipv4-ippool
+          type: calico-ipam
+        ipv6:
+          assign_ipv4: 'false'
+          assign_ipv6: 'true'
+          ipv6_pools:
+            - '{% if not services.kubeadm.networking.podSubnet|isipv4 %}{{ services.kubeadm.networking.podSubnet }}{% else %}fd02::/48{% endif %}'
+            - default-ipv6-ippool
+          type: calico-ipam
+    node:
+      image: 'calico/node:{{ plugins.calico.version }}'
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+    kube-controllers:
+      image: 'calico/kube-controllers:{{ plugins.calico.version }}'
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    flexvol:
+      image: 'calico/pod2daemon-flexvol:{{ plugins.calico.version }}'
+    apiserver:
+      image: 'calico/apiserver:{{ plugins.calico.version }}'
+      enabled: false
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        requests:
+          cpu: 50m
+          memory: 100Mi
+        limits:
+          cpu: 100m
+          memory: 200Mi
+      expect:
+        apiservice:
+          timeout: 5
+          # Sometimes the container fails the liveness probe the first time for unknown reason, and restarted.
+          # The total expect timeout is set with respect to initialDelaySeconds of the livenessProbe,
+          # and current `renew_apiserver_certificate` implementation details.
+          retries: 40
+
+  nginx-ingress-controller:
+    version: '{{ globals.compatibility_map.software["nginx-ingress-controller"][services.kubeadm.kubernetesVersion].version }}'
+    install: true
+    installation:
+      registry: registry.k8s.io
+      priority: 1
+      procedures:
+        - python:
+            module: plugins/nginx_ingress.py
+            method: check_job_for_nginx
+        - python:
+            module: plugins/nginx_ingress.py
+            method: manage_custom_certificate
+        - python:
+            module: plugins/builtin.py
+            method: apply_yaml
+            arguments:
+              plugin_name: nginx-ingress-controller
+        - expect:
+            daemonsets:
+              - name: ingress-nginx-controller
+                namespace: ingress-nginx
+            pods:
+              - ingress-nginx-controller
+    config_map:
+      use-proxy-protocol: '{% if nodes | select("has_role", "balancer") | first %}true{% else %}false{% endif %}'
+      # redefine default value for controller >= v1.9.0 because we need to use snippet annotations for dashboard
+      # values for anotaions risk level, path-type validation and cross NS resources are redfined for controller version >= v1.12.0
+      allow-snippet-annotations: "true"
+      annotations-risk-level: "Critical"
+      strict-validate-path-type: "false"
+      allow-cross-namespace-resources: "true"
+    webhook:
+      image: 'ingress-nginx/kube-webhook-certgen:{{ globals.compatibility_map.software["nginx-ingress-controller"][services.kubeadm.kubernetesVersion]["webhook-version"] }}'
+      # resources values are based on https://github.com/kubernetes/ingress-nginx/blob/helm-chart-4.7.1/charts/ingress-nginx/values.yaml#L598
+      resources:
+        requests:
+          cpu: 10m
+          memory: 20Mi
+        limits:
+          cpu: 20m
+          memory: 40Mi
+    controller:
+      image: 'ingress-nginx/controller:{{ plugins["nginx-ingress-controller"].version }}'
+      ssl:
+        enableSslPassthrough: false
+      nodeSelector:
+        kubernetes.io/os: linux
+      # resources values are based on https://github.com/kubernetes/ingress-nginx/blob/helm-chart-4.7.1/charts/ingress-nginx/values.yaml#L321
+      resources:
+        requests:
+          cpu: 100m
+          memory: 90Mi
+        limits:
+          cpu: 200m
+          memory: 256M
+    ports:
+      - name: http
+        containerPort: 80
+        hostPort: '{{ services.loadbalancer.target_ports.http }}'
+        protocol: TCP
+      - name: https
+        containerPort: 443
+        hostPort: '{{ services.loadbalancer.target_ports.https }}'
+        protocol: TCP
+      - name: prometheus
+        containerPort: 10254
+        protocol: TCP
+      - name: webhook
+        containerPort: 8443
+        protocol: TCP
+
+  kubernetes-dashboard:
+    version: '{{ globals.compatibility_map.software["kubernetes-dashboard"][services.kubeadm.kubernetesVersion].version }}'
+    install: false
+    installation:
+      priority: 2
+      procedures:
+        - python:
+            module: plugins/builtin.py
+            method: apply_yaml
+            arguments:
+              plugin_name: kubernetes-dashboard
+        - expect:
+            deployments:
+              - name: kubernetes-dashboard
+                namespace: kubernetes-dashboard
+              - name: dashboard-metrics-scraper
+                namespace: kubernetes-dashboard
+            pods:
+              - kubernetes-dashboard
+              - dashboard-metrics-scraper
+        - template: templates/plugins/dashboard-ingress.yaml.j2
+        - python:
+            module: plugins/kubernetes_dashboard.py
+            method: schedule_summary_report
+    hostname: 'dashboard.{{ cluster_name }}'
+    dashboard:
+      image: 'kubernetesui/dashboard:{{ plugins["kubernetes-dashboard"].version }}'
+      nodeSelector:
+        kubernetes.io/os: linux
+      # resources values are based on https://github.com/kubernetes/dashboard/blob/v2.5.1/aio/deploy/helm-chart/kubernetes-dashboard/values.yaml#L118
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+        limits:
+          cpu: 1
+          memory: 200Mi
+    metrics-scraper:
+      image: 'kubernetesui/metrics-scraper:{{ globals.compatibility_map.software["kubernetes-dashboard"][services.kubeadm.kubernetesVersion]["metrics-scraper-version"] }}'
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        requests:
+          cpu: 50m
+          memory: 90Mi
+        limits:
+          cpu: 200m
+          memory: 200Mi
+    ingress:
+      metadata:
+        name: kubernetes-dashboard
+        namespace: kubernetes-dashboard
+        annotations:
+          nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+          nginx.ingress.kubernetes.io/configuration-snippet: |
+            add_header X-Frame-Options "sameorigin";
+            add_header X-Content-Type-Options "nosniff";
+            add_header Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; frame-ancestors 'self'; form-action 'self' " ; 
+      spec:
+        ingressClassName: nginx
+        tls:
+          # this section enables tls and ssl-redirect for dashboard
+          # since certificate is not provided here, default controller certificate will be used
+          - hosts:
+            - '{{ plugins["kubernetes-dashboard"].hostname }}'
+        rules:
+          - host: '{{ plugins["kubernetes-dashboard"].hostname }}'
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: kubernetes-dashboard
+                      port:
+                        number: 443
+
+  local-path-provisioner:
+    version: '{{ globals.compatibility_map.software["local-path-provisioner"][services.kubeadm.kubernetesVersion].version }}'
+    install: false
+    installation:
+      priority: 2
+      procedures:
+      - python:
+          module: plugins/builtin.py
+          method: apply_yaml
+          arguments:
+            plugin_name: local-path-provisioner
+      - expect:
+          pods:
+            - local-path-provisioner
+    storage-class:
+      name: local-path
+      is-default: "false"
+    volume-dir: /opt/local-path-provisioner
+    image: 'rancher/local-path-provisioner:{{ plugins["local-path-provisioner"].version }}'
+    helper-pod-image: 'library/busybox:{{ globals.compatibility_map.software["local-path-provisioner"][services.kubeadm.kubernetesVersion]["busybox-version"] }}'
+    # resources values are based on https://github.com/rancher/local-path-provisioner/blob/v0.0.24/deploy/chart/local-path-provisioner/values.yaml#L69
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+rbac:
+  account_defaults:
+    namespace: kube-system
+    configs:
+      - apiVersion: v1
+        kind: ServiceAccount
+        metadata: {}
+        secrets: []
+      - apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata: {}
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+        subjects:
+          - kind: ServiceAccount
+      - apiVersion: v1
+        kind: Secret
+        metadata:
+          annotations: {}
+        type: kubernetes.io/service-account-token
+
+  admission: pss
+  pss:
+    pod-security: enabled
+    defaults:
+      enforce: baseline
+      enforce-version: latest
+      audit: baseline
+      audit-version: latest
+      warn: baseline
+      warn-version: latest
+    exemptions:
+      usernames: []
+      runtimeClasses: []
+      namespaces: ["kube-system"]
+  
+  authenticated-issuer-discovery: false
+
+procedure_history:
+  archive_threshold: 5
+  delete_threshold: 10
+
+patches: []
