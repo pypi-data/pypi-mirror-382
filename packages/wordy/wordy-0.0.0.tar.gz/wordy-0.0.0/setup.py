@@ -1,0 +1,1 @@
+from setuptools import setup;setup(name='wordy',version='0.0.0',packages=('wordy',))
