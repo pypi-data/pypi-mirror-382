@@ -1,0 +1,34 @@
+{% extends "email_snips/email_base.html" %}
+
+{# CONTEXT =[shipment_request]#}
+{% block content %}
+    <div>
+        {% if label %}
+            <p>Please find a pre-paid {{ shipment_request.provider_name.title() }} label attached – it needs to be printed and
+                attached to the box.</p>
+            <p>Please ensure any old postage labels are removed or thoroughly obscured as otherwise the parcel may be
+                delivered back to you instead of coming home!</p>
+        {% endif %}
+        {% if shipment_request.shipment and shipment_request.shipment.direction == 'out' %}
+            <p>Collection is booked from our office on {{ shipment_request.shipment.shipping_date | ordinal_dt }} and
+                should
+                be delivered
+                the following day to:<br>
+                {{ shipment_request.shipment.recipient.address.business_name }}<br>{{ shipment_request.shipment.recipient.address.address_lines[0] }}
+            </p>
+        {% elif shipment.direction == 'in' %}
+            <p>Collection is booked from
+                {{ shipment_request.shipment.sender.address.business_name }} {{ shipment_request.shipment.sender.address.address_lines[0] }}
+                on {{ shipment_request.shipment.shipping_date | ordinal_dt }}.</p>
+            <p>We are unable to give precise timings, however you should receive notifications by SMS and email where
+                provided.</p>
+
+            {% if shipment_request.provider_name in ['PARCELFORCE', 'ROYAL_MAIL'] %}
+                <p>If for any reason the courier is missed you can drop the labelled box at any UK post office.</p>
+            {% endif %}
+        {% elif shipment_request.shipment.direction == 'dropoff' %}
+            <p>Please drop the labelled box at any UK post office.</p>
+        {% endif %}
+    </div>
+{% endblock content %}
+
