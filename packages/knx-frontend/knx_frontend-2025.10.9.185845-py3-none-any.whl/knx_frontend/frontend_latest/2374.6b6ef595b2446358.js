@@ -1,0 +1,21 @@
+export const __webpack_id__="2374";export const __webpack_ids__=["2374"];export const __webpack_modules__={76469:function(o,r,t){t.r(r),t.d(r,{HaIconButtonGroup:()=>n});var e=t(69868),a=t(84922),i=t(11991);class n extends a.WF{render(){return a.qy`<slot></slot>`}}n.styles=a.AH`
+    :host {
+      position: relative;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      height: 48px;
+      border-radius: 28px;
+      background-color: rgba(139, 145, 151, 0.1);
+      box-sizing: border-box;
+      width: auto;
+      padding: 0;
+    }
+    ::slotted(.separator) {
+      background-color: rgba(var(--rgb-primary-text-color), 0.15);
+      width: 1px;
+      margin: 0 1px;
+      height: 40px;
+    }
+  `,n=(0,e.__decorate)([(0,i.EM)("ha-icon-button-group")],n)}};
+//# sourceMappingURL=2374.6b6ef595b2446358.js.map
