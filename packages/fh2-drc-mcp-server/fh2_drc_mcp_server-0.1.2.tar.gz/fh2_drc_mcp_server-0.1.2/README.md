@@ -1,0 +1,244 @@
+# FH2 DRC MCP Server
+
+大疆无人机远程控制 MCP 服务器
+
+## 功能特性
+
+### 设备管理
+- `device_recommendation` - 推荐最适合的无人机和网关设备
+- `cloud_controls_create` - 申请云控权限
+
+### 飞行控制
+- `drone_takeoff` - 一键起飞
+- `fly_to_points` - 飞向目标点
+- `drone_return_home` - 返航
+
+### 相机控制
+- `camera_photo_take` - 拍照
+- `camera_aim` - 调整相机角度
+- `camera_look_at` - 相机朝向指定坐标
+- `gimbal_reset_horizontal` - 云台水平复位
+- `gimbal_reset_downward` - 云台向下复位
+
+### POI任务
+- `poi_enter` - 开始POI环绕
+- `poi_exit` - 停止POI环绕
+
+### 状态监控
+- `get_flight_status` - 查询飞行状态
+- `analyze_flight_status` - 智能分析飞行状态
+
+### 地图Pin点
+- `get_pin_points` - 查询所有Pin点
+- `create_pin_point` - 创建Pin点标记
+- `get_default_group_id` - 获取默认分组ID
+
+### AI告警
+- `get_alert_config` - 查询告警配置
+- `update_alert_config` - 更新告警配置
+- `enable_llm_alert` - 快速开启LLM告警
+- `disable_alert` - 关闭告警
+
+## 安装运行
+
+### 1. 激活虚拟环境并安装依赖
+
+```bash
+cd /Users/leslie.zhang/PycharmProjects/es-mcp-service/fh2-drc-mcp-server
+source .venv/bin/activate
+pip install -e .
+```
+
+### 2. 运行服务器
+
+```bash
+fh2-drc-mcp-server
+```
+
+或者直接使用 Python 运行：
+
+```bash
+python -m fh2_drc_mcp_server
+```
+
+## 在 Cursor 中配置
+
+编辑 `~/.cursor/mcp.json` 文件，添加以下配置：
+
+```json
+{
+  "mcpServers": {
+    "fh2-drc-mcp-server": {
+      "command": "/Users/leslie.zhang/PycharmProjects/es-mcp-service/fh2-drc-mcp-server/.venv/bin/python",
+      "args": [
+        "-m",
+        "fh2_drc_mcp_server"
+      ],
+      "env": {
+        "DRC_USER_TOKEN": "your-user-token-here"
+      }
+    }
+  }
+}
+```
+
+重启 Cursor 后即可使用。
+
+## Pin点功能使用示例
+
+### 查询所有Pin点
+
+```python
+# 查询工作空间的所有Pin点
+result = await get_pin_points("a2e4f0d4-1a8d-47e3-a4b0-fdfb904f798b")
+
+# 遍历所有Pin点
+for group in result["data"]:
+    print(f"分组: {group['name']}")
+    for element in group.get("elements", []):
+        if element.get("resource", {}).get("type") == 0:  # Point类型
+            coords = element["resource"]["content"]["geometry"]["coordinates"]
+            print(f"  - {element['name']}: 经度={coords[0]}, 纬度={coords[1]}, 高度={coords[2]}")
+```
+
+### 创建Pin点
+
+```python
+# 先获取默认分组ID
+group_id = await get_default_group_id("a2e4f0d4-1a8d-47e3-a4b0-fdfb904f798b")
+
+# 创建一个蓝色Pin点（默认）
+result = await create_pin_point(
+    workspace_id="a2e4f0d4-1a8d-47e3-a4b0-fdfb904f798b",
+    group_id=group_id,
+    longitude=114.356593,
+    latitude=22.793825,
+    height=50.0,
+    name="目标点A"
+)
+
+# 创建一个红色危险标记点
+result = await create_pin_point(
+    workspace_id="a2e4f0d4-1a8d-47e3-a4b0-fdfb904f798b",
+    group_id=group_id,
+    longitude=114.356593,
+    latitude=22.793825,
+    height=50.0,
+    name="危险区域",
+    color="#E23C39",
+    icon=-4,
+    clamp_to_ground=False
+)
+```
+
+### Pin点颜色说明
+
+- `#2D8CF0` - 蓝色（默认）
+- `#E23C39` - 红色（危险/警告）
+- `#19BE6B` - 绿色（安全/允许）
+- `#FFBB00` - 黄色（注意）
+
+### 图标类型
+
+- `0` - 默认图标
+- `-4` - 危险标记
+- `-5` - 自定义图标
+
+## 环境变量配置
+
+可以通过环境变量配置以下参数：
+
+- `DRC_BASE_URL` - API基础地址（默认：https://pre-prod-flighthub-hz.djigate.com）
+- `DRC_USER_TOKEN` - 用户认证令牌
+- `DRC_TIMEOUT` - 请求超时时间（默认：30秒）
+- `DRC_MAX_SPEED` - 最大飞行速度（默认：14 m/s）
+- `DRC_RTH_ALTITUDE` - 返航高度（默认：153米）
+- `DRC_SECURITY_TAKEOFF_HEIGHT` - 安全起飞高度（默认：153米）
+
+## AI告警功能使用示例
+
+### 查询告警配置
+
+```python
+# 查询设备的告警配置
+result = await get_alert_config(
+    project_id="a2e4f0d4-1a8d-47e3-a4b0-fdfb904f798b",
+    drone_sn="1581F8HHD24B40010175",
+    payload_index="99-0-0"
+)
+
+if isinstance(result, dict) and result.get("code") == 0:
+    data = result["data"]
+    print(f"LLM检测状态: {'开启' if data['status']['llm_status'] == 1 else '关闭'}")
+    print(f"检测标签: {data['labels']['llm_labels']}")
+    print(f"检测间隔: {data['interval_seconds']['llm_interval']}秒")
+```
+
+### 开启LLM告警检测
+
+```python
+# 快速开启LLM告警 - 检测电塔
+result = await enable_llm_alert(
+    project_id="a2e4f0d4-1a8d-47e3-a4b0-fdfb904f798b",
+    drone_sn="1581F8HHD24B40010175",
+    labels=["金属材质", "高耸", "电力传输设施"]
+)
+
+# 检测风车
+result = await enable_llm_alert(
+    project_id="a2e4f0d4-1a8d-47e3-a4b0-fdfb904f798b",
+    drone_sn="1581F8HHD24B40010175",
+    labels=["旋转装置", "木质", "大型", "有叶片"],
+    interval_seconds=3  # 每3秒检测一次
+)
+```
+
+### 更新告警配置（高级用法）
+
+```python
+# 完整配置示例 - 开启机载人数检测
+result = await update_alert_config(
+    project_id="a2e4f0d4-1a8d-47e3-a4b0-fdfb904f798b",
+    drone_sn="1581F8HHD24B40010175",
+    alert_config_type=1,  # 1=机载检测, 2=LLM检测
+    status=1,  # 1=开启, 0=关闭
+    use_min_threshold=True,
+    use_max_threshold=True,
+    min_threshold=5,  # 最少5人
+    max_threshold=50,  # 最多50人
+    interval_seconds=3
+)
+```
+
+### 关闭告警
+
+```python
+# 关闭LLM告警
+result = await disable_alert(
+    project_id="a2e4f0d4-1a8d-47e3-a4b0-fdfb904f798b",
+    drone_sn="1581F8HHD24B40010175",
+    alert_config_type=2  # LLM检测
+)
+```
+
+### 告警配置类型说明
+
+- `alert_config_type = 1` - 机载检测（Aircraft）：基于机载AI的检测
+- `alert_config_type = 2` - LLM检测（默认）：基于大语言模型的智能检测
+- `alert_config_type = 3` - 第三方机载检测
+- `alert_config_type = 4` - 第三方LLM检测
+
+### 常用检测标签示例
+
+**电力设施检测：**
+- `["金属材质", "高耸", "电力传输设施"]` - 电塔
+- `["电线", "悬空", "高压线"]` - 电线
+
+**设备检测：**
+- `["旋转装置", "木质", "大型", "有叶片"]` - 风车
+- `["车辆", "四轮", "移动"]` - 汽车
+- `["建筑", "混凝土", "高层"]` - 建筑物
+
+**环境检测：**
+- `["水体", "反光", "流动"]` - 河流
+- `["植被", "绿色", "茂密"]` - 森林
