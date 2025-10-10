@@ -1,0 +1,10 @@
+``pyproject-api``
+=================
+
+``pyproject-api`` aims to abstract away interaction with ``pyproject.toml`` style projects in a flexible way.
+
+.. toctree::
+   :hidden:
+
+   self
+   api
