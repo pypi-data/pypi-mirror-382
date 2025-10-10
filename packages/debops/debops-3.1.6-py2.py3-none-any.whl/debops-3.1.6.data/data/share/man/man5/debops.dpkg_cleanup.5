@@ -1,0 +1,221 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DPKG_CLEANUP" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.dpkg_cleanup \- Prepare a dpkg cleanup hook using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run site\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.dpkg_cleanup\fP Ansible role is a \(dqhelper role\(dq, meant to be used
+by other roles via the \fBimport_role\fP Ansible module, or through a playbook.
+.sp
+The role helps prepare the host to clean up and revert certain files and
+directories when a specific Debian/Ubuntu package is removed or purged from the
+system. This ensures that customizations done by other Ansible roles are
+correctly reverted and removed when a different role replaces a given
+functionality with a different service \- for example a webserver is switched
+from \fBnginx\fP to \fBapache2\fP, an NTP server is changed, and the
+like. This way roles that manage the same service don\(aqt necessarily have to
+include code that takes care of removing parts of alternative services.
+.sp
+The role functions by adding a \fBdpkg\fP \fBpre\-invoke\fP hook to execute
+a custom Bash script when a Debian package is removed or purged. The script
+checks if a specific package is being removed/purged and before that happens,
+it executes various commands that can:
+.INDENT 0.0
+.IP \(bu 2
+revert files diverted by the \fBdpkg\-divert(1)\fP command,
+.IP \(bu 2
+remove files or directories not covered by the \fBdeb\-prerm(5)\fP
+maintainer script included in the package,
+.IP \(bu 2
+reload or restart \fBsystemd\fP services.
+.UNINDENT
+.sp
+This helps bring back the system to a state where \fBdpkg\fP can cleanly
+remove or purge the package.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The \fI\%debops.dpkg_cleanup\fP role is not designed to be used directly. It
+should be imported into other Ansible roles with custom configuration for each
+(see below). Alternatively, it can be included in the playbooks of other
+Ansible roles.
+.SS Example playbook
+.sp
+The \fI\%debops.dpkg_cleanup\fP role does not have it\(aqs own playbook. The role
+is designed to be used by other Ansible roles via the \fBimport_role\fP Ansible
+module, usually at the end of the task list of a given role.
+.sp
+In the \fBdefaults/main.yml\fP file of the example \fBapplication\fP role, add:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__dpkg_cleanup__dependent_packages:
+  \- name: \(aqapplication\(aq
+    remove_files:
+      \- \(aq/path/to/custom/file\(aq
+      \- \(aq/path/to/other/file\(aq
+    restart_services:
+      \- \(aqother\-service\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In the \fBtasks/main.yml\fP file of the \fBapplication\fP role, add:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Prepare cleanup during package removal
+  import_role:
+    name: \(aqdpkg_cleanup\(aq
+  vars:
+    dpkg_cleanup__dependent_packages:
+      \- \(aq{{ application__dpkg_cleanup__dependent_packages }}\(aq
+  when: application__deploy_state != \(aqabsent\(aq
+  tags: [ \(aqrole::dpkg_cleanup\(aq, \(aqskip::dpkg_cleanup\(aq,
+          \(aqrole::application:dpkg_cleanup\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This configuration will ensure that the users can modify the list of files or
+directories to manipulate through the Ansible inventory, if necessary.
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+Keep in mind that if the \fI\%debops.dpkg_cleanup\fP role is used
+via the \fBimport_role\fP Ansible module in multiple roles, due to the
+behaviour of this Ansible module each such instance needs to have its own
+\fI\%dpkg_cleanup__dependent_packages\fP variable definition. Otherwise
+the last instance of the role preprocessed by Ansible will define this
+variable for each instance without it.
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.dpkg_cleanup\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS dpkg_cleanup__packages
+.sp
+The \fBdpkg_cleanup__*_packages\fP list variables (currently a single one) define
+what files should be removed or reverted by the \fBpre\-invoke\fP hook script.
+.SS Examples
+.sp
+Remove additional files and restart a service before the \fBapplication\fP
+package is removed:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__dpkg_cleanup__dependent_packages:
+  \- name: \(aqapplication\(aq
+    remove_files:
+      \- \(aq/path/to/custom/file\(aq
+      \- \(aq/path/to/other/file\(aq
+    restart_services:
+      \- \(aqother\-service\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each entry in the list is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the Debian or Ubuntu package which will trigger the
+cleanup script.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the cleanup hook and script will
+be created on the host. If \fBabsent\fP, the hook and script will be removed
+from the host.
+.TP
+.B \fBansible_fact\fP
+Optional. By default the cleanup script will remove the corresponding Ansible
+local fact based on the Debian or Ubuntu package name. If the fact has
+a different name, you can use this parameter to specify it, including the
+\fB\&.fact\fP suffix.
+.TP
+.B \fBrevert_files\fP
+Optional. A single file defined as a string, or a list of files. When the
+cleanup script is triggered, it will check if a corresponding file with the
+\fB\&.dpkg\-divert\fP suffix is present in the filesystem. If it is found, the
+script will remove the changed file without the \fB\&.dpkg\-divert\fP suffix, and
+use the \fBdpkg\-divert(1)\fP command to revert the original file in its
+place. For security, only absolute paths are allowed.
+.TP
+.B \fBremove_files\fP
+Optional. A single file defined as a string, or a list of files. When the
+cleanup script is triggered, the specified files will be removed. For
+security, only absolute paths are allowed.
+.sp
+The role will automatically include the hook and script files, as well as the
+Ansible local fact script based on the name of the Debian package, so they
+don\(aqt need to be specified separately.
+.TP
+.B \fBremove_directories\fP
+Optional. A single directory defined as a string, or a list of directories.
+When the cleanup script is triggered, the specified directories will be
+removed. For security, only absolute paths are allowed.
+.TP
+.B \fBreload_services\fP
+Optional. A single \fBsystemd\fP service or a list of services. When the
+cleanup script is triggered, it will run the \fBsystemctl reload\fP
+command for each service specified in this parameter. This can be used to
+update runtime configuration of system services, for example remove firewall
+rules that were used by a service.
+.TP
+.B \fBrestart_services\fP
+Optional. A single \fBsystemd\fP service or a list of services. When the
+cleanup script is triggered, it will run the \fBsystemctl restart\fP
+command for each service specified in this parameter. This can be used to
+update runtime configuration of system services, for example remove firewall
+rules that were used by a service.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

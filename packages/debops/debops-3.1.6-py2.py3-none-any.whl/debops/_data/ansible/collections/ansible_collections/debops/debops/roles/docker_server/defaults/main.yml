@@ -1,0 +1,265 @@
+---
+# .. vim: foldmarker=[[[,]]]:foldmethod=marker
+
+# .. Copyright (C) 2015-2023 Maciej Delmanowski <drybjed@gmail.com>
+# .. Copyright (C) 2019      Imre Jonk <mail@imrejonk.nl>
+# .. Copyright (C) 2015-2023 DebOps <https://debops.org/>
+# .. SPDX-License-Identifier: GPL-3.0-only
+
+# .. _docker_server__ref_defaults:
+
+# debops.docker_server default variables
+# ======================================
+
+# .. contents:: Sections
+#    :local:
+#
+# .. include:: ../../../../includes/global.rst
+
+# APT packages [[[
+# ----------------
+
+# .. envvar:: docker_server__upstream [[[
+#
+# Enable or disable support for upstream APT repository for Docker. The APT
+# repository is managed by the :ref:`debops.extrepo` Ansible role.
+docker_server__upstream: False
+
+                                                                   # ]]]
+# .. envvar:: docker_server__base_packages [[[
+#
+# List of APT packages to install for Docker support.
+docker_server__base_packages:
+  - '{{ ["docker-ce", "docker-compose-plugin"]
+        if docker_server__upstream | bool
+        else ["docker.io", "docker-compose"] }}'
+
+                                                                   # ]]]
+# .. envvar:: docker_server__packages [[[
+#
+# List of additional APT packages to install with Docker.
+docker_server__packages: []
+
+                                                                   # ]]]
+# .. envvar:: docker_server__version [[[
+#
+# Variable which contains the version of the Docker package installed on
+# a host. This variable is populated automatically via Ansible local facts and
+# shouldn't be set manually. It can be used in the Ansible inventory to augment
+# Docker configuration.
+docker_server__version: '{{ ansible_local.docker_server.version | d("0.0.0") }}'
+                                                                   # ]]]
+                                                                   # ]]]
+# Service integration [[[
+# -----------------------
+
+# .. envvar:: docker_server__ferm_post_hook [[[
+#
+# Docker needs to be restarted on any changes in the firewall configuration to
+# inject its own firewall rules. This boolean variable will tell the role to
+# install the :command:`ferm` hook script when :ref:`debops.ferm` Ansible role
+# is used to control the firewall.
+docker_server__ferm_post_hook: '{{ ansible_local.ferm.enabled | d() | bool }}'
+
+                                                                   # ]]]
+# .. envvar:: docker_server__resolved_integration [[[
+#
+# Enable or disable support for :command:`systemd-resolved` service integration
+# to permit host DNS resolver to resolve queries inside Docker containers.
+docker_server__resolved_integration: '{{ True
+                                         if ((ansible_local.resolved.state | d()) == "enabled")
+                                         else False }}'
+
+                                                                   # ]]]
+# .. envvar:: docker_server__resolved_address [[[
+#
+# IP address on which :command:`systemd-resolved` service will listen for DNS
+# queries. By default it's the ``docker0`` bridge IP address.
+docker_server__resolved_address: '172.17.0.1'
+
+                                                                   # ]]]
+# .. envvar:: docker_server__resolved_networks [[[
+#
+# List of networks in the CIDR format, which will be allowed to send DNS
+# requests to the :command:`systemd-resolved` service through the firewall.
+docker_server__resolved_networks: [ '172.17.0.0/16' ]
+
+                                                                   # ]]]
+# .. envvar:: docker_server__swarm_support [[[
+#
+# If enabled, the :ref:`debops.ferm` role will create firewall rules which
+# permit traffic needed for Docker Swarm cluster.
+docker_server__swarm_support: False
+
+                                                                   # ]]]
+# .. envvar:: docker_server__swarm_networks [[[
+#
+# List of networks in the CIDR format, which will be allowed to send Docker
+# Swarm communication traffic to a given Docker Swarm node.
+docker_server__swarm_networks: [ '{{ ansible_default_ipv4.network
+                                     + "/" + ansible_default_ipv4.prefix }}' ]
+                                                                   # ]]]
+                                                                   # ]]]
+# Docker authentication [[[
+# -------------------------
+
+# .. envvar:: docker_server__admins [[[
+#
+# List of UNIX accounts which should be added to the ``docker`` system group,
+# which allows them the read-write access to the Docker UNIX socket.
+docker_server__admins: '{{ ansible_local.core.admin_users | d([]) }}'
+                                                                   # ]]]
+                                                                   # ]]]
+# Docker main configuration file [[[
+# ----------------------------------
+
+# These variables define the contents of the :file:`/etc/docker/daemon.json`
+# configuration file. See :ref:`docker_server__ref_configuration` for more
+# details.
+
+# .. envvar:: docker_server__default_configuration [[[
+#
+# List of configuration options defined by default in the role.
+docker_server__default_configuration:
+
+  # Send logs to journald by default
+  - name: 'log-driver'
+    config:
+      'log-driver': 'journald'
+    state: '{{ "present"
+               if ((ansible_local.journald.enabled | d()) | bool)
+               else "ignore" }}'
+
+  # Specify upstream nameservers only if they are not local
+  - name: 'remote-nameservers'
+    config:
+      'dns': '{{ ansible_dns.nameservers }}'
+    state: '{{ "present"
+               if (not ansible_dns.nameservers
+                   | intersect(["127.0.0.1", "127.0.0.53"]))
+               else "ignore" }}'
+
+  # Use host's systemd-resolved to resolve DNS queries
+  - name: 'resolved-nameserver'
+    config:
+      'dns': ['{{ docker_server__resolved_address }}']
+    state: '{{ "present"
+               if (docker_server__resolved_integration | bool)
+               else "ignore" }}'
+
+                                                                   # ]]]
+# .. envvar:: docker_server__configuration [[[
+#
+# List of Docker configuration options defined on all hosts in the Ansible
+# inventory.
+docker_server__configuration: []
+
+                                                                   # ]]]
+# .. envvar:: docker_server__group_configuration [[[
+#
+# List of Docker configuration options defined on hosts in a specific Ansible
+# inventory group.
+docker_server__group_configuration: []
+
+                                                                   # ]]]
+# .. envvar:: docker_server__host_configuration [[[
+#
+# List of Docker configuration options defined on specific hosts in the Ansible
+# inventory.
+docker_server__host_configuration: []
+
+                                                                   # ]]]
+# .. envvar:: docker_server__combined_configuration [[[
+#
+# Variable which combines all Docker configuration lists and is used in role
+# tasks and templates.
+docker_server__combined_configuration: '{{ docker_server__default_configuration
+                                           + docker_server__configuration
+                                           + docker_server__group_configuration
+                                           + docker_server__host_configuration }}'
+                                                                   # ]]]
+                                                                   # ]]]
+# Configuration for other Ansible roles [[[
+# -----------------------------------------
+
+# .. envvar:: docker_server__extrepo__dependent_sources [[[
+#
+# Configuration for the :ref:`debops.extrepo` Ansible role.
+docker_server__extrepo__dependent_sources:
+
+  - name: 'docker-ce'
+    state: '{{ "present"
+               if (docker_server__upstream | bool)
+               else "absent" }}'
+
+                                                                   # ]]]
+# .. envvar:: docker_server__systemd__dependent_units [[[
+#
+# Configuration for the :ref:`debops.systemd` Ansible role. By default it's
+# empty, see :ref:`docker_server__ref_systemd` documentation for more details.
+docker_server__systemd__dependent_units: []
+
+                                                                   # ]]]
+# .. envvar:: docker_server__etc_services__dependent_list [[[
+#
+# Configuration for the :ref:`debops.etc_services` Ansible role.
+docker_server__etc_services__dependent_list:
+
+  - name: 'docker-manager'
+    port: '2377'
+    protocols: [ 'tcp' ]
+    comment: 'Communication with and between Docker manager nodes'
+
+  - name: 'docker-discovery'
+    port: '7946'
+    comment: 'Docker Swarm overlay network node discovery'
+
+  - name: 'docker-overlay'
+    port: '4789'
+    protocols: [ 'udp' ]
+    comment: 'Docker Swarm overlay network traffic'
+
+                                                                   # ]]]
+# .. envvar:: docker_server__ferm__dependent_rules [[[
+#
+# Configuration for the :ref:`debops.ferm` Ansible role.
+docker_server__ferm__dependent_rules:
+
+  - name: 'docker_server_resolved_listener'
+    type: 'accept'
+    daddr: '{{ docker_server__resolved_address }}'
+    dport: '53'
+    saddr: '{{ docker_server__resolved_networks }}'
+    protocol: 'udp'
+    rule_state: '{{ "present"
+                    if (docker_server__resolved_integration | bool)
+                    else "absent" }}'
+
+  - name: 'docker_server_swarm_manager'
+    type: 'accept'
+    saddr: '{{ docker_server__swarm_networks }}'
+    dport: 'docker-manager'
+    protocol: 'tcp'
+    rule_state: '{{ "present"
+                    if (docker_server__swarm_support | bool)
+                    else "absent" }}'
+
+  - name: 'docker_server_swarm_discovery'
+    type: 'accept'
+    saddr: '{{ docker_server__swarm_networks }}'
+    dport: 'docker-discovery'
+    protocol: [ 'tcp', 'udp' ]
+    rule_state: '{{ "present"
+                    if (docker_server__swarm_support | bool)
+                    else "absent" }}'
+
+  - name: 'docker_server_swarm_overlay'
+    type: 'accept'
+    saddr: '{{ docker_server__swarm_networks }}'
+    dport: 'docker-overlay'
+    protocol: 'udp'
+    rule_state: '{{ "present"
+                    if (docker_server__swarm_support | bool)
+                    else "absent" }}'
+                                                                   # ]]]
+                                                                   # ]]]

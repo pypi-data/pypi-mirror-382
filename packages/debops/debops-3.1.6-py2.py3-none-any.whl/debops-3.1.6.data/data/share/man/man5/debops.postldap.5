@@ -1,0 +1,409 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.POSTLDAP" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.postldap \- Configure Postfix SMTP service to use Virtual Mail with LDAP support
+.SH SYNOPSIS
+.sp
+\fBdebops run service/postldap\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.postldap\fP Ansible role can be used to configure and
+manage a \fIPostfix\fP Virtual Mail server with an LDAP backend.
+It allows configuration of Postfix using Ansible inventory variables.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The \fBdebops.postldap\fP role configures a Postfix SMTP server with
+support for a \fBvirtual user mail system\fP, i.e. where the senders and
+recipients do not correspond to the Linux system users.
+Hence it is possible to host emails for other domains.
+The users, email alias and domains will be managed with LDAP.
+This role use the organization defined in the mailservice schema setup by
+\fI\%debops.slapd\fP by default. The schema is designed to use the \(aqmail\(aq LDAP
+attribute as an uniqueness constraint for the \fBmailAddress\fP,
+\fBmailAlternateAddress\fP and other attributes across LDAP entries. The \(aqmail\(aq
+attribute itself is not used in e\-mail service operation.
+For example, the following LDAP entry sets the user \fBuser1\fP with
+\fI\%user1@mydomain.net\fP <\fBuser1@mydomain.net\fP> as main address and \fI\%alias1@mydomain.net\fP <\fBalias1@mydomain.net\fP> as alias.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+objectClass: inetOrgPerson
+objectClass: mailRecipient
+objectClass: authorizedServiceObject
+authorizedService: all
+mail: user1@mydomain.net
+mailAddress: user1@mydomain.net
+mailAlternateAddress: alias1@mydomain.net
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Local mail is enabled by default, support for mail aliases is provided by
+the \fI\%debops.etc_aliases\fP Ansible role and the LDAP user attribute
+\fBmailAlternateAddress\fP\&.
+.sp
+From a single address it is also possible to deliver the message to several
+recipients by using the \fBmailAlias\fP structural object to define a standalone
+e\-mail aliases:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+objectClass: mailAlias
+objectClass: authorizedServiceObject
+authorizedService: all
+mail: alias@mydomain.net
+mailAddress: alias@mydomain.net
+mailForwardTo: user1@mydomain.net
+mailForwardTo: user2@mydomain.net
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+It is also possible to attach an email existing entity using the
+\(aqmailDistributionList\(aq auxiliary object:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+objectClass: organizationalUnit
+objectClass: mailDistributionList
+objectClass: authorizedServiceObject
+authorizedService: all
+ou: IT Department
+mail: itdept@mydomain.net
+mailAddress: itdept@mydomain.net
+mailForwardTo: admin1@mydomain.net
+mailForwardTo: admin2@mydomain.net
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBmailAddress\fP attribute of the different objects will ensure that the
+address is unique in the mail system.
+.sp
+This role only works when \fBLDAP support is explicitly enabled\fP and the
+environment has a working LDAP infrastructure. See the \fI\%debops.ldap\fP role
+and its documentation for more details about setting up LDAP client support on
+a host.
+.SS Overriding lookup table configuration
+.sp
+The Postfix LDAP lookup tables defined by the \fI\%debops.ldap\fP Ansible role
+are designed to work with the LDAP directory set up by the \fI\%debops.ldap\fP
+and \fI\%debops.slapd\fP roles. If you want to use different LDAP directory
+configuration, or tailor the default configuration to your own needs, you can
+override specific parameters in the looup table configuration via the Ansible
+inventory.
+.sp
+The role defers to the \fI\%debops.postfix\fP Ansible role for actual looup
+table configuration and passes the details via the role dependent variables.
+You can find more about the details in the \fI\%postfix__lookup_tables\fP
+documentation.
+.sp
+For example, if you want to change the LDAP filter of the
+\fBldap_virtual_recipients.cf\fP lookup table, you can defined in the Ansible
+inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/host_vars/mail\-server/postfix.yml
+
+postfix__host_lookup_tables:
+
+  \- name: \(aqldap_virtual_recipients.cf\(ga
+    state: \(aqappend\(aq
+    query_filter: \(aq(&(|(mail=%s)(mailAlias=%s)))\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Please note that the configuration is defined in the \fBpostfix__*\fP variables,
+not \fBpostldap__*\fP variables. It is also important to use the \fBappend\fP state
+to make sure that the configuration is only applied when the
+\fI\%debops.postldap\fP configuration is \(dqactive\(dq.
+.sp
+If you want to disable a part of the LDAP configuration defined in the Ansible
+inventory, you can change the state to \fBignore\fP, which will then use the
+definition from the role defaults.
+.sp
+Avoid any other states in this case, because the resulting configuration will
+be applied in different contexts, for example when you run the
+\fI\%debops.postfix\fP role directly, and will break your configuration.
+.sp
+After making your changes, you can apply them by running the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run service/postldap \-l mail\-server \-t role::postfix \-\-diff
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will execute the \fI\%debops.postfix\fP role in the context of the
+\fI\%debops.postldap\fP role and correct set of variables will be active.
+.SS Example inventory
+.sp
+To install and configure Postfix Virtual Mail Server on a host,
+it needs to be present in the \fB[debops_service_postldap]\fP
+Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_slapd]
+ldap\-server
+
+[debops_service_postfix]
+mail\-server
+
+[debops_service_postconf]
+mail\-server
+
+[debops_service_postldap]
+mail\-server
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBdebops.postldap\fP playbook configures only the LDAP part of postfix
+configuration, you should use the \fI\%debops.postfix\fP role and its playbook
+to set up Postfix mail server. Additional useful configuration can be found in
+the \fI\%debops.postconf\fP role.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.postldap\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Postfix service with Virtual Mail LDAP backend
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_postldap\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare postfix environment
+      ansible.builtin.import_role:
+        name: \(aqpostfix\(aq
+        tasks_from: \(aqmain_env\(aq
+      vars:
+        postfix__dependent_packages:
+          \- \(aq{{ postldap__postfix__dependent_packages }}\(aq
+        postfix__dependent_lookup_tables:
+          \- \(aq{{ postldap__postfix__dependent_lookup_tables }}\(aq
+        postfix__dependent_maincf:
+          \- role: \(aqpostldap\(aq
+            config: \(aq{{ postldap__postfix__dependent_maincf }}\(aq
+      tags: [ \(aqrole::postfix:env\(aq, \(aqrole::postfix\(aq, \(aqrole::postldap\(aq, \(aqrole::secret\(aq, \(aqrole::ferm\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::postfix\(aq, \(aqrole::postldap\(aq ]
+      secret__directories:
+        \- \(aq{{ postfix__secret__directories }}\(aq
+
+    \- role: postldap
+      tags: [ \(aqrole::postldap\(aq, \(aqskip::postldap\(aq, \(aqrole::postfix\(aq ]
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ postldap__ldap__dependent_tasks }}\(aq
+
+    \- role: postfix
+      tags: [ \(aqrole::postfix\(aq, \(aqskip::postfix\(aq ]
+      postfix__dependent_packages:
+        \- \(aq{{ postldap__postfix__dependent_packages }}\(aq
+      postfix__dependent_lookup_tables:
+        \- \(aq{{ postldap__postfix__dependent_lookup_tables }}\(aq
+      postfix__dependent_maincf:
+        \- role: \(aqpostldap\(aq
+          config: \(aq{{ postldap__postfix__dependent_maincf }}\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::postldap\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH POSTFIX CONFIGURATION GUIDES
+.sp
+Here you can find a few guides that can help you configure more advanced
+Postfix features. Some of these can and are implemented as separate Ansible
+roles, here you can see the configuration specific to \fBdebops.postfix\fP role.
+.SS Configure Postfix as a Virtual User Mail System
+.sp
+This guide describes how to set up a virtual user mail system, i.e.
+where the senders and recipients do not correspond to the Linux system users.
+.sp
+It requires a working LDAP infrastructure (See \fI\%debops.ldap\fP and
+\fI\%debops.slapd\fP) in order to manage and authenticate the users and get
+the corresponding email address and aliases.
+It is also possible to configure accounts with \fIwildcard\fP (catch\-all)
+email addresses. The default configuration uses first the aliases set by
+\fI\%debops.etc_aliases\fP and then queries the LDAP server, if no match was found.
+.sp
+See also \fI\%debops.dovecot\fP and \fI\%debops.roundcube\fP for an IMAP server
+and Email\-Webclient correspondingly.
+.sp
+The following example shows a real\-world™ setup on the Hetzner Cloud. It consists of two servers,
+one \fBcontroller\fP and a \fBmail\-server\fP\&. The LDAP directory is hosted also in the \fBcontroller\fP\&.
+\fBmail\-server\fP has access to LDAP over an internal network (10.10.10.0/28) attached directly to the VMs.
+This setup has no internal DNS server (no split\-DNS), thus internal IPs are mapped to DNS entries in the form \fB$service.hetzner.mydomain.net\fP\&.
+.sp
+ansible/inventory/group_vars/hetzner/ldap.yml
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# Enable LDAP, as is deactivated by default
+ldap__enabled: True
+
+ldap__domain: \(aqmydomain.net\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+ansible/inventory/host_vars/skynet.mydomain.net/slapd.yml
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+## Network access to OpenLDAP server
+# Firewall Settings
+#   Block connections to the OpenLDAP via system firewall and TCP Wrappers from any host (aka Internet);
+#   Hosts that can connect must be specified via the slapd__*_allow variables.
+slapd__accept_any: false
+
+slapd__group_allow:
+  # Hetzner internal network
+  \- \(aq10.10.10.0/28\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+ansible/inventory/host_vars/mail\-server.mydomain.net/pki.yml
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+### Create TLS Certs for the mail server
+#
+# In order to sign the cert by Let\(aqs Encrypt CA install nginx in the \(aqmail\-server\(aq,
+# so that the acme script can work.
+pki_host_realms:
+  \- name: \(aqmail.mydomain.net\(aq
+    acme: false
+    domains:
+      \- \(aqmail.mydomain.net\(aq
+      \- \(aqsmtp.mydomain.net\(aq
+      \- \(aqimap.mydomain.net\(aq
+      \- \(aqmail\-server.mydomain.net\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+ansible/inventory/host_vars/mail\-server.mydomain.net/postfix.yml
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# basic Postfix SMTP server with configuration similar to the \(dqInternet Site\(dq
+# MTP service listens for connections on port 25 from all hosts.
+# Mail relay is authorized from localhost, other hosts are deferred.
+
+postfix__domain: \(aqmydomain.net\(aq
+
+postfix__pki_realm: \(aqmail.mydomain.net\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Rainer 'rei' Schuth
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

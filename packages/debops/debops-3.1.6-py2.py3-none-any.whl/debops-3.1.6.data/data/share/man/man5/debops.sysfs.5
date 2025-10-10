@@ -1,0 +1,234 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.SYSFS" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.sysfs \- Manage kernel /sys filesystem using sysfsutils
+.SH SYNOPSIS
+.sp
+\fBdebops run service/sysfs\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%sysfs\fP <\fBhttps://en.wikipedia.org/wiki/Sysfs\fP> is a Linux kernel virtual
+filesystem, usually mounted at \fB/sys\fP\&. It provides a file\-based interface
+to the kernel data structures related to hardware and host configuration. The
+filesystem entries can be manipulated by the \fBsysfsutils\fP package
+provided by Debian/Ubuntu.
+.sp
+The \fBdebops.sysfs\fP Ansible role can be used to configure \fBsysfs\fP attributes
+in supported environments. It can be used as a standalone role, or a dependent
+role to configure \fBsysfs\fP on behalf of another Ansible role.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The \fBsysfs\fP configuration will not be applied by default in a container
+environment (LXC, OpenVZ), since these environments usually have the \fB/sys\fP
+filesystem mounted read\-only. You can control this using the
+\fI\%sysfs__enabled\fP variable.
+.SS Example inventory
+.sp
+To configure the \fB/sys\fP kernel filesystem on a host by the \fBdebops.sysfs\fP
+role, that host needs to be added to the \fB[debops_service_sysfs]\fP Ansible
+inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_sysfs]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.sysfs\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure sysfs options
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_sysfs\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare sysfs environment
+      ansible.builtin.import_role:
+        name: \(aqsysfs\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::sysfs\(aq, \(aqrole::secret\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::sysfs\(aq ]
+      secret__directories:
+        \- \(aq{{ sysfs__secret__directories | d([]) }}\(aq
+
+    \- role: sysfs
+      tags: [ \(aqrole::sysfs\(aq, \(aqskip::sysfs\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.sysfs\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS sysfs__attributes
+.sp
+The \fBsysfs__*_attributes\fP default variables hold the configuration of the
+\fBsysfsutils\fP service, stored in the \fB/etc/sysfs.d/\fP directory.
+The variables are lists, with each entry defined as a YAML dictionary.
+.sp
+Dictionaries can be specified as a simple attribute/value form where the
+dictionary key is a path to a \fBsysfs\fP file, and the dictionary value is the
+value to set, or can be defined as more complex YAML dictionaries with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the \fBsysfs\fP attribute to configure, usually specified
+as a filesystem path without the \fB/sys/\fP prefix.
+.sp
+This parameter is used as the key when entries from multiple attribute lists
+are merged together. It\(aqs also used as a filename in the
+\fB/etc/sysfs.d/\fP directory, with \fB/\fP characters replaced by \fB_\fP,
+unless the \fBitem.filename\fP parameter is used.
+.sp
+If the \fBitem.options\fP parameter is used, the \fBsysfs\fP attribute specified
+as the name is ignored and can be an arbitrary filename.
+.TP
+.B \fBvalue\fP
+Optional. Define the value of a given attribute. If \fBitem.options\fP
+parameter is used, the main \fBvalue\fP parameter is ignored.
+.TP
+.B \fBowner\fP
+Optional. Set the \(dqowner\(dq and \(dqgroup\(dq of a file in the \fB/sys/\fP
+filesystem. Specify values supported by the \fBchown\fP command. If the
+\fBitem.options\fP parameter is used, the main \fBowner\fP parameter is ignored.
+.TP
+.B \fBmode\fP
+Optional. Set the file attributes of a file in the \fB/sys/\fP filesystem.
+Specify values supported by the \fBchmod\fP command. Make sure to quote
+the numerical values like \fB0660\fP, otherwise they will be interpreted by
+Ansible as octal and may result in unexpected behaviour. If the
+\fBitem.options\fP parameter is used, the main \fBmode\fP parameter is ignored.
+.TP
+.B \fBfilename\fP
+Optional. A custom filename of the configuration file in
+\fB/etc/sysfs.d/\fP directory. The \fB\&.conf\fP suffix is automatically
+appended.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment included in the
+configuration file.
+.TP
+.B \fBstate\fP
+Optional. Control the state of the generated configuration file.
+.sp
+If not specified or \fBpresent\fP, the configuration file will be generated.
+.sp
+If \fBabsent\fP, an existing configuration file will be removed.
+.sp
+If \fBignore\fP, a given entry is ignored by Ansible during configuration
+merge, this can be used to conditionally enable or disable configuration
+entries.
+.sp
+If \fBdefined\fP, a given entry is defined during configuration merge, but it
+won\(aqt change the state of the configuration file on the managed hosts. This
+state is useful mostly in the role default variables to define \fBsysfs\fP
+attributes which can be conditionally enabled from inventory or by other
+Ansible roles.
+.sp
+If \fBcomment\fP, the configuration file will be generated, but all attributes
+will be commented out. This can be used to create example configuration
+files.
+.TP
+.B \fBoptions\fP
+Optional. YAML list of \fBsysfs\fP attributes with the same format as the one
+defined above. This parameter can be used to define multiple attributes in
+the same file. Supported parameters: \fBname\fP, \fBstate\fP, \fBvalue\fP,
+\fBowner\fP, \fBmode\fP, \fBcomment\fP\&.
+.UNINDENT
+.SS Examples
+.sp
+Define the example configuration from the \fB/etc/sysfs.conf\fP as the role
+configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sysfs__attributes:
+
+  \- name: \(aqdevices/system/cpu/cpu0/cpufreq/scaling_governor\(aq
+    comment: \(aqAlways use the powersave CPU frequency governor\(aq
+    value: \(aqpowersave\(aq
+
+  # Multiple attributes in one file
+  \- name: \(aquserspace_cpufreq_governor\(aq
+    comment: |
+      Use userspace CPU frequency governor and set initial speed
+    options:
+
+      \- name: \(aqdevices/system/cpu/cpu0/cpufreq/scaling_governor\(aq
+        value: \(aquserspace\(aq
+
+      \- name: \(aqdevices/system/cpu/cpu0/cpufreq/scaling_setspeed\(aq
+        value: 600000
+
+  \- name: \(aqpower/state\(aq
+    comment: \(aqSet permissions of suspend control file\(aq
+    mode: \(aq0600\(aq
+    owner: \(aqroot:power\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

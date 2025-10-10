@@ -1,0 +1,636 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.RESOLVED" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.resolved \- Manage Network Name Resolver using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/resolved\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%systemd\-resolved(8)\fP <\fBhttps://manpages.debian.org/systemd-resolved(8)\fP> service is a part of the \fI\%systemd\fP <\fBhttps://www.freedesktop.org/wiki/Software/systemd/\fP> project.
+The service is a local DNS resolver that can manage the
+\fB/etc/resolv.conf\fP configuration file and provide name resolution,
+Multicast DNS and LLDP capabilities, among other things.
+.sp
+The \fI\%debops.resolved\fP Ansible role manages the \fBsystemd\-resolved\fP
+configuration. Other parts of the \fBsystemd\fP ecosystem are managed by
+separate Ansible roles.
+.SH GETTING STARTED
+.SS Support for other DNS resolvers
+.sp
+The role checks if one of the APT packages listed in the
+\fI\%resolved__skip_packages\fP variable is already installed on the host
+before doing any modification on the system. If such package is detected, the
+role will skip further tasks to avoid messing up existing configuration.
+.SS Fallback DNS configuration
+.sp
+Since Debian 12 (Bookworm), the \fBsystemd\-resolved\fP service is provided
+via a separate package, which on installation automatically replaces the
+\fB/etc/resolv.conf\fP file with a symlink. The default Debian installation
+still uses the \fBifupdown\fP package to configure networking, which results in
+broken DNS resolution on \fBsystemd\-resolved\fP installation because the
+service does not get the relevant nameserver information from \fBifupdown\fP
+scripts.
+.sp
+To mitigate this, the \fI\%debops.resolved\fP role will get the current DNS
+configuration from Ansible facts and add it in the
+\fB/etc/systemd/resolved.conf.d/00fallback\-dns.conf\fP file as \(dqFallback DNS
+configuration\(dq before installing the service itself. This should avoid issues
+with DNS before the actual configuration is defined. The file can be safely
+removed later, or its configuration will be overridden if specified in the
+subsequent configuration files.
+.SS Management of the \fB/etc/resolv.conf\fP config file
+.sp
+The \fB/etc/resolv.conf\fP configuration file can be overwritten by the
+\fBdhclient\fP command, used by the \fBifupdown\fP scripts which are
+installed by default when Debian Installer is used to deploy a host. To ensure
+that network configuration and name resolution are not impacted, the
+\fI\%debops.resolved\fP role will symlink its own generated \fBresolv.conf\fP
+file only when the \fBsystemd\-networkd\fP service is detected via the
+Ansible local fact managed by the \fI\%debops.networkd\fP role.
+.sp
+Refer to the \fB/ETC/RESOLF.CONF\fP section of the
+\fI\%systemd\-resolved.service(8)\fP <\fBhttps://manpages.debian.org/systemd-resolved.service(8)\fP> manual page for more information on how the
+service interacts with the config file.
+.SS Example inventory
+.sp
+The \fBdebops.resolved\fP role is included by default in the \fBcommon.yml\fP DebOps
+playbook; you don\(aqt need to add hosts to any Ansible groups to enable it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.resolved\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage systemd\-resolved service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_resolved\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ resolved__etc_services__dependent_list }}\(aq
+
+    \- role: resolved
+      tags: [ \(aqrole::resolved\(aq, \(aqskip::resolved\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::resolved\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DNS-SD SUPPORT IN SYSTEMD-RESOLVED
+.SS Overview
+.sp
+The \fBsystemd\-resolved\fP service supports \fI\%DNS Service Discovery\fP <\fBhttps://en.wikipedia.org/wiki/Zero-configuration_networking#DNS-SD\fP>
+using \fI\%Multicast DNS\fP <\fBhttps://en.wikipedia.org/wiki/Multicast_DNS\fP> protocol, similar to the one used by \fI\%Avahi\fP <\fBhttps://en.wikipedia.org/wiki/Avahi_(software)\fP> on Linux
+and \fI\%Bonjour\fP <\fBhttps://en.wikipedia.org/wiki/Bonjour_(software)\fP> on Apple macOS environments. Services can be advertised on
+a \fI\%\&.local\fP <\fBhttps://en.wikipedia.org/wiki/.local\fP> DNS domain and discovered by compatible clients. The
+\fBresolvectl query\fP and \fBresolvectl service\fP commands can be
+used to find local services advertised by DNS\-SD.
+.SS Network configuration for Multicast DNS
+.sp
+For the \fBmDNS\fP support to work, it needs to be enabled globally in
+\fBsystemd\-resolved\fP (it is enabled by default). Then, support needs to
+be enabled on specific network interfaces using \fBsystemd\-networkd\fP to
+tell \fBsystemd\-resolved\fP on which interfaces it should advertise and
+listen for DNS\-SD traffic.
+.sp
+Here\(aqs an example network configuration for a host with Ethernet interface
+which makes sure that Multicast DNS support is enabled. Configuration is applied
+on the host using the \fI\%debops.networkd\fP Ansible role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# File: ansible/inventory/host_vars/laptop/networkd.yml
+
+networkd__configuration
+
+  \- name: \(aqeth0.network\(aq
+    raw: |
+      [Match]
+      Name=eth0
+
+      [Network]
+      DHCP=yes
+      MulticastDNS=yes
+
+      [DHCPv4]
+      UseDomains=yes
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After configuring the network interface(s), users can check the state of
+Multicast DNS using the \fBresolvectl\fP command. An example output:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@laptop:~$ resolvectl
+Global
+       Protocols: +LLMNR +mDNS \-DNSOverTLS DNSSEC=no/unsupported
+resolv.conf mode: stub
+
+Link 2 (eth0)
+Current Scopes: DNS LLMNR/IPv4 LLMNR/IPv6 mDNS/IPv4 mDNS/IPv6
+     Protocols: +DefaultRoute +LLMNR +mDNS \-DNSOverTLS DNSSEC=no/unsupported
+   DNS Servers: 192.0.2.1
+    DNS Domain: example.org
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fB+mDNS\fP flag in the \(dqGlobal\(dq section indicates that Multicast DNS is
+enabled in \fBsystemd\-resolved\fP service. The same flag in the \(dqLink\(dq
+section indicates that Multicast DNS traffic is accepted on a particular link.
+.sp
+Users also need to make sure that the \fBmDNS\fP multicast UDP traffic is
+accepted by the firewall. The port to open is \fB5353/udp\fP (defined as \fBmdns\fP
+in \fB/etc/services\fP database) and the destination addresses are
+\fB224.0.0.251\fP for IPv4 network and \fBff02::fb\fP for IPv6 network. This
+configuration should be automatically enabled by the \fI\%debops.ferm\fP role
+included in DebOps.
+.SS Exploring the \fB\&.local\fP network
+.sp
+When Multicast DNS support is enabled, it should be possible to ping other
+hosts on the \fB\&.local\fP domain:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@laptop:~$ ping \-c 1 server.local
+PING server.local (192.0.2.12) 56(84) bytes of data.
+64 bytes from server.example.org (192.0.2.12): icmp_seq=1 ttl=64 time=0.841 ms
+
+\-\-\- server.local ping statistics \-\-\-
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.841/0.841/0.841/0.000 ms
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBresolvectl query\fP command can be used to find out what services
+are advertised on the local network. Currently they will only show services
+advertised on the same host the command is executed on:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@laptop:~$ resolvectl query \-p mdns \-\-type=PTR _services._dns\-sd._udp.local
+_services._dns\-sd._udp.local IN PTR _workstation._tcp.local \-\- link: eth0
+_services._dns\-sd._udp.local IN PTR _ssh._tcp.local         \-\- link: eth0
+_services._dns\-sd._udp.local IN PTR _sftp\-ssh._tcp.local    \-\- link: eth0
+
+\-\- Information acquired via protocol mDNS/IPv6 in 2.9ms.
+\-\- Data is authenticated: yes
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A specific service type can be queried as well:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@laptop:~$ resolvectl query \-p mdns \-\-type=PTR _ssh._tcp.local
+_ssh._tcp.local IN PTR laptop._ssh._tcp.local               \-\- link: eth0
+
+\-\- Information acquired via protocol mDNS/IPv6 in 457us.
+\-\- Data is authenticated: yes
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Unfortunately, current UI for service discovery in \fBsystemd\-resolved\fP
+is limited, \fI\%there\(aqs no user\-facing way to list discovered services\fP <\fBhttps://github.com/systemd/systemd/issues/14796\fP> known to
+the resolver. Users can debug this currently using \fBjournald\fP logs. In
+one terminal, start viewing the logs of the \fBsystemd\-resolved\fP
+service:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@laptop:~$ sudo journalctl \-f \-u systemd\-resolved.service
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In another terminal, send the \fBUSR1\fP signal to the service to dump its cache
+information in the logs:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@laptop:~$ sudo killall \-USR1 systemd\-resolved
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This should display information about other hosts seen in the \fB\&.local\fP
+network. The \fBsystemd\fP project developers are \fI\%working on an user
+interface\fP <\fBhttps://github.com/systemd/systemd/pull/18355\fP> for this functionality, it might be available in the future.
+.sp
+If the hostname of a given service is known, the \fBresolvectl service\fP
+command can be used to find out its SRV resource records published in DNS:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@laptop:~$ resolvectl service server._ssh._tcp.local
+server._ssh._tcp.local: server.local:22 [priority=0, weight=0]
+                        192.0.2.12                        \-\- link: eth0
+                        (server/_ssh._tcp/local)
+
+\-\- Information acquired via protocol mDNS/IPv4 in 238.6ms.
+\-\- Data is authenticated: no
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Users should be able to use the services as normal:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@laptop:~$ ssh server.local
+The authenticity of host \(aqserver.local (192.0.2.12)\(aq can\(aqt be established.
+ECDSA key fingerprint is SHA256:fy8ZGpDIc2a4Zmd2eIcbGDyJttN4eY0pRMZeUl1S7No.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added \(aqserver.local,192.0.2.12\(aq (ECDSA) to the list of known hosts.
+You have no mail.
+Last login: Fri Mar  3 12:24:57 2023 from laptop.example.org
+user@server:~$
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Publishing services using DNS\-SD
+.sp
+To publish a service using DNS Service Discovery protocol, users can put
+configuration files in the \fB/etc/systemd/dnssd/\fP directory. The format of
+the configuration files is described in the \fI\%systemd.dnssd(5)\fP <\fBhttps://manpages.debian.org/systemd.dnssd(5)\fP> manual
+page. The services will be published after the \fBsystemd\-resolved\fP
+service is restarted (there\(aqs no support for reloading).
+.sp
+An example configuration file which publishes the SSH service on port \fB22/tcp\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# File: /etc/systemd/dnssd/ssh.dnssd
+
+[Service]
+Name=%H
+Type=_ssh._tcp
+Port=22
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \(dqName=\(dq parameter will be used as the DNS Resource Record, this
+is not a descriptive name. The \fB%H\fP variable will be expanded as the
+hostname.
+.sp
+The \fI\%debops.resolved\fP role can be used to generate and publish these
+files, see the \fI\%resolved__units\fP documentation for more details. The
+role publishes a few services by default, you can find their configuration in
+the \fI\%resolved__default_units\fP variable.
+.sp
+Alternatively, Ansible roles can handle the files themselves; just ensure that
+the \fB/etc/systemd/dnssd/\fP directory is present on the host and after the
+file is created, restart the \fBsystemd\-resolved\fP service. DebOps
+provides a convenient handler for this in the \fI\%debops.global_handlers\fP
+role.
+.SS Compatibility with Avahi
+.sp
+The \fBavahi\-daemon\fP service and the DNS\-SD publisher functionality of
+the \fBsystemd\-resolved\fP service are mutually exclusive and cannot work
+reliably at the same time. To fix this issue, the \fI\%debops.avahi\fP role
+configures the \fBsystemd\-resolved\fP service to turn off \fBmDNS\fP support
+via \fBsystemd\fP unit file override. This unfortunately breaks the
+\fBresolvectl query\fP and \fBresolvectl service\fP support for the
+\fB\&.local\fP domain. Hostname resolution should still work via Avahi, and local
+services can be published the usual way \- refer to the \fI\%debops.avahi\fP role
+documentation for details.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.resolved\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS resolved__configuration
+.sp
+The \fBresolved__*_configuration\fP default variables define the configuration of
+the \fBsystemd\-resolved\fP service itself. You can find more details about
+\fBsystemd\-resolved\fP configuration in the \fI\%resolved.conf(5)\fP <\fBhttps://manpages.debian.org/resolved.conf(5)\fP> manual
+page.
+.sp
+The generated configuration will be located in the
+\fB/etc/systemd/resolved.conf.d/ansible.conf\fP config file. This file is not
+generated by default to fall back on the default configuration provided in the
+OS packages; to generate it the \fI\%resolved__deploy_state\fP variable needs
+to be set to \fBpresent\fP\&.
+.SS Examples
+.sp
+Define a set of global DNS servers and search domains for a given host or
+cluster (consider defining this in \fBsystemd\-networkd\fP service for
+per\-link DNS servers, or via DHCP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# File: ansible/inventory/group_vars/all/resolved.yml
+
+resolved__deploy_state: \(aqpresent\(aq
+
+resolved__configuration:
+
+  \- DNS: [ \(aq8.8.8.8\(aq, \(aq8.8.4.4\(aq ]
+
+  \- Domains: [ \(aqexample.org\(aq, \(aqexample.com\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Include additional DNS servers on a specific host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# File: ansible/inventory/host_vars/<hostname>/resolved.yml
+
+resolved__host_configuration:
+
+  \- DNS: [ \(aq1.1.1.1\(aq, \(aq1.0.0.1\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Do the same as above, but don\(aqt include the default list of DNS servers by
+resetting the configuration entry:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# File: ansible/inventory/host_vars/<hostname>/resolved.yml
+
+resolved__host_configuration:
+
+  \- DNS: \(aq\(aq
+
+  \- DNS: [ \(aq1.1.1.1\(aq, \(aq1.0.0.1\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a list of additional DNS stub listener addresses on which
+\fBsystemd\-resolved\fP service should be available. This is defined by
+specifying the \fBDNSStubListenerExtra\fP option multiple times, therefore the
+\fBraw\fP parameter needs to be used for this to work. The \fBname\fP parameter is
+ignored in this case:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+resolved__deploy_state: \(aqpresent\(aq
+
+resolved__configuration:
+
+  \- name: \(aqstub_listeners\(aq
+    raw: |
+      DNSStubListenerExtra=192.0.2.10
+      DNSStubListenerExtra=2001:db8:0:f102::10
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can check the \fI\%resolved__default_configuration\fP variable for the
+default contents of the configuration file.
+.SS Syntax
+.sp
+The role uses the \fI\%Universal Configuration\fP system to configure
+\fBsystemd\-resolved\fP daemon. Each configuration entry in the list is
+a YAML dictionary. The simple form of the configuration uses the dictionary
+keys as the parameter names, and dictionary values as the parameter values.
+Remember that the parameter names need to be specified in the exact case they
+are used in the documentation (e.g.  \fBSpeedMeterInterval\fP, \fBDUIDType\fP),
+otherwise they will be duplicated in the generated configuration file. It\(aqs
+best to use a single YAML dictionary per configuration option.
+.sp
+If the YAML dictionary contains the \fBname\fP key, the configuration switches to
+the complex definition mode, with configuration options defined by specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Specify the name of the \fBsystemd\-networkd\fP configuration
+file parameter. The case is important and should be the same as specified in
+the configuration file or the \fI\%networkd.conf(5)\fP <\fBhttps://manpages.debian.org/networkd.conf(5)\fP> manual page, otherwise
+the configuration entries will be duplicated.
+.sp
+Multiple configuration entries with the same \fBname\fP parameter are merged
+together in order of appearance. This can be used to modify parameters
+conditionally.
+.TP
+.B \fBvalue\fP
+Optional. The value of a given configuration option. It can be a string,
+number, \fBTrue\fP/\fBFalse\fP boolean, a YAML list of strings or an empty
+string. Values from multiple \fBname\fP configuration entries are override each
+other except for YAML lists, in which case they are additive by extending the
+existing list in order of appearance. To rest a YAML list value, an empty
+string can be specified as a value of the entry.
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block with \fI\%resolved.conf(5)\fP <\fBhttps://manpages.debian.org/resolved.conf(5)\fP>
+configuration which will be included in the generated configuration file
+as\-is. If specified, the \fBname\fP and \fBvalue\fP of a given entry are not
+used in the generated configuration.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration parameter
+will be present in the generated configuration file. If \fBabsent\fP, a given
+parameter will be removed from the configuration file. If \fBcomment\fP, the
+parameter will be present but commented out.
+.sp
+If the state is \fBinit\fP, the parameter will be \(dqprimed\(dq in the configuration
+pipeline, but it will be commented out in the generated configuration file.
+Any subsequent configuration entry with the same \fBname\fP will switch the
+state to \fBpresent\fP \- this is used to define the default parameters in the
+role which can be changed via the Ansible inventory.
+.sp
+If the state is \fBignore\fP, a given configuration entry will not be evaluated
+during role execution. This can be used to activate configuration entries
+conditionally.
+.UNINDENT
+.SS resolved__units
+.sp
+The \fBresolved__*_units\fP default variables can be used to manage the DNS
+Service Discovery configuration files used by \fBsystemd\-resolved\fP
+service, located in the \fB/etc/systemd/dnssd/\fP directory. You can find
+more information about the files themselves in the \fI\%systemd.dnssd(5)\fP <\fBhttps://manpages.debian.org/systemd.dnssd(5)\fP>
+manual page.
+.SS Examples
+.sp
+You can check the \fI\%resolved__default_units\fP variable for the default
+set of configuration files maintained by the role.
+.SS Syntax
+.sp
+The role uses the \fI\%Universal Configuration\fP system to manage
+\fBsystemd\-resolved\fP unit files. Each configuration entry in the list is
+a YAML dictionary, with configuration options defined by specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the \fBsystemd\-resolved\fP unit file to manage. The
+name can be in the form \fB<unit.type>\fP to denote a single
+\fI\%systemd.unit(5)\fP <\fBhttps://manpages.debian.org/systemd.unit(5)\fP>, as well as \fB<unit.type>.d/<override>.conf\fP to
+denote a single \(dqoverride\(dq configuration file that changes the configuration
+of a specific unit.
+.sp
+Unit files are stored under the \fB/etc/systemd/dnssd/\fP subdirectory,
+automatically created if necessary. The role will create the
+\fB<unit.type>.d/\fP subdirectories as needed.
+.sp
+The \fBname\fP parameter needs to be unique. Multiple configuration entries
+with the same \fBname\fP parameter are merged together and override each other.
+.TP
+.B \fBraw\fP
+Optional. YAML text block in the INI format, with the
+\fBsystemd\-resolved\fP configuration options which will be included in
+the generated configuration file as\-is. The text block can contain Jinja
+statements to generate parts of the configuration dynamically.
+.sp
+See the \fI\%systemd.dnssd(5)\fP <\fBhttps://manpages.debian.org/systemd.dnssd(5)\fP> manual page for details about the unit
+configuration syntax and available options. The generated files are not
+validated by Ansible before being applied in the \fBsystemd\-resolved\fP
+configuration at this time.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP (default), a given unit
+configuration file will be generated by Ansible and placed in the
+\fBsystemd\-resolved\fP configuration directory. The service will be
+automatically restarted on changes.
+.sp
+If \fBabsent\fP, the role will remove the specified unit configuration file as
+well as the override directory if it is present (all override files will be
+removed, even ones not managed by Ansible). Specific override files can be
+removed as well if they are defined directly in the \fBname\fP parameter.
+.sp
+If \fBinit\fP, the configuration entry will be prepared, but no changes will be
+done on the host itself. This can be done to prepare a unit configuration and
+activate it conditionally later in the universal configuration pipeline.
+.sp
+If \fBignore\fP, a given configuration entry will not be evaluated during role
+execution.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with comments included in the generated
+configuration file.
+.UNINDENT
+.SH SEE ALSO
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%systemd\-resolved.service(8)\fP <\fBhttps://manpages.debian.org/systemd-resolved.service(8)\fP>, \fI\%resolvectl(1)\fP <\fBhttps://manpages.debian.org/resolvectl(1)\fP>, \fI\%nss\-resolve(8)\fP <\fBhttps://manpages.debian.org/nss-resolve(8)\fP>
+.IP \(bu 2
+\fI\%Arch Linux Wiki: systemd\-resolved\fP <\fBhttps://wiki.archlinux.org/title/systemd-resolved\fP>
+.IP \(bu 2
+\fI\%The Sisyphean Task Of DNS Client Config on Linux\fP <\fBhttps://tailscale.com/blog/sisyphean-dns-client-linux/\fP>
+.IP \(bu 2
+\fI\%Anatomy of a Linux DNS Lookup\fP <\fBhttps://zwischenzugs.com/2018/06/08/anatomy-of-a-linux-dns-lookup-part-i/\fP>
+.IP \(bu 2
+\fI\%Switching to systemd\-resolved for mDNS\fP <\fBhttps://brokkr.net/2022/07/03/switching-to-systemd-resolved-for-mdns/\fP>
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

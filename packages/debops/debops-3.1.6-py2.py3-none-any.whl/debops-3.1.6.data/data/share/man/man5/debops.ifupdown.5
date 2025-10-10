@@ -1,0 +1,1186 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.IFUPDOWN" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.ifupdown \- Manage network interfaces using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/ifupdown\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fBifupdown\fP is a set of high\-level scripts in Debian/Ubuntu Linux
+distributions which can be used to configure network interfaces, bridges, VLAN
+interfaces, bonding, and so on. You can find example configuration and usage
+guides on the \fI\%NetworkConfiguration\fP <\fBhttps://wiki.debian.org/NetworkConfiguration\fP> page of the \fI\%Debian Wiki\fP <\fBhttps://wiki.debian.org/\fP>\&.
+.sp
+\fBdebops.ifupdown\fP is an Ansible role which wraps \fBifupdown\fP in an easy to
+use, and Ansible\-friendly interface. It aims to be a safe and reliable way to
+let you configure network interfaces on hosts managed using Ansible. It can be
+used either as a standalone role configured using role/inventory variables, or
+as a dependency of another role, to provide network configuration as needed.
+.SH GETTING STARTED
+.SS Quick start guide
+.sp
+Here are some quick examples to get you started if you already know how to use
+DebOps roles. These examples are supposed to go into your Ansible inventory,
+specifically to the host configuration, for example
+\fBansible/inventory/host_vars/<hostname>/ifupdown.yml\fP\&.
+.sp
+Create an anonymous bridge:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__host_interfaces:
+  \(aqbr2\(aq: {}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a bridge with static IP address and IPv4 NAT using SNAT translation:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__host_interfaces:
+  \(aqbr2\(aq:
+    inet: \(aqstatic\(aq
+    inet6: \(aqstatic\(aq
+    addresses: [ \(aq192.0.2.1/24\(aq, \(aq2001:db8:feed:beef::1/64\(aq ]
+    nat: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Default network configuration
+.sp
+Without any additional configuration, \fBdebops.ifupdown\fP role will try to
+select one of two default interface layouts depending on whether the host is an
+OpenVZ/LXC container or not. If it\(aqs a container, the role will use the
+\fBdynamic\fP interface layout which defines 1 or 2 network interfaces that are
+configured via DHCP (IPv4) and SLAAC (IPv6).
+.sp
+If the host is not a container, the role will select the \fBbridge\fP layout,
+which defines 1 or 2 network interfaces with attached bridges that are
+configured with DHCP (IPv4) and SLAAC (IPv6). This configuration is beneficial
+when a machine is used as a KVM, LXC or even a Docker host. With the bridges
+in place you can connect the VMs or containers to your external or internal
+network with ease.
+.SS Automatic upgrades from older version
+.sp
+The \fBdebops.ifupdown\fP role tracks its own version used on a host using the
+\fI\%debops.debops_fact\fP as an intermediary. If the currently applied
+version is older than \fB0.3.0\fP or the version cannot be found, role will
+remove the \fB/etc/network/interfaces.config.d/\fP directory to make sure
+that the network configuration state is consistent. You might want to review
+and update your interface configuration in the Ansible inventory before
+applying a new version of the role to ensure that it has accurate information
+about interfaces present on the host.
+.SS Example inventory
+.sp
+To enable the \fBifupdown\fP interface management, you need to add the
+host to the \fB[debops_service_ifupdown]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_ifupdown]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The role does not check if the host can manage network interfaces, therefore
+you should only enable this role on hosts that are allowed to do so. One
+of the limiting factors can be the presence of the \fBcap_net_admin\fP POSIX
+capability. Make sure that it is present on the host so that it can manage its
+own networking.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.ifupdown\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage network configuration using ifupdown
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_ifupdown\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare ifupdown environment
+      ansible.builtin.import_role:
+        name: \(aqifupdown\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::ifupdown\(aq, \(aqrole::kmod\(aq, \(aqrole::ferm\(aq, \(aqrole::sysctl\(aq ]
+
+  roles:
+
+    \- role: resolvconf
+      tags: [ \(aqrole::resolvconf\(aq, \(aqskip::resolvconf\(aq ]
+      resolvconf__enabled: True
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::kmod\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ kmod__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ kmod__python__dependent_packages2 }}\(aq
+
+    \- role: kmod
+      tags: [ \(aqrole::kmod\(aq, \(aqskip::kmod\(aq ]
+      kmod__dependent_load:
+        \- \(aq{{ ifupdown__env_kmod__dependent_load }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ ifupdown__env_ferm__dependent_rules }}\(aq
+
+    \- role: sysctl
+      tags: [ \(aqrole::sysctl\(aq, \(aqskip::sysctl\(aq ]
+      sysctl__dependent_parameters:
+        \- \(aq{{ ifupdown__env_sysctl__dependent_parameters }}\(aq
+
+    \- role: ifupdown
+      tags: [ \(aqrole::ifupdown\(aq, \(aqskip::ifupdown\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH ENHANCEMENTS TO IFUPDOWN IN SYSTEMD
+.SS ifup\-all\-auto.service
+.sp
+This \fBsystemd\fP unit should make sure that all of the network interfaces that
+are enabled by \fBallow\-auto\fP parameter are up before the
+\fBnetwork\-online.target\fP is reached. This makes that target usable on
+Debian/Ubuntu hosts; services that depend on that target should work properly
+with the assumption that the host has network connectivity at that point.
+.SS ifup\-allow\-boot.service
+.sp
+This \fBsystemd\fP unit will bring up all network interfaces that are
+marked by \fBallow\-boot\fP and \fBallow\-hotplug\fP parameters at system boot time.
+It is run after the \fBnetworking.service\fP unit and will use the command
+\fBsystemctl start ifup@<interface>.service\fP to start the interfaces, so
+that any processes that are attached to them will be put in their separate
+cgroups. This allows better network management on \fBsystemd\fP hosts.
+.SH CUSTOM IFUPDOWN HOOKS
+.sp
+The \fBdebops.ifupdown\fP Ansible role can configure custom \fBifupdown\fP
+hooks in other software to configure services related to network interfaces.
+The list of hooks can be found in the \fI\%ifupdown__custom_hooks\fP
+variable, which is a list of YAML dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the hook, used as an identifier.
+.TP
+.B \fBhook\fP
+Optional. Path of a Jinja2 template included with the \fI\%debops.ifupdown\fP
+role relative to the \fBtemplates/\fP directory, which will be used to
+generate the hook script. The hook script will be placed at the same path on
+the target host.
+.TP
+.B \fBsrc\fP
+Optional. Override the path of the Jinja2 template (the \fB\&.j2\fP extension
+needs to be specified).
+.TP
+.B \fBdest\fP
+Optional. Override the path of the generated hook on the remote host (path
+needs to start with \fB/\fP).
+.TP
+.B \fBmode\fP
+Optional. Set the file mode to use, by default \fB0755\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the hook will be generated. If
+\fBabsent\fP, the hook will be removed.
+.UNINDENT
+.SS The \fBfilter\-dhcp\-options\fP hook
+.sp
+This hook is a Bourne shell (\fB/bin/sh\fP) script that is sourced by the
+\fI\%dhclient\-script(8)\fP <\fBhttps://manpages.debian.org/dhclient-script(8)\fP> command executed by the \fBdhclient\fP program
+during interface configuration via DHCP. The hook allows to filter and ignore
+received DHCP options per network interface, which can be useful on systems
+connected to multiple networks with each one providing DHCP services. A list of
+DHCP options can be found in the \fI\%dhcp\-options(5)\fP <\fBhttps://manpages.debian.org/dhcp-options(5)\fP> manual page.
+.sp
+By default the hook does not filter any DHCP options. To configure it, add the
+\fBdhcp_ignore\fP parameter in the \fI\%ifupdown__interfaces\fP interface
+configuration. The parameter is a string or list of variables used by the
+\fBdhclient\-script\fP command to represent DHCP options.
+.SS Examples
+.sp
+Consider configuration of a host connected to two networks, \fBbr0\fP (internal
+network) and \fBbr1\fP (external network via a VLAN). By default the Debian
+Installer sets up only the internal network connection which is used for host
+configuration and management. The external connection is configured later, via
+a VLAN which cannot be automatically configured by the Debian Installer. Both
+networks are maintained using DHCP servers, each providing a default route
+through its network.
+.sp
+After the host is configured, you want to switch the default route from the
+internal network to the external network to allow public access to the services
+provided by this host. To do that, the default route from the internal DHCP
+server needs to be ignored, in which case the external network will take
+precedence.
+.sp
+Additionally, the external DHCP server provides information about nameservers
+that don\(aqt know about the internal network. You want to ignore the external
+nameservers and use the ones provided by the internal network to resolve
+queries, which lets you access other internal hosts via their hostnames.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__host_interfaces:
+
+  \- iface: \(aqbr0\(aq
+    comment: \(aqInternal network\(aq
+    type:  \(aqbridge\(aq
+    inet:  \(aqdhcp\(aq
+    inet6: \(aqauto\(aq
+    bridge_ports: \(aqeth0\(aq
+    dhcp_ignore: \(aqnew_routers\(aq
+
+  \- iface: \(aqbr1\(aq
+    comment: \(aqExternal network\(aq
+    type:  \(aqbridge\(aq
+    inet:  \(aqdhcp\(aq
+    inet6: \(aqauto\(aq
+    bridge_ports: \(aqeth1\(aq
+    dhcp_ignore: \(aqnew_domain_name_servers\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Just after installation the host will have only the internal network connection
+set up, used for configuration. When Ansible applies the \fI\%debops.ifupdown\fP
+configuration on the host, the default route to the external network will
+replace the default route to the internal network, however existing internal
+connections will work as usual. Any existing connections to the external
+network via internal router might be interrupted before the new route takes
+over.
+.sp
+The network configuration should be preserved across reboots \- even though both
+of the DHCP servers send relevant configuration for default routes and
+nameservers, the DHCP options are filtered on the client side.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.ifupdown\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS ifupdown__interfaces
+.sp
+The \fBifupdown__*_interfaces\fP variables are YAML dictionaries which define
+what network interfaces are configured on a host. All dictionaries are
+recursively combined together in the order they appear in the
+\fBdefaults/main.yml\fP file.
+.sp
+Each entry in the \fBifupdown__*_interfaces\fP dictionaries is a YAML dictionary.
+The key of a given entry is either a network interface name (for example
+\fBeth0\fP, \fBbr0\fP, etc.) or a \(dqlabel\(dq that holds the preferences for a network
+interface denoted by the \fBiface\fP parameter. Configuration parameters in
+labeled sections will be merged with the real network interface preferences.
+.sp
+You can also use YAML lists of dictionaries, however you cannot combine both
+dictionaries and lists in the same \fBifupdown__*_interfaces\fP variable. YAML
+dictionaries specified in a list need to have the \fBiface\fP parameter that
+specifies the interface name, otherwise they will be skipped.
+.sp
+Each network interface will have its configuration in a separate file in
+\fB/etc/network/interfaces.d/\fP directory on the managed hosts (both IPv4
+and IPv6 configuration is in the same file).
+.SS Network interface types
+.sp
+Each network interface has a particular type (ethernet, bridge, VLAN, etc.).
+The type can be specified by the \fBtype\fP parameter. If this parameter is not
+defined, the role will try to select the correct type based on the interface
+name prefix:
+.INDENT 0.0
+.TP
+.B \fBen*\fP or \fBeth*\fP
+The Ethernet network interfaces, marked as the \fBether\fP type. If not
+configured specifically, this interface type will automatically enable an
+IPv4 DHCP configuration and IPv6 SLAAC configuration. The network interface
+will be configured to be brought up by the hotplug subsystem.
+.TP
+.B \fBbr*\fP
+The network bridge interface, marked as the \fBbridge\fP type. If not
+configured specifically, the role will configure an anonymous bridge without
+any network interfaces connected, which will be started automatically at
+boot. The firewall will be configured to allow network traffic through the
+bridge, without IPv4 NAT.
+.TP
+.B \fBvlan*\fP or name with a dot (\fB\&.\fP)
+The VLAN interface, marked as the \fBvlan\fP type.
+.TP
+.B \fBbond*\fP
+The bonding interface, marked as the \fBbonding\fP type.
+.TP
+.B \fBsl*\fP
+The \fI\%Serial Line Internet Protocol\fP <\fBhttps://en.wikipedia.org/wiki/Serial_Line_Internet_Protocol\fP>
+interface, marked as the \fBslip\fP type.
+.TP
+.B \fBwl*\fP
+The Wireless LAN interface, marked as the \fBwlan\fP type.
+.TP
+.B \fBww*\fP
+The \fI\%Wireless WAN\fP <\fBhttps://en.wikipedia.org/wiki/Wireless_WAN\fP> interface,
+marked as the \fBwwan\fP type.
+.TP
+.B \fBtap*\fP, \fBtun*\fP, \fBmesh*\fP, \fBsit*\fP
+The network tunnel interface, marked as the \fBtunnel\fP type.
+.TP
+.B \fB6to4\fP
+The \fI\%IPv6 to IPv4 transition mechanism\fP <\fBhttps://en.wikipedia.org/wiki/6to4\fP>
+interface, marked as the \fB6to4\fP type. If not configured specifically, this
+interface will be configured as \fB6to4\fP tunnel with local IPv6 address based
+on the default network interface IPv4 address.
+.TP
+.B \fBmapping\fP
+The interface configuration is selected dynamically by a specified script.
+See \fI\%interfaces(5)\fP <\fBhttps://manpages.debian.org/interfaces(5)\fP> for more details.
+.UNINDENT
+.sp
+Each network interface can have multiple parameters. Some parameters are
+specific to a particular interface type.
+.SS General interface parameters
+.INDENT 0.0
+.TP
+.B \fBiface\fP
+Name of the network interface to configure. If not specified, the network
+interface will be taken from the YAML dictionary key which holds the
+parameters.
+.sp
+Example Ethernet interface configuration without and with \fBiface\fP
+parameter, and a version specified as a list:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+  \(aqeth0\(aq:
+    type: \(aqether\(aq
+
+ifupdown__group_interfaces:
+  \(aqexternal\(aq:
+    iface: \(aqeth0\(aq
+    type: \(aqether\(aq
+
+ifupdown__host_interfaces:
+  \- iface: \(aqeth0\(aq
+    type: \(aqether\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBiface\fP parameter can be templated by Jinja, unlike the dictionary key.
+.TP
+.B \fBtype\fP
+Optional. Specify the interface type. If this parameter is not defined, role
+will try and guess the type based on the interface name (see
+\fI\%Network interface types\fP). The interface type affects the
+order in which interfaces are brought up/down and use/requirement of special
+parameters for certain types.
+.TS
+center;
+|l|l|l|.
+_
+T{
+Type
+T}	T{
+Weight
+T}	T{
+Notes
+T}
+_
+T{
+\fBmapping\fP
+T}	T{
+00
+T}	T{
+interface configured dynamically via scripts
+T}
+_
+T{
+\fBbonding\fP
+T}	T{
+10
+T}	T{
+virtual bonded interface
+T}
+_
+T{
+\fBether\fP
+T}	T{
+20
+T}	T{
+Ethernet (physical or virtual) interface
+T}
+_
+T{
+\fBslip\fP
+T}	T{
+30
+T}	T{
+Serial Line Internet Protocol interface
+T}
+_
+T{
+\fBwlan\fP
+T}	T{
+30
+T}	T{
+Wireless Local Area Network interface (WiFi)
+T}
+_
+T{
+\fBwwan\fP
+T}	T{
+30
+T}	T{
+Wireless Wide Area Network interface (mobile networks, GSM)
+T}
+_
+T{
+\fBvlan\fP
+T}	T{
+40
+T}	T{
+VLAN interface, requires another interface to be attached to
+T}
+_
+T{
+\fBbridge\fP
+T}	T{
+60
+T}	T{
+network bridge
+T}
+_
+T{
+\fB6to4\fP
+T}	T{
+80
+T}	T{
+IPv6 in IPv4 tunnel
+T}
+_
+T{
+\fBtunnel\fP
+T}	T{
+80
+T}	T{
+virtual network tunnel
+T}
+_
+.TE
+.sp
+If the detected interface type is \fBvlan\fP, the role will check what parent
+interface is a given VLAN attached to and change the configuration to reorder
+the \fBvlan\fP interface after all of the parent interfaces, so that network
+interfaces are processed in the working order. This will only happen if
+\fBweight_class\fP parameter is not specified. If the interface is overridden,
+the \fBweight\fP parameter will be set to \fB5\fP to ensure proper interface
+order.
+.TP
+.B \fBweight_class\fP
+Optional. Override the specified \fBtype\fP for a given interface so that the
+weight of another type will be used instead.
+.TP
+.B \fBweight\fP
+Optional. Positive or negative number (for example \fB2\fP or \fB\-2\fP) which
+will be added to the base weight defined by the interface type. This can be
+used to affect the network interface order.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the given interface configuration
+file will be created. If \fBabsent\fP, the interface configuration will be
+removed. If \fBignore\fP, the interface configuration won\(aqt be modified in any
+way – this is useful if you want to make sure that some network interfaces
+are ignored by the role.
+.sp
+If you use the \fBdynamic\fP interface layout, you might need to explicitly set
+the \fBbr0\fP and \fBbr1\fP bridge state to \fBpresent\fP because this interface
+layout will try to remove them by default.
+.TP
+.B \fBauto\fP
+Optional, boolean. If \fBTrue\fP, the network interface will be brought up by
+the \fBnetworking\fP service at boot time, which might be not what you actually
+want in the newer, \fBsystemd\fP\-based hosts. By default it will be set
+to \fBFalse\fP\&. See also \fBallow\fP parameter.
+.TP
+.B \fBallow\fP
+Optional, boolean, string or YAML list. If set to \fBFalse\fP, this option is
+disabled. If \fBTrue\fP, the hotplug subsystem can bring this interface up or
+down when the hotplug event is detected. You can also specify a list of
+specific conditions at which the interface is brought up, currently
+recognized conditions are:
+.INDENT 7.0
+.IP \(bu 2
+\fBauto\fP: bring the interface up at boot time by the \fBnetworking\fP
+service. This might not be what you want on newer systems.
+.IP \(bu 2
+\fBboot\fP: bring the interface up at boot time by \fBiface@.service\fP
+\fBsystemd\fP unit. This will put any processes related to a given
+interface in their separate cgroup, which allows for better control over
+the network interface. This is a custom implementation of the \fBauto\fP
+mechanism managed by this Ansible role.
+.IP \(bu 2
+\fBhotplug\fP: bring the interface up/down at hotplug events. This condition
+is required to be present for the \fBifup@.service\fP \fBsystemd\fP unit
+to work properly.
+.UNINDENT
+.sp
+If this parameter is not specified, the role will use the \fBboot\fP value for
+network interfaces other than physical Ethernet interfaces, which will use
+the \fBhotplug\fP value by default.
+.UNINDENT
+.SS IPv4 and IPv6 configuration parameters
+.INDENT 0.0
+.TP
+.B \fBinet\fP
+Optional. IPv4 configuration method used by a given interface. There are many
+configuration methods described in the \fI\%interfaces(5)\fP <\fBhttps://manpages.debian.org/interfaces(5)\fP> manual page, most
+commonly used are: \fBmanual\fP, \fBdhcp\fP, \fBstatic\fP\&. If you set this
+parameter to \fBFalse\fP, the IPv4 configuration will be disabled.
+.TP
+.B \fBinet6\fP
+Optional. IPv6 configuration method used by a given interface. There are many
+configuration methods described in the \fI\%interfaces(5)\fP <\fBhttps://manpages.debian.org/interfaces(5)\fP> manual page, most
+commonly used are: \fBauto\fP, \fBmanual\fP, \fBdhcp\fP, \fBstatic\fP, \fBv4tunnel\fP,
+\fB6to4\fP\&. If you set this parameter to \fBFalse\fP, the IPv6 configuration will
+be disabled.
+.TP
+.B \fBaddress\fP or \fBaddresses\fP
+Optional. A string or an YAML list of IPv4 and/or IPv6 addresses to set on
+a given network interface, in the form of \fBipaddress/prefix\fP or CIDR.
+Remember that you need to specify the host IP address and not the network;
+the \fB192.0.2.1/24\fP is the correct notation, and \fB192.0.2.0/24\fP is
+incorrect.
+.TP
+.B \fBgateway\fP or \fBgateways\fP
+Optional. Specify the IPv4 or IPv6 address of the network gateway to which outgoing
+packets will be directed. If it\(aqs a list of addresses, first valid address
+for a network type will be used as the gateway.
+.UNINDENT
+.SS DNS nameserver and search parameters
+.INDENT 0.0
+.TP
+.B \fBdns_nameservers\fP
+Optional. String or list of IP addresses of the nameservers to configure in
+\fB/etc/resolv.conf\fP\&. Remember that only 3 nameservers are allowed at any
+time. They will be added to the IPv4 section of the network interface
+configuration unless IPv4 is disabled, in which case they will be configured
+in IPv6 section.
+.TP
+.B \fBdns_search\fP
+Optional. String or list of domains which should be searched in the DNS if
+a hostname without a domain is specified. They will be added to the
+\fB/etc/resolv.conf\fP\&. This list will be added to the IPv4 section of the
+network interface configuration unless IPv4 is disabled, in which case they
+will be configured in IPv6 section.
+.UNINDENT
+.SS Bonding parameters
+.INDENT 0.0
+.TP
+.B \fBslaves\fP
+Optional. String or YAML list of network interfaces to bond together.
+.TP
+.B \fBbond_*\fP
+Optional. If an interface is a bonding, any parameters that have \fBbond_\fP
+prefix will be added to that interface configuration. See the documentation
+included in the \fBifenslave\fP package for possible configuration options.
+.UNINDENT
+.SS Bridge parameters
+.INDENT 0.0
+.TP
+.B \fBbridge_*\fP
+Optional. If an interface is a bridge, any parameters that have \fBbridge_\fP
+prefix will be added to that interface configuration. See the
+\fI\%bridge\-utils\-interfaces(5)\fP <\fBhttps://manpages.debian.org/bridge-utils-interfaces(5)\fP> manual for more details about possible bridge
+configuration options.
+.UNINDENT
+.SS VLAN parameters
+.INDENT 0.0
+.TP
+.B \fBvlan_device\fP or \fBvlan_raw_device\fP
+Name of the network interface on which a VLAN will be configured.  If the
+interface name contains a dot (for example \fBeth0.10\fP), the role will try to
+detect the network interface automatically.
+.UNINDENT
+.SS 6to4 tunnel parameters
+.INDENT 0.0
+.TP
+.B \fBlocal\fP
+Optional. Specify the public IPv4 address which will be used to create the
+IPv6 6to4 tunnel.
+.UNINDENT
+.SS Mapping parameters
+.INDENT 0.0
+.TP
+.B \fBscript\fP
+Absolute path to a script which will be used to select a specific interface
+configuration for a mapping dynamically. See \fI\%interfaces(5)\fP <\fBhttps://manpages.debian.org/interfaces(5)\fP> manual for
+more details.
+.UNINDENT
+.SS DHCP parameters
+.INDENT 0.0
+.TP
+.B \fBdhcp_ignore\fP
+Optional. String or list of variable names used by the
+\fI\%dhclient\-script(8)\fP <\fBhttps://manpages.debian.org/dhclient-script(8)\fP> script to configure the interface. The specified
+variables representing DHCP options will be unset by the configuration
+script; this can be used to selectively ignore DHCP options on a given
+network interface.
+.sp
+See \fI\%The filter\-dhcp\-options hook\fP documentation for
+more details.
+.UNINDENT
+.SS Custom interface options
+.INDENT 0.0
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML text block with a comment that will be added to
+a given interface configuration file.
+.TP
+.B \fBcomment4\fP
+Optional. String or a YAML text block with a comment that will be added to
+a given interface configuration file near the IPv4 section.
+.TP
+.B \fBcomment6\fP
+Optional. String or a YAML text block with a comment that will be added to
+a given interface configuration file near the IPv6 section.
+.TP
+.B \fBoptions\fP
+Optional. String or a YAML text block with custom options for the network
+interface. It will be added after the IPv4 section, unless IPv4 support is
+disabled in which case it will be added after IPv6 section. If this parameter
+is specified, autogenerated configuration for specific interface types will
+be disabled.
+.TP
+.B \fBoptions4\fP
+Optional. String or a YAML text block with custom options added to the IPv4
+section of the network interface configuration. If this parameter is present,
+autogenerated configuration for specific interface types will be disabled.
+.TP
+.B \fBoptions6\fP
+Optional. String or a YAML text block with custom options added to the IPv6
+section of the network interface configuration. If this parameter is present,
+autogenerated configuration for specific interface types will be disabled.
+.TP
+.B \fBadd_options\fP
+Optional. String or a YAML text block with custom options for the network
+interface. It will be added after the IPv4 section, unless IPv4 support is
+disabled in which case it will be added after IPv6 section. You can use this
+parameter to add options to the autogenerated configuration, which will be
+still included.
+.TP
+.B \fBadd_options4\fP
+Optional. String or a YAML text block with custom options added to the IPv4
+section of the network interface configuration. You can use this parameter to
+add options to the autogenerated configuration, which will be still included.
+.TP
+.B \fBadd_options6\fP
+Optional. String or a YAML text block with custom options added to the IPv6
+section of the network interface configuration. You can use this parameter to
+add options to the autogenerated configuration, which will be still included.
+.TP
+.B \fBdebug\fP
+Optional, boolean. If \fBTrue\fP, the role will add commented out debug
+information to the generated interface configuration file. It can be used to
+check what the role thinks the interface configuration should be like.
+.UNINDENT
+.SS Firewall parameters
+.INDENT 0.0
+.TP
+.B \fBforward\fP
+Optional, boolean. If absent and an interface is a bridge, or present and
+\fBTrue\fP, the role will generate configuration for the \fI\%debops.ferm\fP and
+the \fI\%debops.sysctl\fP roles to enable packet forwarding for a given
+interface.
+.TP
+.B \fBforward_ipv6\fP
+Optional, boolean. Only makes sense with the \fBforward\fP parameter present.
+By default the role will enable forwarding on IPv6 networks, you can use this
+parameter to disable it by setting it to \fBFalse\fP\&.
+.TP
+.B \fBforward_ipv4\fP
+Optional, boolean. Only makes sense with the \fBforward\fP parameter present.
+By default the role will enable forwarding on IPv4 networks, you can use this
+parameter to disable it by setting it to \fBFalse\fP\&.
+.TP
+.B \fBaccept_ra\fP
+Optional, by default not defined. If \fB0\fP, the SLAAC Router Advertisements
+on IPv6 networks will be ignored by this interface. If \fB1\fP, this interface
+will accept the SLAAC Router Advertisements when forwarding is disabled,
+ignore when forwarding is enabled. If \fB2\fP, SLAAC Router Advertisements
+received on this interface will be accepted even when forwarding is enabled.
+.TP
+.B \fBforward_interface_ferm_rule_enabled\fP
+Optional, boolean. Should a Firewall rule be configured which matches new
+connection attempts entering the interface?
+If disabled using \fBFalse\fP, the default Firewall policy will apply.
+Defaults to \fBTrue\fP\&.
+.TP
+.B \fBforward_interface_ferm_rule\fP
+Optional, string. Default action or any custom ferm configuration.
+Defaults to \fBACCEPT\fP\&.
+.TP
+.B \fBforward_outerface_ferm_rule_enabled\fP
+Optional, boolean. Should a Firewall rule be configured which matches new
+connection attempts exiting the interface?
+If disabled using \fBFalse\fP, the default Firewall policy will apply.
+Defaults to \fBTrue\fP\&.
+.TP
+.B \fBforward_outerface_ferm_rule\fP
+Optional, string. Default action or any custom ferm configuration.
+Defaults to \fBACCEPT\fP\&.
+.TP
+.B \fBnat\fP
+Optional, boolean. If present and \fBTrue\fP, the firewall configuration for
+a given interface (usually a bridge) will include the IPv4 NAT rules. The
+default gateway IPv4 address will be used in the Source NAT configuration.
+.TP
+.B \fBnat_masquerade\fP
+Optional, boolean. If present and \fBTrue\fP, the role will use the
+\fBMASQUERADE\fP rule in the firewall configuration instead of the \fBSNAT\fP
+rule. This is useful when the host has no fixed default IP address, for
+example on a laptop.
+Defaults to \fI\%ifupdown__default_nat_masquerade\fP\&.
+.TP
+.B \fBnat_snat_address\fP
+Optional. Specify the \fBSNAT\fP IPv4 address to use for the NAT on a given
+bridge. If not specified, the role will use the host\(aqs default IPv4 address
+as the \fBSNAT\fP IP address.
+.TP
+.B \fBnat_snat_interface\fP
+Optional. If specified, the IPv4 address on a given network interface will be
+used to generate the \fBSNAT\fP firewall rules.
+.UNINDENT
+.SS Configuration examples
+.sp
+The examples below are based on the \fI\%Debian Network Configuration\fP <\fBhttps://wiki.debian.org/NetworkConfiguration\fP>
+and \fI\%Debian IPv6 configuration\fP <\fBhttps://wiki.debian.org/DebianIPv6\fP>
+pages to make comparison between \fB/etc/network/interfaces\fP configuration
+and \fBdebops.ifupdown\fP configuration easier. Examples are verbose to reflect
+the examples from the wiki page, but some of the parameters can be omitted to
+let the role autogenerate them.
+.sp
+Keep in mind that the \fBauto\fP parameter, included in the examples for
+completeness, usually should be avoided in the newer OS releases (Jessie+,
+Trusty+) on \fBsystemd\fP\-based hosts. This is done so that the additional
+processes related to a given network interfaces are put in their own
+\fBifup@.service\fP cgroup instead of being grouped together under
+the \fBnetworking.service\fP cgroup.
+.sp
+Use DHCP and SLAAC to \fI\%automatically configure the network interface\fP <\fBhttps://wiki.debian.org/NetworkConfiguration#Using_DHCP_to_automatically_configure_the_interface\fP>:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+  \(aqeth0\(aq:
+    auto: True
+    allow: \(aqhotplug\(aq
+    inet: \(aqdhcp\(aq
+    inet6: \(aqauto\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fI\%Configure the network interface manually\fP <\fBhttps://wiki.debian.org/NetworkConfiguration#Configuring_the_interface_manually\fP>
+using static IPv4 and IPv6 configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+  \(aqstatic\-eth0\(aq:
+    iface: \(aqeth0\(aq
+    auto: True
+    inet: \(aqstatic\(aq
+    inet6: \(aqstatic\(aq
+    addresses: [ \(aq192.0.2.7/24\(aq, \(aq2001:db8::c0ca:1eaf/64\(aq ]
+    gateways:  [ \(aq192.0.2.254\(aq, \(aq2001:db8::1ead:ed:beef\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure an interface \fI\%without an IP address\fP <\fBhttps://wiki.debian.org/NetworkConfiguration#Bringing_up_an_interface_without_an_IP_address\fP>:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+
+  \(aqeth0\(aq:
+    inet: \(aqmanual\(aq
+    options: |
+      pre\-up ifconfig $IFACE up
+      post\-down ifconfig $IFACE down
+
+ \(aqeth0.99\(aq:
+   inet: \(aqmanual\(aq
+   options: |
+     post\-up ifconfig $IFACE up
+     pre\-down ifconfig $IFACE down
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure \fI\%DNS nameservers and search domains\fP <\fBhttps://wiki.debian.org/NetworkConfiguration#The_resolvconf_program\fP>
+with an autogenerated default interface:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+  \(aqexternal\(aq:
+    iface: \(aq{{ ifupdown__external_interface }}\(aq
+    inet: \(aqdhcp\(aq
+    dns_nameservers: [ \(aq12.34.56.78\(aq, \(aq12.34.56.79\(aq ]
+    dns_search: \(aqexample.com\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure \fI\%static bridge\fP <\fBhttps://wiki.debian.org/NetworkConfiguration#Bridging\fP>
+between two Ethernet interfaces:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+
+  \(aqeth0\(aq:
+    inet: \(aqmanual\(aq
+    inet6: False
+
+  \(aqeth1\(aq:
+    inet: \(aqmanual\(aq
+    inet6: False
+
+  \(aqbr0\(aq:
+    inet: \(aqstatic\(aq
+    address: \(aq10.10.0.15/24\(aq
+    gateway: \(aq10.10.0.1\(aq
+    bridge_ports: [ \(aqeth0\(aq, \(aqeth1\(aq ]
+    bridge_stp: \(aqon\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a \fI\%static VLAN interface on an Ethernet interface\fP <\fBhttps://wiki.debian.org/NetworkConfiguration#Network_init_script_config\fP>:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+  \(aqeth0.222\(aq:
+    auto: True
+    inet: \(aqstatic\(aq
+    address: \(aq10.10.10.1/24\(aq
+    vlan_raw_device: \(aqeth0\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Connect \fI\%a bridge to a VLAN on an Ethernet interface\fP <\fBhttps://wiki.debian.org/NetworkConfiguration#Caveats_when_using_bridging_and_vlan\fP>:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+
+  \(aqeth0\(aq:
+    auto: True
+    inet: \(aqstatic\(aq
+    inet6: False
+    address: \(aq192.168.1.1/24\(aq
+
+  \(aqeth0.110\(aq:
+    inet: \(aqmanual\(aq
+    vlan_device: \(aqeth0\(aq
+
+  \(aqbr0\(aq:
+    auto: True
+    inet: \(aqstatic\(aq
+    address: \(aq192.168.110.1/24\(aq
+    bridge_ports: \(aqeth0.110\(aq
+    bridge_stp: \(aqon\(aq
+    bridge_maxwait: \(aq10\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create \fI\%a bonded interface\fP <\fBhttps://wiki.debian.org/NetworkConfiguration#A.2Fetc.2Fnetwork.2Finterfaces\fP>
+using two Ethernet interfaces and attached VLANs:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+
+  \(aqbond0\(aq:
+    auto: True
+    inet: \(aqmanual\(aq
+    slaves: [ \(aqeth1\(aq, \(aqeth0\(aq ]
+    options: |
+      up ifconfig bond0 0.0.0.0 up
+
+  \(aqvlan10\(aq:
+    auto: True
+    inet: \(aqstatic\(aq
+    address: \(aq10.10.10.12/16\(aq
+    gateway: \(aq10.10.0.1\(aq
+    vlan_raw_device: \(aqbond0\(aq
+    dns_nameservers: \(aq10.10.0.2\(aq
+    dns_search: \(aqhup.hu\(aq
+
+  \(aqvlan20\(aq:
+    auto: True
+    inet: \(aqstatic\(aq
+    address: \(aq10.20.10.12/16\(aq
+    vlan_raw_device: \(aqbond0\(aq
+
+  \(aqvlan30\(aq:
+    auto: True
+    inet: \(aqstatic\(aq
+    address: \(aq10.30.10.12/16\(aq
+    vlan_raw_device: \(aqbond0\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create \fI\%advanced bonding configuration\fP <\fBhttps://wiki.debian.org/NetworkConfiguration#How_to_set_the_MTU_.28Max_transfer_unit_.2F_packet_size.29_with_VLANS_over_a_bonded__interface\fP>
+with MTU and other parameters:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+
+  \(aqbond0\(aq:
+    auto: True
+    inet: \(aqmanual\(aq
+    bond_slaves: [ \(aqeth0\(aq, \(aqeth1\(aq ]
+    bond_mode: \(aq4\(aq
+    bond_miimon: \(aq100\(aq
+    bond_downdelay: \(aq200\(aq
+    bond_updelay: \(aq200\(aq
+    bond_lacp_rate: \(aq1\(aq
+    bond_xmit_hash_policy: \(aqlayer2+3\(aq
+    options: |
+      up ifconfig lacptrunk0 0.0.0.0 up
+      post\-up ifconfig eth0 mtu 9000 && ifconfig eth1 mtu 9000 && ifconfig bond0 mtu 9000
+
+  \(aqvlan101\(aq:
+    auto: True
+    inet: \(aqstatic\(aq
+    address: \(aq10.101.60.123/24\(aq
+    gateway: \(aq10.155.60.1\(aq
+    vlan_device: \(aqbond0\(aq
+
+  \(aqvlan151\(aq:
+    auto: True
+    inet: \(aqstatic\(aq
+    address: \(aq192.168.1.1/24\(aq
+    vlan_device: \(aqbond0\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure \fI\%multiple IP addresses on an interface\fP <\fBhttps://wiki.debian.org/NetworkConfiguration#iproute2_method\fP>
+using the \(dqmanual approach\(dq method:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+  \(aqeth0\(aq:
+    allow: [ \(aqauto\(aq, \(aqhotplug\(aq ]
+    addresses:
+      \- \(aq192.168.1.42/24\(aq
+      \- \(aq192.168.1.43/24\(aq
+      \- \(aq192.168.1.44/24\(aq
+      \- \(aq10.10.10.14/24\(aq
+    gateway: \(aq192.168.1.1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure \fI\%a 6to4 tunnel\fP <\fBhttps://wiki.debian.org/DebianIPv6#IPv6_6to4_Configuration\fP>
+using your public, default IPv4 address (role will autogenerate most of the
+required configuration):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+  \(aq6to4\(aq: {}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure a restricted bridge network:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__interfaces:
+  \(aqbr2\(aq:
+    type: \(aqbridge\(aq
+    inet6: \(aqstatic\(aq
+    inet: \(aqstatic\(aq
+    nat: True
+    forward_interface_ferm_rule: \(aqouterface (br0 br2) ACCEPT\(aq
+    forward_outerface_ferm_rule_enabled: False
+    addresses:
+      \- \(aq2001:db8::23/64\(aq
+      \- \(aq192.0.2.23/24\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Hosts attached to the \fBbr2\fP bridge are allowed to talk to each other.
+Additionally, the hosts can initiate connections to the outside world thought
+\fBbr0\fP\&. No connections can be initiated from the outside world to the hosts
+behind \fBbr2\fP\&. SNAT is used for IPv4. For IPv6 it is expected that the prefix
+is routed to the host so that the host can forward packets to \fBbr2\fP\&.
+.SS ifupdown__custom_files
+.sp
+The \fBifupdown__*_custom_files\fP list variables can be used to place custom
+scripts or other configuration files on the remote hosts needed for network
+configuration (for example mapping scripts). Each list element is a YAML
+dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBdest\fP or \fBpath\fP
+Required. Absolute path to the destination file on remote host.
+.TP
+.B \fBsrc\fP
+Optional. Path to the source file on the Ansible Controller which will be
+copied to the remote host. Shouldn\(aqt be used with the \fBcontent\fP parameter.
+.TP
+.B \fBcontent\fP
+Optional. An YAML text block with the file contents which should be put in
+the specified destination file on the remote host. Shouldn\(aqt be used with the
+\fBsrc\fP parameter.
+.TP
+.B \fBowner\fP
+Optional. Specify the UNIX user account which will be an owner of the file.
+If not specified, \fBroot\fP will be the owner.
+.TP
+.B \fBgroup\fP
+Optional. Specify the UNIX group which will be the primary group of the file.
+If not specified, \fBroot\fP will be the primary group.
+.TP
+.B \fBmode\fP
+Optional. Specify the file mode which should be set for a given file. If not
+specified, \fB0644\fP mode will be set.
+.TP
+.B \fBforce\fP
+Optional, boolean. If not specified or \fBTrue\fP, the role will ensure that
+the file contents are up to date on each run. If \fBFalse\fP, existing files
+won\(aqt be changed if they are different.
+.UNINDENT
+.SS Examples
+.sp
+Create an interface mapping script:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ifupdown__custom_files:
+  \- dest: \(aq/usr/local/lib/ifupdown\-map\-wlan.sh\(aq
+    owner: \(aqroot\(aq
+    group: \(aqroot\(aq
+    mode: \(aq0755\(aq
+    content: |
+      #!/bin/sh
+      # Script contents ...
+      exit 0
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,1059 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.OWNCLOUD" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.owncloud \- Install and manage ownCloud instances
+.SH SYNOPSIS
+.sp
+\fBdebops run service/owncloud\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+This role installs a \fI\%NextCloud\fP <\fBhttps://nextcloud.com/\fP> or \fI\%ownCloud\fP <\fBhttps://en.wikipedia.org/wiki/OwnCloud\fP> instance on a specified host, either with
+SQLite, MySQL, MariaDB or PostgreSQL database as a backend and an Nginx
+or Apache webserver as a frontend.
+.sp
+Nextcloud will be installed using the upstream tarballs. ownCloud will be installed as package coming directly from upstream.
+.sp
+Note that Nginx is \fI\%not officially supported by ownCloud nor NextCloud\fP <\fBhttps://github.com/debops/ansible-owncloud/issues/49\fP> but it is community
+supported and should work without problems. Apache is supported by the role but
+not yet used by default and not very well tested.
+.sp
+\fBFeatures:\fP
+.INDENT 0.0
+.IP \(bu 2
+Support for LDAP using the \fI\%debops.ldap\fP Ansible role.
+.IP \(bu 2
+In memory caching using Redis for file locking and APCu.
+.IP \(bu 2
+Theming support (only tested with ownCloud 10).
+.IP \(bu 2
+Extensive configuration options via Ansible’s inventory.
+.UNINDENT
+.SH GETTING STARTED
+.SS Database setup
+.sp
+It is recommended that you install a database server. You can install one on
+the same host as ownCloud or choose a different host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_mariadb_server]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In case you chose a different host, you will need to specify which of your
+database servers the ownCloud instance should use by specifying the database
+server host as \fI\%owncloud__database_server\fP\&.
+.sp
+If you are upgrading an existing Nextcloud installation, you should follow
+\fI\%Enabling MySQL 4\-byte support\fP <\fBhttps://docs.nextcloud.com/server/16/admin_manual/configuration_database/mysql_4byte_support.html\fP>
+and then set the following in your inventory of the database server:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb_server__options:
+  \- section: \(aqmysqld\(aq
+    options:
+
+      ## https://docs.nextcloud.com/server/16/admin_manual/configuration_database/mysql_4byte_support.html
+      \(aqinnodb_large_prefix\(aq: \(aqon\(aq
+      \(aqinnodb_file_format\(aq: \(aqbarracuda\(aq
+      \(aqinnodb_file_per_table\(aq: \(aqtrue\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For database clean installs this is not required anymore because MySQL 4\-byte
+is enabled by default by the \fI\%debops.mariadb_server\fP Ansible role.
+.SS In memory caching
+.sp
+Nextcloud and ownCloud recommend to setup \fI\%Redis\fP <\fBhttps://en.wikipedia.org/wiki/Redis\fP> for caching. You can install a Redis server
+on the same host as ownCloud or choose a different host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_redis_server]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This role will use a Redis server automatically when it is managed by
+\fI\%debops.redis_server\fP Ansible role.
+.sp
+In case you chose a different host, you will need to specify which of your
+Redis servers the ownCloud instance should use by setting the Redis
+server host as \fI\%owncloud__redis_host\fP and setting
+\fI\%owncloud__redis_enabled\fP to \fBTrue\fP\&.
+Additionally, you will need to set the \fI\%owncloud__redis_password\fP\&.
+Refer to \fI\%debops.redis_server\fP documentation for details.
+.SS PHP configuration
+.sp
+Starting with Nextcloud 16, a setup warning is emitted in the Nextcloud admin web interface \(dqThe PHP memory limit is below the recommended value of 512MB.\(dq. The role already configures Nginx to pass an increased memory_limit to PHP. However, this might not be picked up in some cases. When this happens you might want to set the following in your inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__ini_memory_limit: \(aq512M\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Choosing a Webserver
+.sp
+Supported webservers:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%Nginx\fP <\fBhttps://en.wikipedia.org/wiki/Nginx\fP>
+.IP \(bu 2
+\fI\%Apache\fP <\fBhttps://en.wikipedia.org/wiki/Apache_HTTP_Server\fP>
+.UNINDENT
+.sp
+This role started out using \fI\%Nginx\fP <\fBhttps://en.wikipedia.org/wiki/Nginx\fP> as Webserver. However, \fI\%ownCloud\fP <\fBhttps://en.wikipedia.org/wiki/OwnCloud\fP> don’t
+officially support \fI\%Nginx\fP <\fBhttps://en.wikipedia.org/wiki/Nginx\fP>\&. Support for the \fI\%Apache HTTP Server\fP <\fBhttps://en.wikipedia.org/wiki/Apache_HTTP_Server\fP> has been added
+to the role using
+\fI\%debops.apache\fP as role dependency.
+\fI\%NextCloud\fP <\fBhttps://nextcloud.com/\fP> lists Nginx as supported but still recommends Apache.
+.sp
+The current default Webserver is \fI\%Nginx\fP <\fBhttps://en.wikipedia.org/wiki/Nginx\fP>\&. Because despite the fact that only
+\fI\%Apache\fP <\fBhttps://en.wikipedia.org/wiki/Apache_HTTP_Server\fP> is officially supported/recommended, \fI\%Nginx\fP <\fBhttps://en.wikipedia.org/wiki/Nginx\fP> has been successfully used
+with this role for some time now. If you have trouble then this would be a good
+time to try to run it with Apache.
+.sp
+The \fI\%ownCloud System Requirements\fP <\fBhttps://doc.owncloud.org/server/9.0/admin_manual/installation/system_requirements.html\fP> don’t use PHP\-FPM in their default
+configuration. You can set the following in your inventory to not install FPM
+on the ownCloud host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__server_api_packages:
+  \- \(aqcli\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Switching Webservers
+.sp
+Assuming you where using one Webserver before on a host but want to switch then
+follow the steps in \fI\%Choosing a Webserver\fP and additionally add the host to
+the \fBdebops_service_${not_chosen_webserver}\fP group of the opposite webserver
+you chose for ownCloud.
+Now add this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+${not_chosen_webserver}__deploy_state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+to your inventory.
+.sp
+Note: Replace the \fB${not_chosen_webserver}\fP placeholders.
+.sp
+Then run the site playbook or just the playbook of the unwanted webserver
+followed by the debops.owncloud playbook.
+This will render \fB${not_chosen_webserver}\fP the unwanted webserver harmless
+and setup the chosen webserver.
+.SS Upgrade
+.sp
+All upgrades be it major or patch need to be done manually for now. The role
+does not automate this. The way to support Nextcloud auto upgrades would be to
+use the Nextcloud Docker image because it includes an application upgrade
+script. The role could be extended to support using the Docker image if needed.
+.sp
+Upgrade the application using the built\-in upgrade feature, then rerun the
+service playbook for this role to ensure the matching settings are applied.
+.sp
+If the application complains under \fB/settings/admin/overview\fP then you might need to run:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+occ upgrade; occ db:add\-missing\-indice; occ db:add\-missing\-columns; occ db:convert\-filecache\-bigint; occ db:add\-missing\-primary\-keys && occ maintenance:mode \-\-off
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+It also does not hurt to run that by default.
+.SS Expected warnings
+.sp
+Nextcloud and ownCloud have a self check under \(dqAdministration\(dq \-> \(dqOverview\(dq. Some warnings are expected to be shown.
+.INDENT 0.0
+.IP \(bu 2
+Nextcloud 21 and newer: Module \fBphp\-imagick\fP in this instance has no SVG
+support. For better compatibility it is recommended to install it.
+.sp
+Background: SVG support is disabled for security reasons by default. Lets
+keep it at that for now until we can better assess the situation.
+.UNINDENT
+.SS Example inventory
+.sp
+To setup ownCloud on a given host it should be included in the
+\fB[debops_service_owncloud]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_owncloud]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note that the \fBdebops_service_owncloud\fP group uses the default webserver,
+refer to \fI\%Choosing a Webserver\fP\&.
+.SS Recommended settings
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+owncloud__config:
+
+  # https://docs.nextcloud.com/server/latest/admin_manual/configuration_server/config_sample_php_parameters.html#user\-experience
+  default_phone_region: \(aqDE\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible facts
+.sp
+The role gathers various Ansible facts about ownCloud for internal use or use
+by other roles or playbooks.
+.sp
+One of the sources for the facts is the \fB/var/www/owncloud/config/config.php\fP
+file which has \fB0640\fP as default permissions.
+The remote user who gathers the facts should be able to read this file.
+Note that facts gathering does not happen with elevated privileges by default.
+One way to achieve this is by making your configuration management user member
+of the \fBwww\-data\fP group by including the following in your inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+bootstrap__admin_groups: [ \(aqadmins\(aq, \(aqstaff\(aq, \(aqadm\(aq, \(aqsudo\(aq, \(aqwww\-data\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The following Ansible facts are available:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{
+    \(dqauto_security_updates_enabled\(dq: false,
+    \(dqdatadirectory\(dq: \(dq/var/www/owncloud/data\(dq,
+    \(dqenabled\(dq: true,
+    \(dqinstanceid\(dq: \(dqxxxxxxxxxxxx\(dq,
+    \(dqmaintenance\(dq: false,
+    \(dqrelease\(dq: \(dq9.0\(dq,
+    \(dqtheme\(dq: \(dqdebops\(dq,
+    \(dqtrusted_domains\(dq: [
+        \(dqcloud.example.org\(dq
+    ],
+    \(dqupdatechecker\(dq: false,
+    \(dqvariant\(dq: \(dqowncloud\(dq,
+    \(dqversion\(dq: \(dq9.0.7.1\(dq,
+    \(dqwebserver\(dq: \(dqnginx\(dq
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note that the role uses Ansible facts gathered from the \fBconfig.php\fP
+file internally and might not work as expected when those facts can not be gathered.
+.sp
+The following can happen when the configuration management user has no access
+to the \fBconfig.php\fP file:
+.INDENT 0.0
+.IP \(bu 2
+Certain \fBocc\fP commands are not available in maintenance mode. The
+role normally filters those commands out if it detects that ownCloud is in
+maintenance mode. Maintenance mode is assumed to be off if it can not be
+detected. If it is on, role execution will stop when one of those
+\fBocc\fP commands is encountered.
+.UNINDENT
+.sp
+and only the following facts will be available in this case:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{
+    \(dqauto_security_updates_enabled\(dq: true,
+    \(dqenabled\(dq: true,
+    \(dqvariant\(dq: \(dqowncloud\(dq,
+    \(dqwebserver\(dq: \(dqnginx\(dq
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+The following playbooks are used in DebOps. If you are using these role without
+DebOps you might need to adapt them to make them work in your setup.
+.sp
+Ansible playbook that uses the \fBdebops.owncloud\fP role together with \fI\%debops.nginx\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install and manage ownCloud instances with Nginx as webserver
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_owncloud\(aq, \(aqdebops_service_owncloud_nginx\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Apply keyring configuration for php environment
+      ansible.builtin.import_role:
+        name: \(aqkeyring\(aq
+      vars:
+        keyring__dependent_apt_keys:
+          \- \(aq{{ php__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ mariadb__keyring__dependent_apt_keys if (owncloud__database == \(dqmariadb\(dq) else [] }}\(aq
+          \- \(aq{{ postgresql__keyring__dependent_apt_keys if (owncloud__database == \(dqpostgresql\(dq) else [] }}\(aq
+          \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ owncloud__keyring__dependent_apt_keys }}\(aq
+        keyring__dependent_gpg_keys:
+          \- \(aq{{ owncloud__keyring__dependent_gpg_keys }}\(aq
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::php\(aq,
+              \(aqrole::mariadb\(aq, \(aqrole::postgresql\(aq,
+              \(aqrole::nginx\(aq, \(aqrole::owncloud\(aq ]
+
+    \- name: Prepare php environment
+      ansible.builtin.import_role:
+        name: \(aqphp\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::php\(aq, \(aqrole::php:env\(aq, \(aqrole::logrotate\(aq ]
+
+    \- name: Prepare owncloud environment
+      ansible.builtin.import_role:
+        name: \(aqowncloud\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::owncloud\(aq, \(aqrole::owncloud:env\(aq, \(aqrole::nginx\(aq ]
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq, \(aqrole::nginx\(aq, \(aqrole::php\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ owncloud__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ php__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq, \(aqrole::nginx\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq, \(aqrole::mariadb\(aq, \(aqrole::postgresql\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages3
+              if (owncloud__database == \(dqmariadb\(dq)
+              else [] }}\(aq
+        \- \(aq{{ postgresql__python__dependent_packages3
+              if (owncloud__database == \(dqpostgresql\(dq)
+              else [] }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages2
+              if (owncloud__database == \(dqmariadb\(dq)
+              else [] }}\(aq
+        \- \(aq{{ postgresql__python__dependent_packages2
+              if (owncloud__database == \(dqpostgresql\(dq)
+              else [] }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ owncloud__ldap__dependent_tasks }}\(aq
+
+    \- role: mariadb
+      tags: [ \(aqrole::mariadb\(aq, \(aqskip::mariadb\(aq ]
+      mariadb__dependent_databases: \(aq{{ owncloud__mariadb__dependent_databases }}\(aq
+      mariadb__dependent_users: \(aq{{ owncloud__mariadb__dependent_users }}\(aq
+      when: (owncloud__database == \(aqmariadb\(aq)
+
+    \- role: postgresql
+      tags: [ \(aqrole::postgresql\(aq, \(aqskip::postgresql\(aq ]
+      postgresql__dependent_roles: \(aq{{ owncloud__postgresql__dependent_roles }}\(aq
+      postgresql__dependent_groups: \(aq{{ owncloud__postgresql__dependent_groups }}\(aq
+      postgresql__dependent_databases: \(aq{{ owncloud__postgresql__dependent_databases }}\(aq
+      when: (owncloud__database == \(aqpostgresql\(aq)
+
+    \- role: unattended_upgrades
+      tags: [ \(aqrole::unattended_upgrades\(aq, \(aqskip::unattended_upgrades\(aq ]
+      unattended_upgrades__dependent_origins: \(aq{{ owncloud__unattended_upgrades__dependent_origins }}\(aq
+
+    \- role: php
+      tags: [ \(aqrole::php\(aq, \(aqskip::php\(aq ]
+      php__dependent_packages:
+        \- \(aq{{ owncloud__php__dependent_packages }}\(aq
+      php__dependent_configuration:
+        \- \(aq{{ owncloud__php__dependent_configuration }}\(aq
+      php__dependent_pools:
+        \- \(aq{{ owncloud__php__dependent_pools }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ php__logrotate__dependent_config }}\(aq
+        \- \(aq{{ owncloud__logrotate__dependent_config }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_maps:
+        \- \(aq{{ owncloud__nginx__dependent_maps }}\(aq
+      nginx__dependent_servers:
+        \- \(aq{{ owncloud__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ owncloud__nginx__dependent_upstreams }}\(aq
+
+    \- role: owncloud
+      tags: [ \(aqrole::owncloud\(aq, \(aqskip::owncloud\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Ansible playbook that uses the \fBdebops.owncloud\fP role together with \fI\%debops.apache\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install and manage ownCloud instances with Apache as webserver
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_owncloud_apache\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Apply keyring configuration for php environment
+      ansible.builtin.import_role:
+        name: \(aqkeyring\(aq
+      vars:
+        keyring__dependent_apt_keys:
+          \- \(aq{{ php__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ mariadb__keyring__dependent_apt_keys if (owncloud__database == \(dqmariadb\(dq) else [] }}\(aq
+          \- \(aq{{ postgresql__keyring__dependent_apt_keys if (owncloud__database == \(dqpostgresql\(dq) else [] }}\(aq
+          \- \(aq{{ owncloud__keyring__dependent_apt_keys }}\(aq
+        keyring__dependent_gpg_keys:
+          \- \(aq{{ owncloud__keyring__dependent_gpg_keys }}\(aq
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::php\(aq,
+              \(aqrole::mariadb\(aq, \(aqrole::postgresql\(aq, \(aqrole::owncloud\(aq ]
+
+    \- name: Prepare php environment
+      ansible.builtin.import_role:
+        name: \(aqphp\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::php\(aq, \(aqrole::php:env\(aq, \(aqrole::logrotate\(aq ]
+
+    \- name: Prepare apache environment
+      ansible.builtin.import_role:
+        name: \(aqapache\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::apache\(aq, \(aqrole::apache:env\(aq ]
+
+    \- name: Prepare owncloud environment
+      ansible.builtin.import_role:
+        name: \(aqowncloud\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::owncloud\(aq, \(aqrole::owncloud:env\(aq ]
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ owncloud__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ php__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ apache__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq, \(aqrole::mariadb\(aq, \(aqrole::postgresql\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages3
+              if (owncloud__database == \(dqmariadb\(dq)
+              else [] }}\(aq
+        \- \(aq{{ postgresql__python__dependent_packages3
+              if (owncloud__database == \(dqpostgresql\(dq)
+              else [] }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages2
+              if (owncloud__database == \(dqmariadb\(dq)
+              else [] }}\(aq
+        \- \(aq{{ postgresql__python__dependent_packages2
+              if (owncloud__database == \(dqpostgresql\(dq)
+              else [] }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ owncloud__ldap__dependent_tasks }}\(aq
+
+    \- role: mariadb
+      tags: [ \(aqrole::mariadb\(aq, \(aqskip::mariadb\(aq ]
+      mariadb__dependent_users: \(aq{{ owncloud__mariadb__dependent_users }}\(aq
+      when: (owncloud__database == \(aqmariadb\(aq)
+
+    \- role: postgresql
+      tags: [ \(aqrole::postgresql\(aq, \(aqskip::postgresql\(aq ]
+      postgresql__dependent_roles: \(aq{{ owncloud__postgresql__dependent_roles }}\(aq
+      postgresql__dependent_groups: \(aq{{ owncloud__postgresql__dependent_groups }}\(aq
+      postgresql__dependent_databases: \(aq{{ owncloud__postgresql__dependent_databases }}\(aq
+      when: (owncloud__database == \(aqpostgresql\(aq)
+
+    \- role: unattended_upgrades
+      tags: [ \(aqrole::unattended_upgrades\(aq, \(aqskip::unattended_upgrades\(aq ]
+      unattended_upgrades__dependent_origins: \(aq{{ owncloud__unattended_upgrades__dependent_origins }}\(aq
+
+    \- role: php
+      tags: [ \(aqrole::php\(aq, \(aqskip::php\(aq ]
+      php__dependent_packages:
+        \- \(aq{{ owncloud__php__dependent_packages }}\(aq
+      php__dependent_configuration:
+        \- \(aq{{ owncloud__php__dependent_configuration }}\(aq
+      php__dependent_pools:
+        \- \(aq{{ owncloud__php__dependent_pools }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ php__logrotate__dependent_config }}\(aq
+        \- \(aq{{ owncloud__logrotate__dependent_config }}\(aq
+
+    \- role: apache
+      tags: [ \(aqrole::apache\(aq, \(aqskip::apache\(aq ]
+      apache__dependent_snippets: \(aq{{ owncloud__apache__dependent_snippets }}\(aq
+      apache__dependent_vhosts:
+        \- \(aq{{ owncloud__apache__dependent_vhosts }}\(aq
+
+    \- role: owncloud
+      tags: [ \(aqrole::owncloud\(aq, \(aqskip::owncloud\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+These playbooks are shipped with DebOps and are also contained in this role under
+\fBdocs/playbooks/\fP\&.
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::owncloud\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::owncloud:pkg\fP
+Tasks related to system package management like installing, upgrading or
+removing packages.
+.TP
+.B \fBrole::owncloud:tarball\fP
+Tasks related to installing by Tarball.
+.TP
+.B \fBrole::owncloud:config\fP
+Run tasks related to ownCloud configuration and setup.
+.TP
+.B \fBrole::owncloud:mail\fP
+Run tasks related to the deployment of the mail configuration.
+.TP
+.B \fBrole::owncloud:occ\fP
+Run tasks related to the \fBocc\fP command.
+.TP
+.B \fBrole::owncloud:occ_config\fP
+Run tasks related to \fBocc config:\fP commands generated from
+\fI\%owncloud__apps_config\fP variables.
+.TP
+.B \fBrole::owncloud:auto_upgrade\fP
+Run tasks related preparing ownCloud auto upgrade.
+.TP
+.B \fBrole::owncloud:ldap\fP
+Run tasks related to the LDAP configuration.
+.TP
+.B \fBrole::owncloud:theme\fP
+Run tasks related to the configuring the ownCloud theme.
+.TP
+.B \fBrole::owncloud:copy\fP
+Run tasks related to copying and deletion of files in user profiles.
+.UNINDENT
+.SH EXTERNAL USERS
+.sp
+This section gives more details on how to setup external users for ownCloud.
+.SS Users from debops.slapd
+.sp
+Should work out of the box when enabled:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+owncloud__ldap_enabled: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Refer to \fI\%LDAP authentication\fP for details.
+.SS Users from MS Windows Active Directory
+.sp
+First, you will need an AD user with which ownCloud can do a LDAP bind in order
+to read information about the users and check passwords.
+This user should be unprivileged.
+.sp
+Create the AD user and configure it like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[ ] User must change password at next logon
+[x] User cannot change password
+[x] Password never expires
+[ ] Account is disabled
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The user must not be able to login from computers.
+FIXME: Figure out how that can be configured.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+owncloud__ldap_enabled: True
+
+# ownCloud LDAP recommendations by the debops.owncloud maintainers for MS Windows AD [[[
+# Note that those recommendations might deviate from ownCloud
+# recommendations but those are the settings which are proven to work.
+owncloud__ldap_method: \(aqplain\(aq
+owncloud__ldap_expert_username_attr: \(aqsAMAccountName\(aq
+
+owncloud__ldap_conf_map:
+  ldapHost: \(aq{{ owncloud__ldap_primary_server }}\(aq
+  ldapPort: \(aq{{ owncloud__ldap_port }}\(aq
+  ldapAgentName: \(aq{{ owncloud__ldap_binddn }}\(aq
+  ldapBase: \(aq{{ owncloud__ldap_base_dn | join(\(dq,\(dq) }}\(aq
+  ldapExpertUsernameAttr: \(aq{{ owncloud__ldap_expert_username_attr }}\(aq
+# .. ]]]
+
+# Custom settings.
+owncloud__ldap_primary_server: \(aqdc01.example.org\(aq
+owncloud__ldap_base_dn: [ \(aqDC=example\(aq, \(aqDC=org\(aq ]
+owncloud__ldap_binddn: \(aqCN=owncloudbind,OU=service\-users,{{ owncloud__ldap_base_dn | join(\(dq,\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note that this leaves the LDAP configuration in ownCloud at an unfinished state.
+The role maintainers consider it to be easier to finish the LDAP configuration
+via the admin web interface.
+TODO: Add a backup option of all LDAP settings to the Ansible controller.
+.sp
+Refer to \fI\%debops.secret\fP to learn how passwords are handled.
+.SH EXTERNAL STORAGE
+.sp
+This section gives some hints how to setup external storage for ownCloud.
+The automation support for this in \fBdebops.owncloud\fP currently limited. This
+might be added in a later version of the role.
+.SS SMB/CIFS
+.sp
+To enable SMB/CIFS support in the role set:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+owncloud__smb_support: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+in your inventory.
+.sp
+Setting up SMB/CIFS in different environment based on Debian Jessie required
+some debugging so if you have trouble with SMB and MS Windows or NetApp file
+servers, you can try the following.
+.sp
+Add the host(s) to the \fBdebops_service_samba\fP Ansible host group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_samba]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+and include this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Don’t install the \(ga\(gasamba\(ga\(ga server as it is not needed on a typical
+# ownCloud server which acts as SMB client.
+samba__base_packages:
+  # \- \(aqsamba\(aq
+  \- \(aqsamba\-common\(aq
+  \- \(aqsamba\-common\-bin\(aq
+
+# Set AD domain. It might be required to adjust in case \(ganetbase__domain\(ga
+# is not equal to the Samba domain/workgroup.
+# ownCloud as of 9.0 provides a Domain field when setting up an external
+# storage but configuring this here is still nice in case you need to debug
+# a SMB/CIFS share using \(gasmbclient\(ga.
+samba__workgroup: \(aq{{ netbase__domain }}\(aq
+
+samba__global_custom:
+  ## DFS workaround:
+  \(aqclient ntlmv2 auth\(aq: \(aqno\(aq
+
+  ## Downgrade NetApp workaround:
+  ## https://community.netapp.com/t5/Network\-Storage\-Protocols\-Discussions/samba\-3\-6\-23\-30\-on\-CentOS\-gt\-error\-in\-smbclient/m\-p/118486#M8350
+  \(aqclient use spnego\(aq: \(aqno\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+in your inventory to get started.
+.sp
+The run the \fBservice/samba\fP playbook.
+.sp
+When you have further suggestions, you are welcome to share them here to save
+us all some debugging time.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.owncloud\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS owncloud__config
+.sp
+Dict keys can be overridden when they are present in multiple dicts.
+Order of priority from least to most specific:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%owncloud__role_config\fP
+.IP \(bu 2
+\fI\%owncloud__role_recommended_config\fP
+.IP \(bu 2
+\fI\%owncloud__config\fP
+.IP \(bu 2
+\fI\%owncloud__group_config\fP
+.IP \(bu 2
+\fI\%owncloud__host_config\fP
+.UNINDENT
+.sp
+Each variable can hold multiple keys and values. The dict value can either be a
+value directly intended for ownCloud (corresponding directly to the value in
+the \fBconfig.php\fP file) or a dict itself in case more flexibility is
+required. A ownCloud value can also be a dict. The decision is made based on
+the presence of the \fBvalue\fP and the \fBstate\fP keys. If both are present, the
+\fBstate\fP key will be evaluated by Ansible.
+Here are the available options of the inner dict:
+.INDENT 0.0
+.TP
+.B \fBvalue\fP
+Required, string. Corresponding to the value in the \fBconfig.php\fP file.
+.TP
+.B \fBstate\fP
+Required, string. Allows to specify if the option should be \fBpresent\fP or \fBabsent\fP in the configuration.
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Parameters with (backslash) need to be double escaped:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+owncloud__config:
+  memcache.local: \(aq\e\eOC\e\eMemcache\e\eAPCu\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+This is not confirmed by the \fI\%official ownCloud documentation\fP <\fBhttps://doc.owncloud.org/server/9.0/admin_manual/configuration_server/caching_configuration.html\fP>
+but is a result of how the configuration file is generated using JSON as intermediate data format.
+.UNINDENT
+.UNINDENT
+.sp
+Refer to the \fI\%official ownCloud documentation\fP <\fBhttps://doc.owncloud.org/server/9.0/admin_manual/configuration_server/config_sample_php_parameters.html\fP> for details about the available configuration options.
+.SS Change/Disable skeleton files for new users (example)
+.sp
+The skeleton files which new users get copied into there ownCloud profile on
+first login can be changed by the \fBskeletondirectory\fP setting which points to
+the skeleton directory to use.
+.sp
+In case users should primarily stored their files on external storage, it can
+make sense to not provided any skeleton files at all. This can be archived by
+putting:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+owncloud__config:
+
+  ## Points to the skeleton directory to use on first login of users.
+  ## If this setting is an empty string, no files will be provided by default.
+  skeletondirectory: \(aq\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+into your Ansible inventory.
+.SS owncloud__user_files
+.sp
+This section describes the options of \fI\%owncloud__user_files\fP and
+similar lists.
+.sp
+Each list item is a dict with the following keys:
+.INDENT 0.0
+.TP
+.B \fBsrc\fP
+Path to the source file on the Ansible Controller. Alternatively you can use
+\fBcontent\fP to provide the file contents directly in the inventory.
+.TP
+.B \fBcontent\fP
+String or YAML text block with the file contents to put in the destination
+file. Alternatively you can use \fBsrc\fP to provide the path to the
+source file on Ansible Controller.
+.TP
+.B \fBdest\fP
+Required, string. Path of the destination. The first directory is the user id.
+Example: \fBuser_id/files/path\fP\&.
+The destination on the remote host will be \fBowncloud__data_path + \(dq/\(dq + item.dest\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If not specified, or if specified and \fBpresent\fP, the file(s) will
+be created. If specified and \fBabsent\fP, file will be removed.
+.UNINDENT
+.sp
+Additionally, all parameters of the \fI\%Ansible ansible.builtin.copy module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/ansible/builtin/copy_module.html\fP> are
+supported.
+.sp
+The reason why these lists exist (instead of using \fI\%debops.resources\fP) is that
+ownCloud needs to be aware of any changes.
+.SS Examples
+.sp
+Provide an immutable \fBREADME.md\fP file in the root directory of the ownCloud admin user:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+owncloud__user_files_group:
+
+  \- dest: \(aq{{ owncloud__admin_username }}/files/README.md\(aq
+    content: |
+      This ownCloud instance is managed by Ansible.
+      Changes done via the ownCloud web interface might be overwritten
+      by subsequent Ansible runs.
+      Refer to https://docs.debops.org/en/latest/ansible/roles/debops.owncloud/index.html for details.
+    owner: \(aqroot\(aq
+    group: \(aqroot\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Provide an \fBREADME.md\fP file in the \fBproject_a\fP subdirectory of the ownCloud admin user.
+The \fBproject_a\fP directory will be created if it does not already exist.
+The ownCloud admin user can change/delete the file and directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+owncloud__user_files_group:
+
+  \- dest: \(aq{{ owncloud__admin_username }}/files/project_a/README.md\(aq
+    content: |
+      File template.
+      Changes done to this file will be overwritten by subsequent Ansible runs.
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS owncloud__ldap_config
+.sp
+The \fBowncloud__ldap_*_config\fP variables define the configuration of the \(dqLDAP
+user and group backend\(dq Nextcloud plugin. The configuration is stored in the
+Nextcloud database and can be manipulated using the \fBocc ldap:*\fP
+commands. To view the current LDAP configuration and possible parameters, you
+can run the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+occ ldap:show\-config
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Detailed information about configuring the LDAP support in Nextcloud can be
+found in the \fI\%Nextcloud LDAP documentation page\fP <\fBhttps://docs.nextcloud.com/server/stable/admin_manual/configuration_user/user_auth_ldap.html\fP>
+.SS Examples
+.sp
+The \fI\%owncloud__ldap_default_config\fP variable contains the default
+parameters used to configure the LDAP support.
+.sp
+To modify the default values, or add new parameters, you can define them in the
+Ansible inventory using the \fI\%owncloud__ldap_config\fP variable, for
+example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+owncloud__ldap_config:
+
+  \- name: \(aqturnOnPasswordChange\(aq
+    value: \(aq0\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The \fBowncloud__ldap_*_config\fP variables contain a list of YAML dictionaries,
+each dictionary defines a single configuration entry using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the LDAP plugin configuration option, case\-sensitive.
+Multiple configuration entries with the same \fBname\fP parameter are merged
+together and can affect each other.
+.TP
+.B \fBvalue\fP
+Required. The value of the configuration option, should be specified as
+a string.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration option will
+be set in the database. If \fBabsent\fP, the configuration will not be set
+(existing configuration value stays intact). If \fBignore\fP, a given
+configuration entry will not be evaluated during role execution.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Hartmut Goebel, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,532 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.STUNNEL" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.stunnel \- manage STunnel proxy using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/stunnel\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%stunnel\fP <\fBhttps://stunnel.org/\fP> can be used to create encrypted TCP tunnels between two service
+ports, either on the same host or on separate hosts.
+.sp
+Encryption is done using SSL certificates. This Ansible role can be used to
+create tunnels between two or more hosts, using Ansible inventory groups.
+.SH GETTING STARTED
+.sp
+\fBdebops.stunnel\fP does not create any tunnels by default, they need to be
+defined by the user. A natural place for them is usually a host group in
+Ansible inventory.
+.SS Example inventory
+.sp
+As an example, let\(aqs create an encrypted tunnel between two hosts, one of which
+acts as a MySQL server, and other is a client which connects through the tunnel
+to the server.
+.sp
+This is an example Ansible hosts file, located in \fBinventory/hosts\fP\&. It
+defines two host groups:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[mysql_encrypted_tunnel]
+dbserver
+dbclient
+
+[debops_mysql]
+dbserver
+
+[debops_stunnel:children]
+mysql_encrypted_tunnel
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+in \fBinventory/group_vars/mysql_encrypted_tunnel/stunnel.yml\fP you should
+define your MySQL tunnel connection:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+stunnel_services:
+  \- name: \(aqmysql\-ssl\-tunnel\(aq
+
+    server_accept:  \(aq3307\(aq
+    server_connect: \(aq3306\(aq
+
+    client_accept:  \(aq3306\(aq
+    client_connect: \(aqdbserver:3307\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBdebops.stunnel\fP will try and select the correct host as a server/client
+automatically, using a number of factors. By default all hosts are treated as
+clients; if automatic detection of a server fails, you will be able to override
+it.
+.sp
+This configuration sets up only \fBstunnel4\fP service, configuration of the
+firewall and TCP wrappers can be performed using additional configuration
+parameters. See \fI\%Guides and examples\fP for more details.
+.SS Example playbook
+.sp
+This is an example playbook which can be used to configure \fBstunnel\fP on all
+hosts that use it \- they should be present in \fB[debops_stunnel]\fP group,
+either directly or indirectly via a child group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+\- name: Manage stunnel connections
+  hosts: debops_stunnel
+
+  roles:
+    \- role: debops.stunnel
+      tags: stunnel
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH GUIDES AND EXAMPLES
+.SS Example MySQL tunnel
+.sp
+This is an extended example of the MySQL tunnel defined in the Getting Started
+section. In addition to the \fBstunnel4\fP configuration, \fBdebops.stunnel\fP will
+also configure firewall and TCP wrappers to allow connections from a specified
+network
+.sp
+\fBinventory/hosts\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[mysql_encrypted_tunnel]
+dbserver
+dbclient
+
+[debops_mysql]
+dbserver
+
+[debops_stunnel:children]
+mysql_encrypted_tunnel
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBinventory/group_vars/mysql_encrypted_tunnel/stunnel.yml\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+inventory_mysql_tunnel_network: [ \(aq2002:db8::/48\(aq, \(aq192.0.2.0/24\(aq ]
+inventory_mysql_hosts: [ \(aqdbserver\(aq ]
+
+stunnel_services:
+  \- name: \(aqmysql\-ssl\-tunnel\(aq
+
+    # Register this client port in /etc/services
+    port: \(aq3307\(aq
+
+    # stunnel configuration
+    server_accept:  \(aq:::mysql\-ssl\-tunnel\(aq
+    server_connect: \(aqmysql\(aq
+
+    client_accept:  \(aqmysql\(aq
+    client_connect: \(aq{{ inventory_mysql_hosts }}\(aq
+
+    # Firewall configuration
+    type: \(aqdport_accept\(aq
+    dport: [ \(aqmysql\-ssl\-tunnel\(aq ]
+    saddr: \(aq{{ inventory_mysql_tunnel_network }}\(aq
+
+    # TCP wrappers configuration
+    daemon: \(aqmysql\-ssl\-tunnel\(aq
+    client: \(aq{{ inventory_mysql_tunnel_network }}\(aq
+
+    # Configure firewall and TCP wrappers only on
+    # the server side of the tunnel
+    enabled: \(aq{{ inventory_mysql_hosts | intersect(stunnel_server_addresses) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Multiple tunnels at once
+.sp
+You can have multiple \fBstunnel\fP tunnels at the same time, by configuring them
+in separate dict variables and adding them in the main list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+stunnel_tunnel1:
+  name: \(aqtunnel1\(aq
+
+stunnel_tunnel2:
+  name: \(aqtunnel2\(aq
+
+stunnel_services:
+  \- \(aq{{ stunnel_tunnel1 }}\(aq
+  \- \(aq{{ stunnel_tunnel2 }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Configure tunnels separately on each host
+.sp
+If you don\(aqt want to, or can\(aqt use \fBgroup_vars/\fP to configure tunnels on
+multiple hosts at once, you can still do this one host at a time:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# on host1:
+stunnel_services:
+  \- name: \(aqtunnel\(aq
+    client_accept: \(aq3306\(aq
+    client_connect: \(aqhost2:3307\(aq
+
+# on host2:
+stunnel_services:
+  \- name: \(aqtunnel\(aq
+    server_accept: \(aq:::3307\(aq
+    server_connect: \(aq3306\(aq
+
+    # Firewall
+    type: \(aqdport_accept\(aq
+    dport: [ \(aq3307\(aq ]
+
+    # TCP wrappers
+    daemon: \(aqtunnel\(aq
+
+    # Accept connections from anywhere
+    accept_any: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH TROUBLESHOOTING
+.sp
+You can increase the log verbosity by making \fBstunnel_debug\fP variable higher,
+for example \fB\(aq6\(aq\fP or \fB\(aq7\(aq\fP\&.
+.SH DEFAULT VARIABLES: CONFIGURATION
+.sp
+some of \fBdebops.stunnel\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS stunnel_services
+.sp
+This is a list of \fBstunnel\fP tunnel connections, each one defined as a YAML
+dict. Each \(dqservice\(dq can define either one end of a connection, or both ends at
+once, when used in an Ansible group. Additional parameters can also be
+specified for other roles, such as firewall configuration, TCP wrappers
+configuration and registering a service in \fB/etc/services\fP database.
+.SS stunnel parameters
+.sp
+These parameters are related to \fBstunnel\fP itself.
+.INDENT 0.0
+.TP
+.B \fBname\fP
+String, required. Defines a name of the tunnel, which is used as the name of
+the configuration file and service name in \fB/etc/services\fP as well as
+daemon name in TCP wrappers.
+.sp
+You should use only letters, numbers and a dash (\fB\-\fP) character. You should
+pick an unique name for each service, preferably unique across your entire
+infrastructure. Check \fBgetent services\fP database to avoid collisions with
+existing names.
+.TP
+.B \fBclient_accept\fP
+String, optional. This parameter defines on what interface(s) and port this
+service will listen to for server connections. You should specify either
+a service port name or port number, which optional IP address on which to
+listen to.
+.sp
+By default, \fBstunnel\fP binds to IPv4 connections only, to listen to IPv6
+connections as well, specify the port as \fB:::<port>\fP\&.
+.sp
+You need to define either \fBclient_accept\fP or \fBclient_port\fP in a service
+definition for \fBstunnel\fP to be configured correctly.
+.TP
+.B \fBclient_connect\fP
+String or dict or list, optional. This key defines where a \fBstunnel\fP client
+will connect to. It can have 3 forms:
+.INDENT 7.0
+.IP \(bu 2
+string: \fB\(aq<hostname>:<port>\(aq\fP or \fB\(aq<ip address>:<port>\(aq\fP or \fB\(aq<port>\(aq\fP
+.IP \(bu 2
+dict: \fB{ \(aq<hostname>\(aq: \(aq<port>\(aq, \(aq<ip address>\(aq: \(aq<port>\(aq }\fP
+.IP \(bu 2
+list: \fB[ \(aq<hostname>\(aq, \(aq<ip address>\(aq ]\fP
+.UNINDENT
+.sp
+You can can use the string format if you have only one host you want to
+connect, or you want to connect to a local port.
+.sp
+Dict format can be used to connect to multiple hosts with different ports.
+.sp
+List format is useful when you need to connect to multiple hosts on the same
+port. The port is taken automatically either from \fBserver_accept\fP key or
+\fBserver_port\fP key, if present.
+.TP
+.B \fBclient_port\fP
+String, optional. This key defines the port name or port number of the
+\fBstunnel\fP client. It can be used by the \fBserver_connect\fP key (as a list)
+in case that \fBclient_accept\fP is not specified, to specify the port number
+to which the \fBstunnel\fP server should connect.
+.sp
+You need to define either \fBclient_port\fP or \fBclient_accept\fP in a service
+definition for \fBstunnel\fP to be configured correctly.
+.TP
+.B \fBclient_options\fP
+Text block, optional. Add other options on the client side of the \fBstunnel\fP
+configuration, in the form of a YAML text block.
+.TP
+.B \fBserver_accept\fP
+String, optional. This parameter defines on what interface(s) and port this
+service will listen to for client connections. You should specify either
+a service port name or port number, which optional IP address on which to
+listen to.
+.sp
+By default, \fBstunnel\fP binds to IPv4 connections only, to listen to IPv6
+connections as well, specify the port as \fB:::<port>\fP\&.
+.sp
+You need to define either \fBserver_accept\fP or \fBserver_port\fP in a service
+definition for \fBstunnel\fP to be configured correctly.
+.TP
+.B \fBserver_connect\fP
+String or dict or list, optional. This key defines where a \fBstunnel\fP server
+will connect to. It can have 3 forms:
+.INDENT 7.0
+.IP \(bu 2
+string: \fB\(aq<hostname>:<port>\(aq\fP or \fB\(aq<ip address>:<port>\(aq\fP or \fB\(aq<port>\(aq\fP
+.IP \(bu 2
+dict: \fB{ \(aq<hostname>\(aq: \(aq<port>\(aq, \(aq<ip address>\(aq: \(aq<port>\(aq }\fP
+.IP \(bu 2
+list: \fB[ \(aq<hostname>\(aq, \(aq<ip address>\(aq ]\fP
+.UNINDENT
+.sp
+You can can use the string format if you have only one host you want to
+connect, or you want to connect to a local port.
+.sp
+Dict format can be used to connect to multiple hosts with different ports.
+.sp
+List format is useful when you need to connect to multiple hosts on the same
+port. The port is taken automatically either from \fBclient_accept\fP key or
+\fBclient_port\fP key, if present.
+.TP
+.B \fBserver_port\fP
+String, optional. This key defines the port name or port number of the
+\fBstunnel\fP server. It can be used by the \fBclient_connect\fP key (as a list)
+in case that \fBserver_accept\fP is not specified, to specify the port number
+to which the \fBstunnel\fP client should connect.
+.sp
+You need to define either \fBserver_port\fP or \fBserver_accept\fP in a service
+definition for \fBstunnel\fP to be configured correctly.
+.TP
+.B \fBserver_options\fP
+Text block, optional. Add other options on the server side of the \fBstunnel\fP
+configuration, in the form of a YAML text block.
+.TP
+.B \fBssl_opts\fP
+List, optional. SSL options for \fBstunnel\fP configuration. Will override the
+defaults.
+.UNINDENT
+.SS /etc/services parameters
+.sp
+If you want to, you can assign a user\-friendly name to a client port number
+(server port number is probably already present, for example \fB3306\fP
+= \fBmysql\fP). To do that, you can use \fI\%debops.etc_services\fP Ansible role,
+which manages \fB/etc/services\fP database.
+.sp
+In the future the services database might be converted from the local files to
+a central LDAP database. Because of that it\(aqs suggested that you use unique
+port numbers and service names across your entire infrastructure.
+.INDENT 0.0
+.TP
+.B \fBport\fP
+String, optional. This parameter is the port number which you want to reserve
+for the particular tunnel connection. Service name will be taken from the
+\fBname\fP parameter. Both TCP as well as UDP service name will be reserved.
+.sp
+When you specify this parameter, the \fB/etc/services\fP support is activated
+using role dependencies. After that, you can use the service name in place of
+all client ports, in \fBserver_accept\fP, \fBserver_port\fP and
+\fBclient_connect\fP parameters, as well as the firewall configuration
+(\fBdport\fP parameter).
+.TP
+.B \fBcomment\fP
+String, optional. A comment with short description will be added in the
+\fB/etc/services\fP database, as well as in the TCP wrappers
+\fB/etc/hosts.allow\fP file.
+.UNINDENT
+.SS ferm (iptables/ip6tables) parameters
+.sp
+By default, \fBdebops.stunnel\fP role does not configure the firewall to enable
+access to the server port from the outside. To do that, you can add the
+parameters below to the tunnel definition. \fI\%debops.ferm\fP role will be used to
+configure the \fBiptables\fP/\fBip6tables\fP firewall using \fBferm\fP\&.
+.sp
+Firewall configuration will be performed on all hosts by default. To only
+configure firewall on the server hosts (\fBstunnel\fP clients do not require it),
+look below for the \fBenabled\fP parameter.
+.INDENT 0.0
+.TP
+.B \fBtype\fP
+String, optional. Enables the firewall configuration support and specifies
+the rule type to use. See the \fBdebops.ferm\fP role for available rule types.
+Usually, \fBdport_accept\fP is the correct choice.
+.sp
+The type of the firewall rule to use will affect the keys used, so choose the
+rule carefully to avoid unintended effects.
+.TP
+.B \fBdport\fP
+List, optional. Specify port numbers or service names to configure in the
+firewall. You can use the service name if \fB/etc/services\fP support has been
+enabled (see above).
+.TP
+.B \fBsaddr\fP
+List, optional. Specify list of hostnames, IP addresses or CIDR networks
+which are allowed to connect to specified ports. If it\(aqs not specified, no
+connections are allowed, unless \fBaccept_any\fP parameter is enabled (see
+below).
+.sp
+This list is similar to \fBclient\fP list, but they are not fully compatible.
+.UNINDENT
+.SS TCP wrappers parameters
+.sp
+\fBstunnel\fP uses TCP wrappers on Debian to secure connections from remote
+hosts. By default, \fBdebops.stunnel\fP role does not configure TCP wrapper
+entries in \fB/etc/hosts.allow\fP, but you can do that by adding the parameters
+below. \fI\%debops.tcpwrappers\fP role will be used to configure
+\fB/etc/hosts.allow\fP entries.
+.sp
+TCP wrappers configuration will be performed on all hosts by default. To only
+configure host access on the server hosts (\fBstunnel\fP clients do not require
+it), look below for the \fBenabled\fP parameter.
+.INDENT 0.0
+.TP
+.B \fBdaemon\fP
+String, optional. Enables configuration of TCP wrappers. Name of the \(dqdaemon\(dq
+that TCP wrappers will allow/deny connections to. Should be the same as
+\fBname\fP parameter.
+.TP
+.B \fBclient\fP
+List, optional. Specify list of IP addresses, CIDR networks or domain names
+of hosts which are allowed to connect to the \fBstunnel\fP server. If no hosts
+are specified, TCP wrappers will deny remote connections from anywhere unless
+\fBaccept_any\fP parameter is enabled (see below).
+.sp
+This list is similar to \fBsaddr\fP list, but they are not fully compatible.
+.UNINDENT
+.SS Shared firewall & TCP wrappers parameters
+.sp
+Some of the parameters are shared between firewall (\fBdebops.ferm\fP) and TCP
+wrappers (\fBdebops.tcpwrappers\fP) roles.
+.INDENT 0.0
+.TP
+.B \fBaccept_any\fP
+Boolean, optional. Enable or disable access to the \fBstunnel\fP server from
+any host or network. Useful if you have a separate firewall in front of your
+servers or want to allow connections from anywhere to a particular service.
+.TP
+.B \fBenabled\fP
+List, optional. By default TCP wrappers and firewall are configured on all
+hosts \- clients and servers alike, it\(aqs how Ansible works.
+.sp
+To only configure firewall and TCP wrappers on the server side of \fBstunnel\fP
+connections, you can use the \fBenabled\fP parameter as a list. Specify a list
+of \fBstunnel\fP servers, either hostnames or FQDN names, and intersect it with
+\fBstunnel_server_addresses\fP list. For example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tunnel_servers: [ \(aqhostname\(aq ]
+stunnel_services:
+  \- name: \(aqtunnel\(aq
+    enabled: \(aq{{ tunnel_servers | intersect(stunnel_server_addresses) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Relevant roles will still generate the necessary configuration files, but on
+the client hosts, the resulting list will be empty, disabling the firewall
+and TCP wrappers configuration. On server hosts, it will be not empty, and
+configuration will be enabled.
+.UNINDENT
+.SS Other parameters
+.INDENT 0.0
+.TP
+.B \fBfilename\fP
+String, optional. Will influence the filename of generated configuration
+files in all roles, which by default is based on the \fBname\fP parameter.
+.TP
+.B \fBweight\fP
+String, optional. This is a 2\-digit number added at the beginning of the
+filename in some roles, which helps in ordering of the configuration files.
+.TP
+.B \fBother parameters\fP
+You can add other parameters from default variables by dropping the
+\fBstunnel_\fP prefix from the variable name. For example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+stunnel_services:
+  \- name: \(aqtunnel\(aq
+    pki_realm: \(aqdomain\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,355 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.APT_INSTALL" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.apt_install \- Manage APT packages using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/apt_install\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.apt_install\fP Ansible role is meant to be used as an easy way to
+install APT packages on hosts that don\(aqt require more extensive configuration
+which would require a more extensive, custom Ansible role. The role itself
+exposes several Ansible default variables which can be used to specify custom
+lists of packages on different levels of Ansible inventory (global, per\-group
+or per\-host).
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+The role comes with a small set of APT packages, useful on pretty much any
+Debian or Ubuntu host. Some of the packages are installed conditionally,
+depending on different Ansible facts \- for example, firmware packages are
+installed on rack servers, which may contain network cards that require custom
+firmware loaded by the kernel for proper operation.
+.sp
+The role is not meant to be used as a dependency of other roles, but you can use it
+like that if you want to take advantage of the custom lookup template that uses
+conditional package installation depending on installed operating system, its
+release or available archive areas.
+.sp
+The difference between \fI\%debops.apt\fP and \fBdebops.apt_install\fP Ansible roles
+is that the former role is used to configure the APT package manager itself,
+and latter just installs packages using APT package manager, depending on its
+configuration.
+.SS Similar Ansible roles
+.sp
+There are more comprehensive Ansible roles that install packages:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%ypid.packages\fP <\fBhttps://github.com/ypid/ansible-packages\fP> \- provides
+an advanced framework meant to allow installation of packages according to
+different host classes, with a large selection of packages. The role is focused
+on workstations, live systems and server environments.
+.UNINDENT
+.SS Example inventory
+.sp
+The \fBdebops.apt_install\fP role is included by default in the \fBcommon.yml\fP
+DebOps playbook. You don\(aqt need to configure anything in the inventory to
+enable it.
+.sp
+The role provides a set of default variables to specify what packages should be
+installed on hosts, depending on the inventory level:
+.INDENT 0.0
+.TP
+.B \fI\%apt_install__packages\fP
+This variable should be used in
+\fBansible/inventory/group_vars/debops_all_hosts/apt_install.yml\fP file and is meant to
+specify packages present on all hosts in the inventory.
+.TP
+.B \fI\%apt_install__group_packages\fP
+This variable should be used in
+\fBansible/inventory/group_vars/<group\-name>/apt_install.yml\fP files and is
+meant to contain packages that should be installed on hosts in different
+Ansible groups. Only one level of this variable is supported, so you should
+be careful about your inventory design. Or, you can use it as a master list
+that contains different per\-group variables.
+.TP
+.B \fI\%apt_install__host_packages\fP
+This variable should be used in
+\fBansible/inventory/host_vars/<hostname>/apt_install.yml\fP files and is meant
+to contain list of packages that should be installed on specific hosts.
+.UNINDENT
+.SS Example playbook
+.sp
+\fBdebops.apt_install\fP is designed to be used from a playbook or a role as role
+dependency. Here\(aqs an example configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install APT packages
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_apt_install\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ apt_install__apt_preferences__dependent_list }}\(aq
+
+    \- role: apt_install
+      tags: [ \(aqrole::apt_install\(aq, \(aqskip::apt_install\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.apt_install\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS apt_install__debconf
+.sp
+These lists of YAML dictionaries can be used to add some values to the Debconf
+database. Each entry has the same keys as the ones used by the
+\fI\%Ansible ansible.builtin.debconf module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/ansible/builtin/debconf_module.html\fP>\&.  See its documentation for detailed
+parameter usage and syntax.
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the package to configure.
+.TP
+.B \fBquestion\fP
+A debconf configuration setting.
+.TP
+.B \fBunseen\fP
+Do not set \(aqseen\(aq flag when pre\-seeding.
+.TP
+.B \fBvalue\fP
+Value to set the configuration to.
+.TP
+.B \fBvtype\fP
+The type of the value supplied.
+.UNINDENT
+.SS Examples
+.sp
+Define the path to Matlab installation for matlab\-support :
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_install__debconf:
+  \- name: \(aqmatlab\-support\(aq
+    question: \(aqmatlab\-support/matlab\-install\-glob\(aq
+    value: \(aq/usr/local/MATLAB/R2018b\(aq
+    vtype: \(aqstring\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS apt_install__all_packages
+.sp
+This variable holds all YAML lists used by the corresponding Ansible lookup
+template passed to the \fBapt\fP module. Each element of this list can specify
+a name of the APT package to install, or a list of packages, or a YAML
+dictionary which defines conditions for the installation of the package(s).
+.sp
+The different dictionary keys that can be used to specify conditional
+installation:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the APT package, or YAML list of package names to install.
+.TP
+.B \fBstate\fP
+Optional. Specify if the given package(s) should be included in the list of
+packages to install (not the status of installation). If not specified or
+\fBpresent\fP, package(s) will be included, if \fBabsent\fP, packages won\(aqt be
+included.
+.TP
+.B \fBdistribution\fP
+Optional. Name or list of operating system distributions. If specified,
+a given package or list of packages will be installed only on these
+distributions.
+.TP
+.B \fBrelease\fP
+Optional. Name or list of distribution release names. If specified, a given
+package or list of packages will be installed only on systems with given OS
+releases.
+.TP
+.B \fBarea\fP
+Optional. Name or list of package archive areas (\fBmain\fP, \fBnon\-free\fP,
+\fBrestricted\fP, etc.). If specified, role will check if a given archive area
+is enabled using Ansible local facts. The specified package(s) will be
+installed only when a given area is available. This can be used to avoid
+errors with missing packages on systems where non\-free archive areas are not
+enabled.
+.TP
+.B \fBwhitelist\fP
+Optional. This variable should reference a list of package names. The lookup
+template that filters the list of packages for installation will compare the
+names of selected packages against this list, and only packages which are
+included will be installed. This is used to provide an alternative, easier
+way to select packages for installation without the need to modify a huge,
+conditional list.
+.UNINDENT
+.SS Examples
+.sp
+Install packages on any OS release:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_install__packages:
+  \- \(aqpackage1\(aq
+  \- \(aqpackage2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Install packages only when specified OS release is present:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_install__packages:
+  \- name: \(aqpackage1\(aq
+    release: [ \(aqwheezy\(aq, \(aqtrusty\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Install packages only when specified archive area is available:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_install__packages:
+  \- name: \(aqpackage1\(aq
+    area: \(aqnon\-free\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Install packages using Ansible fact condition:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_install__packages:
+  \- name: [ \(aqpackage1\(aq, \(aqpackage2\(aq ]
+    state: \(aq{{ \(dqpresent\(dq
+               if (ansible_virtualization_role == \(dqguest\(dq)
+               else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS apt_install__alternatives
+.sp
+These YAML lists can be used to configure special symlinks (for example,
+\fBeditor\fP, \fBx\-terminal\-emulator\fP, \fBpager\fP) which can point to different
+applications that provide similar functionality using the
+\fBupdate\-alternatives\fP command. Each list element is a YAML dictionary with
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the symlink which should be configured.
+.TP
+.B \fBpath\fP
+Optional. Absolute path to the application which should be symlinked. To see
+available alternatives, you can run the command:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+update\-alternatives \-\-display <name>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If the \fBpath\fP parameter is not specified, the role will configure a given
+symlink to select an application automatically.
+.TP
+.B \fBlink\fP
+Optional. Absolute path to the file which should be symlinked. This is rarely
+needed.
+.TP
+.B \fBpriority\fP
+Optional. Set a priority for a given application package. This is rarely
+needed.
+.UNINDENT
+.SS Examples
+.sp
+Configure Emacs to be the default system editor:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_install__alternatives:
+  \- name: \(aqeditor\(aq
+    path: \(aq/usr/bin/emacs24\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Let the system decide automatically what editor to use as default:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_install__alternatives:
+  \- name: \(aqeditor\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

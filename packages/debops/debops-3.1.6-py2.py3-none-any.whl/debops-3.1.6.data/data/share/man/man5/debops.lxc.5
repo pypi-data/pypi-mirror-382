@@ -1,0 +1,857 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.LXC" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.lxc \- Configure and manage LXC hosts using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/lxc\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Linux Containers\fP <\fBhttps://en.wikipedia.org/wiki/LXC\fP> or LXC provide a way to partition existing Linux hosts
+into separate environments using Linux cgroups, namespace isolation, POSIX
+capabilities and chrooted filesystems.
+.sp
+The \fBdebops.lxc\fP Ansible role can be used to configure LXC support on
+a Debian/Ubuntu host. It can manage configuration files in \fB/etc/lxc/\fP
+directory and provide custom scripts that allow, for example, initial
+bootstrapping of the user\(aqs SSH public keys inside of the container so that it
+can be managed remotely with Ansible.
+.SH GETTING STARTED
+.SS LXC support in DebOps
+.sp
+This role focuses only on the LXC configuration itself. You will need to use
+other DebOps roles to manage additional required subsystems.
+.sp
+The role will configure an internal \fBlxcbr0\fP bridge for the local Linux
+Containers, using the \fBlxc\-net\fP service. The internal network will have its
+own DHCP/DNS server with \fBlxc.{{ ansible_domain }}\fP DNS domain by default.
+.sp
+You can configure a DNS proxy on the LXC host to be able to access the LXC
+containers by their DNS names instead of their IP addresses. The
+\fI\%debops.dnsmasq\fP and \fI\%debops.unbound\fP Ansible roles will
+automatically integrate with the LXC host configuration using Ansible local
+facts and will generate the configuration necessary to access the
+\fBlxc.{{ ansible_domain }}\fP DNS domain. The role will detect presence of the
+\fBresolvconf\fP or the \fBsystemd\-resolved\fP service on the host
+using Ansible local facts provided by their respective DebOps roles and will
+integrate the LXC network with the available resolver.
+.sp
+If the LXD support is also configured on the host (detected by the inventory
+host being included in the \fB[debops_service_lxd]\fP Ansible inventory group),
+the role will disable and deconfigure any existing \fBlxcbr0\fP bridge, and will
+not configure it initially. You should refer to the LXD documentation for
+details about network bridge management.
+.sp
+Additional bridge network interfaces can be maintained using the
+\fI\%debops.ifupdown\fP role. By default the \fBifupdown\fP role creates
+the \fBbr0\fP network bridge attached to the external network, which is defined
+in the LXC configuration as the default network interface to attach the
+containers, if the internal bridge is disabled.
+.sp
+The containers will use DHCP to get their network interface configuration.
+You can use \fI\%debops.dnsmasq\fP or \fI\%debops.dhcpd\fP Ansible roles to
+manage a DHCP service on the LXC host or elsewhere in the network.
+.SS Unprivileged containers
+.sp
+You can create unprivileged LXC container owned by the \fBroot\fP account by
+using the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc\-create \-n <container> \-f /etc/lxc/unprivileged.conf \e
+           \-t download \-\- \-\-dist debian \-\-release stretch \-\-arch amd64
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The role will install the \fBlxc\-new\-unprivileged\fP script which provides
+an equivalent functionality to the above command. With it, you can create new
+LXC unprivileged containers by running:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc\-new\-unprivileged <container>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The container will be configured to use subordinate UID/GID range defined by
+the \fI\%debops.root_account\fP Ansible role in the \fB/etc/subuid\fP and
+\fB/etc/subgid\fP databases. Since it\(aqs a container owned by \fBroot\fP, it
+will be automatically started on the boot of the host.
+.sp
+Multiple LXC containers that use the same set of subUIDs/subGIDs might be able
+to access each others\(aq resources in the case of a breakout, since from the
+perspective of the host their UIDs/GIDs are the same. You might want to
+consider this in the planning of your environment and use multiple
+subUID/subGID ranges for different LXC containers or groups of them.
+.sp
+Currently unprivileged LXC containers managed in the DebOps environment should
+be fairly secure, however you might want to consider enabling AppArmor for
+increased security against attacks directed at the LXC host.
+.SS Privileged containers
+.sp
+You can create a privileged LXC container (default) by using the command as the
+\fBroot\fP account:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc\-create \-n <container> \-t debian
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To select a different release, use this command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc\-create \-n <container> \-t debian \-\- \-r jessie
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can also specify a different default configuration file, to for example
+connect the container to specific network bridge:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc\-create \-n <container> \-t debian \-f /etc/lxc/privileged.conf
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remember that privileged LXC containers are not secure and can modify the LXC
+host configuration. Don\(aqt use privileged containers in production environments,
+and don\(aqt allow untrusted users access to the \fBroot\fP account inside of these
+containers.
+.sp
+The default configuration defined by the role is pretty simple, you can find
+the configuration of each created LXC container in the
+\fB/var/lib/lxc/<container>/config\fP configuration file.
+.SS LXC containers are managed by systemd
+.sp
+The LXC containers created by the role tasks or by the
+\fBlxc\-new\-unprivileged\fP script are managed by \fBsystemd\fP,
+specifically by the \fBlxc@.service\fP unit. This is done because on Debian
+Stretch using the \fBlxc\-stop\fP command directly to stop a container
+results in a timeout and container processes being forcibly killed by the
+system. On Debian Stretch and Ubuntu Xenial distributions, the
+\fBlxc@.service\fP \fBsystemd\fP unit is modified by the
+\fI\%debops.lxc\fP role to shutdown the container \(dqfrom the inside\(dq via the
+\fBlxc\-attach\fP command, which results in a properly shut down container.
+.sp
+The containers are configured to not start automatically by the \fBlxc.service\fP
+unit. Instead, each LXC container has its corresponding \fBlxc@.service\fP
+instance that will be started by \fBsystemd\fP on system boot. On
+container destruction, either by the \fI\%debops.lxc\fP role or by the
+\fBlxc\-destroy\fP command, the instance will be disabled automatically.
+.sp
+To start a LXC container using \fBsystemd\fP instances, you can issue the
+command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+systemctl start lxc@<container>.service
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To stop a running LXC container started by \fBsystemd\fP, you can execute
+the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+systemctl stop lxc@<container>.service
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+With this setup, you should avoid using the \fBlxc\-*\fP commands that affect the
+containers directly, unless the container started by the \fBsystemd\fP is
+stopped first. Otherwise the state of the container managed by the
+\fBsystemd\fP instance might get desynchronized.
+.sp
+References and more details about the issues:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%Debian Bug #831691: Please use lxc.haltsignal = SIGRTMIN+3 for systemd containers\fP <\fBhttps://bugs.debian.org/831691\fP>
+.IP \(bu 2
+\fI\%[lxc\-users] Graceful Shutdown/Reboot\fP <\fBhttps://lists.linuxcontainers.org/pipermail/lxc-users/2017-February/012827.html\fP>
+.IP \(bu 2
+\fI\%GitHub issue: Please use lxc.haltsignal = SIGRTMIN+3 for systemd containers\fP <\fBhttps://github.com/lxc/lxc/issues/1085\fP>
+.IP \(bu 2
+\fI\%GitHub issue: lxc stop does not stop my container\fP <\fBhttps://github.com/lxc/lxd/issues/2947\fP>
+.IP \(bu 2
+\fI\%Forum post: \(aqlxc\-stop \-n <container>\(aq takes too long\fP <\fBhttps://forum.turris.cz/t/lxc-stop-n-container-takes-too-long/6358\fP>
+.UNINDENT
+.SS SSH access to containers
+.sp
+You can use the command below to start an existing LXC container and prepare
+SSH access to the \fBroot\fP account:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc\-prepare\-ssh <container> [authorized_keys file]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBlxc\-prepare\-ssh\fP is a custom script installed by the
+\fI\%debops.lxc\fP role. It will start the specified container, make sure that
+OpenSSH service is installed inside, and add the current user\(aqs
+\fB~/.ssh/authorized_keys\fP contents on the \fBroot\fP account inside of the
+container. The script will check if the \fB${SUDO_USER}\fP variable is defined in
+the environment and use that user\(aqs \fB~/.ssh/authorized_keys\fP file as
+source of SSH public keys. Alternatively, you can specify a custom file with
+authorized SSH keys to add in the container\(aqs
+\fB/root/.ssh/authorized_keys\fP file.
+.sp
+The \fI\%lxc__default_container_ssh_root_sshkeys\fP list can be used to
+specify a list of SSH identities which should be added to new LXC containers by
+default. The identities will be stored in the
+\fB/etc/lxc/root_authorized_keys\fP file on the LXC host; the
+\fBlxc\-prepare\-ssh\fP script will add them in specified LXC containers.
+This can be useful to define a set of default system administrators that should
+have access to all containers.
+.sp
+If \fI\%the LDAP support\fP is configured on a host and SSH key
+lookup in LDAP is enabled by the \fI\%debops.sshd\fP role, the script will look
+up the current user keys in LDAP directory as well \- this ensures that the SSH
+access is configured even when the SSH public keys are not explicitly defined
+in the current user\(aqs \fB~/.ssh/authorized_keys\fP file.
+.sp
+After that, the LXC container should be ready to be used remotely, at which
+point you can use normal DebOps \fBbootstrap\fP playbook and other playbooks to
+configure it.
+.SS Predictable MAC addresses
+.sp
+The \fBlxc\-hwaddr\-static\fP script can be used to generate predictable,
+randomized MAC addresses for LXC containers, based on the container name. The
+script will automatically save the generated MAC addresses in the container
+configuration files. Multiple network interfaces defined by the
+\fBlxc.network.type\fP configuration option are supported.
+.sp
+The script can also be used as a \(dqpre\-start\(dq LXC hook, to configure static MAC
+addresses at container start. This requires the container to be restarted for
+the new static MAC addresses to be used in network interface setup. This usage
+is enabled by default in DebOps via the common LXC container configuration.
+.SS Example inventory
+.sp
+To enable LXC support on a host, it needs to be added to the
+\fB[debops_service_lxc]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts:children]
+lxc_hosts
+lxc_containers
+
+[debops_service_lxc:children]
+lxc_hosts
+
+[lxc_hosts]
+lxc\-host    ansible_host=lxc\-host.example.org
+
+[lxc_containers]
+webserver   ansible_host=webserver.example.org
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+By default, containers will use the \fBlxcbr0\fP bridge managed by the role, with
+their own internal subdomain. You can use the \fI\%debops.ifupdown\fP Ansible
+role to configure additional network bridges on the LXC host, if you want to
+attach the containers to the public network.
+.SS Remote LXC management without SSH access
+.sp
+Remote LXC containers without SSH access can be accessed indirectly using the
+\fI\%lxc_ssh\fP <\fBhttps://github.com/andreasscherbaum/ansible-lxc-ssh\fP> Ansible connection plugin included with DebOps. This requires
+direct access to the \fBroot\fP account on the LXC host and LXC container (even
+with unprivileged LXC containers), due to the connection plugin limitations.
+.sp
+Example configuration of that connection in the Ansible inventory (variables
+specified in multiple lines for readability):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts:children]
+lxc_hosts
+lxc_containers
+
+[debops_service_lxc:children]
+lxc_hosts
+
+[lxc_hosts]
+lxc\-host    ansible_host=lxc\-host.example.org
+
+[lxc_containers]
+webserver    ansible_connection=lxc_ssh ansible_user=root
+webserver    ansible_host=lxc\-host.example.org
+webserver    ansible_ssh_extra_args=webserver
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBlxc_ssh\fP connection plugin is unofficial and may not work correctly.
+Please report any issues, and if you know fixes for them, provide that as well!
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.lxc\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage LXC hosts
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_lxc\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: root_account
+      tags: [ \(aqrole::root_account\(aq, \(aqskip::root_account\(aq ]
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ lxc__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ lxc__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::lxc\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ lxc__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ lxc__python__dependent_packages2 }}\(aq
+
+    \- role: sysctl
+      tags: [ \(aqrole::sysctl\(aq, \(aqskip::sysctl\(aq ]
+      sysctl__dependent_parameters:
+        \- \(aq{{ lxc__sysctl__dependent_parameters }}\(aq
+
+    \- role: lxc
+      tags: [ \(aqrole::lxc\(aq, \(aqskip::lxc\(aq ]
+
+# If a host has \(aqdebops.dnsmasq\(aq or \(aqdebops.unbound\(aq roles configured, execute
+# its playbook in case that configuration applied by the \(aqlxc\(aq role needs to be
+# applied to \(aqdnsmasq\(aq or \(aqunbound\(aq services. This should ensure that the
+# \(aq*.lxc\(aq subdomain for internal LXC containers is resolvable on the LXC host.
+#
+# If the host is not in the Ansible inventory groups required by the
+# \(aqdnsmasq.yml\(aq or the \(aqunbound.yml\(aq playbooks, this should not impact
+# anything.
+
+\- name: Configure dnsmasq service
+  import_playbook: \(aqdnsmasq.yml\(aq
+
+\- name: Configure unbound service
+  import_playbook: \(aqunbound.yml\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::lxc\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::lxc:containers\fP
+Execute tasks that manage LXC containers.
+.TP
+.B \fBrole::lxc:net\fP
+Manage internal LXC network configuration.
+.TP
+.B \fBrole::lxc:dnsmasq\fP
+Manage the \fBdnsmasq\fP instance of the internal LXC network.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.lxc\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%lxc(7)\fP <\fBhttps://manpages.debian.org/lxc(7)\fP>, \fI\%lxc.conf(5)\fP <\fBhttps://manpages.debian.org/lxc.conf(5)\fP>, \fI\%lxc.system.conf(5)\fP <\fBhttps://manpages.debian.org/lxc.system.conf(5)\fP>,
+\fI\%lxc.container.conf(5)\fP <\fBhttps://manpages.debian.org/lxc.container.conf(5)\fP>
+.IP \(bu 2
+\fI\%LXC\fP <\fBhttps://wiki.debian.org/LXC\fP> page in Debian Wiki
+.IP \(bu 2
+\fI\%Linux Containers\fP <\fBhttps://wiki.archlinux.org/index.php/Linux_Containers\fP> page in Arch Linux Wiki
+.IP \(bu 2
+\fI\%LXC 1.0 blog post series\fP <\fBhttps://stgraber.org/2013/12/20/lxc-1-0-blog-post-series/\fP> written by Stéphane Graber
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.lxc\fP default variables have more extensive configuration than
+simple strings or lists, here you can find documentation and examples for them.
+.SS lxc__configuration
+.sp
+The \fBlxc__*_configuration\fP variables define the contents of the configuration
+files in the \fB/etc/lxc/\fP directory.
+.SS Examples
+.sp
+Select the default bridge interface used by new unprivileged LXC containers:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc__configuration:
+
+  \- name: \(aqunprivileged\(aq
+    options:
+      \- \(aqlxc.network.link\(aq: \(aqbr0\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Change the default LXC configuration file used to generate LXC containers to
+unprivileged:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc__configuration:
+
+  \- name: \(aqlxc\(aq
+    options:
+
+      \- name: \(aqlxc.default_config\(aq
+        value: \(aq/etc/lxc/unprivileged.conf\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The same change, written as a simple YAML dictionary:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc__configuration:
+
+  \- name: \(aqlxc\(aq
+    options:
+      \- \(aqlxc.default_config\(aq: \(aq/etc/lxc/unprivileged.conf\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each variable is a list of YAML dictionaries, each dictionary can contain
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the configuration file, saved as
+\fB/etc/lxc/<name>.conf\fP\&. This parameter is also used as a key while
+merging multiple configuration entries.
+.sp
+Please note that the \fBlxc\fP package creates the
+\fB/etc/lxc/default.conf\fP configuration file. This file is not managed by
+the \fI\%debops.lxc\fP role and it\(aqs best not to overwrite it so that package
+upgrades don\(aqt have issues. In other words, don\(aqt use the \fBdefault\fP as the
+name of the configuration file.
+.TP
+.B \fBfilename\fP
+Optional. Custom filename of the specified configuration. You need to include
+the \fB\&.conf\fP prefix in the filename.
+.TP
+.B \fBstate\fP
+Optional. Specify desired state of a given configuration file. Possible
+states:
+.INDENT 7.0
+.IP \(bu 2
+\fBpresent\fP or not specified: the file will be generated.
+.IP \(bu 2
+\fBabsent\fP: the file will be removed if it exists, otherwise it won\(aqt be
+generated.
+.IP \(bu 2
+\fBignore\fP: A given configuration entry will be ignored by the role.
+.UNINDENT
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment added at the top of the
+configuration file.
+.TP
+.B \fBraw\fP
+Optional. A string or YAML text block with LXC configuration, which will be
+added as\-is at the end of the configuration file.
+.TP
+.B \fBoptions\fP
+Optional. A YAML list of LXC configuration options defined as YAML
+dictionaries. Each dictionary key is an \fBlxc.*\fP configuration key, and the
+dictionary is the configuration value, defined as a string. The \fBoptions\fP
+lists from multiple configuration entries with the same \fBname\fP will be
+merged together.
+.sp
+If the dictionary has \fBname\fP and \fBvalue\fP keys, a given dictionary is
+interpreted with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The LXC configuration option. It\(aqs used as a key to merge configuration
+options. If your configuration uses the same configuration options multiple
+times, you need to differentiate each one, for example with a prefix or
+suffix.
+.TP
+.B \fBalias\fP
+Optional. An alternative option name which will be used in the
+configuration file. This can be used to allow multiple LXC options with the
+same name.
+.TP
+.B \fBvalue\fP
+The value of an LXC configuration option, a string or a YAML list of
+strings which will joined with spaces.
+.TP
+.B \fBcomment\fP
+Option. a string or a YAML text block with a comment added to a given LXC
+configuration option.
+.TP
+.B \fBseparator\fP
+Optional, boolean. If \fBTrue\fP, a blank line will be added before the
+option. It can be used to separate configuration into sections for better
+readability.
+.TP
+.B \fBstate\fP
+Optional. Set a custom state for a given LXC configuration option. Known
+states:
+.INDENT 7.0
+.IP \(bu 2
+\fBpresent\fP or not specified: the option will be present in the generated
+configuration file.
+.IP \(bu 2
+\fBabsent\fP: the option will not be present in the generated configuration
+file.
+.IP \(bu 2
+\fBcomment\fP: the option will be present, but commented out.
+.IP \(bu 2
+\fBignore\fP: a given entry will be ignored during configuration file
+generation.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS lxc__containers
+.sp
+The \fI\%lxc__containers\fP variable can be used to define and manage LXC
+containers on a given LXC host. By default, DebOps configures LXC containers
+with static MAC addresses based on the container name, therefore the names used
+for LXC containers should be unique on a given subnet, even between different
+LXC hosts.
+.SS Examples
+.sp
+Create a few LXC containers using defaults \- unprivileged LXC container based
+on the LXC host OS distribution, release and architecture, with SSH support
+enabled:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc__containers:
+
+  \- \(aqsmtp\(aq
+  \- \(aqdatabase\(aq
+  \- \(aqwebserver\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remove some of the existing LXC containers from a host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc__containers:
+
+  \- name: \(aqsmtp\(aq
+    state: \(aqabsent\(aq
+
+  \- name: \(aqwebserver\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create an LXC container using specific OS distribution and release, without SSH
+access configured inside the container:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc__containers:
+
+  \- name: \(aqmail\-server\(aq
+    distribution: \(aqubuntu\(aq
+    release: \(aqbionic\(aq
+    ssh: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a privileged LXC container using \fBlxc\-debian\fP LXC template with
+overridden template options:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc__containers:
+
+  \- name: \(aqprivileged\(aq
+    config: \(aq/etc/lxc/privileged.conf\(aq
+    template: \(aqdebian\(aq
+    template_options: \(aq\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create custom directory on LXC host and share it between two unprivileged LXC
+containers using the \fI\%debops.resources\fP and \fI\%debops.lxc\fP roles,
+mounted at \fB/opt\fP directory inside of the containers:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+resources__host_paths:
+
+  \- name: \(aq/srv/shared/lxc\-opt\(aq
+    state: \(aqdirectory\(aq
+    owner: \(aq100000\(aq
+    group: \(aq100000\(aq
+    mode: \(aq0755\(aq
+
+lxc__containers:
+
+  \- name: \(aqcontainer1\(aq
+    fstab: |
+      /srv/shared/lxc\-opt opt none bind 0 0
+    state: \(aqstarted\(aq
+
+  \- name: \(aqcontainer2\(aq
+    fstab: |
+      /srv/shared/lxc\-opt opt none bind 0 0
+    state: \(aqstarted\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variable contains a list of LXC container names, or (as the extended
+format) YAML dictionaries, each dictionary defines a aprticular LXC container
+using specific parameters.
+.sp
+The parameters listed below correspond to the
+\fI\%Ansible community.general.lxc_container module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/community/general/lxc_container_module.html\fP> parameters. See its
+documentation for details. Most common parameters used to manage LXC containers
+are:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of an LXC container to manage. The names should be unique
+across all LXC hosts connected to the same subnet. The \fBlxc\-hwaddr\-static\fP
+LXC hook configured by DebOps will generate random, but predictable MAC
+addresses based on the container name.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBstarted\fP, the LXC container will be created
+and started. On initial creation, if \fBstarted\fP is specified explicitly, the
+role will restart the LXC container to use the static MAC addresses generated
+by the \(dqpre\-start\(dq LXC hook.
+.sp
+If \fBabsent\fP, the role will remove an existing LXC container.
+.sp
+If \fBstopped\fP, the existing LXC container will be stopped, if already
+running.
+.sp
+If \fBrestarted\fP, the container will be restarted on the next execution of
+the role.
+.sp
+If \fBfrozen\fP, the LXC container will be frozen on the next execution of the
+role.
+.TP
+.B \fBconfig\fP
+Optional. Absolute path to the LXC system configuration file which will be
+used to create the LXC container. If not specified, the configuration file
+defined in \fI\%lxc__default_container_config\fP variable will be used.
+.TP
+.B \fBcontainer_command\fP
+Optional. A String or YAML text block with a command or a shell script to
+execute inside of the LXC container after it\(aqs started.
+.TP
+.B \fBtemplate\fP
+Optional. Name of the LXC template to use for creating a given LXC container,
+for example \fBdownload\fP, \fBdebian\fP, \fBubuntu\fP\&.  If not specified, the
+value of \fI\%lxc__default_container_template\fP variable will be used. You
+can find available LXC templates in the \fB/usr/share/lxc/templates/\fP
+directory on the LXC host.
+.TP
+.B \fBtemplate_options\fP
+Optional. A string with shell arguments passed to the template script. If not
+specified, arguments suitable for the \fBlxc\-download\fP LXC template will be
+automatically generated based on the LXC host OS distribution, release and
+architecture. To override the automatic creation of arguments, specify an
+empty string.
+.UNINDENT
+.sp
+The parameters below can be used to configure additional aspects of the LXC
+containers when managed by the \fI\%debops.lxc\fP Ansible role:
+.INDENT 0.0
+.TP
+.B \fBfstab\fP
+Optional. YAML text block with \fI\%fstab(5)\fP <\fBhttps://manpages.debian.org/fstab(5)\fP> configuration to mount
+filesystems inside of the LXC containers. If this parameter is specified, the
+role will create the \fB/var/lib/lxc/<container>/fstab\fP file with the
+contents of this parameter and configure the container to mount the
+filesystems specified in this file. Existing LXC containers are not modified.
+.sp
+See the \fI\%lxc.container.conf(5)\fP <\fBhttps://manpages.debian.org/lxc.container.conf(5)\fP> \fBlxc.mount\fP option documentation for
+more details.
+.TP
+.B \fBssh\fP
+Optional, boolean. If \fBTrue\fP, the role will use the
+\fBlxc\-prepare\-ssh\fP script to configure SSH access and authorized keys
+in a given LXC container. This will be done only at container creation time.
+.sp
+If \fBFalse\fP, the role will not configure SSH access inside of the container.
+It can still be accessed via \fBlxc\-attach\fP command; Ansible can use
+the \fBlxc\fP connection plugin locally, or \fBlxc_ssh\fP connection plugin
+remotely to configure the container without SSH access.
+.sp
+If not specified, the value of \fI\%lxc__default_container_ssh\fP will
+determine the SSH status.
+.TP
+.B \fBsystemd_override\fP
+Optional. YAML text block that contains \fBsystemd\fP unit configuration
+for a particular LXC container instance. If specified, the configuration will
+be added or removed depending on the LXC container state. When the
+\fBsystemd\fP configuration is changed, the LXC container will be
+restarted.
+.TP
+.B \fBdistribution\fP
+Optional. Specify the name of the OS distribution to use with the
+\fBlxc\-download\fP LXC template. If not specified, the
+\fI\%lxc__default_container_distribution\fP value will be used.
+.TP
+.B \fBrelease\fP
+Optional. Specify the name of the OS release to use with the \fBlxc\-download\fP
+LXC template. If not specified, the \fI\%lxc__default_container_release\fP
+value will be used.
+.TP
+.B \fBarchitecture\fP
+Optional. Specify the name of the host architecture to use with the
+\fBlxc\-download\fP LXC template. If not specified, the
+\fI\%lxc__default_container_architecture\fP value will be used.
+.UNINDENT
+.sp
+You can run the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lxc\-create \-n container \-t download \-\- \-l
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+to see the list of available unprivileged LXC container images, with
+distribution, release and architecture combinations.
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

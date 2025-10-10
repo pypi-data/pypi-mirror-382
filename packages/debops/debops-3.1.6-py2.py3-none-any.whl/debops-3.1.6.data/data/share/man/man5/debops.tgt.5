@@ -1,0 +1,235 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.TGT" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.tgt \- Manage userspace iSCSI Target service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/tgt\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+This Ansible role will allow you to configure iSCSI Targets on specified hosts
+using \fI\%tgt\fP <\fBhttp://stgt.sourceforge.net/\fP> package. You can create and remove specific iSCSI Targets without
+disrupting the connections of other targets. Only targets that are unused will
+be modified during normal operation. \fI\%debops.ferm\fP role will be used to manage
+\fBiptables\fP firewall to allow access from all or specific hosts or networks.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To configure iSCSI Targets on a particular host, you need to add it to the
+\fB[debops_tgt]\fP host group in Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_tgt]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+By default no targets are configured. You should create either files, disk
+partitions or LVM volumes and then configure them using \fBtgt_targets\fP list
+variable. See \fI\%tgt_targets\fP for more details.
+.SS Example playbook
+.sp
+Here\(aqs an example playbook which uses \fBdebops.tgt\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage iSCSI Target service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_tgt\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ tgt__ferm__dependent_rules }}\(aq
+
+    \- role: tgt
+      tags: [ \(aqrole::tgt\(aq, \(aqskip::tgt\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLES: CONFIGURATION
+.sp
+some of \fBdebops.tgt\fP default variables have more extensive configuration than
+simple strings or lists, here you can find documentation and examples for them.
+.SS tgt_targets
+.sp
+This is a list of iSCSI Targets configured on the host. Each iSCSI Target can
+have multiple backing stores with custom configuration. Examples of options
+which can be passed to the \fBtgt\fP configuration can be found in
+\fB/usr/share/doc/tgt/examples/targets.conf.example.gz\fP\&.
+.sp
+List of recognized iSCSI Target parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Target name, added after \fBtgt_iqn_base\fP string, used also as the
+filename of the configuration file in \fB/etc/tgt/conf.d/*.conf\fP if
+\fBitem.filename\fP is not specified.
+.TP
+.B \fBfilename\fP
+Alternative name of the configuration file.
+.TP
+.B \fBiqn\fP
+Custom IQN string used instead of the default one.
+.TP
+.B \fBoptions\fP
+\fBtgt\fP options added to a given target, in YAML text block format.
+.TP
+.B \fBbacking_stores\fP
+List of volumes present in a given iSCSI Target (see below).
+.TP
+.B \fBdirect_stores\fP
+List of \(dqpassthrough\(dq volumes present in a given iSCSI Target (see below).
+.TP
+.B \fBdelete\fP
+If present and \fBTrue\fP, this iSCSI Target configuration will be removed from
+the configuration directory; if a given target is not used at the moment of
+deletion, it will also be removed from the server.
+.UNINDENT
+.SS iSCSI backing/direct stores
+.sp
+To provide a given volume through iSCSI, you need to specify it in a given
+target as either a \fBbacking\-store\fP or \fBdirect\-stre\fP\&. Direct stores read
+some metadata from storage devices and are more suited to export real hardware
+storage media, backing stores are more suited to export logical volumes, block
+devices or files.
+.sp
+To configure a set of stores, you can specify them directly in \fBitem.options\fP
+parameter:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tgt_targets:
+
+  \- name: \(aqhostname.data\(aq
+    options: |
+      backing\-store /dev/sdc
+      backing\-store /dev/sdd
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+There are also available separate lists, \fBbacking_stores\fP and
+\fBdirect_stores\fP\&. Using these, you can specify a YAML list of block devices or
+files to add to the iSCSI Target:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tgt_targets:
+
+  \- name: \(aqhostname.data\(aq
+    backing_stores: [ \(aq/dev/sdc\(aq, \(aq/dev/sdd\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you need to specify additional per\-store options, you can specify them as
+dicts instead:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tgt_targets:
+
+  \- name: \(aqhostname.data\(aq
+    backing_stores:
+
+      \- store: \(aq/dev/sdc\(aq
+        options: |
+          lun 1
+
+      \- store: \(aq/dev/sdd\(aq
+        options: |
+          lun 2
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBWarning\fP: you need to make sure to only use one of these definition types in
+an iSCSI Target, ie. either a simple list of stores or a list of dicts which
+define stores. Never mix them, otherwise the \fBtgt\fP configuration parser won\(aqt
+be able to correctly parse the configuration files.
+.SS Other examples
+.sp
+How to create an iSCSI Target with an image file presented as a CD/DVD drive:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tgt_targets:
+
+  \- name: \(aqinstall.debian.wheezy\(aq
+
+    backing_stores:
+      \- \(aq/srv/tgt/image/install/debian\-7.8.0\-amd64\-i386\-netinst.iso\(aq
+
+    options: |
+      device\-type cd
+      readonly 1
+      MaxConnections 10
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

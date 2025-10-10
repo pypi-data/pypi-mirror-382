@@ -1,0 +1,217 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.NETBASE" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.netbase \- Manage local host and network database using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/netbase\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.netbase\fP Ansible role manages the hostname stored in
+\fB/etc/hostname\fP, as well as the local host and network database located
+in \fB/etc/hosts\fP and \fB/etc/networks\fP files, respectively.  It can be
+used as a substitute for a DNS service for small number of hosts; with bigger
+network or larger clusters usage of a real DNS server is preferred.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The role is included by default in the \fBbootstrap.yml\fP and \fBcommon.yml\fP
+playbook, therefore you don\(aqt need to do anything to enable it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.netbase\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage local host and network database
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_netbase\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::netbase\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ netbase__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ netbase__python__dependent_packages2 }}\(aq
+
+    \- role: netbase
+      tags: [ \(aqrole::netbase\(aq, \(aqskip::netbase\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::netbase\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.netbase\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%hostname(5)\fP <\fBhttps://manpages.debian.org/hostname(5)\fP>, \fI\%hosts(5)\fP <\fBhttps://manpages.debian.org/hosts(5)\fP>, \fI\%networks(5)\fP <\fBhttps://manpages.debian.org/networks(5)\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.netbase\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS netbase__hosts
+.sp
+The \fBnetbase__*_hosts\fP variables are used to define the host records in the
+\fB/etc/hosts\fP database. Each variable is a list of YAML dictionaries, the
+entries with the same \fBname\fP parameter or the dictionary key are combined
+together; this allows modification of the earlier entries by the later ones.
+See \fI\%hosts(5)\fP <\fBhttps://manpages.debian.org/hosts(5)\fP> for more details.
+.SS Examples
+.sp
+Add a Fully Qualified Domain Name host entry with IPv4 and IPv6 addresses:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+netbase__hosts:
+
+  \- \(aq192.0.2.1\(aq:   [ \(aqhost.example.org\(aq, \(aqhost\(aq ]
+  \- \(aq2001:db8::1\(aq: [ \(aqhost.example.org\(aq, \(aqhost\(aq ]
+
+  \- \(aq192.0.2.2\(aq:   \(aqother.example.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add a host entry with IP address specified by a variable:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+host_address: \(aq192.0.2.1\(aq
+host_fqdn_hostname: [ \(aqhost.example.org\(aq, \(aqhost\(aq ]
+
+netbase__hosts:
+
+  \- name: \(aq{{ host_address }}\(aq
+    value: \(aq{{ host_fqdn_hostname }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remove a host record from the \fB/etc/hosts\fP database:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+netbase__hosts:
+
+  \- \(aq127.0.1.1\(aq: \(aq\(aq
+
+  # Alternative syntax
+  \- \(aq127.0.1.1\(aq: []
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each element in the list variables is a YAML dictionary. If the dictionary
+contains the \fBname\fP parameter, it will be evaluated as the \(dqexpanded\(dq form
+with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The IP address of a given host entry. In this form it can be
+a variable. The entries with the same \fBname\fP parameter (or the dictionary
+key in the simple form) are merged together, this allows to change the
+specific entries in the inventory without the need to copy the entire list.
+.sp
+If the \fBname\fP is empty, the host record will not be added to the database.
+.TP
+.B \fBvalue\fP
+Required. A string or a YAML list with host addresses to define for a given
+host record. If the list is used, lists from multiple entries are combined
+together. To reset a list, specify an entry with an empty string as the
+value.
+.sp
+When the \fBtemplate\fP mode is used (more than 15 entries by default), the
+value is interpreted a bit differently: if it\(aqs a string, the first part of
+the address until a dot will be extracted and automatically used as
+a \(dqhostname\(dq alias. To avoid this behavior, use a YAML list to define the
+value.
+.sp
+If the value is empty, the host record will be removed from the database.
+.TP
+.B \fBseparator\fP
+Optional, boolean. If set and \fBTrue\fP, the generated template will contain an
+empty line before a given entry, to allow for better readability. This
+parameter is ignored when the \fBlineinfile\fP mode is used to manage the
+database.
+.UNINDENT
+.sp
+If the YAML dictionary does not contain a \fBname\fP entry, the entire dictionary
+is interpreted using the following simplified format: keys are the IP addresses
+of the host records, and values are strings or YAML lists with the hostnames or
+FQDN domains. It\(aqs best to use only 1 dictionary key for each host record, and
+not combine multiple entries together in one list element.
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

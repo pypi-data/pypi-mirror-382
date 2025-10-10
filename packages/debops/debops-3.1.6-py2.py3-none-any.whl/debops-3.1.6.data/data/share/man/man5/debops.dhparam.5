@@ -1,0 +1,174 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DHPARAM" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.dhparam \- Manage one or multiple sets of Diffie-Hellman Ephemeral parameters
+.SH SYNOPSIS
+.sp
+\fBdebops run service/dhparam\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Diffie\-Hellman Key Exchange\fP <\fBhttps://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange\fP> is a way to securely share encryption keys
+publicly between two parties. It\(aqs used in TLS and SSL connections to provide
+\fI\%Perfect Forward Secrecy\fP <\fBhttps://en.wikipedia.org/wiki/Forward_secrecy\fP>\&. Unfortunately, the default DH parameters distributed
+with applications are susceptible to a \fI\%downgrade attack\fP <\fBhttps://weakdh.org/\fP>\&.
+.sp
+The \fBdebops.dhparam\fP Ansible role will generate a set of strong
+Diffie\-Hellman parameters on the Ansible Controller, which will be preseeded on
+remote hosts, and will be ready to use by other applications. A separate script
+can then be used on remote hosts in the background to generate new random DH
+parameters, either once or in regular intervals.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+On the first run of the \fBdebops.dhparam\fP role, Ansible will generate a set of
+Diffie\-Hellman parameters (one or more, depending on what key sizes are
+configured) and store them on the Ansible Controller, in \fBsecret/\fP directory
+managed by the \fI\%debops.secret\fP role. This set of DH parameters will be used to
+\(dqpreseed\(dq the remote hosts during initial Ansible playbook run to make
+configuration of new hosts faster without the need to wait for new DH
+parameters to be generated, which might take some time.
+.sp
+If \fBatd\fP service is installed and configured on the remote host (using
+the \fI\%debops.atd\fP role), and parameter initialization is enabled, the role on first
+run will create a batch job which will regenerate the DH parameters on the
+remote hosts to make them unique. This will be done in the background with
+lower process priority to minimize impact on the host performance. This way,
+the preseeded DH parameters can be used right away, and when new parameters are
+ready, they will automatically replace the preseeded ones.
+.sp
+Periodically (by default monthly) DH generator script will be run again, to
+regenerate the DH parameters – this can be disabled as well if needed.
+.SS Configuration of DH parameters in applications
+.sp
+Diffie\-Hellman parameters managed by \fBdebops.dhparam\fP can be found in
+the \fB/etc/pki/dhparam/\fP directory. By default, the role creates one set of parameters,
+\fBset0\fP with \fB3072\fP bit parameter length. You can increase the number of
+sets, to use different DH parameters in different applications – each one will
+be automatically preseeded by the pre\-generated parameters, and managed by
+regeneration script.
+.sp
+An example usage in a \fBnginx\fP configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Configuration in nginx server using a symlink
+ssl_dhparam /etc/pki/dhparam/set0
+
+# Configuration in nginx using the DH parameters directly
+ssl_dhparam /etc/pki/dhparam/params/set0/dh3072.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Use of DH parameters in Ansible roles
+.sp
+To make the Ansible configuration portable, \fBdebops.dhparam\fP creates a set of
+Ansible local facts which can be used by other roles to get the path to DH
+parameters correctly using Ansible variables. These facts can be found in
+\fBansible_local.dhparam.*\fP dictionary and can be used by other roles as:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Specify the absolute path to the DH parameters
+role__dhparam: \(aq{{ (ansible_local.dhparam[role__dhparam_set]
+                    if (ansible_local | d() and ansible_local.dhparam | d() and
+                        ansible_local.dhparam[role__dhparam_set] | d())
+                   else \(dq\(dq) }}\(aq
+
+# Specify default parameter set to use
+role__dhparam_set: \(aqdefault\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Those two variables allow to easily change the default set of DH parameters to
+a different one, or specify the path to DH parameters file directly. The
+\fBd()\fP pattern in the first variable is a short version of \fBdefault()\fP Jinja
+filter and ensures that if the \fBdebops.dhparam\fP role was not configured, Ansible
+will not stop execution and instead will template an empty \fBrole_dhparam\fP
+variable which this role can check and disable DH parameter support if necessary.
+.sp
+Because the configuration is passed using local Ansible facts,
+\fBdebops.dhparam\fP role doesn\(aqt need to be used as a role dependency.
+.sp
+If any special operations have to be done when DH parameters file is replaced,
+you can create scripts in \fB/etc/pki/dhparam/hooks.d/\fP directory
+(or \fB\(aq{{ ansible_local.dhparam.hooks }}\(aq\fP). These hooks will be executed
+using the \fBrun\-parts\fP command after all DH parameters have been regenerated.
+.SS Example inventory
+.sp
+In DebOps, the \fBdebops.dhparam\fP role is included in the \fBcommon.yml\fP playbook and
+is run automatically on all of the managed hosts. You don\(aqt need to
+specifically enable it in Ansible\(aqs inventory.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.dhparam\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Diffie\-Hellman parameters
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_dhparam\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: dhparam
+      tags: [ \(aqrole::dhparam\(aq, \(aqskip::dhparam\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

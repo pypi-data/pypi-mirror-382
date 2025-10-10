@@ -1,0 +1,1319 @@
+---
+# .. vim: foldmarker=[[[,]]]:foldmethod=marker
+
+# .. Copyright (C) 2013-2023      Maciej Delmanowski <drybjed@gmail.com>
+# .. Copyright (C) 2015-2017,2020 Robin Schneider <ypid@riseup.net>
+# .. Copyright (C) 2014-2023      DebOps <https://debops.org/>
+# .. SPDX-License-Identifier: GPL-3.0-only
+
+# .. _sshd__ref_defaults:
+
+# debops.sshd default variables
+# =============================
+
+# .. contents:: Sections
+#    :local:
+#
+# .. include:: ../../../../includes/global.rst
+
+
+# OpenSSH packages [[[
+# --------------------
+
+# .. envvar:: sshd__base_packages [[[
+#
+# List of base packages that should be installed for OpenSSH support.
+sshd__base_packages: [ 'openssh-server', 'openssh-client' ]
+
+                                                                   # ]]]
+# .. envvar:: sshd__recommended_packages [[[
+#
+# List of recommended packages that should be installed with OpenSSH.
+sshd__recommended_packages: '{{ ["openssh-blacklist", "openssh-blacklist-extra"]
+                                if (ansible_distribution_release in
+                                    ["trusty", "xenial"]) else [] }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__optional_packages [[[
+#
+# List of optional packages that should be installed with OpenSSH.
+sshd__optional_packages: [ 'molly-guard' ]
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_packages [[[
+#
+# List of packages related to LDAP support required by OpenSSH.
+sshd__ldap_packages: '{{ ["ldap-utils"]
+                         if (sshd__authorized_keys_lookup | bool and
+                             ("ldap" in sshd__authorized_keys_lookup_type))
+                         else [] }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__packages [[[
+#
+# List of additional packages to install.
+sshd__packages: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__version [[[
+#
+# The version of the currently installed :command:`sshd` daemon, exposed using
+# Ansible local facts.
+sshd__version: '{{ ansible_local.sshd.version | d("0.0") }}'
+                                                                   # ]]]
+                                                                   # ]]]
+# Host whitelists and allow lists [[[
+# -----------------------------------
+
+# .. envvar:: sshd__whitelist [[[
+#
+# List of IP addresses or CIDR subnets which should be allowed to connect to
+# SSH without any restrictions. This list does not disallow connections from
+# other hosts. This is a global list.
+sshd__whitelist: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__group_whitelist [[[
+#
+# List of IP addresses or CIDR subnets which should be allowed to connect to
+# SSH without any restrictions. This list does not disallow connections from
+# other hosts. This is a group-based list.
+sshd__group_whitelist: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__host_whitelist [[[
+#
+# List of IP addresses or CIDR subnets which should be allowed to connect to
+# SSH without any restrictions. This list does not disallow connections from
+# other hosts. This is a host-based list.
+sshd__host_whitelist: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__allow [[[
+#
+# List of IP addresses or CIDR subnets that should be allowed to access SSH
+# service. If it's set, access from hosts and networks not specified here is
+# denied in TCP Wrappers and limited in :command:`iptables`. This is a global list.
+sshd__allow: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__group_allow [[[
+#
+# List of IP addresses or CIDR subnets that should be allowed to access SSH
+# service. If it's set, access from hosts and networks not specified here is
+# denied in TCP Wrappers and limited in :command:`iptables`. This is a group list.
+sshd__group_allow: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__host_allow [[[
+#
+# List of IP addresses or CIDR subnets that should be allowed to access SSH
+# service. If it's set, access from hosts and networks not specified here is
+# denied in TCP Wrappers and limited in :command:`iptables`. This is a host list.
+sshd__host_allow: []
+                                                                   # ]]]
+                                                                   # ]]]
+# TCP Wrappers configuration [[[
+# ------------------------------
+
+# .. envvar:: sshd__tcpwrappers_default [[[
+#
+# If list of allowed hosts is not specified, this value will be set in TCP
+# Wrappers for ``sshd`` service. By default any host is allowed to connect.
+sshd__tcpwrappers_default: 'ALL'
+                                                                   # ]]]
+                                                                   # ]]]
+# Firewall (ferm) configuration [[[
+# ---------------------------------
+
+# .. envvar:: sshd__ferm_weight [[[
+#
+# Specify the "weight" of the ``sshd`` firewall rules. The more weight they
+# have, the later in the firewall they will be defined. If you change the
+# default weight, you will need to remove the old rules manually from the remote
+# host.
+sshd__ferm_weight: '30'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ferm_limit [[[
+#
+# Enable or disable limited SSH access from all hosts in :command:`ip(6)tables`.
+# Recent new connections are filtered and when too many new connections are
+# created in specified time window, the host is added to the recent blocklist.
+sshd__ferm_limit: True
+
+                                                                   # ]]]
+# .. envvar:: sshd__ferm_limit_seconds [[[
+#
+# Length of the time window used by firewall to catch new offenders,
+# by default 5 minutes.
+sshd__ferm_limit_seconds: '{{ (60 * 5) }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ferm_limit_hits [[[
+#
+# How many new connections to allow in specified time window.
+sshd__ferm_limit_hits: '8'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ferm_limit_chain [[[
+#
+# Name of the iptables chain used for filtering SSH connections.
+sshd__ferm_limit_chain: 'filter-ssh'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ferm_limit_target [[[
+#
+# Specify what happens with packets filtered by the firewall that are above the
+# specified limit. Either ``REJECT``, ``DROP`` or name of :command:`iptables` chain
+# where packets will be sent through.
+sshd__ferm_limit_target: 'REJECT'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ferm_ports [[[
+#
+# List of TCP ports to open in the firewall for SSH connections. You can use
+# port numbers or service names from :file:`/etc/services`.
+# If you use socket activation, remember to define firewall ports separately.
+sshd__ferm_ports: '{{ sshd__ports
+                      if ((ansible_local.sshd.socket_activation | d("disabled")) == "disabled")
+                      else ["22"] }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ferm_interface [[[
+#
+# List of interfaces to open in the firewall for SSH connections.
+# Consider settings this to ``{{ [ ansible_default_ipv4.interface ] }}``
+# for example if the host has multiple network interfaces like when it is
+# running a VPN.
+sshd__ferm_interface: []
+                                                                   # ]]]
+                                                                   # ]]]
+# OpenSSH server configuration [[[
+# --------------------------------
+
+# .. envvar:: sshd__ports [[[
+#
+# List of ports which ``sshd`` will listen on. Make sure that the ``22`` TCP
+# port is included if you want to change this list. When :command:`systemd`
+# socket activation is enabled, you can define here listen streams using the
+# :man:`systemd.socket(5)` configuration syntax.
+#
+# With socket activation enabled, you might need to open access to the
+# additional TCP ports in the firewall separately, using the
+# :envvar:`sshd__ferm_ports` variable.
+sshd__ports: [ '22' ]
+
+                                                                   # ]]]
+# .. envvar:: sshd__host_keys [[[
+#
+# List of SSH host keys that should be enabled, in order of preference.
+sshd__host_keys: [ 'ed25519', 'rsa', 'ecdsa' ]
+
+                                                                   # ]]]
+# .. envvar:: sshd__trusted_user_ca_keys [[[
+#
+# List of CA public keys used to assemble a TrustedUserCAKeys file.
+sshd__trusted_user_ca_keys: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__trusted_user_ca_keys_file [[[
+#
+# File name which will contain CA trusted keys
+sshd__trusted_user_ca_keys_file: '/etc/ssh/trusted-user-ca-keys.pem'
+
+                                                                   # ]]]
+# .. envvar:: sshd__scan_for_host_certs [[[
+#
+# Detect, and add, any host certificates found in /etc/ssh/ that match
+# ssh_host_*_key-cert.pub, as long as the key type matches what's in
+# `sshd__host_keys`
+sshd__scan_for_host_certs: False
+                                                                   # ]]]
+                                                                   # ]]]
+# SSH daemon configuration file [[[
+# ---------------------------------
+
+# These variables define the contents of the :file:`/etc/ssh/sshd_config`
+# configuration file. See :ref:`sshd__ref_configuration` for more details.
+
+# .. envvar:: sshd__original_configuration [[[
+#
+# List of SSH daemon configuration options defined by default by the Debian
+# package on installation. You can find the original configuration in the
+# :file:`/usr/share/openssh/sshd_config` file.
+sshd__original_configuration:
+
+  - name: 'Include_sshd_config.d'
+    option: 'Include'
+    value: '/etc/ssh/sshd_config.d/*.conf'
+    state: '{{ "absent" if ansible_distribution_release in ["stretch", "buster"] else "present" }}'
+
+  - name: 'Port'
+    value: 22
+    state: 'init'
+    separator: True
+
+  - name: 'AddressFamily'
+    value: 'any'
+    state: 'init'
+
+  - name: 'ListenAddress_ipv4'
+    option: 'ListenAddress'
+    value: '0.0.0.0'
+    state: 'init'
+
+  - name: 'ListenAddress_ipv6'
+    option: 'ListenAddress'
+    value: '::'
+    state: 'init'
+
+    # Define host keys in one entry, so that it can be easily regenerated later
+  - name: 'HostKey'
+    raw: |
+      HostKey /etc/ssh/ssh_host_rsa_key
+      HostKey /etc/ssh/ssh_host_ecdsa_key
+      HostKey /etc/ssh/ssh_host_ed25519_key
+    state: 'init'
+    separator: True
+
+  - name: 'RekeyLimit'
+    comment: 'Ciphers and keyring'
+    value: 'default none'
+    state: 'init'
+
+  - name: 'SyslogFacility'
+    comment: 'Logging'
+    value: 'AUTH'
+    state: 'init'
+
+  - name: 'LogLevel'
+    value: 'INFO'
+    state: 'init'
+
+  - name: 'LoginGraceTime'
+    comment: 'Authentication'
+    value: '2m'
+    state: 'init'
+
+  - name: 'PermitRootLogin'
+    value: 'prohibit-password'
+    state: 'init'
+
+  - name: 'StrictModes'
+    value: True
+    state: 'init'
+
+  - name: 'MaxAuthTries'
+    value: 6
+    state: 'init'
+
+  - name: 'MaxSessions'
+    value: 10
+    state: 'init'
+
+  - name: 'PubkeyAuthentication'
+    value: True
+    state: 'init'
+    separator: True
+
+  - name: 'AuthorizedKeysFile'
+    comment: 'Expect .ssh/authorized_keys2 to be disregarded by default in future.'
+    value:
+      - '.ssh/authorized_keys'
+      - '.ssh/authorized_keys2'
+    state: 'init'
+
+  - name: 'AuthorizedPrincipalsFile'
+    value: 'none'
+    state: 'init'
+    separator: True
+
+  - name: 'AuthorizedKeysCommand'
+    value: 'none'
+    state: 'init'
+    separator: True
+
+  - name: 'AuthorizedKeysCommandUser'
+    value: 'nobody'
+    state: 'init'
+
+  - name: 'HostbasedAuthentication'
+    comment: 'For this to work you will also need host keys in /etc/ssh/ssh_known_hosts'
+    value: False
+    state: 'init'
+
+  - name: 'IgnoreUserKnownHosts'
+    comment: |
+      Change to yes if you don't trust ~/.ssh/known_hosts for
+      HostbasedAuthentication
+    value: False
+    state: 'init'
+
+  - name: 'IgnoreRhosts'
+    comment: "Don't read the user's ~/.rhosts and ~/.shosts files"
+    value: True
+    state: 'init'
+
+  - name: 'PasswordAuthentication'
+    comment: 'To disable tunneled clear text passwords, change to no here!'
+    value: True
+    state: 'init'
+
+  - name: 'ChallengeResponseAuthentication'
+    comment: |
+      Change to yes to enable challenge-response passwords (beware issues with
+      some PAM modules and threads). From openssh-server version 8.7, this option
+      is deprecated and is an alias of KbdInteractiveAuthentication.
+    value: False
+    state: 'init'
+
+  - name: 'KbdInteractiveAuthentication'
+    comment: |
+      Change to yes to enable challenge-response passwords (beware issues with
+      some PAM modules and threads)
+    value: False
+    state: 'init'
+
+  - name: 'PermitEmptyPasswords'
+    value: False
+    state: 'init'
+
+  - name: 'KerberosAuthentication'
+    comment: 'Kerberos options'
+    value: False
+    state: 'init'
+
+  - name: 'KerberosOrLocalPasswd'
+    value: True
+    state: 'init'
+
+  - name: 'KerberosTicketCleanup'
+    value: True
+    state: 'init'
+
+  - name: 'KerberosGetAFSToken'
+    value: False
+    state: 'init'
+
+  - name: 'GSSAPIAuthentication'
+    comment: 'GSSAPI options'
+    value: False
+    state: 'init'
+
+  - name: 'GSSAPICleanupCredentials'
+    value: True
+    state: 'init'
+
+  - name: 'GSSAPIStrictAcceptorCheck'
+    value: True
+    state: 'init'
+
+  - name: 'GSSAPIKeyExchange'
+    value: False
+    state: 'init'
+
+  - name: 'UsePAM'
+    comment: |
+      Set this to 'yes' to enable PAM authentication, account processing,
+      and session processing. If this is enabled, PAM authentication will
+      be allowed through the ChallengeResponseAuthentication and
+      PasswordAuthentication.  Depending on your PAM configuration,
+      PAM authentication via ChallengeResponseAuthentication may bypass
+      the setting of "PermitRootLogin without-password".
+      If you just want the PAM account and session checks to run without
+      PAM authentication, then enable this but set PasswordAuthentication
+      and ChallengeResponseAuthentication to 'no'.
+    value: True
+
+  - name: 'AllowAgentForwarding'
+    value: True
+    state: 'init'
+    separator: True
+
+  - name: 'AllowTcpForwarding'
+    value: True
+    state: 'init'
+
+  - name: 'GatewayPorts'
+    value: False
+    state: 'init'
+
+  - name: 'X11Forwarding'
+    value: True
+
+  - name: 'X11DisplayOffset'
+    value: 10
+    state: 'init'
+
+  - name: 'X11UseLocalhost'
+    value: True
+    state: 'init'
+
+  - name: 'PermitTTY'
+    value: True
+    state: 'init'
+
+  - name: 'PrintMotd'
+    value: False
+
+  - name: 'PrintLastLog'
+    value: True
+    state: 'init'
+
+  - name: 'TCPKeepAlive'
+    value: True
+    state: 'init'
+
+  - name: 'PermitUserEnvironment'
+    value: False
+    state: 'init'
+
+  - name: 'Compression'
+    value: 'delayed'
+    state: 'init'
+
+  - name: 'ClientAliveInterval'
+    value: 0
+    state: 'init'
+
+  - name: 'ClientAliveCountMax'
+    value: 3
+    state: 'init'
+
+  - name: 'UseDNS'
+    value: False
+    state: 'init'
+
+  - name: 'PidFile'
+    value: '/var/run/sshd.pid'
+    state: 'init'
+
+  - name: 'MaxStartups'
+    value: '10:30:100'
+    state: 'init'
+
+  - name: 'PermitTunnel'
+    value: False
+    state: 'init'
+
+  - name: 'ChrootDirectory'
+    value: 'none'
+    state: 'init'
+
+  - name: 'VersionAddendum'
+    value: 'none'
+    state: 'init'
+
+  - name: 'Banner'
+    comment: 'no default banner path'
+    value: 'none'
+    state: 'init'
+
+  - name: 'AcceptEnv'
+    comment: 'Allow client to pass locale environment variables'
+    value:
+      - 'LANG'
+      - 'LC_*'
+
+  - name: 'Subsystem_sftp'
+    option: 'Subsystem'
+    comment: 'override default of no subsystems'
+    value: 'sftp   /usr/lib/openssh/sftp-server'
+
+  - name: 'Match_user_anoncvs'
+    option: 'Match'
+    comment: 'Example of overriding settings on a per-user basis'
+    value:
+      - 'User anoncvs'
+    config: |
+      X11Forwarding no
+      AllowTcpForwarding no
+      PermitTTY no
+      ForceCommand cvs server
+    state: 'comment'
+
+                                                                   # ]]]
+# .. envvar:: sshd__default_configuration [[[
+#
+# List of SSH daemon configuration options defined by default by the
+# :ref:`debops.sshd` Ansible role.
+sshd__default_configuration:
+
+  # Generate a set of "Port" configuration options based on the default list of
+  # ports to listen on. We cannot use a list as the value, because each port
+  # needs to be specified in its own "Port" entry.
+  - name: 'Port'
+    raw: |
+      {% for port in sshd__ports %}
+      {{ 'Port {}'.format(port) }}
+      {% endfor %}
+    state: '{{ "ignore"
+               if (sshd__ports | length == 1 and
+                   sshd__ports | first | string == "22")
+               else ("ignore"
+                     if ((ansible_local.sshd.socket_activation | d("disabled")) == "enabled")
+                     else "present") }}'
+
+  # Generate a set of "HostKey" configuration options based on the list of
+  # "allowed" host keys. We cannot use a list as the value, because each host
+  # key needs to be specified in its own "HostKey" entry.
+  - name: 'HostKey'
+    raw: |
+      {% for hostkey in sshd__host_keys %}
+      {% if ('ssh_host_' + hostkey + '_key') in sshd__register_host_keys.stdout_lines %}
+      {{ 'HostKey /etc/ssh/ssh_host_{}_key'.format(hostkey) }}
+      {% endif %}
+      {% endfor %}
+    state: 'present'
+
+  # Generate a list of host certificates detected on the host.
+  - name: 'HostCertificate'
+    raw: |
+      {% if (sshd__register_host_certs is defined and
+                   "stdout_lines" in sshd__register_host_certs) %}
+      {% for cert in sshd__register_host_certs.stdout_lines %}
+      {% set sshd__key_matching_cert = cert | regex_replace('-cert', '') %}
+      {% set sshd__key_matching_host_keys = sshd__key_matching_cert | regex_replace('ssh_host_(\w+)_key', '\\1') %}
+      {% if sshd__key_matching_cert in sshd__register_host_keys.stdout_lines and sshd__key_matching_host_keys in sshd__host_keys %}
+      {{ 'HostCertificate /etc/ssh/{}.pub'.format(cert) }}
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+    state: '{{ "present"
+               if (sshd__register_host_certs is defined and
+                   "stdout_lines" in sshd__register_host_certs)
+               else "ignore" }}'
+    copy_id_from: 'HostKey'
+
+  # Add support for authorized keys managed by the
+  # "debops.authorized_keys" Ansible role.
+  - name: 'AuthorizedKeysFile'
+    value:
+      - name: '/etc/ssh/authorized_keys/%u'
+        weight: -100
+    state: 'present'
+
+  # If trusted CA keys are defined in the Ansible inventory, include them in
+  # the configuration file as well.
+  - name: 'TrustedUserCAKeys'
+    value: '{{ sshd__trusted_user_ca_keys_file }}'
+    state: '{{ "present"
+               if (sshd__trusted_user_ca_keys | d() | length > 0)
+               else "ignore" }}'
+    copy_id_from: 'AuthorizedKeysFile'
+
+  # Default "Match" conditional block which defines configuration for SFTPonly
+  # accounts. The 'stfponly' UNIX system group is created by the
+  # 'debops.system_groups' Ansible role.
+  - name: 'Match_group_sftponly'
+    option: 'Match'
+    comment: 'Support for strict SFTP UNIX accounts'
+    value: 'Group sftponly'
+    config: |
+      AuthorizedKeysFile /etc/ssh/authorized_keys/%u
+      ChrootDirectory %h
+      X11Forwarding no
+      AllowAgentForwarding no
+      AllowTcpForwarding no
+      PermitTunnel no
+      ForceCommand internal-sftp
+    state: 'present'
+    separator: True
+
+  # Specify if access to "root" UNIX account should be granted. By default, if
+  # the 'debops.root_account' role has been applied on the host, the "root"
+  # UNIX account can be accessed only using SSH public keys, since the role is
+  # expected to set them up. Otherwise, access via password is allowed.
+  # Alternatively, configured sysadmin accounts via the 'debops.system_users'
+  # role disable password-based access.
+  - name: 'PermitRootLogin'
+    value: '{{ "prohibit-password"
+               if (ansible_local.root_account.ssh_authorized_keys | d() | bool or
+                   ansible_local.system_users.configured | d() | bool)
+               else True }}'
+    state: 'present'
+
+  # Enable or disable password authentication. This option will be enabled if
+  # the 'root' account does not have SSH authorized keys present, to allow the
+  # 'root' account to login to the host. Alternatively, sysadmin access
+  # configured by the 'debops.system_users' role disables password
+  # authentication.
+  - name: 'PasswordAuthentication'
+    value: '{{ False
+               if (ansible_local.root_account.ssh_authorized_keys | d() | bool or
+                   ansible_local.system_users.configured | d() | bool)
+               else True }}'
+    state: 'present'
+
+  # Disable ChallengeResponseAuthentication by default. Otherwise, setting
+  # PasswordAuthentication to False is not enough to force authentication
+  # by public key. From openssh-server 8.7, ChallengeResponseAuthentication
+  # is deprecated and is an alias for KbdInteractiveAuthentication.
+  - name: 'ChallengeResponseAuthentication'
+    value: False
+    state: 'present'
+
+  # Disable KbdInteractiveAuthentication (new name of the deprecated
+  # ChallengeResponseAuthentication) by default. Otherwise, setting
+  # PasswordAuthentication to False is not enough to force authentication
+  # by public key.
+  - name: 'KbdInteractiveAuthentication'
+    value: False
+    state: 'present'
+
+  # Enable support for client hostname lookups by the SSH service. This is
+  # required if access control based on hostnames is used in the SSH server
+  # configuration, authorized keys or PAM access rules.
+  - name: 'UseDNS'
+    value: True
+    state: 'present'
+
+  - name: 'Ciphers'
+    comment: 'List of ciphers which are allowed for connections'
+    raw: |
+      {% set sshd__tpl_ciphers_max_version = sshd__ciphers_map.keys() | select('version_compare', sshd__version, '<=') | max %}
+      {% set sshd__tpl_ciphers = sshd__ciphers_map[sshd__tpl_ciphers_max_version] %}
+      {% set sshd__tpl_ciphers = (sshd__tpl_ciphers + sshd__ciphers_additional) | unique %}
+      {% if sshd__tpl_ciphers and sshd__paranoid | bool %}
+      {{ 'Ciphers {}'.format(([sshd__tpl_ciphers | first] + sshd__ciphers_additional) | unique | join(",")) }}
+      {% elif sshd__tpl_ciphers %}
+      {{ 'Ciphers {}'.format(sshd__tpl_ciphers | join(",")) }}
+      {% endif %}
+    state: 'present'
+    copy_id_from: 'RekeyLimit'
+
+  - name: 'KexAlgorithms'
+    comment: 'List of allowed key exchange algorithms'
+    raw: |
+      {% set sshd__tpl_kex_algorithms_max_version = sshd__kex_algorithms_map.keys() | select('version_compare', sshd__version, '<=') | max %}
+      {% set sshd__tpl_kex_algorithms = sshd__kex_algorithms_map[sshd__tpl_kex_algorithms_max_version] %}
+      {% set sshd__tpl_kex_algorithms = (sshd__tpl_kex_algorithms + sshd__kex_algorithms_additional) | unique %}
+      {% if sshd__tpl_kex_algorithms and sshd__paranoid | bool %}
+      {{ 'KexAlgorithms {}'.format(([sshd__tpl_kex_algorithms | first] + sshd__kex_algorithms_additional) | unique | join(",")) }}
+      {% elif sshd__tpl_kex_algorithms %}
+      {{ 'KexAlgorithms {}'.format(sshd__tpl_kex_algorithms | join(",")) }}
+      {% endif %}
+    state: 'present'
+    copy_id_from: 'RekeyLimit'
+
+  - name: 'MACs'
+    comment: 'List of allowed Message Authentication Code algorithms'
+    raw: |
+      {% set sshd__tpl_macs_max_version = sshd__macs_map.keys() | select('version_compare', sshd__version, '<=') | max %}
+      {% set sshd__tpl_macs = sshd__macs_map[sshd__tpl_macs_max_version] %}
+      {% set sshd__tpl_macs = (sshd__tpl_macs + sshd__macs_additional) | unique %}
+      {% if sshd__tpl_macs and sshd__paranoid | bool %}
+      {{ 'MACs {}'.format(([sshd__tpl_macs | first] + sshd__macs_additional) | unique | join(",")) }}
+      {% elif sshd__tpl_macs %}
+      {{ 'MACs {}'.format(sshd__tpl_macs | join(",")) }}
+      {% endif %}
+    state: 'present'
+    copy_id_from: 'RekeyLimit'
+
+    # Privilege Separation is default for sshd v7.5+
+  - name: 'UsePrivilegeSeparation'
+    comment: 'Privilege Separation is turned on for security'
+    value: 'sandbox'
+    state: '{{ "present" if (sshd__version is version("7.5", "<")) else "ignore" }}'
+    copy_id_from: 'RekeyLimit'
+
+  - name: 'KeyRegenerationInterval'
+    comment: 'Lifetime and size of ephemeral version 1 server key'
+    value: 3600
+    state: '{{ "present" if (sshd__version is version("7.4", "<")) else "ignore" }}'
+    copy_id_from: 'RekeyLimit'
+
+  - name: 'ServerKeyBits'
+    value: 1024
+    state: '{{ "present" if (sshd__version is version("7.4", "<")) else "ignore" }}'
+    copy_id_from: 'RekeyLimit'
+
+  - name: 'AuthorizedKeysCommand'
+    value: '/etc/ssh/authorized_keys_lookup'
+    state: '{{ "present"
+               if (sshd__authorized_keys_lookup | bool and
+                   sshd__version is version("6.2", ">="))
+               else "ignore" }}'
+
+  - name: 'AuthorizedKeysCommandUser'
+    value: '{{ sshd__authorized_keys_lookup_user }}'
+    state: '{{ "present"
+               if (sshd__authorized_keys_lookup | bool and
+                   sshd__version is version("6.2", ">="))
+               else "ignore" }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__configuration [[[
+#
+# List of SSH daemon configuration options which should be defined on all hosts
+# in the Ansible inventory.
+sshd__configuration: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__group_configuration [[[
+#
+# List of SSH daemon configuration options which should be defined on hosts in
+# a specific Ansible inventory group.
+sshd__group_configuration: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__host_configuration [[[
+#
+# List of SSH daemon configuration options which should be defined on specific
+# hosts in the Ansible inventory.
+sshd__host_configuration: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__combined_configuration [[[
+#
+# Variable which combines all of the SSH daemon configuration lists and is used
+# in role tasks and templates.
+sshd__combined_configuration: '{{ sshd__original_configuration
+                                  + sshd__default_configuration
+                                  + sshd__configuration
+                                  + sshd__group_configuration
+                                  + sshd__host_configuration }}'
+                                                                   # ]]]
+                                                                   # ]]]
+# System-wide host fingerprints [[[
+# ---------------------------------
+
+# .. envvar:: sshd__known_hosts [[[
+#
+# List of FQDN hostnames that should be scanned to add host fingerprints to the
+# system-wide known hosts file (global).
+sshd__known_hosts: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__group_known_hosts [[[
+#
+# List of FQDN hostnames that should be scanned to add host fingerprints to the
+# system-wide known hosts file (host group).
+sshd__group_known_hosts: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__host_known_hosts [[[
+#
+# List of FQDN hostnames that should be scanned to add host fingerprints to the
+# system-wide known hosts file (host).
+sshd__host_known_hosts: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__known_hosts_file [[[
+#
+# System-wide file where host fingerprints are stored.
+sshd__known_hosts_file: '/etc/ssh/ssh_known_hosts'
+
+                                                                   # ]]]
+# .. envvar:: sshd__known_hosts_command [[[
+#
+# Command used to scan host fingerprints into system-wide known hosts file.
+sshd__known_hosts_command: 'ssh-keyscan -H -T 10'
+                                                                   # ]]]
+                                                                   # ]]]
+# Encryption parameters [[[
+# -------------------------
+
+# .. envvar:: sshd__ciphers_map [[[
+#
+# Dict with list of ciphers which should be used by the ``sshd`` server,
+# depending on available version, ordered from strongest to weakest. Newer version
+# supersedes older version.
+sshd__ciphers_map:
+
+  # Source: https://wiki.mozilla.org/Security/Guidelines/OpenSSH
+  '6.5': [ 'chacha20-poly1305@openssh.com', 'aes256-gcm@openssh.com',
+           'aes128-gcm@openssh.com', 'aes256-ctr', 'aes192-ctr',
+           'aes128-ctr' ]
+
+  # Source: https://xivilization.net/~marek/blog/2015/01/12/secure-secure-shell-on-debian-wheezy/
+  '6.0': [ 'aes256-ctr', 'aes192-ctr', 'aes128-ctr' ]
+
+                                                                   # ]]]
+# .. envvar:: sshd__ciphers_additional [[[
+#
+# List of additional key exchange algorithms which should be used by the
+# ``sshd`` server, depending on available version, depending on available
+# version, ordered from stronger to weaker. Newer version supersedes older
+# version.
+sshd__ciphers_additional: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__kex_algorithms_map [[[
+#
+# Dict with list of key exchange algorithms which should be used by the
+# ``sshd`` server, depending on available version, ordered from strongest to
+# oldest. Newer version supersedes older version.
+sshd__kex_algorithms_map:
+
+  # Source: https://wiki.mozilla.org/Security/Guidelines/OpenSSH
+  '6.5': [ 'curve25519-sha256@libssh.org', 'ecdh-sha2-nistp521',
+           'ecdh-sha2-nistp384', 'ecdh-sha2-nistp256',
+           'diffie-hellman-group-exchange-sha256' ]
+
+  # Source: https://xivilization.net/~marek/blog/2015/01/12/secure-secure-shell-on-debian-wheezy/
+  '6.0': [ 'diffie-hellman-group-exchange-sha256' ]
+
+                                                                   # ]]]
+# .. envvar:: sshd__kex_algorithms_additional [[[
+#
+# List of additional key exchange algorithms which should be used by the
+# ``sshd`` server, depending on available version, depending on available
+# version, ordered from stronger to weaker. Newer version supersedes older
+# version.
+sshd__kex_algorithms_additional: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__macs_map [[[
+#
+# Dict with list of message authentication code algorithms which should be used
+# by the ``sshd`` server, depending on available version, ordered from stronger
+# to weaker. Newer version supersedes older version.
+sshd__macs_map:
+
+  # Source: https://wiki.mozilla.org/Security/Guidelines/OpenSSH
+  '6.5': [ 'hmac-sha2-512-etm@openssh.com', 'hmac-sha2-256-etm@openssh.com',
+           'umac-128-etm@openssh.com', 'hmac-sha2-512', 'hmac-sha2-256',
+           'umac-128@openssh.com' ]
+
+  # Source: https://xivilization.net/~marek/blog/2015/01/12/secure-secure-shell-on-debian-wheezy/
+  '6.0': [ 'hmac-sha2-512', 'hmac-sha2-256', 'hmac-ripemd160' ]
+
+                                                                   # ]]]
+# .. envvar:: sshd__macs_additional [[[
+#
+# List of additional message authentication code algorithms to support
+# by the ``sshd`` server, depending on available version, ordered from stronger
+# to weaker. Newer version supersedes older version.
+sshd__macs_additional: []
+
+                                                                   # ]]]
+# .. envvar:: sshd__moduli_minimum [[[
+#
+# Specify minimum size of Diffie-Hellman parameters available to the SSH
+# server. Parameters smaller than the given amount will be removed from the
+# :file:`/etc/ssh/moduli` file.
+sshd__moduli_minimum: '2048'
+
+                                                                   # ]]]
+# .. envvar:: sshd__paranoid [[[
+#
+# If set to True, only the first item (which is considered the strongest method
+# available) from the lists :envvar:`sshd__ciphers_map`,
+# :envvar:`sshd__kex_algorithms_map` and :envvar:`sshd__macs_map` will be configured for
+# ``sshd``. Use this with care as it will deny access to anyone not able to use
+# the first cryptographic method.
+# See https://github.com/debops/ansible-sshd/issues/20
+sshd__paranoid: False
+                                                                   # ]]]
+                                                                   # ]]]
+# Authorized key lookup configuration [[[
+# ---------------------------------------
+
+# .. envvar:: sshd__authorized_keys_lookup [[[
+#
+# Enable support for looking up authorized public keys in external data sources
+# (currently LDAP is supported). This function works only with OpenSSH 6.2+.
+sshd__authorized_keys_lookup: '{{ ansible_local.ldap.posix_enabled | d() | bool }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__authorized_keys_lookup_user [[[
+#
+# Name of the UNIX account which will be used to look up authorized keys.
+sshd__authorized_keys_lookup_user: 'sshd'
+
+                                                                   # ]]]
+# .. envvar:: sshd__authorized_keys_lookup_type [[[
+#
+# List of lookup scripts that should be enabled on a host.
+sshd__authorized_keys_lookup_type: [ 'ldap', 'sss' ]
+                                                                   # ]]]
+                                                                   # ]]]
+# LDAP lookup configuration [[[
+# -----------------------------
+
+# .. envvar:: sshd__ldap_enabled [[[
+#
+# Enable or disable integration with the LDAP directory. The integration is
+# enabled automatically when the :ref:`debops.ldap` environment is configured
+# on the host.
+sshd__ldap_enabled: '{{ ansible_local.ldap.enabled
+                        if (ansible_local | d() and ansible_local.ldap | d() and
+                            ansible_local.ldap.enabled is defined)
+                        else False }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_base_dn [[[
+#
+# The base LDAP Distinguished Name used for SSH public key lookups.
+sshd__ldap_base_dn: '{{ ansible_local.ldap.base_dn | d([]) }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_device_dn [[[
+#
+# The Distinguished Name of the device LDAP object that represents current
+# host. It will be used as a base DN for the ``sshd`` LDAP account object.
+sshd__ldap_device_dn: '{{ ansible_local.ldap.device_dn | d([]) }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_device_object_classes [[[
+#
+# List of additional LDAP Object Classes to add to the device LDAP object.
+sshd__ldap_device_object_classes: [ 'ldapPublicKey' ]
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_device_attributes [[[
+#
+# YAML dictionary with additional LDAP attributes which will be added to the
+# device LDAP object.
+sshd__ldap_device_attributes:
+  sshPublicKey: '{{ sshd__env_register_host_public_keys.stdout_lines }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_self_rdn [[[
+#
+# The Relative Distinguished Name of the ``sshd`` LDAP account object.
+sshd__ldap_self_rdn: 'uid={{ sshd__authorized_keys_lookup_user }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_self_object_classes [[[
+#
+# The LDAP Object Classes used to create the ``sshd`` LDAP account object.
+sshd__ldap_self_object_classes: [ 'account', 'simpleSecurityObject' ]
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_self_attributes [[[
+#
+# YAML dictionary that contains the attributes of the ``sshd`` LDAP account
+# object.
+sshd__ldap_self_attributes:
+  uid: '{{ sshd__ldap_self_rdn.split("=")[1] }}'
+  userPassword: '{{ sshd__ldap_bindpw }}'
+  host: '{{ [ansible_fqdn, ansible_hostname] | unique }}'
+  description: 'Account used by the "sshd" service to access the LDAP directory'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_binddn [[[
+#
+# The Distinguished Name of the ``sshd`` LDAP account object used to
+# authenticate to the LDAP directory, defined as a string.
+sshd__ldap_binddn: '{{ ([sshd__ldap_self_rdn] + sshd__ldap_device_dn) | join(",") }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_bindpw [[[
+#
+# The password defined in the ``sshd`` LDAP account object used to authenticate
+# to the LDAP directory.
+sshd__ldap_bindpw: '{{ (lookup("password", secret + "/ldap/credentials/"
+                               + sshd__ldap_binddn | to_uuid + ".password length=32"))
+                       if sshd__ldap_enabled | bool
+                       else "" }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_filter [[[
+#
+# Active ``ldapsearch`` filter used to select correct account while looking up
+# the SSH public key.
+sshd__ldap_filter: '{{ sshd__ldap_filter_map["service+host"] }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_posix_urns [[[
+#
+# List of LDAP search filters which are derived from URN-like patterns defined
+# for a given host in the :ref:`debops.ldap` role.
+# See :ref:`ldap__ref_ldap_access_host` for more details.
+sshd__ldap_posix_urns: '{{ ansible_local.ldap.urn_patterns | d([])
+                           | map("regex_replace", "^(.*)$", "(host=posix:urn:\1)")
+                           | list }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap_filter_map [[[
+#
+# Dict with set of available LDAP filters that can be used to lookup the SSH
+# public key.
+sshd__ldap_filter_map:
+
+  # User account needs 'authorizedService' attribute
+  'service': '(&
+                (objectClass=posixAccount)
+                (uid=$username)
+                (|
+                  (authorizedService=all)
+                  (authorizedService=$service)
+                  (authorizedService=shell)
+                )
+              )'
+
+  # User account needs 'host' attribute
+  'host': '(&
+             (objectClass=posixAccount)
+             (uid=$username)
+             (|
+               (host=posix:all)
+               (host=posix:$fqdn)
+               (host=posix:\2a.$domain)
+               {{ sshd__ldap_posix_urns | join(" ") }}
+             )
+           )'
+
+  # User account needs both 'authorizedService' and 'host' attributes.
+  'service+host': '(&
+                     (objectClass=posixAccount)
+                     (uid=$username)
+                     (|
+                       (authorizedService=all)
+                       (authorizedService=$service)
+                       (authorizedService=shell)
+                     )
+                     (|
+                       (host=posix:all)
+                       (host=posix:$fqdn)
+                       (host=posix:\2a.$domain)
+                       {{ sshd__ldap_posix_urns | join(" ") }}
+                     )
+                   )'
+                                                                   # ]]]
+                                                                   # ]]]
+# PAM configuration [[[
+# ---------------------
+
+# .. envvar:: sshd__pam_deploy_state [[[
+#
+# Enable or disable support for custom PAM configuration for the ``sshd``
+# service. Set to ``absent`` to remove the customizations.
+sshd__pam_deploy_state: 'present'
+
+                                                                   # ]]]
+# .. envvar:: sshd__pam_access_file [[[
+#
+# Specify the absolute path of the PAM access file to use for the ``sshd``
+# service.
+sshd__pam_access_file: '{{ "/etc/security/access-sshd.conf"
+                           if ("sshd" in ansible_local.pam_access.rules | d([]))
+                           else "/etc/security/access.conf" }}'
+                                                                   # ]]]
+                                                                   # ]]]
+# Configuration of other services [[[
+# -----------------------------------
+
+# .. envvar:: sshd__ferm__dependent_rules: [[[
+#
+# Configuration for :command:`iptables` firewall managed by :program:`ferm`.
+sshd__ferm__dependent_rules:
+
+  - type: 'accept'
+    dport: '{{ sshd__ferm_ports }}'
+    interface: '{{ sshd__ferm_interface }}'
+    weight: '0'
+    weight_class: 'sshd-chain'
+    name: 'sshd_jump-filter-ssh'
+    target: '{{ sshd__ferm_limit_chain }}'
+    rule_state: '{{ "present" if sshd__ferm_limit | bool else "absent" }}'
+    comment: 'Create a separate "iptables" chain for SSH rules'
+
+  - chain: '{{ sshd__ferm_limit_chain if (sshd__ferm_limit | bool) else "INPUT" }}'
+    type: 'accept'
+    dport: '{{ sshd__ferm_ports }}'
+    saddr: '{{ sshd__whitelist + sshd__group_whitelist + sshd__host_whitelist }}'
+    interface: '{{ [] if (sshd__ferm_limit | bool) else sshd__ferm_interface }}'
+    weight: '1'
+    weight_class: 'sshd-chain'
+    name: 'sshd_whitelist'
+    subchain: False
+    accept_any: False
+    comment: 'Accept any hosts in the whitelist unconditionally'
+
+  - chain: '{{ sshd__ferm_limit_chain if sshd__ferm_limit | bool else "INPUT" }}'
+    type: 'accept'
+    dport: '{{ sshd__ferm_ports }}'
+    saddr: '{{ sshd__allow + sshd__group_allow + sshd__host_allow }}'
+    interface: '{{ [] if (sshd__ferm_limit | bool) else sshd__ferm_interface }}'
+    weight: '2'
+    weight_class: 'sshd-chain'
+    name: 'sshd_allow'
+    subchain: False
+    accept_any: '{{ False if sshd__ferm_limit | bool else True }}'
+    comment: |
+      Accept any hosts in the allow list. If there are any hosts specified,
+      block connections from other hosts using TCP Wrappers.
+
+  - chain: '{{ sshd__ferm_limit_chain }}'
+    type: 'recent'
+    weight: '3'
+    weight_class: 'sshd-chain'
+    name: 'sshd_block-ssh'
+    dport: '{{ sshd__ferm_ports }}'
+    state: [ 'NEW' ]
+    subchain: False
+    recent_name: 'ssh-new'
+    recent_update: True
+    recent_seconds: '{{ sshd__ferm_limit_seconds }}'
+    recent_hitcount: '{{ sshd__ferm_limit_hits }}'
+    recent_target: 'REJECT'
+    rule_state: '{{ "present" if sshd__ferm_limit | bool else "absent" }}'
+    comment: |
+      Block new SSH connections that have been marked as recent if they make
+      too many new connection attempts.
+
+  - chain: '{{ sshd__ferm_limit_chain }}'
+    type: 'recent'
+    weight: '4'
+    weight_class: 'sshd-chain'
+    name: 'sshd_mark-ssh'
+    dport: '{{ sshd__ferm_ports }}'
+    state: [ 'NEW' ]
+    subchain: False
+    recent_set_name: 'ssh-new'
+    recent_log: False
+    rule_state: '{{ "present" if sshd__ferm_limit | bool else "absent" }}'
+    comment: 'Mark new connections to the SSH service for recent tracking'
+
+  - chain: '{{ sshd__ferm_limit_chain }}'
+    type: 'accept'
+    weight: '5'
+    weight_class: 'sshd-chain'
+    role: 'sshd'
+    role_weight: '60'
+    name: 'sshd_accept-ssh'
+    dport: '{{ sshd__ferm_ports }}'
+    rule_state: '{{ "present" if sshd__ferm_limit | bool else "absent" }}'
+    comment: 'Accept connections to the SSH service'
+
+                                                                   # ]]]
+# .. envvar:: sshd__tcpwrappers__dependent_allow [[[
+#
+# Configure TCP wrappers to allow access to the ``sshd`` daemon.
+sshd__tcpwrappers__dependent_allow:
+
+  - daemon: 'sshd'
+    client: '{{ sshd__whitelist + sshd__group_whitelist + sshd__host_whitelist }}'
+    accept_any: '{{ False if (sshd__allow + sshd__group_allow + sshd__host_allow) else True }}'
+    weight: '25'
+    filename: 'sshd_dependent_whitelist'
+    comment: 'Whitelist of hosts allowed to connect to ssh'
+
+  - daemon: 'sshd'
+    client: '{{ sshd__allow + sshd__group_allow + sshd__host_allow }}'
+    default: '{{ sshd__tcpwrappers_default }}'
+    accept_any: '{{ True if (sshd__whitelist + sshd__group_whitelist + sshd__host_whitelist) else False }}'
+    weight: '30'
+    filename: 'sshd_dependent_allow'
+    comment: 'List of hosts allowed to connect to ssh'
+
+                                                                   # ]]]
+# .. envvar:: sshd__ldap__dependent_tasks [[[
+#
+# Configuration for the :ref:`debops.ldap` Ansible role.
+sshd__ldap__dependent_tasks:
+
+  - name: 'Add missing LDAP object classes to {{ sshd__ldap_device_dn | join(",") }}'
+    dn: '{{ sshd__ldap_device_dn }}'
+    attributes:
+      objectClass: '{{ sshd__ldap_device_object_classes }}'
+    state: '{{ "present"
+               if ((ansible_local.ldap.posix_enabled | d()) | bool and
+                   sshd__ldap_device_dn | d())
+               else "ignore" }}'
+
+  - name: 'Update SSH host public keys in {{ sshd__ldap_device_dn | join(",") }}'
+    dn: '{{ sshd__ldap_device_dn }}'
+    attributes: '{{ sshd__ldap_device_attributes }}'
+    state: '{{ "exact"
+               if ((ansible_local.ldap.posix_enabled | d()) | bool and
+                   sshd__ldap_device_dn | d())
+               else "ignore" }}'
+
+  - name: 'Create sshd account for {{ sshd__ldap_device_dn | join(",") }}'
+    dn: '{{ sshd__ldap_binddn }}'
+    objectClass: '{{ sshd__ldap_self_object_classes }}'
+    attributes: '{{ sshd__ldap_self_attributes }}'
+    no_log: '{{ debops__no_log | d(True) }}'
+    state: '{{ "present"
+               if (sshd__authorized_keys_lookup | bool and
+                   ("ldap" in sshd__authorized_keys_lookup_type))
+               else "ignore" }}'
+
+                                                                   # ]]]
+# .. envvar:: sshd__pam_access__dependent_rules [[[
+#
+# Configuration for the :ref:`debops.pam_access` Ansible role.
+sshd__pam_access__dependent_rules:
+
+  - name: 'sshd'
+    options:
+
+      - name: 'allow-root-ansible-controllers'
+        comment: 'Grant access via SSH to root account from the Ansible Controller hosts'
+        permission: 'allow'
+        users: 'root'
+        origins: '{{ ansible_local.core.ansible_controllers | d([]) }}'
+
+      - name: 'allow-root'
+        comment: 'Grant access via SSH to root account on the same DNS domain'
+        permission: 'allow'
+        users: 'root'
+        origins: '.{{ ansible_domain }}'
+
+      - name: 'deny-root'
+        comment: 'Deny access to root account via SSH from anywhere else'
+        permission: 'deny'
+        users: 'root'
+        origins: 'ALL'
+
+      - name: 'allow-system-groups'
+        comment: |
+          Grant access via SSH to members of UNIX groups defined on this host
+        permission: 'allow'
+        groups: '{{ ansible_local.system_groups.access.sshd
+                    | d(["admins", "sshusers", "sftponly"]) }}'
+        origins: 'ALL'
+
+      - name: 'allow-ldap-groups'
+        comment: |
+          Grant access via SSH to members of UNIX groups defined in LDAP
+        permission: 'allow'
+        groups: [ 'admins', 'sshusers', 'sftponly' ]
+        origins: 'ALL'
+        state: '{{ "present"
+                   if (ansible_local.ldap.posix_enabled | d() | bool)
+                   else "absent" }}'
+
+      - name: 'allow-domain'
+        comment: |
+          Grant access via SSH to users on the same DNS domain. The SSH server
+          needs to have UseDNS option enabled for this rule to work correctly.
+        permission: 'allow'
+        users: 'ALL'
+        origins: '.{{ ansible_domain }}'
+
+      - name: 'deny-all'
+        comment: 'Deny access via SSH by anyone from anywhere'
+        permission: 'deny'
+        users: 'ALL'
+        origins: 'ALL'
+        weight: 99999
+                                                                   # ]]]
+# .. envvar:: sshd__sudo__dependent_sudoers [[[
+#
+# Configuration for the :ref:`debops.sudo` Ansible role.
+sshd__sudo__dependent_sudoers:
+
+  - name: 'sshd'
+    options:
+
+      - name: 'env_keep_ssh'
+        comment: |-
+          Allow molly-guard to detect that we connected via ssh even if
+          combined with sudo and tmux.
+          https://superuser.com/questions/666931/getting-molly-guard-to-work-with-sudo
+          It is not perfect, but works in most cases.
+          A case where it does not work is when `sudo tmux` is started via
+          local tty and then attached to it via ssh.
+          Or `sudo tmux` is executed via ssh and then attached locally.
+          But when a new shell is created in tmux, the environment variables in
+          that new shell are correct.
+        value: |
+          Defaults env_keep += SSH_CONNECTION
+# ]]]
+# ]]]

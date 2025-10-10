@@ -1,0 +1,676 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.POSTGRESQL_SERVER" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.postgresql_server \- Manage PostgreSQL server using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/postgresql_server\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%PostgreSQL\fP <\fBhttps://www.postgresql.org/\fP> is a popular relational open source database. This role can be
+used to install and manage a set of PostgreSQL clusters on Debian\-based
+systems. You can use \fI\%debops.postgresql\fP role to configure roles and
+databases on local or remote PostgreSQL servers.
+.SH GETTING STARTED
+.SS General configuration
+.sp
+On a new host, PostgreSQL server will be configured with a default cluster
+\fBmain\fP running on port \fB5432\fP\&.
+The cluster will only listen to connections from \fBlocalhost\fP\&.
+The ansible management account and the \fBroot\fP account will be able to login
+to the PostgreSQL server using the \fBpostgres\fP role. For example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@host:~$ psql \-U postgres
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The PostgreSQL version installed by the role will be a default version offered
+by the distribution. If you want PostgreSQL 9.4 on Debian Wheezy, or an
+upstream version of the server, you can enable the upstream APT repository from
+inventory, by adding:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__upstream: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Check \fI\%postgresql_server__preferred_version\fP to learn more about
+selecting custom PostgreSQL versions.
+.sp
+After installation you can use \fI\%debops.postgresql\fP role to configure
+PostgreSQL roles and databases.
+.SS Remote access to the database
+.sp
+By default, PostgreSQL listens only for connections on \fBlocalhost\fP\&.
+.sp
+To enable remote access, you need to change the
+\fI\%postgresql_server__listen_addresses\fP list to specify either IP
+addresses of the interfaces you want your host to listen on,
+or \fB*\fP for all interfaces.
+.sp
+As the firewall blocks all connections to the PostgreSQL server by default, you
+will also need to specify IP addresses or CIDR subnets which should be able to
+connect to the clusters. Example configuration of variables in inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__listen_addresses: [ \(aq*\(aq ]
+postgresql_server__allow: [ \(aq192.0.2.0/24\(aq, \(aq2001:db8::/32\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The default set of Host\-Based Authentication rules permit connections from
+remote hosts that are in the same subnet as the server, only over SSL, and
+require the correct password to be provided to accept connections.
+.sp
+If you want to allow connections from other subnets than the server, you will
+need to add your own HBA entries to the PostgreSQL cluster configuration.
+Example for the default cluster:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__cluster_main:
+  name: \(aqmain\(aq
+  port: \(aq5432\(aq
+
+  hba:
+    \- type: \(aqhostssl\(aq
+      database: \(aqsamerole\(aq
+      user: \(aqall\(aq
+      address: [ \(aq192.0.2.0/24\(aq, \(aq2001:db8::/32\(aq ]
+      method: \(aqmd5\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBdebops.postgresql_server\fP role is designed to use the PKI infrastructure
+managed by the \fI\%debops.pki\fP role.
+.sp
+A \fBpki realm\fP can be picked with the \fI\%postgresql_server__pki_realm\fP
+variable, then remote connections to the server will be automatically
+encrypted over SSL, otherwise dropped by default.
+.SS Example inventory
+.sp
+To install and configure PostgreSQL server on a host, you need to add the host
+to the \fB[debops_service_postgresql_server]\fP Ansible host group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_postgresql_server]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook which uses the \fBdebops.postgresql_server\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage PostgreSQL server
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_postgresql_server\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::postgresql_server\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ postgresql_server__keyring__dependent_apt_keys }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ postgresql_server__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ postgresql_server__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::postgresql\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ postgresql_server__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ postgresql_server__python__dependent_packages2 }}\(aq
+
+    \- role: locales
+      tags: [ \(aqrole::locales\(aq, \(aqskip::locales\(aq ]
+      locales__dependent_list:
+        \- \(aq{{ postgresql_server__locales__dependent_list }}\(aq
+
+    \- role: postgresql_server
+      tags: [ \(aqrole::postgresql_server\(aq, \(aqskip::postgresql_server\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after the host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::postgresql_server\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::postgresql_server:packages\fP
+Run tasks related to package installation
+.TP
+.B \fBrole::postgresql_server:config\fP
+Run tasks related to PostgreSQL Server configuration.
+.TP
+.B \fBrole::postgresql_server:auto_backup\fP
+Run tasks that configure AutoPostgreSQLBackup scripts.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.postgresql_server\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS postgresql_server__preferred_version
+.sp
+By default the role installs the PostgreSQL version preferred by the APT
+package manager. This behaviour is influenced by how the PostgreSQL is packaged
+in Debian \- each version has its own set of packages with the version as
+a suffix, and there\(aqs a set of metapackages which depend on the version
+available in the distribution (by default only 1 version is available).
+.sp
+Multiple PostgreSQL versions become available after enabling the upstream APT
+repository. To choose a different version than the default one, you need to set
+two variables in the inventory:
+.INDENT 0.0
+.TP
+.B \fI\%postgresql_server__preferred_version\fP
+The value of this variable should be set as the version of the PostgreSQL you
+wish the role to manage (it does not influence the APT packages the role
+installs, but what version is used in different file/directory paths managed
+by the role, what features are enabled/disabled in the configuration, etc.).
+.TP
+.B \fI\%postgresql_server__base_packages\fP
+This is a list of APT packages which will be used by the role to install
+PostgreSQL. By default, it contains the metapackages which install the
+highest available version of PostgreSQL packages. To select a different
+version, you need to change the list of packages.
+.UNINDENT
+.sp
+For example, to install PostgreSQL 9.3 instead of the default available
+version, in inventory you need to define:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__upstream: True
+postgresql_server__preferred_version: \(aq9.3\(aq
+postgresql_server__base_packages:
+  \- \(aqpostgresql\-9.3\(aq
+  \- \(aqpostgresql\-client\-9.3\(aq
+  \- \(aqpostgresql\-contrib\-9.3\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remember that role does not support management of multiple PostgreSQL versions
+at the same time. The above variables should be defined in the inventory at all
+times, otherwise role might revert to the default PostgreSQL packages and
+version, and break your installation. This also is true for server upgrades.
+The preferred way to make an upgrade is to configure a new database server with
+desired PostgreSQL version and move the database to it.
+.sp
+You might also need to set similar set of variables for the
+\fI\%debops.postgresql\fP role to keep both of the roles in sync. Refer to its
+documentation for details.
+.SS postgresql_server__hba_*
+.sp
+\fI\%Host\-Based Authentication\fP <\fBhttps://www.postgresql.org/docs/9.4/static/auth-pg-hba-conf.html\fP>
+configuration in \fBdebops.postgresql_server\fP Ansible role is specified in
+a set of lists:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%postgresql_server__hba_system\fP: controls the local and remote access to the
+database administrator role \fBpostgres\fP\&.
+.IP \(bu 2
+\fI\%postgresql_server__hba_replication\fP: control access to \fBreplication\fP role
+and database.
+.IP \(bu 2
+\fI\%postgresql_server__hba_public\fP: controls access for public connections to
+\fBpostgres\fP database, to allow certain applications like \fBphpPgAdmin\fP to
+work correctly.
+.IP \(bu 2
+\fI\%postgresql_server__hba_trusted\fP: control access by local UNIX accounts to
+certain roles/databases without the requirement to specify a password.
+.IP \(bu 2
+\fI\%postgresql_server__hba_local\fP: controls access to the databases by local
+UNIX accounts.
+.IP \(bu 2
+\fI\%postgresql_server__hba_remote\fP: controls access to the database by remote
+clients.
+.UNINDENT
+.sp
+Each PostgreSQL cluster by default uses all of the above lists in its
+\fBpg_hba.conf\fP configuration file. A cluster can disable any list by
+specifying its abbreviated name as a parameter with \fBFalse\fP\&. For example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__cluster_main:
+  name: \(aqmain\(aq
+  port: \(aq5432\(aq
+  hba_replication: False
+  hba_public: False
+  hba_trusted: False
+  hba_local: False
+  hba_remote: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Above configuration will disable connections by trusted users (all users will
+be required to specify a password) and from remote clients.
+.sp
+Additionally, each cluster can specify its own HBA entries using \fBitem.hba\fP
+parameter which will be added at the end of the \fBpg_hba.conf\fP file. By
+disabling selected global lists and adding custom entries you can redefine the
+HBA configuration file as needed. Example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__cluster_main:
+  name: \(aqmain\(aq
+  port: \(aq5432\(aq
+  hba_remote: False
+
+  hba:
+    \- comment: \(aqCustom remote entries\(aq
+      type: \(aqhostssl\(aq
+      database: \(aqall\(aq
+      user: \(aqall\(aq
+      address: [ \(aq192.0.2.0/24\(aq ]
+      method: \(aqmd5\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Each entry in a HBA list is a YAML dictionary with parameters:
+.INDENT 0.0
+.TP
+.B \fBcomment\fP
+Optional. Comment added to a given entry in \fBpg_hba.conf\fP file.
+.TP
+.B \fBtype\fP
+Required. Specifies connection type to use for a given entry. Known types are:
+.INDENT 7.0
+.IP \(bu 2
+\fBlocal\fP: local connections by UNIX accounts
+.IP \(bu 2
+\fBhost\fP: remote TCP connections, either with or without SSL
+.IP \(bu 2
+\fBhostssl\fP: remote TCP connections, SSL is required
+.IP \(bu 2
+\fBhostnossl\fP: remote TCP connections, plaintext is required
+.UNINDENT
+.TP
+.B \fBdatabase\fP
+Required. String or a list of database names that are controlled by a given
+HBA entry. You can use special names:
+.INDENT 7.0
+.IP \(bu 2
+\fBall\fP: all databases in a cluster
+.IP \(bu 2
+\fBsameuser\fP: database with the same name as the PostgreSQL role
+.IP \(bu 2
+\fBsamerole\fP: all databases accessible by a given PostgreSQL role
+.IP \(bu 2
+\fB@name\fP: file with a list of database names, relative to a given
+cluster\(aqs configuration directory in \fB/etc\fP
+.UNINDENT
+.TP
+.B \fBuser\fP
+Required. String or a list of PostgreSQL roles that are controlled by a given
+HBA entry. You can use special names:
+.INDENT 7.0
+.IP \(bu 2
+\fBall\fP: all roles in on the PostgreSQL cluster
+.IP \(bu 2
+\fB+role\fP: a specified role and all roles that are included in it
+.IP \(bu 2
+\fB@name\fP: file with a list of roles, relative to a given cluster\(aqs
+configuration directory in \fB/etc\fP
+.IP \(bu 2
+\fB*postgres*\fP: a custom \fBdebops.postgresql_server\fP name, it will be
+replaced by the UNIX system account name that manages a given cluster,
+usually \fBpostgres\fP
+.UNINDENT
+.TP
+.B \fBaddress\fP
+Required by all types other than \fBlocal\fP\&. A string or list of IP addresses
+or CIDR networks (\fBdebops.postgresql_server\fP does not support ip/netmask
+notation). You can use special names:
+.INDENT 7.0
+.IP \(bu 2
+\fBall\fP: any network clients
+.IP \(bu 2
+\fBsamenet\fP: any IP address from a subnet the host is directly connected to
+.UNINDENT
+.TP
+.B \fBmethod\fP
+Required. Authentication method used by this HBA entry. You most likely
+either want \fBpeer\fP for local connections or \fBmd5\fP for remote connections.
+There are also other methods available, see the PostgreSQL documentation for
+information about how to use them.
+.TP
+.B \fBoptions\fP
+Optional. List of additional options specific to a given authentication
+method.
+.UNINDENT
+.sp
+You can find different examples of how to defined HBA lists in
+\fBdefaults/main.yml\fP file of \fBdebops.postgresql_server\fP role.
+.SS postgresql_server__ident_*
+.sp
+\fI\%Ident maps\fP <\fBhttps://www.postgresql.org/docs/9.4/static/auth-username-maps.html\fP> stored in
+\fBpg_ident.conf\fP configuration file is used to map local UNIX accounts to
+PostgreSQL roles. This can be used to control what UNIX accounts can login to
+the PostgreSQL server as a given role.
+.sp
+Ident maps should only be used by the local UNIX accounts with the \fBpeer\fP
+authentication method. Using them for \fBident\fP method with remote clients is
+unreliable and discouraged \- \fBident\fP protocol is not meant to be used for
+authentication or authorization.
+.sp
+By default, PostgreSQL clusters managed by the \fBdebops.postgresql_server\fP
+role use global lists of ident maps:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%postgresql_server__ident_system\fP: a user mapping which specifies which
+system users can login as the \fBpostgres\fP superuser role.
+.IP \(bu 2
+\fI\%postgresql_server__ident_trusted\fP: this user mapping can be used with the
+\(dqtrusted\(dq HBA list to specify which local UNIX accounts can login without
+specifying a password. It\(aqs not set by default.
+.IP \(bu 2
+\fI\%postgresql_server__ident_local\fP: this user mapping can be used to define
+local UNIX accounts globally for all clusters. It\(aqs not set by default.
+.UNINDENT
+.sp
+Above ident maps can be disabled in a given cluster by specifying their
+abbreviated names in a parameter with \fBFalse\fP value. Example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__cluster_main:
+  name: \(aqmain\(aq
+  port: \(aq5432\(aq
+  ident_trusted: False
+  ident_local: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can specify custom lists of ident maps in a PostgreSQL cluster configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__cluster_main:
+  name: \(aqmain\(aq
+  port: \(aq5432\(aq
+  ident_local: False
+
+  ident:
+    \- map: \(aqmain_local\(aq
+      user: [ \(aquser1\(aq, \(aquser2\(aq ]
+      role: \(aqrole1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Each ident map entry is a YAML dictionary with parameters:
+.INDENT 0.0
+.TP
+.B \fBmap\fP
+Required. Name of the user map, can be repeated in different entries.
+.TP
+.B \fBuser\fP
+Required. String or list of UNIX user accounts to use in this map. You can
+use a regexp to specify accounts in various ways, see PostgreSQL
+documentation for more information.
+.sp
+Special string \fB*postgres*\fP will be replaced by Ansible to the owner of the
+PostgreSQL cluster, usually \fBpostgres\fP\&.
+.TP
+.B \fBrole\fP
+Optional. String or list of PostgreSQL roles to map to the UNIX accounts.
+.sp
+If defined, specifies the PostgreSQL role to map to a given UNIX accounts.
+.sp
+If not defined, each entry role name will be the same as the UNIX account
+name. Don\(aqt use this option with regexp user entries.
+.sp
+Special string \fB*postgres*\fP will be replaced by Ansible to the owner of the
+PostgreSQL cluster, usually \fBpostgres\fP\&.
+.UNINDENT
+.sp
+Examples can be found in the \fBdefaults/main.yml\fP file of the
+\fBdebops.postgresql_server\fP Ansible role.
+.SS postgresql_server__clusters
+.sp
+On Debian and its derivatives, \fI\%PostgreSQL installation\fP <\fBhttps://wiki.debian.org/PostgreSql\fP>
+is based around \(dqclusters\(dq, each cluster being run on a particular PostgreSQL
+version and on a specific TCP port. \fBdebops.postgresql_server\fP is designed
+to be used within that system, and allows you to create separate PostgreSQL
+clusters. A default \fB<version>/main\fP cluster will be created, based on
+default PostgreSQL version installed on a given host.
+.sp
+You can create and manage separate PostgreSQL clusters using
+\fI\%postgresql_server__clusters\fP list. Each cluster is defined as a YAML dict
+with at least two parameters \- \fBname\fP and \fBport\fP\&. You should take care to
+always use separate port for each cluster you define. Role will create an entry
+for each cluster in \fB/etc/services\fP as well as maintain firewall
+configuration as needed.
+.sp
+Some of the global variables defined in \fBdebops.postgresql_server\fP concerning
+clusters can be overridden on a cluster by cluster basis using their abbreviated
+names (without \fBpostgresql_server__\fP prefix) as cluster parameters. In
+addition, \fBalmost all of the PostgreSQL parameters found in the
+:file:\(gapostgresql.conf\(ga configuration file can be specified as cluster parameters
+as well, to change the defaults\fP\&.
+.sp
+Each cluster configuration directory contains the \fBconf.d/\fP subdirectory
+where you can put \fBpostgresql.conf\fP configuration snippets; file names
+should end with \fB\&.conf\fP extension. These files will be included in the main
+\fBpostgresql.conf\fP configuration file and can be used to override the
+database configuration.
+.sp
+List of some of the parameters that you can specify in a cluster configuration
+entry:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the cluster, used to separate different clusters based on
+the same PostgreSQL version.
+.TP
+.B \fBport\fP
+Required. TCP port to use for a given cluster. Default PostgreSQL port is
+\fB5432\fP, more clusters usually use the next port number available.
+.TP
+.B \fBversion\fP
+Optional. PostgreSQL version to use for a given cluster. If it\(aqs not
+specified, default detected version will be used, which is usually what you
+want.
+.TP
+.B \fBenvironment\fP
+Optional. Dictionary which specifies environment variables and their values
+that should be set for a given PostgreSQL cluster. Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__cluster_main:
+  name: \(aqmain\(aq
+  port: \(aq5432\(aq
+
+  environment:
+    HOME: \(aq/var/lib/postgresql\(aq
+    SHELL: \(aq/bin/bash\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBlisten_addresses\fP
+List of network interfaces specified by their addresses a given cluster
+should bind to. If not set, global value of
+\fI\%postgresql_server__listen_addresses\fP will be used instead.
+.TP
+.B \fBallow\fP
+List of IP addresses or CIDR subnets which should be allowed to connect to
+a given cluster.
+.TP
+.B \fBstandby\fP
+Optional.
+Configure \fI\%standby replication\fP <\fBhttps://www.postgresql.org/docs/current/warm-standby.html\fP>
+cluster parameters. This cluster will act as a streaming replication standby server. The
+replication master configuration can be done using standard \fBpostgresql.conf\fP
+configuration parameters. Standby configuration parameters:
+.INDENT 7.0
+.TP
+.B \fBconninfo\fP
+Required. Connection info (as a PostgreSQL connection string) to connect to the
+master cluster.
+.TP
+.B \fBslot_name\fP
+Optional. Replication slot name to use.
+.UNINDENT
+.sp
+Example standby configuration:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__cluster_main:
+  name: \(aqmain\(aq
+  port: \(aq5432\(aq
+
+  hot_standby: \(aqon\(aq
+  standby:
+    conninfo: \(aqhost=postgresql\-master user=replication password=XXXX\(aq
+    slot_name: \(aqmy_hot_standby\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Example master configuration:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__cluster_main:
+  name: \(aqmain\(aq
+  port: \(aq5432\(aq
+
+  max_replication_slots: 1
+  # Set to 2 to allow for 1 \(dqhanging\(dq connection until it times out
+  max_wal_senders: 2
+  wal_level: \(aqreplica\(aq
+
+# Create replication user
+postgresql__roles:
+  \- name: \(aqreplication\(aq
+    flags:
+      \- \(aqREPLICATION\(aq
+      \- \(aqLOGIN\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

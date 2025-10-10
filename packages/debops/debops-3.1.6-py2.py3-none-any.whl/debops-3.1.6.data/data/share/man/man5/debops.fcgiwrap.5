@@ -1,0 +1,166 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.FCGIWRAP" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.fcgiwrap \- Manage multiple fcgiwrap instances with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/fcgiwrap\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%fcgiwrap\fP <\fBhttps://github.com/gnosek/fcgiwrap\fP> is a lightweight FastCGI server which can be set up behind
+\fBnginx\fP server to run CGI applications. This role allows you to setup
+separate instances of \fBfcgiwrap\fP on different user accounts, each one
+accessible through its own UNIX socket.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+\fBdebops.fcgiwrap\fP role will by default disable the system\-wide \fBfcgiwrap\fP
+instance. In its place you will be able to create per\-user \fBfcgiwrap\fP
+instances, each with their own socket, running as an unprivileged user.
+.sp
+Each instance will make sure that specified user account and group exists, you
+can specify additional configuration to create accounts with a specific shell or
+home directory. By default system accounts (UID/GID < 1000) are used.
+.sp
+This role requires \fBdebops.core\fP role to configure local fact which provides
+the name of the init system used by the host (it does not need to be included
+in the role dependencies, it\(aqs enough that it is run once at the beginning of
+the playbook).
+.SS Example inventory
+.sp
+To enable \fBfcgiwrap\fP on a host by hand, you need to add that host to
+\fB[debops_service_fcgiwrap]\fP host group in Ansible inventory. You will also
+need to specify an instance to create. Example inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# inventory/hosts
+[debops_service_fcgiwrap]
+hostname
+
+# inventory/host_vars/hostname/fcgiwrap.yml
+fcgiwrap__instances:
+  \- name: \(aqwebapp\(aq
+    user: \(aqwebapp\(aq
+    group: \(aqwebapp\(aq
+    home: \(aq/srv/www/webapp\(aq
+    shell: \(aq/bin/false\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This configuration will ensure that specified user account exists and will
+start \fBfcgiwrap\fP on that account using system service script. The socket used
+by this instance will be created as \fB/run/fcgiwrap\-webapp.socket\fP\&.
+.SS Example playbook
+.sp
+\fBdebops.fcgiwrap\fP is designed to be used from a playbook or a role as role
+dependency. Here\(aqs an example configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+\- name: Set up web application
+  hosts: [ \(aqdebops_service_fcgiwrap\(aq ]
+  become: True
+
+  roles:
+
+    \- role: debops.fcgiwrap
+      tags: [ \(aqrole::fcgiwrap\(aq ]
+      fcgiwrap__instances:
+        \- name: \(aqwebapp\(aq
+          user: \(aqwebapp\(aq
+          group: \(aqwebapp\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLES: CONFIGURATION
+.sp
+some of \fBdebops.fcgiwrap\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS fcgiwrap__instances
+.sp
+List of \fBfcgiwrap\fP user instances, each one defined by a YAML dictionary.
+These instances will configure system services (init scripts on \fBsysvinit\fP
+and units on \fBsystemd\fP) which will start \fBfcgiwrap\fP unprivileged on
+specified user account.
+.sp
+List of known parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the instance, will be used as the name of the init
+scripts/unit files and socket.
+.TP
+.B \fBuser\fP
+Required. Name of the user account to use for this instance.
+.TP
+.B \fBgroup\fP
+Primary group of a given user account to use for this instance.
+.TP
+.B \fBhome\fP
+Path to the home directory for the user account. If account does not exist,
+it will be created automatically with specified home directory.
+.TP
+.B \fBcreatehome\fP
+Boolean, by default \fBFalse\fP\&. Specify if the user home directory should be
+created if it does not exist.
+.TP
+.B \fBshell\fP
+Shell used by specified user account.
+.TP
+.B \fBsystem\fP
+Boolean, by default \fBTrue\fP\&. If the account does not exist, it will be
+created as a \(dqsystem\(dq account with its UID/GID < 1000.
+.TP
+.B \fBsocket_user\fP
+Owner of the socket used by this \fBfcgiwrap\fP instance.
+.TP
+.B \fBsocket_group\fP
+Group which has access to this instance\(aqs socket.
+.TP
+.B \fBsocket_mode\fP
+File permissions set on this instance\(aqs socket.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

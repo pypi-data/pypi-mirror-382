@@ -1,0 +1,652 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.KEYRING" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.keyring \- Manage APT keyring and UNIX account GPG keyring via Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/keyring\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-tags\fP \fBrole::keyring\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-skip\-tags\fP \fBskip::keyring\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.keyring\fP Ansible role is designed as a helper for other Ansible
+roles that manages the APT keyring as well as the GPG keyrings on unprivileged
+UNIX accounts. Other Ansible roles can tell the \fI\%debops.keyring\fP role
+which GPG keys should be present or absent in the selected keyrings; the role
+then retrieves the GPG keys either from:
+.INDENT 0.0
+.IP \(bu 2
+local key store in the \fI\%debops.keyring\fP role, or located in a directory
+on the Ansible Controller, or
+.IP \(bu 2
+specified URL, or
+.IP \(bu 2
+specified \fI\%Keybase\fP <\fBhttps://keybase.io/\fP> profile via the \fI\%Keybase API\fP <\fBhttps://keybase.io/docs/api/1.0/call/user/pgp_keys.asc\fP>, or
+.IP \(bu 2
+a default GPG keyserver, if defined
+.UNINDENT
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+The role is not meant to be used via Ansible inventory to manage
+the APT or GPG keys; users can use the \fI\%debops.apt\fP role to manage the
+APT keyring via the inventory.
+.sp
+At the moment there is no solution for unprivileged UNIX account keyrings
+manageable via the inventory. This functionality will be implemented later
+via other DebOps roles that manage UNIX accounts.
+.UNINDENT
+.UNINDENT
+.SH GETTING STARTED
+.SS Default remote keyserver
+.sp
+By default the \fI\%debops.keyring\fP role uses the \fI\%Ubuntu keyserver\fP <\fBhttps://keyserver.ubuntu.com/\fP> to
+retrieve the GPG keys based on their fingerprints. The default keyserver is
+configured using the \fI\%keyring__keyserver\fP variable. For increased
+security, or if your infrastructure is located behind a firewall that blocks
+connections to the OpenPGP keyserver, you can use the \fBdebops.sks\fP Ansible
+role to set up a local instance of a SKS keyserver and import the GPG keys to
+it for easy retrieval.
+.sp
+Previously used \fI\%SKS Keyserver pool\fP <\fBhttps://sks-keyservers.net/\fP> has been deprecated and won\(aqt be
+maintained anymore. Thanks to the maintainers for years of great service!
+.SS Local key store on the Ansible Controller
+.sp
+The role supports usage of a local key store on the Ansible Controller, by
+setting the absolute path to a directory with the GPG key files in the
+\fI\%keyring__local_path\fP variable. For example, to store the GPG keys
+inside of the DebOps project directory, \fBansible/keyring/\fP subdirectory,
+users can define in the \fBansible/inventory/group_vars/debops_all_hosts/keyring.yml\fP
+file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+keyring__local_path: \(aq{{ inventory_dir | realpath + \(dq/../keyring\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will tell the role to look for the key files in a \fBansible/keyring/\fP
+directory, relative to the Ansible inventory.
+.sp
+Each key file in the directory should be an ASCII\-armored file, named using
+a specific format:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+0xFINGERPRINT.asc
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+At runtime the role will check the specified directory for any GPG key files
+and will create a list which will be used to determine if a GPG key with
+a given ID is available locally. If a key is found, installation from the local
+key store will take precedence over other network\-based methods.
+.SS Example inventory
+.sp
+The role is included by default in the \fBbootstrap\-ldap.yml\fP and the
+\fBcommon.yml\fP playbook, therefore you don\(aqt need to do anything to enable it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.keyring\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage APT and GPG keyrings
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_keyring\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::keyring\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.keyring\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%apt\-secure(8)\fP <\fBhttps://manpages.debian.org/apt-secure(8)\fP>, \fI\%apt\-key(8)\fP <\fBhttps://manpages.debian.org/apt-key(8)\fP>, \fI\%gpg(1)\fP <\fBhttps://manpages.debian.org/gpg(1)\fP>
+.IP \(bu 2
+\fI\%SecureApt\fP <\fBhttps://wiki.debian.org/SecureApt\fP> page on Debian Wiki
+.IP \(bu 2
+Documentation of the \fI\%Ansible ansible.builtin.apt_key module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/ansible/builtin/apt_key_module.html\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.keyring\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS keyring__dependent_apt_auth_files
+.sp
+The \fI\%keyring__dependent_apt_auth_files\fP list can be used to create and
+manage \fB/etc/apt/auth.conf.d/\fP configuration files which caontain
+authentication credentials required by specific APT repositories. The format
+and more details about these files can be found in \fI\%apt_auth.conf(5)\fP <\fBhttps://manpages.debian.org/apt_auth.conf(5)\fP>
+manual page. The \fI\%debops.reprepro\fP role can be used to create APT
+repositories that require authentication.
+.sp
+This functionality is also available in the \fI\%debops.apt\fP role for use via
+the Ansible inventory. See \fI\%apt__auth_files\fP for more details.
+.SS Examples
+.sp
+Provide credentials for a private APT repository, with password stored in the
+\fBsecret/\fP directory managed by the \fI\%debops.secret\fP role. The APT
+repository is managed by the \fI\%debops.reprepro\fP role which uses the
+\fI\%debops.nginx\fP role to manage the authentication credentials.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+keyring__dependent_apt_auth_files:
+
+  \- name: \(aqprivate_repo\(aq
+    machine: \(aqhttps://repo.example.org/debian\(aq
+    login: \(aqusername\(aq
+    password: \(aq{{ lookup(\(dqpassword\(dq, secret + \(dq/credentials/repo\(dq
+                                            + \(dq/nginx/htpasswd\(dq
+                                            + \(dq/apt_access/username\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+THe variables are defined as a list of YAML dictionaries .Each configuration
+entry defines a separate file in the \fB/etc/apt/auth.conf.d/\fP directory.
+The state and contents of the file are specified using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the configuration file with authentication credentials, can
+contain \fB\&.conf\fP suffix which will be stripped. Entries with the same
+\fBname\fP parameter are merged together using \fI\%Universal Configuration\fP
+and can affect each other in order of appearance.
+.TP
+.B \fBmachine\fP
+Required. The URL of the APT repository that requires the following
+credentials.
+.TP
+.B \fBlogin\fP
+Required. The username expected by the APT repository during HTTP Basic
+Authentication.
+.TP
+.B \fBpassword\fP
+Required. The password expected by the APT repository during HTTP Basic
+Authentication. It can be stored in the \fBsecret/\fP directory and
+retrieved from there if needed.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given configuration file will
+created on the host. If \fBabsent\fP, a given configuration file will be
+removed from the host. If \fBignore\fP, a given entry will not be evaluated
+during role execution.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with additional comments included in the
+generated configuration file.
+.UNINDENT
+.SS keyring__dependent_apt_keys
+.sp
+This variable defines a list of GPG keys which should be present (or absent) in
+the host\(aqs \fI\%APT keyring\fP <\fBhttps://wiki.debian.org/SecureApt\fP>, used to verify signatures of the Debian/Ubuntu
+package lists. It is meant to be used by other Ansible roles via the
+role\-dependent variables.
+.SS Examples
+.sp
+Using the \fI\%debops.nginx\fP role, ensure that the \fI\%nginx.org\fP <\fBhttps://nginx.org/en/linux_packages.html\fP> upstream APT
+key is present in the APT keyring. If the key is not available in the local
+key store, it will be downloaded from the keyserver specified in the
+\fI\%keyring__keyserver\fP variable:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Role: debops.nginx/defaults/main.yml
+nginx__keyring__dependent_apt_keys:
+
+  \- \(aq573B FD6B 3D8F BC64 1079  A6AB ABF5 BD82 7BD9 BF62\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Playbook: nginx.yml
+\- hosts: [ \(aqdebops_service_nginx\(aq ]
+  roles:
+
+    \- role: debops.keyring
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: debops.nginx
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Using the \fI\%debops.nginx\fP role, ensure that the \fBnginx.org\fP upstream APT
+key is present in the APT keyring, if support for upstream version of
+\fBnginx\fP is enabled. If the key is not available in the local key
+store, it will be downloaded from the specified URL. Additionally, ensure that
+the APT repository configuration is present and the cache is updated. The
+playbook is the same as in the previous example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Role: debops.nginx/defaults/main.yml
+nginx__upstream: True
+nginx__keyring__dependent_apt_keys:
+
+  \- id: \(aq573B FD6B 3D8F BC64 1079  A6AB ABF5 BD82 7BD9 BF62\(aq
+    url: \(aqhttps://nginx.org/keys/nginx_signing.key\(aq
+    repo: \(aqdeb http://nginx.org/packages/debian {{ ansible_distribution_release }} nginx\(aq
+    state: \(aq{{ \(dqpresent\(dq if nginx__upstream | bool else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Also with the \fI\%debops.nginx\fP role, install the APT GPG key in a separate
+keyring and tell APT to use this key only for Nginx official packages. The APT
+repository configuration will be stored in the
+\fB/etc/apt/sources.list.d/nginx\-upstream.list\(aq configuration file (note
+the \(ga\fP>\(ga\(ga YAML block marker, which will fold the repository string to a single
+line):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nginx__keyring__dependent_apt_keys:
+
+  \- id: \(aq573B FD6B 3D8F BC64 1079  A6AB ABF5 BD82 7BD9 BF62\(aq
+    url: \(aqhttps://nginx.org/keys/nginx_signing.key\(aq
+    keyring: \(aq/usr/share/keyring/nginx\-archive\-keyring.gpg\(aq
+    repo: >
+      deb [signed\-by=/usr/share/keyrings/nginx\-archive\-keyring.gpg]
+          http://nginx.org/packages/debian {{ ansible_distribution_release }} nginx
+    filename: \(aqnginx\-upstream\(aq
+    state: \(aq{{ \(dqpresent\(dq if nginx__upstream | bool else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+There are many more real\-world examples available in various DebOps roles. To
+find them, you can run the command in the DebOps monorepo root directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+git grep \(aq__keyring__dependent_apt_keys:\(aq ansible/roles
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The value of the \fI\%keyring__dependent_apt_keys\fP variable is a YAML list.
+Each list entry can be a string which represents the GPG key ID which will be
+imported either from the local storage, or from the configured GPG keyserver.
+Alternatively, list entry can be a YAML dictionary which allows a more
+fine\-grained control over the state of the GPG key and its source.
+.sp
+The YAML dictionaries are defined using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBid\fP
+The GPG key fingerprint which is defined by this entry. It can be specified
+with spaces, which will be automatically removed when necessary. This
+parameter is not required if the \fBrepo\fP parameter is specified.
+.TP
+.B \fBdata\fP
+Optional. The contents of the GPG key specified as a YAML text block (the key
+should be armored). If not specified, and the GPG key is found in the
+configured local key store, the role will try to lookup the key data from the
+file. If the key is not available in the local key store, the role will try
+to use the configured GPG keyserver to retrieve it, unless \fBurl\fP or
+\fBkeybase\fP parameters are specified.
+.TP
+.B \fBurl\fP
+Optional. The URL where a given GPG key can be found. The \fBid\fP parameter
+still needs to be specified for the \fBapt_key\fP Ansible module to work as
+expected.
+.TP
+.B \fBkeybase\fP
+Optional. The name of the \fI\%Keybase\fP <\fBhttps://keybase.io/\fP> profile which should be used to lookup
+the key using the \fI\%Keybase API\fP <\fBhttps://keybase.io/docs/api/1.0/call/user/pgp_keys.asc\fP>\&. If the \fBurl\fP parameter is specified, it
+will override the \fBkeybase\fP parameter.
+.TP
+.B \fBkeyring\fP
+Optional. Absolute path for the keyring where the GPG key should be stored.
+If omitted, the key will be stored in the system\-wide keyring
+(\fB/etc/apt/trusted.gpg\fP).
+.TP
+.B \fBkeyserver\fP
+Optional. Override the default GPG keyserver URL specified in the
+\fI\%keyring__keyserver\fP variable.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the GPG key will be added to the
+APT keyring. If \fBabsent\fP, the key will be removed from the APT keyring. The
+same state will be applied to the APT repository, if the \fBrepo\fP parameter
+is specified.
+.TP
+.B \fBrepo\fP
+The \fI\%sources.list(5)\fP <\fBhttps://manpages.debian.org/sources.list(5)\fP> entry which defines an APT repository. This
+parameter can be specified with the GPG key id of the APT repository, or as
+standalone, to more efficiently configure APT (for example if multiple GPG
+keys are configured at once).
+.TP
+.B \fBextrepo\fP
+Optional. Specify the name of the APT source configured by the
+\fBextrepo\fP external repository manager (see \fI\%debops.extrepo\fP for
+more details). If the specified APT source is already enabled, the
+\fI\%debops.keyring\fP role will skip APT\-related tasks (GPG key managemnt,
+APT repository configuration) to avoid creating duplicate entries.
+.TP
+.B \fBfilename\fP
+Optional. The name of the configuration file in the
+\fB/etc/sources.list.d/\fP directory which will be used to store the APT
+repository configuration.
+.UNINDENT
+.SS keyring__dependent_gpg_keys
+.sp
+The \fI\%keyring__dependent_gpg_keys\fP variable can be used to manage GPG
+keys on the UNIX accounts. If an account is not defined, the \fBroot\fP account
+GPG keyring will be used by default. The GPG keys are useful to verify
+signatures of the \fBgit\fP commits or tags, or other files downloaded
+over the network with external GPG signatures.
+.SS Examples
+.sp
+Using the \fI\%debops.yadm\fP Ansible role, prepare the GPG key of the
+\fByadm\fP upstream author to verify his GPG signature on the specific
+\fBgit\fP tag checked out from the repository, but only when the
+installation from upstream is enabled. The GPG key will be added to the
+\fBroot\fP UNIX account GPG keyring:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Role: debops.yadm/defaults/main.yml
+yadm__upstream_enabled: True
+yadm__upstream_gpg_id: \(aq31B9 62F7 CC57...\(aq
+yadm__keyring__dependent_gpg_keys:
+  \- id: \(aq{{ yadm__upstream_gpg_id }}\(aq
+    state: \(aq{{ \(dqpresent\(dq if yadm__upstream_enabled | bool else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Playbook: yadm.yml
+\- hosts: [ \(aqdebops_service_yadm\(aq ]
+  roles:
+
+    \- role: debops.keyring
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ yadm__keyring__dependent_gpg_keys }}\(aq
+
+    \- role: debops.yadm
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+The functionality below will be implemented at a later date.
+.UNINDENT
+.UNINDENT
+.sp
+Extract GPG key ids from the \fI\%debops.golang\fP configuration and install
+them on the UNIX account used by the role to build the \fBdocker\-registry\fP Go
+binary, which is then used by the \fI\%debops.docker_registry\fP role. The GPG
+keys will be used to verify the \fBgit\fP tags of the downloaded
+repositories:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Role: debops.docker_registry/defaults/main.yml
+docker_registry__golang__dependent_packages:
+
+  \- name: \(aqdocker\-registry\(aq
+    apt_packages: [ \(aqdocker\-registry\(aq ]
+    upstream: True
+    gpg: \(aq8C7A 111C 2110 5794 B0E8  A27B F58C 5D0A 4405 ACDB\(aq
+    git:
+      \- repo: \(aqhttps://github.com/docker/distribution\(aq
+        version: \(aqv2.7.1\(aq
+        build_script: |
+          make clean binaries
+    binaries:
+      \- src: \(aqgithub.com/docker/distribution/bin/registry\(aq
+        dest: \(aqdocker\-registry\(aq
+        notify: [ \(aqRestart docker\-registry\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Role: debops.golang/defaults/main.yml
+golang__user: \(aq_golang\(aq
+golang__group: \(aq_golang\(aq
+golang__home: \(aq/var/local/_golang\(aq
+golang__combined_packages: \(aq{{ golang__dependent_packages | d([]) }}\(aq
+
+golang__keyring__dependent_gpg_user: \(aq{{ golang__user }}\(aq
+
+golang__keyring__dependent_gpg_keys:
+
+  \- user: \(aq{{ golang__user }}\(aq
+    group: \(aq{{ golang__group }}\(aq
+    home: \(aq{{ golang__home }}\(aq
+
+  \- \(aq{{ golang__combined_packages | debops.debops.parse_kv_items
+        | selectattr(\(dqgpg\(dq, \(dqdefined\(dq) | selectattr(\(dqstate\(dq, \(dqequalto\(dq, \(dqpresent\(dq)
+        | map(attribute=\(dqgpg\(dq) | list }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Playbook: docker_registry.yml
+\- hosts: [ \(aqdebops_service_docker_registry\(aq ]
+  roles:
+
+    \- role: debops.keyring
+      keyring__dependent_gpg_user: \(aq{{ golang__keyring__dependent_gpg_user }}\(aq
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ golang__keyring__dependent_gpg_keys }}\(aq
+
+    \- role: debops.golang
+      golang__dependent_packages:
+        \- \(aq{{ docker_registry__golang__dependent_packages }}\(aq
+
+    \- role: debops.docker_registry
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+There are many more real\-world examples available in various DebOps roles. To
+find them, you can run the command in the DebOps monorepo root directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+git grep \(aq__keyring__dependent_gpg_keys:\(aq ansible/roles
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The value of the \fI\%keyring__dependent_gpg_keys\fP variable is a YAML list.
+Each list entry can be a string which represents the GPG key ID which will be
+imported either from the local storage, or from the configured GPG keyserver.
+Alternatively, list entry can be a YAML dictionary which allows a more
+fine\-grained control over the state of the GPG key and its source.
+.sp
+The YAML dictionaries are defined using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBid\fP
+The GPG key fingerprint which is defined by this entry. It can be specified
+with spaces, which will be automatically removed when necessary. This
+parameter is not required if the \fBuser\fP parameter is specified.
+.TP
+.B \fBdata\fP
+Optional. The contents of the GPG key specified as a YAML text block (the key
+should be armored). If not specified, and the GPG key is found in the
+configured local key store, the role will try to lookup the key data from the
+file. If the key is not available in the local key store, the role will try
+to use the configured GPG keyserver to retrieve it, unless \fBurl\fP or
+\fBkeybase\fP parameters are specified.
+.TP
+.B \fBurl\fP
+Optional. The URL where a given GPG key can be found.
+.TP
+.B \fBkeybase\fP
+Optional. The name of the \fI\%Keybase\fP <\fBhttps://keybase.io/\fP> profile which should be used to lookup
+the key using the \fI\%Keybase API\fP <\fBhttps://keybase.io/docs/api/1.0/call/user/pgp_keys.asc\fP>\&. If the \fBurl\fP parameter is specified, it
+will override the \fBkeybase\fP parameter.
+.TP
+.B \fBkeyserver\fP
+Optional. Override the default GPG keyserver URL specified in the
+\fI\%keyring__keyserver\fP variable.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the GPG key will be added to the
+GPG keyring of a specified UNIX account, or the \fBroot\fP account. If
+\fBabsent\fP, the key will be removed from the GPG keyring. If \fBignore\fP,
+a given configuration entry will not be evaluated by the role.
+.TP
+.B \fBcreate_user\fP
+Optional, boolean. If not specified or \fBTrue\fP, and the \fBuser\fP parameter
+is present, the configured UNIX account will be created to allow GPG keyring
+management. If \fBFalse\fP, the role will not try to create an UNIX account;
+this might be useful if the account is already created in non\-local user
+database, like LDAP.
+.TP
+.B \fBuser\fP
+A name of the UNIX account to create by the \fI\%debops.keyring\fP role, so
+that its GPG keyring can be correctly created and accessed. If this parameter
+is specified, you can omit the \fBid\fP parameter to only create the UNIX
+account.
+.TP
+.B \fBgroup\fP
+Optional. A name of the primary UNIX group of the created UNIX account. If
+not specified, the UNIX group will have the same name as the UNIX account.
+.TP
+.B \fBhome\fP
+Optional. The absolute path of the home directory of the created UNIX
+account. If not specified, a home directory will be created in the
+\fB/home/\fP directory by default.
+.TP
+.B \fBsystem\fP
+Optional, boolean. If not specified or \fBTrue\fP, the created UNIX account and
+group will be \(dqsystem\(dq account and group, with UID/GID < 1000. If \fBFalse\fP,
+the UNIX account and group will be \(dqnormal\(dq account and group, with UID/GID
+> 1000.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

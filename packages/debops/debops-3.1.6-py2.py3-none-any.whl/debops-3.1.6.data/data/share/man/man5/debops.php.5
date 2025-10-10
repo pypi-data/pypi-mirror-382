@@ -1,0 +1,569 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.PHP" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.php \- Manage PHP5/PHP7 environment using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/php\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.php\fP role can be used to manage PHP Hypertext Preprocessor
+environment on a Debian/Ubuntu host. The role supports different PHP versions
+available in OS distributions (PHP5, PHP7) with PHP\-FPM service and multiple
+PHP\-FPM pools. Other Ansible roles can use it as a role dependency to offload
+PHP management for their own use.
+.SH GETTING STARTED
+.SS Support for different PHP versions
+.sp
+The \fBdebops.php\fP role supports management of multiple PHP versions; only one
+PHP version can be managed at a time. By default the role will install and
+configure the PHP version provided with the current OS release.
+.sp
+The role checks for existence of \fBphp7.3\fP, \fBphp\fP and \fBphp5.6\fP APT
+packages (by default in that order) and based on available versions installs
+either \fBphp7.3\-*\fP, the version preferred by the \fBphp\fP package or
+\fBphp5.6\-*\fP APT packages. If multiple versions of the PHP packages are
+available, the first found one wins. To force an older version in case the
+newer one is installed, you can change the order of the packages used for the
+version detection using the \fI\%php__version_preference\fP list.
+.sp
+To learn how to specify different PHP packages for installation, refer to
+\fI\%php__packages\fP documentation.
+.SS PHP packages provided by Ondřej Surý
+.sp
+\fI\%Ondřej Surý\fP <\fBhttps://qa.debian.org/developer.php?login=ondrej%40debian.org\fP>
+is a member of the Debian PHP Maintainers team and maintains Debian
+\fI\%PHP5\fP <\fBhttps://packages.qa.debian.org/p/php5.html\fP> and
+\fI\%PHP7\fP <\fBhttps://packages.qa.debian.org/p/php7.0.html\fP> packages. He also provides
+\fI\%an external APT package repository\fP <\fBhttps://deb.sury.org/\fP> of PHP5 and PHP7
+packages (among other things) for Debian and Ubuntu distributions.
+.sp
+The \fBdebops.php\fP role can use the packages from the Ondřej Surý repositories
+to provide PHP7 packages on Debian Jessie. Remember that these packages
+\fBDO NOT\fP fall under the Debian Stable security support and may contain bugs.
+.sp
+To enable the custom APT repository, add in the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__sury: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will add the required OpenPGP keys and APT repositories. The order of the
+package versions should ensure that the PHP7 packages will be installed on
+Debian Jessie.
+.SS Custom environment role
+.sp
+The \fBdebops.php\fP provides a small, custom role \fBdebops.php/env\fP which
+should be added to the playbook or role dependencies before the main role and
+other roles that use configuration from \fBdebops.php\fP, like
+\fI\%debops.logrotate\fP\&. The \fBdebops.php/env\fP role configures custom APT
+repositories if they are enabled and prepares the facts needed by other roles
+to function correctly. See the \fI\%provided playbook\fP
+to see an example usage.
+.SS PHP Composer installation
+.sp
+The \fI\%debops.php\fP role will install the \fI\%PHP Composer\fP <\fBhttps://getcomposer.org/\fP>, a dependency
+manager for PHP. The version from the OS repositories will be preferred. On
+older OS releases (including Debian Stretch), a known upstream binary will be
+downloaded and installed instead.
+.SS Layout of the php.ini configuration
+.sp
+The main \fB/etc/php\fP\fI5,/7.0\fP\fB/*/php.ini\fP files maintained by the OS distribution
+are not modified by the \fBdebops.php\fP role to allow an easy upgrade process.
+Instead, a custom \fBphp.ini\fP configuration is stored in
+\fB/etc/php\fP\fI5,/7.0\fP\fB/ansible/*.ini\fP files generated using a simple template,
+which are then linked to each of the PHP SAPI directories in
+\fB/etc/php\fP\fI5,/7.0\fP\fB/*/conf.d/\fP which are read by the PHP interpreters. This
+allows for configuration synchronization between different PHP interpreters. To
+learn more about this process refer to \fI\%php__configuration\fP
+documentation.
+.SS Information stored in Ansible local facts
+.sp
+The PHP version configured on a host is available for other Ansible roles
+through the Ansible local facts. The specific variables are:
+.INDENT 0.0
+.TP
+.B \fBansible_local.php.version\fP
+Short version of the PHP environment, used in package names.
+Either \fB5\fP or \fB7.0\fP\&.
+.TP
+.B \fBansible_local.php.long_version\fP
+Longer version of the PHP environment, used for version comparison. For
+example, \fB5.6.22\fP or \fB7.0.8\fP\&. This variable might be inaccurate in case
+of the minor or major version upgrade.
+.UNINDENT
+.sp
+The Ansible local facts are used by the \fBdebops.php\fP role to ensure
+idempotent operation. In case that you want to upgrade a host to a newer PHP
+release without uninstalling the older one, you can set \fI\%php__reset\fP to
+\fBTrue\fP, so that the role can re\-detect the available PHP versions.
+After one role run, you should set \fI\%php__reset\fP back to its default
+value.
+.SS Example inventory
+.sp
+To enable management of a PHP environment on a host, you need to include that
+host in the \fB[debops_service_php]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_php]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The default configuration included in the role will install the base PHP
+\fBcli\fP and \fBfpm\fP packages and create a PHP\-FPM pool meant to be used by the
+\fBwww\-data\fP user which is a common user account used to serve PHP applications
+packaged on Debian systems. To deploy your own applications you should consider
+creating a custom system account and a corresponding PHP\-FPM pool to securely
+separate it from other applications. To learn how to do that, refer to the
+\fI\%php__pools\fP documentation.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.php\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install and manage PHP environment
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_php\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Apply keyring configuration for php environment
+      ansible.builtin.import_role:
+        name: \(aqkeyring\(aq
+      vars:
+        keyring__dependent_apt_keys:
+          \- \(aq{{ php__keyring__dependent_apt_keys }}\(aq
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::php\(aq ]
+
+    \- name: Prepare php environment
+      ansible.builtin.import_role:
+        name: \(aqphp\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::php\(aq, \(aqrole::php:env\(aq, \(aqrole::logrotate\(aq ]
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ php__apt_preferences__dependent_list }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ php__logrotate__dependent_config }}\(aq
+
+    \- role: php
+      tags: [ \(aqrole::php\(aq, \(aqskip::php\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::php\fP
+Main role tag, should be used in the playbook to execute all tasks.
+.TP
+.B \fBrole::php:config\fP
+Generate the PHP and PHP\-FPM configuration.
+.TP
+.B \fBrole::php:pools\fP
+Generate only PHP\-FPM pool configuration.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.php\fP default variables have more extensive configuration than
+simple strings or lists, here you can find documentation and examples for them.
+.SS php__packages
+.sp
+The \fI\%php__packages\fP, \fI\%php__group_packages\fP, \fI\%php__host_packages\fP and
+\fI\%php__dependent_packages\fP lists can be used to install APT packages. The role
+automatically prepends the package names with correct prefix (\fBphp5\-\fP or
+\fBphp7.0\-\fP) to install packages for currently active PHP version. Because of
+that you should only use these lists to install PHP\-related packages.
+.sp
+The packages with names in the form:
+.INDENT 0.0
+.IP \(bu 2
+\fBphp\-*\fP
+.IP \(bu 2
+\fBphp5\-*\fP
+.IP \(bu 2
+\fBphp7.0\-*\fP
+.UNINDENT
+.sp
+will be detected correctly. Any other package names will have the current PHP
+version prepended to their name, which might result in incorrect installation
+requests.
+.SS Examples
+.sp
+Install support for the MariaDB/MySQL and PostgreSQL databases for the current
+PHP version:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__packages: [ \(aqmysql\(aq, \(aqpgsql\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Install support for the PEAR repository:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__packages: [ \(aqphp\-pear\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS php__configuration
+.sp
+The management of the \fBphp.ini\fP configuration is done using a set of YAML
+lists, named \fI\%php__configuration\fP, \fI\%php__group_configuration\fP and
+\fI\%php__host_configuration\fP\&. Each element of a list is a YAML dictionary with
+certain parameters.
+.sp
+The configuration is designed to allow easy creation of multiple configuration
+files located in \fB/etc/php\fP\fI5,/7.0\fP\fB/\fP directories. By default, all files are
+created in the \fB/etc/php\fP\fI5,/7.0\fP\fB/ansible/\fP directory with the \fB\&.ini\fP
+extension, and symlinked to the respective PHP SAPI configuration directories.
+If you need, you can create the configuration files directly in the PHP SAPI
+directories as well.
+.sp
+The role recognizes the parameters below:
+.INDENT 0.0
+.TP
+.B \fBfilename\fP
+Required. Name of the file to store the configuration data, for example
+\fB00\-ansible\fP\&. The \fB\&.ini\fP extension is added automatically at the end.
+.TP
+.B \fBpath\fP
+Optional. Change the default path where a given configuration file should be
+created, relative to \fB/etc/php\fP\fI5,/7.0\fP\fB/\fP\&. By default this value is
+\fBansible/\fP\&. You need to add the \fB/\fP character at the end of the path for
+the role to work correctly.
+.TP
+.B \fBsections\fP
+Optional. List of YAML dictionaries, each one describing a part of the given
+configuration file.
+.UNINDENT
+.sp
+The parameters below can be specified either in the main YAML dictionary, or in
+one of the YAML dictionaries on the \fBsections\fP list:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Optional. An INI section name, for example \fBPHP\fP which will be written as
+\fB[PHP]\fP in the configuration file.
+.TP
+.B \fBoptions\fP
+A YAML text block with \fBphp.ini\fP configuration options specified in the INI
+configuration file format.
+.TP
+.B \fBcomment\fP
+Optional. A custom comment added before a specified configuration.
+.TP
+.B \fBstate\fP
+Optional, either \fBpresent\fP or \fBabsent\fP\&. If not specified or \fBpresent\fP,
+a given configuration file or its section will be created. If \fBabsent\fP,
+a given configuration file or section will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Create custom configuration file symlinked to all PHP SAPI directories:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__configuration:
+  \- filename: \(aq10\-custom\(aq
+    name: \(aqPHP\(aq
+    options: |
+      display_errors = On
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create custom configuration file with multiple sections directly in PHP\-FPM
+directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__host_configuration:
+  \- filename: \(aq50\-custom\(aq
+    path: \(aqfpm/conf.d/\(aq
+    sections:
+
+      \- name: \(aqCLI server\(aq
+        options: |
+          cli_server.color = On
+
+      \- name: \(aqmail function\(aq
+        options: |
+          SMTP = smtp.{{ ansible_domain }}
+          smtp_port = 25
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS php__pools
+.sp
+The \fI\%php__pools\fP, \fI\%php__group_pools\fP, \fI\%php__host_pools\fP and
+\fI\%php__dependent_pools\fP lists can be used to create PHP\-FPM pools. Each list
+entry is a YAML dictionary with keys and values that represent options in the
+pool configuration file (with some additional parameters used by the role
+itself).
+.sp
+Most of the pool parameters have their corresponding default variables in the
+\fBphp__fpm_*\fP namespace. To use them in the pool configuration, strip the
+\fBphp__fpm_\fP prefix from their variable name, for example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__fpm_access_log: True
+
+php__pools:
+  \- name: \(aqwww\-data\(aq
+    access_log: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Below are some parameters that don\(aqt have their corresponding defaults or are
+otherwise different:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the PHP\-FPM pool.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the PHP\-FPM pool will be created.
+If specified and \fBabsent\fP, the PHP\-FPM pool will be removed.
+.TP
+.B \fBuser\fP
+Optional. Name of the system user account which will be used to execute the
+given PHP\-FPM pool. This account needs to exist before the pool will start
+correctly. If not specified, the \fBitem.name\fP value will be used.
+.TP
+.B \fBgroup\fP
+Optional. The main group in which the PHP\-FPM pool will be running in. If not
+specified, the \fBitem.name\fP value will be used instead.
+.TP
+.B \fBowner\fP, \fBhome\fP
+Optional. If specified, role will create an user account with specified home
+directory before restarting the PHP\-FPM service. This permits easy creation
+of new PHP\-FPM pools on separate user accounts. Ideally the \fBitem.owner\fP
+value should be the same as \fBitem.user\fP or \fBitem.name\fP\&. It\(aqs defined
+separately to better control user/group creation process.
+.TP
+.B \fBsystem\fP
+Optional, boolean. If defined and \fBTrue\fP, the account and group will be
+created as a \(dqsystem\(dq account with UID/GID < 1000; this is the default. If
+\fBFalse\fP, the created user and group will have \(dqnormal\(dq UID/GID selected.
+.TP
+.B \fBlisten\fP
+Optional. Path to the PHP\-FPM socket or IP:port on which a given pool should
+listen for connections. By default it\(aqs autogenerated in the format:
+\fB/run/php\fP\fI5,7.0\fP\fB\-fpm\-\fP\fI{ item.name \fP\fB}.sock\fP\&.
+.TP
+.B \fBlisten_owner\fP
+Optional. The system user that will be the owner of the PHP\-FPM socket. This
+should be the username of the webserver account, so that it can use the
+socket to communicate with the PHP\-FPM process. This account needs to exist
+before the PHP\-FPM process is started (the \fBwww\-data\fP account is created
+by default on Debian/Ubuntu systems). If not specified, the
+\fBphp__fpm_listen_owner\fP value will be used instead.
+.TP
+.B \fBlisten_group\fP
+Optional. The system group that will be the primary group of the PHP\-FPM
+socket. This should be the group that the webserver belongs to, so that it
+can use the socket to communicate with the PHP\-FPM process. This group needs
+to exist before the PHP\-FPM process is started (the \fBwww\-data\fP group is
+created by default on Debian/Ubuntu systems). If not specified, the
+\fBphp__fpm_listen_group\fP value will be used instead.
+.TP
+.B \fBlisten_acl_users\fP
+Optional. Set POSIX Access Control Lists. If specified, listen_owner is
+ignored. The value must be a list of names.
+.TP
+.B \fBlisten_acl_groups\fP
+Optional. Set POSIX Access Control Lists. If specified, listen_group is
+ignored. The value must be a list of names.
+.TP
+.B \fBlisten_mode\fP
+Optional. The permissions applied to the PHP\-FPM pool sockets.
+If not specified, the \fBphp__fpm_listen_mode\fP value will be used instead.
+.TP
+.B \fBlisten_backlog\fP
+Optional. The limit for socket connection backlog. If you tune this
+parameter, you should also consider sysctl parameters
+\fBnet.ipv4.tcp_max_syn_backlog\fP, \fBnet.ipv4.ip_local_port_range\fP,
+\fBnet.ipv4.tcp_tw_reuse\fP and \fBnet.core.somaxconn\fP\&. If not specified,
+the \fBphp__fpm_listen_backlog\fP will be used instead.
+.TP
+.B \fBenvironment\fP
+Optional. A YAML dictionary with custom environment variables that should be
+specified in the PHP\-FPM pool. Each dictionary key is a variable name and
+dictionary value is the variable value.
+.TP
+.B \fBphp_flags\fP
+Optional. A YAML dictionary with custom \fBphp.ini\fP flags that should be
+defined in the PHP\-FPM pool. Each dictionary key is the flag name, and each
+dictionary value is the flag value.
+.TP
+.B \fBphp_values\fP
+Optional. A YAML dictionary with custom \fBphp.ini\fP values that should be
+defined in the PHP\-FPM pool. Each dictionary key is the value name, and each
+dictionary value is the value contents.
+.TP
+.B \fBphp_admin_flags\fP
+Optional. A YAML dictionary with custom \fBphp.ini\fP admin flags that should
+be defined in the PHP\-FPM pool. Each dictionary key is the admin flag name,
+and each dictionary value is the admin flag value.
+.TP
+.B \fBphp_admin_values\fP
+Optional. A YAML dictionary with custom \fBphp.ini\fP admin values that should
+be defined in the PHP\-FPM pool. Each dictionary key is the admin value name,
+and each dictionary value is the admin value contents.
+.TP
+.B \fBopen_basedir\fP
+Optional. String or list of paths which can be accessed by the PHP
+interpreter. By default not set.
+.TP
+.B \fBpm_status\fP
+Optional. If \fBTrue\fP, PHP\-FPM status page is enabled. If not specified,
+the \fBphp__fpm_pm_status\fP will be used instead.
+.TP
+.B \fBpm_status_path\fP
+Optional. URI path of PHP\-FPM status page. If not specified, the
+\fBphp__fpm_pm_status_path\fP will be used instead.
+.UNINDENT
+.SS Examples
+.sp
+Create a new PHP\-FPM pool with custom user account:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__host_pools:
+  \- name: \(aqcustom\-php\-app\(aq
+    owner: \(aqcustom\-php\-app\(aq
+    home: \(aq/srv/custom\-php\-app\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Modify default PHP\-FPM pool with custom environment variables:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__default_pools:
+  \- name: \(aqwww\-data\(aq
+    environment:
+      HOME: \(aq/var/www\(aq
+      MAIL: \(aqroot@{{ ansible_domain }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remove the default PHP\-FPM pool (you should have at least 1 pool configured,
+otherwise the PHP\-FPM process manager won\(aqt start correctly):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+php__default_pools:
+  \- name: \(aqwww\-data\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Mariano Barcia, Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

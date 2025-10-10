@@ -1,0 +1,422 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.HASHICORP" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.hashicorp \- Securely install HashiCorp applications
+.SH SYNOPSIS
+.sp
+\fBdebops run service/hashicorp\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.hashicorp\fP Ansible role can be used to securely install \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP>
+applications, such as \fI\%Consul\fP <\fBhttps://consul.io/\fP>, \fI\%Terraform\fP <\fBhttps://terraform.io/\fP>, \fI\%Vault\fP <\fBhttps://vaultproject.io/\fP> and others.
+.sp
+The selected applications are downloaded from the HashiCorp release repository,
+authenticated using the HashiCorp OpenPGP key and installed on the system.
+After that, other Ansible roles can be used to configure them as needed.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+The \fBdebops.hashicorp\fP role does not install any \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> applications by
+default, even if enabled in the Ansible inventory. You need to specify the
+application names you wish to install using the \fI\%hashicorp__applications\fP
+list. For example, to install \fBconsul\fP on all hosts that use the role, create
+a file in the Ansible inventory with contents:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+hashicorp__applications: [ \(aqconsul\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The role will install the \fBconsul\fP binary, after verifying its authenticity,
+in the \fB/usr/local/bin\fP directory so that it will be automatically available
+for all users.
+.sp
+List of \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> applications supported by the role can be found in the
+\fI\%hashicorp__default_version_map\fP default variable. You can also use it to
+easily install all supported applications at once:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+hashicorp__applications: \(aq{{ hashicorp__default_version_map.keys() }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After the binaries are installed, they are ready to be configured by other
+Ansible roles. See the \fI\%Ansible integration\fP document for
+more details.
+.SS Example inventory
+.sp
+The \fBdebops.hashicorp\fP Ansible role is not enabled by default. To enable it
+on a host, you need to include that host in the \fB[debops_service_hashicorp]\fP
+inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_hashicorp]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.hashicorp\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install HashiCorp applications
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_hashicorp\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::hashicorp\(aq ]
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ hashicorp__keyring__dependent_gpg_keys }}\(aq
+
+    \- role: hashicorp
+      tags: [ \(aqrole::hashicorp\(aq, \(aqskip::hashicorp\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEBOPS.HASHICORP SECURITY CONSIDERATIONS
+.SS Role security guidelines
+.sp
+Because the \fBdebops.hashicorp\fP role can be used to install binary Go
+applications on production systems, it was designed to check and validate the
+archives used for application deployment against a known Trust Path. This
+document explains the steps taken by the role to authenticate and verify the
+installed software.
+.SS HashiCorp applications in Debian Software Repository
+.sp
+The \fI\%Debian Go Packaging Team\fP <\fBhttps://qa.debian.org/developer.php?login=pkg-go-maintainers%40lists.alioth.debian.org\fP>
+maintains source and binary packages of selected \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> applications in the
+Debian Software Repository. The Debian packages for different applications
+should be the preferred installation method when they are readily available on
+the Debian Stable release.
+.sp
+The \fBdebops.hashicorp\fP role is written in the belief that the verified and
+authenticated access to the upstream versions of \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> applications, even
+though installed using binary packages, can still be useful, for example to
+provide secure installation path to the software not packaged in Debian.
+.SS Software sources
+.sp
+The \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> company publishes the source code of
+each application on GitHub, in the \fI\%hashicorp organization\fP <\fBhttps://github.com/hashicorp/\fP>\&.
+Each release is tagged using \fBgit\fP tags. Each tag is signed by the \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP>
+OpenPGP key.
+.sp
+The process that \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> uses to build binary Go packages from the sources on
+GitHub and deploy them on their release page is currently unpublished.
+.sp
+It is unknown if the \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> application builds are reproducible and can be
+independently verified.
+.sp
+Each released version of an application is published on the \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP>
+\fI\%release page\fP <\fBhttps://releases.hashicorp.com/\fP>\&. The applications are published
+as versioned \fB\&.zip\fP archives, each archive containing one or more Go binaries.
+Each archive file is hashed using SHA256 algorithm. Hashes of all provided
+files are stored in a separate file which is signed by the \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> OpenPGP key.
+.SS HashiCorp OpenPGP key
+.sp
+The \fI\%HashiCorp Security Policy\fP <\fBhttps://www.hashicorp.com/security.html\fP> page contains information about the OpenPGP
+key used to sign the application releases. The OpenPGP key fingerprint of the
+key used by \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> is:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+C874 011F 0AB4 0511 0D02 1055 3436 5D94 72D7 468F
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> OpenPGP key is published on the \fI\%keybase.io\fP <\fBhttps://keybase.io\fP> website, on the
+\fI\%hashicorp account\fP <\fBhttps://keybase.io/hashicorp\fP>\&. The key is tracked by
+several other users of the site.
+.sp
+The \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> OpenPGP key is published in the \fI\%Ubuntu keyserver\fP <\fBhttps://keyserver.ubuntu.com/\fP>
+and can be imported from there using the \fBgpg\fP command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@host:~$ gpg \-\-keyserver hkp://keyserver.ubuntu.com \e
+                 \-\-recv\-key C874011F0AB405110D02105534365D9472D7468F
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Software installation procedure
+.sp
+The steps outlined below describe the method used by the \fBdebops.hashicorp\fP
+role to verify and install the \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> applications selected by the user or
+another Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+The \fBdebops.hashicorp\fP Ansible role creates a separate, unprivileged system
+group and UNIX user account, by default both named \fBhashicorp\fP\&. The account
+does not provide shell access and uses \fB/usr/sbin/nologin\fP shell by
+default.
+.sp
+Additionally, several directories owned by the new user account are created
+to provide location to unpack the verified archives in preparation for the
+installation.
+.IP \(bu 2
+The \fBhashicorp\fP user account imports the \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> OpenPGP key from the
+OpenPGP keyserver.
+.IP \(bu 2
+The \fBhashicorp\fP user account downloads the necessary files from the
+\fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> release page over the HTTPS protocol. These files include: binary
+archive files, files containing SHA256 hashes of the provided files, files
+containing OpenPGP signatures of the hash files.
+.IP \(bu 2
+The \fBhashicorp\fP user account verifies the signature of the SHA256 hash file
+against the \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> OpenPGP key imported prior.
+.IP \(bu 2
+If the signature verification passed, the \fBhashicorp\fP user compares the SHA
+256 hashes provided in the signed file against the downloaded binary
+archives.
+.IP \(bu 2
+If the hash verification was successful, the \fBhashicorp\fP user account
+unpacks the binary archives of the \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> applications to separate
+directories created prior.
+.IP \(bu 2
+The \fBroot\fP user account installs the unpacked application binaries to the
+specified directory (by default \fB/usr/local/bin\fP) with \fBroot:root\fP owner
+and group. Additional files required by the Consul Web UI are copied to
+specified web root directory (by default \fB/srv/www/consul/sites/public/\fP)
+when the Consul Web UI is enabled.
+.UNINDENT
+.sp
+All of the downloaded and unpacked files are left intact to allow for idempotent
+operation and verification.
+.SH ANSIBLE INTEGRATION
+.SS Support for other Ansible roles
+.sp
+The \fBdebops.hashicorp\fP Ansible role is designed to be used by other Ansible
+roles as role dependency. By design, the application binaries are installed in
+the specified path and the rest of the service configuration, including service
+process manager configuration, firewall, TCP/UDP port registration in
+\fB/etc/services\fP, etc. is left to the user or other Ansible roles.
+.sp
+To facilitate seamless role integration, \fBdebops.hashicorp\fP role provides
+a set of default variables and Ansible local facts that can be used by other
+Ansible roles idempotently. Thus, the modification of the role itself shouldn\(aqt
+be needed, and it can should be easily integrated in the different playbooks
+and environments.
+.SS Default variables available to other roles
+.sp
+You can use these variables in the playbook to influence the operation of the
+\fBdebops.hashicorp\fP role from another role:
+.INDENT 0.0
+.TP
+.B \fI\%hashicorp__dependent_packages\fP
+List of APT packages which should be installed when the \fBdebops.hashicorp\fP
+role is executed.
+.TP
+.B \fI\%hashicorp__dependent_applications\fP
+List of \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> applications which should be installed by the
+\fBdebops.hashicorp\fP role. For the list of available applications, refer to
+the \fI\%hashicorp__default_version_map\fP variable.
+.TP
+.B \fI\%hashicorp__consul_webui\fP
+Boolean variable which enables installation of additional files needed to
+serve the Consul Web UI page. The role will remember the Web UI installation
+state to ensure idempotence.
+.UNINDENT
+.SS Examples
+.sp
+In a hypothetical \fBconsul\fP Ansible role create a default variable:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+consul__hashicorp_application: \(aqconsul\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Next, in the playbook that executes your role, include the \fBdebops.hashicorp\fP
+role with your custom variable:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Deploy Consul
+  hosts: all
+  become: True
+
+  roles:
+
+    \- role: hashicorp
+      hashicorp__dependent_applications:
+        \- \(aq{{ consul__hashicorp_application }}\(aq
+
+    \- role: consul
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This playbook will then install the \fI\%Consul\fP <\fBhttps://consul.io/\fP> application after verification,
+and configure it using your own Ansible role. Make sure that you use YAML list
+syntax correctly, otherwise the \fBdebops.hashicorp\fP role will fail due to
+wrong variable type mismatch. To install multiple applications at once, you can
+use a different variant of the variables and playbook.
+.sp
+The variables, with addition of the Consul Web UI:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+consul__hashicorp__dependent_applications: [ \(aqconsul\(aq, \(aqconsul\-template\(aq ]
+consul__hashicorp__consul_webui: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The playbook:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Deploy Consul and Consul Template
+  hosts: all
+  become: True
+
+  roles:
+
+    \- role: hashicorp
+      hashicorp__dependent_applications: \(aq{{ consul__hashicorp__dependent_applications }}\(aq
+      hashicorp__consul_webui: \(aq{{ consul__hashicorp__consul_webui | bool }}\(aq
+
+    \- role: consul
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible local facts
+.sp
+The \fBdebops.hashicorp\fP role maintains a set of Ansible local facts with
+information about the installed applications. Other roles can use these facts
+in an idempotent way to prepare their own configuration. These facts are:
+.INDENT 0.0
+.TP
+.B \fBansible_local.hashicorp.installed\fP
+Boolean. If \fBTrue\fP, the role has been correctly configured.
+.TP
+.B \fBansible_local.hashicorp.applications\fP
+YAML dictionary which specifies all currently installed \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP>
+applications as keys and their versions as values.
+.TP
+.B \fBansible_local.hashicorp.bin\fP
+Path to the directory where binaries are installed, by default
+\fB/usr/local/bin\fP\&.
+.TP
+.B \fBansible_local.hashicorp.consul_webui\fP
+Boolean. If \fBTrue\fP, the Consul Web UI files have been downloaded and
+installed.
+.TP
+.B \fBansible_local.hashicorp.consul_webui_path\fP
+Path to the Consul Web UI files, by default \fB/srv/www/consul/sites/public\fP\&.
+.UNINDENT
+.SS Examples
+.sp
+Check if specific \fI\%HashiCorp\fP <\fBhttps://en.wikipedia.org/wiki/HashiCorp\fP> application is installed on a host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+consul_is_installed: \(aq{{ True
+                         if (ansible_local.hashicorp.applications | d() and
+                             \(aqconsul\(aq in ansible_local.hashicorp.applications.keys())
+                         else False }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Register the installed application version to conditionally check when the
+version changed and restart the daemon:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+consul_version: \(aq{{ (ansible_local.hashicorp.applications[\(dqconsul\(dq] | d())
+                     if (ansible_local.hashicorp.applications | d())
+                     else \(dq\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

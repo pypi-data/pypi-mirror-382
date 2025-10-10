@@ -1,0 +1,225 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ELASTIC_CO" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.elastic_co \- Configure Elastic APT repositories
+.SH SYNOPSIS
+.sp
+\fBdebops run service/elastic_co\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.elastic_co\fP Ansible role can be used to configure APT
+repositories maintained by the \fI\%Elastic\fP <\fBhttps://www.elastic.co/about\fP>
+company on Debian and Ubuntu hosts. The APT repositories are used to distribute
+\fBelasticsearch\fP, \fBlogstash\fP, \fBkibana\fP, \fBfilebeat\fP, \fBmetricbeat\fP,
+\fBpacketbeat\fP and \fBheartbeat\fP APT packages. The role allows only for
+installation of packages, additional configuration and management of the
+installed software is performed by other Ansible roles.
+.SH GETTING STARTED
+.SS General role usage
+.sp
+The role will configure an APT repository provided by the Elastic
+company to allow secure installation of various software packages developed by
+said company. The GPG key used by the repository is downloaded from a OpenPGP
+keyserver to ensure authenticity and verification by a third party.
+.sp
+The role itself does not install any APT packages by default. The APT package
+selection can be performed either using Ansible inventory, or through role
+dependent variables.
+.sp
+In an example application role, create a YAML list variable that contains APT
+packages you want to install:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__elastic_co__dependent_packages:
+  \- \(aqelasticsearch\(aq
+  \- \(aqkibana\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Then, in either the playbook, or in role dependencies, use that variable with
+the \fBdebops.elastic_co\fP role to specify what APT packages to install:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roles:
+
+  \- role: debops.elastic_co
+    elastic_co__dependent_packages:
+      \- \(aq{{ application__elastic_co__dependent_packages }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The role will install selected packages automatically after configuring the
+repository. When this mechanism is used, the Ansible local facts that contain
+application versions will be correctly updated by the role.
+.SS Ansible local facts
+.sp
+The \fBdebops.elastic_co\fP role provides a set of Ansible local facts which can
+be used by other roles. In the \fBansible_local.elastic_co.packages\fP YAML
+dictionary you can find a YAML dictionary which contains all APT package names
+recognized by the role as keys, and their installed version as values. You can
+use these facts to for example provide an accurate version number on your role
+to check against \fBversion_compare()\fP Ansible filter:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__version: \(aq{{ ansible_local.elastic_co.packages.elasticsearch
+                          if (ansible_local.elastic_co.packages | d() and
+                              ansible_local.elastic_co.packages.elasticsearch | d())
+                          else \(dq0.0.0\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can also use the \fBansible_local.elastic_co.packages\fP fact to check if
+a given Elastic application is installed:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__es_present: \(aq{{ True
+                             if (ansible_local.elastic_co.packages | d() and
+                                 \(dqelasticsearch\(dq in ansible_local.elastic_co.packages.keys())
+                             else False }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Heartbeat package name conflict
+.sp
+The Elastic APT repositories provide the \fBheartbeat\fP package, which
+installs the \fI\%Heartbeat\fP <\fBhttps://www.elastic.co/products/beats/heartbeat\fP>
+uptime monitoring application.
+.sp
+The Debian Archive contains the \fI\%heartbeat\fP <\fBhttps://packages.debian.org/search?keywords=heartbeat\fP>
+package which provides the \fBheartbeat\fP service which is a part of the
+\fI\%Linux High\-Availability Stack\fP <\fBhttp://www.linux-ha.org/wiki/Main_Page\fP>\&.
+.sp
+This creates a conflict in the APT package manager database. The Elastic
+developers \fI\%are aware of the issue\fP <\fBhttps://github.com/elastic/beats/issues/3765\fP>
+and are considering a number of options to resolve it. In the meantime,
+a proposed solution is to \fI\%use APT pinning to change APT preferences\fP <\fBhttps://github.com/elastic/beats/issues/3765#issuecomment-289924787\fP>
+so that the \fBheartbeat\fP package from the Elastic APT repository is
+installed instead of the Debian Archive version (which is a completely
+different application).
+.sp
+The \fI\%research\fP <\fBhttps://serverfault.com/questions/260152/\fP> performed by one of
+the cluster software users suggests that the \fI\%corosync\fP <\fBhttps://corosync.github.io/corosync/\fP>
+service is a preferred replacement for the \fBheartbeat\fP service from the HA
+Stack. The \fI\%Debian HA Cluster HOWTO\fP <\fBhttps://wiki.debian.org/Debian-HA/ClustersFromScratch\fP>
+uses the \fBcorosync\fP service as the messaging layer as well.
+.sp
+Due to the above facts the decision was made that the \fBdebops.elastic_co\fP
+role will configure the APT preferences of the hosts it\(aqs executed on to prefer
+the \fBheartbeat\fP package from the Elastic APT repositories, using
+APT preferences. The example Ansible playbook contains the necessary code which
+uses the \fI\%debops.apt_preferences\fP role to perform this task. In a case where you
+wish to not configure this override, you can disable it by setting the
+\fI\%elastic_co__heartbeat_override\fP variable to \fBFalse\fP\&. This will
+affect the list of package versions included in the Ansible local facts.
+.SS Example inventory
+.sp
+To enable configuration of the Elastic APT repositories, you need to
+add a host to the \fB[debops_service_elastic_co]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_elastic_co]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The role will be automatically used by other Ansible roles that manage
+Elastic software, therefore the above step is not strictly necessary.
+Refer to the documentation of these roles for more details.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.elastic_co\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Elastic APT repositories
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_elastic_co\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::elastic_co\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ elastic_co__keyring__dependent_apt_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ elastic_co__apt_preferences__dependent_list }}\(aq
+
+    \- role: elastic_co
+      tags: [ \(aqrole::elastic_co\(aq, \(aqskip::elastic_co\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

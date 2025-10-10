@@ -1,0 +1,267 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.INFLUXDB_SERVER" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.influxdb_server \- Manage InfluxDB service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/influxdb_server\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%InfluxDB\fP <\fBhttps://en.wikipedia.org/wiki/InfluxDB\fP> is an open\-source time series database (TSDB) developed by InfluxData.
+It is written in Go and optimized for fast, high\-availability storage and
+retrieval of time series data in fields such as operations monitoring,
+application metrics, Internet of Things sensor data, and real\-time analytics.
+Ansible roles \fBdebops.influxdb\fP and \fBdebops.influxdb_server\fP allow
+you to manage a InfluxDB server and / or access it remotely from other hosts.
+.sp
+The \fBdebops.influxdb_server\fP role is the \(dqserver\(dq part \- it installs
+\fBinfluxdb\fP Debian package, and configures access to the database from
+\fBroot\fP admin account. After that, you can use \fI\%debops.influxdb\fP role to
+manage databases and user accounts on the server.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To install InfluxDB on a host, you need to add it to
+\fB[debops_service_influxdb_server]\fP Ansible group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_influxdb_server]
+database\-host
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will install \fBinfluxdb\fP package, configure the server to listen on
+all interfaces for new connections, and install \fBautoinfluxdbbackup\fP script to
+automatically create daily, weekly and monthly backups of the database.
+.SS Example playbook
+.sp
+Here\(aqs an example Ansible playbook that uses the \fBdebops.influxdb_server\fP
+role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage InfluxDB server
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_influxdb_server\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::influxdata\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ influxdata__keyring__dependent_apt_keys }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ influxdb_server__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ influxdb_server__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::influxdb_server\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ influxdb_server__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ influxdb_server__python__dependent_packages2 }}\(aq
+
+    \- role: influxdata
+      tags: [ \(aqrole::influxdata\(aq, \(aqskip::influxdata\(aq ]
+      influxdata__dependent_packages:
+        \- \(aq{{ influxdb_server__influxdata__dependent_packages }}\(aq
+
+    \- role: influxdb_server
+      tags: [ \(aqrole::influxdb_server\(aq, \(aqskip::influxdb_server\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Remote access to the database
+.sp
+If you want to allow connections from remote hosts to the InfluxDB server, you
+need specify the list of IP addresses or CIDR networks which can connect to the
+daemon:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+influxdb_server__allow: [ \(aq192.0.2.0/24\(aq, \(aq2001:db8:3232::/64\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Database and user management
+.sp
+\fBdebops.influxdb_server\fP is not meant to be used to manage databases and user
+accounts. You should use \fI\%debops.influxdb\fP role instead, which was designed
+specifically for this purpose.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.influxdb_server\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS influxdb_server__default_configuration
+.sp
+Controls how the HTTP endpoints are configured. These are the primary
+mechanism for getting data into and out of InfluxDB.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+influxdb_server__default_configuration:
+
+  \- name: \(aqhttp\(aq
+    options:
+      \- bind\-address: \(aq\(dq{{ influxdb_server__bind }}:{{ influxdb_server__port }}\(dq\(aq
+      \- https\-enabled: \(aq{{ \(dqtrue\(dq if influxdb_server__pki else \(dqfalse\(dq }}\(aq
+      \- auth\-enabled: \(aqtrue\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables are YAML lists, each list entry is a YAML dictionary that uses
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+.INDENT 7.0
+.INDENT 3.5
+Required. This parameter defines the option name, and it needs to be unique in a given configuration file
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B \fBoptions\fP
+Optional. A YAML list of \fBinfluxdb\fP configuration options defined in the configuration file.
+.sp
+Each element of the options list is a YAML dictionary with specific parameters.
+.sp
+For more information, refer to the InfluxDB documentation at
+\fI\%https://docs.influxdata.com/influxdb/latest/reference/config\-options/\fP
+.UNINDENT
+.UNINDENT
+.SS Examples
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+influxdb_server__default_configuration:
+
+  \- name: \(aqglobal\(aq
+    options:
+      \- reporting\-disabled: \(aqtrue\(aq
+      \- bind\-address: \(aq\(dq{{ influxdb_server__rpc_bind }}:{{ influxdb_server__rpc_port }}\(dq\(aq
+
+  \- name: \(aqmeta\(aq
+    options:
+      \- dir: \(aq\(dq{{ influxdb_server__directory }}/meta\(dq\(aq
+
+  \- name: \(aqdata\(aq
+    options:
+      \- dir: \(aq\(dq{{ influxdb_server__directory }}/data\(dq\(aq
+      \- wal\-dir: \(aq\(dq{{ influxdb_server__directory }}/wal\(dq\(aq
+
+  \- name: \(aqcoordinator\(aq
+    options: []
+
+  \- name: \(aqretention\(aq
+    options: []
+
+  \- name: \(aqshard\-precreation\(aq
+    options: []
+
+  \- name: \(aqmonitor\(aq
+    options: []
+
+  \- name: \(aqhttp\(aq
+    options:
+      \- bind\-address: \(aq\(dq{{ influxdb_server__bind }}:{{ influxdb_server__port }}\(dq\(aq
+      \- https\-enabled: \(aq{{ \(dqtrue\(dq if influxdb_server__pki else \(dqfalse\(dq }}\(aq
+      \- auth\-enabled: \(aqtrue\(aq
+
+  \- name: \(aqlogging\(aq
+    options: []
+
+  \- name: \(aqsubscriber\(aq
+    options: []
+
+  \- name: \(aqgraphite\(aq
+    options: []
+
+  \- name: \(aqcollectd\(aq
+    options: []
+
+  \- name: \(aqopentsdb\(aq
+    options: []
+
+  \- name: \(aqudp\(aq
+    options: []
+
+  \- name: \(aqcontinuous_queries\(aq
+    options: []
+
+  \- name: \(aqtls\(aq
+    options:
+      \- min\-version: \(aq\(dqtls1.2\(dq\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Pedro Luis Lopez
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

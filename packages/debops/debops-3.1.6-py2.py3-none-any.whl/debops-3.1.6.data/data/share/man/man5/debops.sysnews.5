@@ -1,0 +1,178 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.SYSNEWS" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.sysnews \- Manage System News using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/sysnews\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+This role can be used to manage \(dqSystem News\(dq bulletin displayed after users
+log in to a particular host using local system console or SSH. System News can
+be used to notify users about important changes on the host; this is especially
+useful in multi\-user environments or on bastion hosts.
+.sp
+The System News can be read by executing the \fBnews\fP command in the
+shell. You can read all of the news entries by executing the \fBnews \-a\fP
+command.
+.SH GETTING STARTED
+.SS How to add news manually
+.sp
+The System News entries added by this role using \fBsysnews__*_entries\fP
+variables are permanent, ie. they will not expire automatically after a month.
+.sp
+System administrators can add more temporary news entries by putting text files
+in the \fB/var/lib/sysnews/\fP directory, with the filename being the title
+of a news item. This directory is owned by the \fBstaff\fP UNIX system group, and
+any users in this group can also add entries in that directory. Custom news
+entries will be automatically removed after a month.
+.sp
+To make temporary news items permanent, you can edit the
+\fB/var/lib/sysnews/.noexpire\fP file. Put names of the custom files to
+retain outside of the \fBANSIBLE MANAGED BLOCK\fP section, this way your custom
+changes will be preserved during the next Ansible run of this role.
+.SS Example inventory
+.sp
+The \fBdebops.sysnews\fP role can be enabled on a host when it\(aqs added to
+a particular Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_sysnews]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.sysnews\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage System News entries
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_sysnews\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: sysnews
+      tags: [ \(aqrole::sysnews\(aq, \(aqskip::sysnews\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.sysnews\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS sysnews__entries
+.sp
+The \fBsysnews__*_entries\fP lists can be used to add or manage permanent
+System News entries in the \fB/var/lib/sysnews/\fP directory. The variables
+are combined in the order specified by the \fI\%sysnews__combined_entries\fP
+variable, entries with the same name are combined together; the entries later
+in the list override parameters from previous entry with the same name.
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the text file located in the \fB/var/lib/sysnews/\fP
+directory (spaces if the filename are permitted).
+.TP
+.B \fBsrc\fP
+Optional, conflicts with \fBcontent\fP\&. Path to a text file located on the
+Ansible Controller, which should be put in the \fB/var/lib/sysnews/\fP
+directory with a given name. By default the path is relative to the
+\fBfiles/\fP directory of the \fBdebops.sysnews\fP Ansible role.
+.TP
+.B \fBcontent\fP
+Optional, conflicts with \fBsrc\fP\&. YAML text block which contains a text to
+put in a file in the \fB/var/lib/sysnews/\fP directory with a given name.
+The text can contain Jinja templating which will be evaluated at Ansible
+execution time.
+.TP
+.B \fBstate\fP
+Optional. Define the state of a particular news file. If multiple list
+entries define a file state, the last one wins. Recognized states:
+.INDENT 7.0
+.IP \(bu 2
+not specified or \fBpresent\fP: the file will be put in the
+\fB/var/lib/sysnews/\fP directory.
+.IP \(bu 2
+\fBabsent\fP: the specified file will be removed.
+.IP \(bu 2
+\fBignore\fP: the given configuration entry will be ignored by the role. This
+can be used to conditionally activate or skip entries.
+.UNINDENT
+.UNINDENT
+.SS Examples
+.sp
+Add a new, permanent System News entry:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sysnews__entries:
+
+  \- name: \(aqNews about an application\(aq
+    content: |
+      A new application has been installed and is ready to be used.
+
+      Have a nice day.
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

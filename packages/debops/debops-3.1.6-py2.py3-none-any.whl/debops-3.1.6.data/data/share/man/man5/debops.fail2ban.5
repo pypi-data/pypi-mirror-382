@@ -1,0 +1,318 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.FAIL2BAN" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.fail2ban \- Manage fail2ban service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/fail2ban\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%fail2ban\fP <\fBhttps://www.fail2ban.org/\fP> is a service which parses specified log files and can perform
+configured actions when a given \fI\%regexp\fP <\fBhttps://en.wikipedia.org/wiki/Regular_expression\fP> is found. It\(aqs usually used to ban
+offending IP addresses using \fBiptables\fP rules (only IPv4 connections are
+supported at the moment).
+.SH GETTING STARTED
+.sp
+When \fBfail2ban\fP is installed, an \fBssh\fP jail will be configured by default
+(by the Debian package, not DebOps).
+.sp
+\fBdebops.fail2ban\fP role uses \fBiptables\fP \fBrecent\fP module instead of adding
+the banned hosts to the firewall directly. The \fBrecent\fP rule will be added to
+the \fBINPUT\fP chain at specific location, to work seamlessly with the default
+firewall configuration managed by \fBdebops.ferm\fP role. If necessary, you can
+specify the location of the rules using custom \fBitem.position\fP parameter.
+.SS Example inventory
+.sp
+To enable \fBfail2ban\fP you can add a host or several hosts to
+\fB[debops_service_fail2ban]\fP group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_fail2ban]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you have many hosts which you want to protect using \fBfail2ban\fP, you can
+instead create a child group and add it to the \fB[debops_service_fail2ban]\fP parent
+group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_fail2ban:children]
+protected_hosts
+
+[protected_hosts]
+host1
+host2
+host3
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To manage jails, you use \fBfail2ban_*_jails\fP list variables by adding them in
+\fBgroup_vars/\fP or \fBhost_vars/\fP directories. For example, to disable the
+\fBssh\fP jail by default on all hosts, create
+\fBinventory/group_vars/debops_all_hosts/fail2ban.yml\fP file and add inside:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+fail2ban_jails:
+
+  \- name: \(aqssh\(aq
+    enabled: \(aqfalse\(aq
+    comment: \(aqDisable default ssh jail\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook which uses \fBdebops.fail2ban\fP role to install \fBfail2ban\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install fail2ban
+  hosts: [ \(aqdebops_service_fail2ban\(aq ]
+
+  roles:
+    \- role: fail2ban
+      tags: [ \(aqrole::fail2ban\(aq, \(aqskip::fail2ban\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLES: CONFIGURATION
+.sp
+some of \fBdebops.fail2ban\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS fail2ban_actions
+.sp
+List of local \fBfail2ban\fP actions that should be present or absent when configuring
+\fBfail2ban\fP\&. Each action is defined as a YAML dict with the following keys:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the filter.
+.TP
+.B \fBban\fP
+Required. Command executed when banning an IP. Take care that the command is executed
+with \fBfail2ban\fP user rights.
+.TP
+.B \fBcheck\fP
+Optional. Command executed once before each \fBban\fP command.
+.TP
+.B \fBfilename\fP
+Optional. Alternative name of the action configuration file.
+.TP
+.B \fBstart\fP
+Optional. Command executed once at the start of \fBfail2ban\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If \fBpresent\fP, the action will be created when configuring \fBfail2ban\fP\&.
+If \fBabsent\fP, the action will be removed when configuring \fBfail2ban\fP\&.
+.TP
+.B \fBstop\fP
+Optional. Command executed once at the end of \fBfail2ban\fP\&.
+.TP
+.B \fBunban\fP
+Optional. Command executed when unbanning an IP. Take care that the command is executed
+with \fBfail2ban\fP user rights.
+.UNINDENT
+.SS fail2ban_filters
+.sp
+List of local \fBfail2ban\fP filters that should be present or absent when configuring
+\fBfail2ban\fP\&. Each filter is defined as a YAML dict with the following keys:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the filter.
+.TP
+.B \fBafter\fP
+Optional. Specify an additional filter configuration file that \fBfail2ban\fP will
+read after reading this filter configuration filer.
+.TP
+.B \fBbefore\fP
+Optional. Specify an additional filter configuration file that \fBfail2ban\fP will
+read before reading this filter configuration file.
+.TP
+.B \fBdefinitions\fP
+Optional. Custom definitions used by the filter.
+.TP
+.B \fBfailregex\fP
+Required. A string of regular expression(s) used by the filter to detect
+break\-in attempts. You can have the filter try to match multiple regular
+expressions by using the \fB|\fP character (the YAML literal style operator). Each
+regular expression should be on its own line. Refer to the \fI\%examples\fP section.
+.TP
+.B \fBfilename\fP
+Optional. Alternative name of the filter configuration file. If not specified, it
+will use the \fBname\fP of the filter.
+.TP
+.B \fBignoreregex\fP
+Optional. Regular expression(s) used to filter out invalid break\-in attempts. You
+can have the filter try to match multiple regular expressions. Each regular
+expression should be on its own line.
+.TP
+.B \fBstate\fP
+Optional. If \fBpresent\fP, the filter will be created when configuring \fBfail2ban\fP\&.
+If \fBabsent\fP, the filter will be removed when configuring \fBfail2ban\fP\&.
+.UNINDENT
+.sp
+Refer to the \fBfail2ban\fP \fI\%filter wiki\fP <\fBhttps://www.fail2ban.org/wiki/index.php/MANUAL_0_8#Filters\fP> for more information.
+.SS fail2ban_jails
+.sp
+Jails are defined in the form of dicts, where dict keys are the option names
+and dict values are option values. You can specify values either as strings or
+YAML lists, in which case elements of the list will be separated by commas.
+.sp
+Some keys have a special meaning:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Jail name, used as a section header and part of the filename. Required.
+.TP
+.B \fBfilename\fP
+Alternative file name, optional.
+.TP
+.B \fBcomment\fP
+A commented text added before the given jail
+.TP
+.B \fBdelete\fP
+If this option is present and \fBTrue\fP, file which defines a given jail will
+be deleted
+.TP
+.B \fBignoreip\fP
+\fBList\fP of IP addresses or CIDR subnets which should be ignored by
+\fBfail2ban\fP
+.TP
+.B \fBaction\fP
+It should be a name of a default or custom action, which will be used by
+\fBfail2ban\fP
+.UNINDENT
+.sp
+Other options are the same as normal \fBfail2ban\fP jail configuration options.
+Refer to default \fB/etc/fail2ban/jail.conf\fP or \fI\%fail2ban wiki\fP <\fBhttps://www.fail2ban.org/wiki/index.php/MANUAL_0_8#Jails\fP> for possible
+options.
+.SS Examples:
+.sp
+\fBJails\fP
+.sp
+Enable \fBssh\fP jail and configure it to send mail messages about banned hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+fail2ban_jails:
+
+  \- name: \(aqssh\(aq
+    enabled: \(aqtrue\(aq
+    action: \(aqaction_mw\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Enable \fBdovecot\fP jail with custom filename and send mail notifications to
+postmaster:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+fail2ban_jails:
+
+  \- name: \(aqdovecot\(aq
+    filename: \(aq50_dovecot\(aq
+    enabled: \(aqtrue\(aq
+    destemail: \(aqpostmaster@{{ ansible_domain }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBFilters\fP
+.sp
+Add custom local filter \fBweb\-auth\fP with multiple \fBfailregex\fP rules:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+fail2ban_filters:
+  \- name: web\-auth
+    failregex: |
+      Authentication failure for .* from <HOST>
+      Failed [\-/\ew]+ for .* from <HOST>
+      ROOT LOGIN REFUSED .* FROM <HOST>
+    state: present
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add custom local filter \fBroot\-auth\fP with a single \fBfailregex\fP rule:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+fail2ban_filters:
+  \- name: root\-auth
+    failregex: \(aqAuthentication failure for .* from <HOST>\(aq
+    state: present
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

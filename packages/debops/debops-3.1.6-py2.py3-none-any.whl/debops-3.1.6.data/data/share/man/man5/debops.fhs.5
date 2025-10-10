@@ -1,0 +1,214 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.FHS" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.fhs \- Create base directory hierarchy used by DebOps roles
+.SH SYNOPSIS
+.sp
+\fBdebops run service/fhs\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+By default various DebOps application roles install their data in directories
+designated by the \fI\%Filesystem Hierarchy Standard\fP <\fBhttps://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard\fP> for locally\-installed
+software \- for example \fB/usr/local/bin/\fP for binaries,
+\fB/usr/local/src/\fP for source code, and so on. To allow system
+administrators to easily change the preferred location of various resources
+without the need to modify multiple roles separately, the \fI\%debops.fhs\fP
+role is a central place which defines base directories for other roles to use.
+.sp
+The base directories are created by the role, and a special
+\fB/etc/ansible/facts.d/fhs.fact\fP script is generated on the host. It
+serves dual purpose \- the facts are used to ensure that any changes in the
+directory paths don\(aqt affect existing installations, and can be used by other
+Ansible roles to define various resource paths in their variables.
+.SH GETTING STARTED
+.SS Ansible local facts
+.sp
+The \fI\%debops.fhs\fP role creates a local fact script on the managed hosts
+which defines variables under the \fBansible_local.fhs.*\fP hierarchy. Other
+Ansible roles can use these variables to reference the base directories managed
+by the \fI\%debops.fhs\fP role. This method provides a central place to control
+where various data (shared files, binaries, application directories, etc.) is
+stored in the filesystem. Furthermore, the role takes extra care to not modify
+existing paths once applied, to ensure that the local facts stay consistent.
+.sp
+An example usage of the Ansible local facts defined by the role \- define path
+to the home directory of an application in the role default variables:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__user: \(aqexample\-app\(aq
+
+application__home: \(aq{{ (ansible_local.fhs.home | d(\(dq/var/local\(dq))
+                       + \(dq/\(dq + application__user }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example inventory
+.sp
+The \fI\%debops.fhs\fP role is included in the \fBcommon.yml\fP DebOps playbook as
+well as the bootstrap playbooks and you don\(aqt need to do anything to apply it
+on the host.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.fhs\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure base directory hierarchy
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_fhs\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: fhs
+      tags: [ \(aqrole::fhs\(aq, \(aqskip::fhs\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::fhs\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.fhs\fP default variables have more extensive configuration than
+simple strings or lists, here you can find documentation and examples for them.
+.SS fhs__directories
+.sp
+The \fBfhs__*_directories\fP variables define the list of base directories to
+create by the role. The directory paths are saved using an Ansible local fact
+to ensure that any changes after applying the role don\(aqt affect an existing
+installation. To modify existing paths, the
+\fB/etc/ansible/facts.d/fhs.fact\fP script should be removed from the host,
+this will ensure that the role does not use existing paths from the facts.
+.SS Examples
+.sp
+Modify the application data directory to store them in a separate mount point
+instead of the \fB/srv/\fP directory (you can use \fI\%debops.mount\fP role to
+mount a local device under that directory, or \fI\%debops.nfs\fP to configure
+a remote NFS filesystem):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+fhs__directories:
+
+  \- name: \(aqdata\(aq
+    path: \(aq/data\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remember that this change will only take effect on first application of the
+role, therefore it should be defined in the Ansible inventory before the host
+is provisioned.
+.sp
+The role will create the \fB/srv/www/\fP directory by default since it\(aqs
+a common place for home directories of web applications. To avoid this on
+non\-www related hosts, you can put the configuration below in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+fhs__directories:
+
+  \- name: \(aqwww\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each base directory is defined as a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The short name of the directory, used as a reference in the Ansible
+local facts. The configuration entries with the same \fBname\fP parameter are
+merged together, this can be used to modify the paths defined by the role via
+Ansible inventory.
+.TP
+.B \fBpath\fP
+Required. An absolute path of the base directory to create. The path needs to
+start with the \fB/\fP character, otherwise it will not be created by the role.
+.TP
+.B \fBmode\fP
+Optional. Specify the permissions of the base directory. If not specified,
+\fB0755\fP will be used by default.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the path will be created by the
+role. If \fBabsent\fP, the role will not create this path (existing paths are
+not removed).
+.UNINDENT
+.SH SEE ALSO
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%hier(7)\fP <\fBhttps://manpages.debian.org/hier(7)\fP>
+.IP \(bu 2
+\fI\%Filesystem Hierarchy Standard v3.0 specification\fP <\fBhttps://refspecs.linuxfoundation.org/FHS_3.0/fhs/index.html\fP>
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

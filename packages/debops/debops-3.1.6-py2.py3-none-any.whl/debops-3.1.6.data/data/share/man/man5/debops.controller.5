@@ -1,0 +1,149 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.CONTROLLER" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.controller \- Prepare host to be used as Ansible Controller
+.SH SYNOPSIS
+.sp
+\fBdebops run service/controller\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%DebOps\fP <\fBhttp://www.debops.org/\fP> is a set of Python scripts, Ansible
+playbooks and Ansible roles designed to work together to create a consistent
+data center environment based on Debian GNU/Linux distribution.
+.sp
+This role installs the DebOps scripts, playbooks and roles on a specified host.
+It can be used to create remote Ansible Controller hosts, which then can be
+used to control other hosts using DebOps. Roles and playbooks will be installed
+by default in a central, system\-wide location, available to all users.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+By default the \fBdebops.controller\fP role will install the DebOps playbooks and roles
+from GitHub in the background, using either the \fBbatch\fP command from the \fBat\fP
+package, or if the former is not available, \fBasync\fP Ansible task. Keep in mind
+that downloading all of the repositories might take a while and the code won\(aqt be
+available for some time after initial Ansible playbook run.
+.sp
+If you cannot accept this behaviour you can set
+\fI\%controller__update_method\fP to \fBsync\fP\&. This will make the roles and
+playbooks immediately available after the task is run. However, this will
+introduce a significant delay in every playbook run even when no upstream
+changes will be found. You should only choose this if you plan to run
+\fBdebops\fP from the same playbook where you also include the
+\fBdebops.controller\fP role, e. g. when provisioning a new DebOps environment.
+.SS Example inventory
+.sp
+To install DebOps on a remote host, you need to add it to
+the \fB[debops_service_controller]\fP Ansible host group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_controller]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook that installs DebOps support on a host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Prepare host to be used as Ansible Controller
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_controller\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::ansible\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ ansible__keyring__dependent_apt_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ ansible__apt_preferences__dependent_list }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::controller\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ controller__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ controller__python__dependent_packages2 }}\(aq
+
+    \- role: ansible
+      tags: [ \(aqrole::ansible\(aq, \(aqskip::ansible\(aq ]
+
+    \- role: controller
+      tags: [ \(aqrole::controller\(aq, \(aqskip::controller\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The playbooks is shipped with this role under
+\fBdocs/playbooks/controller.yml\fP from which you can symlink it to your
+playbook directory.
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::controller\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

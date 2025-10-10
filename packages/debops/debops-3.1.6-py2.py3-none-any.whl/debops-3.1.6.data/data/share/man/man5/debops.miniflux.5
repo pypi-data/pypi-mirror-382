@@ -1,0 +1,273 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.MINIFLUX" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.miniflux \- Manage Miniflux with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/miniflux\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops check service/miniflux\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Miniflux\fP <\fBhttps://miniflux.app/\fP> is a minimalist, web\-based feed reader written in Go. It uses
+PostgreSQL as the backend database and can be deployed behind nginx
+webserver as a self\-hosted application. The \fBdebops.miniflux\fP Ansible role
+can be used to deploy Miniflux on a host managed by DebOps.
+.SH GETTING STARTED
+.SS Installation methods
+.sp
+The default installation method will be using an upstream APT repository,
+configured by the \fI\%debops.keyring\fP Ansible role. The \fI\%debops.golang\fP
+manages the actual installation and provides an option to install from
+a precombined binary or from the source code as well. You can use the
+\fI\%miniflux__upstream_type\fP variable to select the desired installation
+method.
+.sp
+Miniflux requires the \fBembed\fP library, which was \fI\%introduced in Go 1.16\fP <\fBhttps://tip.golang.org/doc/go1.16#library-embed\fP>\&.
+Debian Bullseye comes with Go 1.15, therefore installation from source will not
+be possible by default. Newer Go is available via the \fBbullseye\-backports\fP
+repository, so it is possible to build Miniflux using the backported Golang
+packages.
+.SS Steps required after installation
+.sp
+After Miniflux is installed, you should be able to access it on the
+\fBminiflux.<domain>\fP address through the web browser. The default address can
+be defined using the \fI\%miniflux__fqdn\fP variable.
+.sp
+To access the service, you will need to create the initial administrator
+account (done interactively, so not automated at this point). To do that, you
+have to login to the server, and using the \fBroot\fP UNIX account run the
+command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+miniflux \-c /etc/miniflux.conf \-create\-admin
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After providing an username and password, you can login to Miniflux using the
+provided credentials via the web interface. Additional user accounts can be
+created in the web UI.
+.SS Example inventory
+.sp
+To install the Miniflux service on a host, it needs to be included in the
+\fB[debops_service_miniflux]\fP Ansible inventory group. You also need to
+configure a PostgreSQL service as a backend, it can be deployed on the same or
+a different host.
+.sp
+Example Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_postgresql_server]
+hostname
+
+[debops_service_miniflux]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.miniflux\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# SPDX\-License\-Identifier: GPL\-3.0\-only
+
+\- name: Manage Miniflux service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_miniflux\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::golang\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ miniflux__keyring__dependent_apt_keys }}\(aq
+      keyring__dependent_gpg_user: \(aq{{ golang__keyring__dependent_gpg_user }}\(aq
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+        \- \(aq{{ golang__keyring__dependent_gpg_keys }}\(aq
+      golang__dependent_packages:  # noqa var\-naming[no\-role\-prefix]
+        \- \(aq{{ miniflux__golang__dependent_packages }}\(aq
+
+    \- role: postgresql
+      tags: [ \(aqrole::postgresql\(aq, \(aqskip::postgresql\(aq ]
+      postgresql__dependent_roles:
+        \- \(aq{{ miniflux__postgresql__dependent_roles }}\(aq
+      postgresql__dependent_groups:
+        \- \(aq{{ miniflux__postgresql__dependent_groups }}\(aq
+      postgresql__dependent_databases:
+        \- \(aq{{ miniflux__postgresql__dependent_databases }}\(aq
+      postgresql__dependent_extensions:
+        \- \(aq{{ miniflux__postgresql__dependent_extensions }}\(aq
+      postgresql__dependent_pgpass:
+        \- \(aq{{ miniflux__postgresql__dependent_pgpass }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ golang__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ miniflux__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ miniflux__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ miniflux__nginx__dependent_upstreams }}\(aq
+
+    \- role: golang
+      tags: [ \(aqrole::golang\(aq, \(aqskip::golang\(aq ]
+      golang__dependent_packages:
+        \- \(aq{{ miniflux__golang__dependent_packages }}\(aq
+
+    \- role: miniflux
+      tags: [ \(aqrole::miniflux\(aq, \(aqskip::miniflux\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::miniflux\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.miniflux\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS miniflux__configuration
+.sp
+The \fBminiflux__*_configuration\fP variables define the contents of the
+\fB/etc/miniflux.conf\fP configuration file. You can find information about
+available configuration options \fI\%in Miniflux online documentation\fP <\fBhttps://miniflux.app/docs/configuration.html\fP>\&.
+.sp
+The role uses \fI\%Universal Configuration\fP system to integrate the default
+and inventory variables during configuration file generation.
+.SS Examples
+.sp
+You can see the default configuration defined in the role in
+\fI\%miniflux__default_configuration\fP variable to see examples of various
+configuration options.
+.SS Syntax
+.sp
+The variables are defined as lists of YAML dictionaries, each entry defines
+a configuration option using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the variable to define in the configuration file,
+automatically converted to uppercase. Configuration entries with the same
+\fBname\fP parameter are merged together and can affect each other.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with a comment about a given
+configuration option.
+.TP
+.B \fBvalue\fP
+The value of a given configuration option. It can be a string, a number,
+a boolean variable or a YAML list which will be converted to strings
+separated by space.
+.TP
+.B \fBraw\fP
+If the \fBraw\fP parameter is specified, the \fBname\fP and \fBvalue\fP parameters
+are not included in the generated configuration file. The contents of the
+\fBraw\fP parameter (string or YAML text block) will be included in the
+generated configuration file as\-is. You can use Jinja inside of the \fBraw\fP
+parameter to augment generated configuration as needed.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration option will
+be included in the generated file. If \fBabsent\fP, a given configuration
+option will not be included in the finished file. If \fBcomment\fP, the option
+will be included but commented out. If \fBignore\fP, a given configuration
+entry will not be evaluated during role execution.
+.TP
+.B \fBseparator\fP
+Optional. Add an empty line before a given configuration option, for
+aesthetic purposes.
+.UNINDENT
+.SH AUTHOR
+Berkhan Berkdemir
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

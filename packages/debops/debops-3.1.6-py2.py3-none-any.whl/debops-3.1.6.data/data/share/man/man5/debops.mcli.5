@@ -1,0 +1,203 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.MCLI" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.mcli \- Install MinIO Client using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/mcli\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%MinIO\fP <\fBhttps://min.io/\fP> is an Open Source Amazon Simple Storage Service (S3) compatible
+object storage service. The \fI\%MinIO Client\fP <\fBhttps://docs.min.io/docs/minio-client-complete-guide\fP> application is used to interface
+with MinIO and perform various administrative tasks, including extended
+configuration of the service.
+.sp
+The \fBdebops.mcli\fP Ansible role installs MinIO Client binary on a Debian or
+Ubuntu host either by downloading and verifying it from the upstream repository
+directly, or cloning the source code and building it locally.
+.sp
+The MinIO Client binary will be installed as the \fBmcli\fP binary instead
+of the \fBmc\fP binary preferred by upstream to avoid clashing with the
+\fBmc\fP Debian package which provides Midnight Commander. This solution \fI\%is
+suggested by upstream\fP <\fBhttps://github.com/minio/mc/blob/master/CONFLICT.md\fP> as well.
+.sp
+You can use the \fI\%debops.minio\fP Ansible role to install and configure the
+MinIO service itself.
+.SH GETTING STARTED
+.SS Default installation and upgrades
+.sp
+The role will install the latest MinIO Client release available by default.
+After that, the selected release will be \(dqlocked\(dq via the Ansible local facts,
+and normal execution of the \fI\%debops.mcli\fP role will not upgrade an
+existing installation.
+.sp
+To perform an upgrade, you can use the following command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run service/mcli \-l <host|group> \-t role::golang \e
+                        \-e \(aqmcli__upstream_upgrade=true\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This command will execute the \fI\%debops.golang\fP Ansible role in the context
+of the \fBservice/mcli\fP playbook and perform the upgrade of MinIO Client
+binary if a new release is found.
+.sp
+If you want to perform upgrades automatically when the role is executed when
+they are available, you can set the \fI\%mcli__upstream_upgrade\fP variable
+to \fBTrue\fP in the Ansible inventory.
+.sp
+The previously downloaded MinIO Client releases are currently not removed
+automatically, therefore make sure that you clean up the
+\fB~_golang/go/src/\fP directory managed by the \fI\%debops.golang\fP role
+from time to time.
+.SS Dependent role usage
+.sp
+The \fI\%debops.mcli\fP role is focused on configuration of the MinIO Client
+install parameters, and relies on other DebOps roles for the actual
+installation:
+.INDENT 0.0
+.IP \(bu 2
+The \fI\%debops.golang\fP role is used to download and verify MinIO Client
+binary, or clone the MinIO Client source code and build the binary locally.
+.IP \(bu 2
+The \fI\%debops.keyring\fP role is used by the \fI\%debops.golang\fP role to
+fetch and import the MinIO Client GPG signing key used to verify the MinIO
+Client binaries or source code.
+.UNINDENT
+.sp
+See the provided Ansible playbook for the order of the roles and usage of the
+dependent role variables. Without the mentioned DebOps roles and services
+managed by them, \fI\%debops.mcli\fP role alone will not deploy the MinIO Client
+correctly.
+.SS Example inventory
+.sp
+To configure MinIO Client on a host, it needs to be added to the
+\fB[debops_service_mcli]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_mcli]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.mcli\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage MinIO Client (mcli) installation
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_mcli\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare mcli environment
+      ansible.builtin.import_role:
+        name: \(aqmcli\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::mcli\(aq, \(aqrole::keyring\(aq, \(aqrole::golang\(aq ]
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::golang\(aq ]
+      keyring__dependent_gpg_user: \(aq{{ golang__keyring__dependent_gpg_user }}\(aq
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ golang__keyring__dependent_gpg_keys }}\(aq
+      golang__dependent_packages:  # noqa var\-naming[no\-role\-prefix]
+        \- \(aq{{ mcli__golang__dependent_packages }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ golang__apt_preferences__dependent_list }}\(aq
+
+    \- role: golang
+      tags: [ \(aqrole::golang\(aq, \(aqskip::golang\(aq ]
+      golang__dependent_packages:
+        \- \(aq{{ mcli__golang__dependent_packages }}\(aq
+
+    \- role: mcli
+      tags: [ \(aqrole::mcli\(aq, \(aqskip::mcli\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::mcli\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.mcli\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%MinIO documentation\fP <\fBhttps://docs.min.io/\fP>
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,829 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ELASTICSEARCH" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.elasticsearch \- Install and manage Elasticsearch database clusters
+.SH SYNOPSIS
+.sp
+\fBdebops run service/elasticsearch\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Elasticsearch\fP <\fBhttps://en.wikipedia.org/wiki/Elasticsearch\fP> is a distributed
+search engine and storage system, also a part of the Elastic Stack.
+The software is developed by \fI\%Elastic\fP <\fBhttps://www.elastic.co/\fP>\&.
+.sp
+The \fBdebops.elasticsearch\fP Ansible role can be used to deploy and manage
+Elasticsearch instances on one or more (3+) hosts. The role can be used as
+a dependency by other Ansible roles to allow control over their configuration
+options in the Elasticsearch configuration file.
+.SH GETTING STARTED
+.SS Upstream package is used by default
+.sp
+The \fI\%debops.elasticsearch\fP role depends on the \fI\%debops.extrepo\fP
+Ansible role to configure access to the Elastic.co APT repository. This means
+that usually the latest available Elasticsearch release will be installed by
+default. If you require older releases, you can use the
+\fI\%debops.apt_preferences\fP role to select the desired package version.
+.sp
+Alternatively, you can \(dqmask\(dq the
+\fI\%elasticsearch__extrepo__dependent_sources\fP variable in the Ansible
+inventory and configure the APT repositories yourself via the \fI\%debops.apt\fP
+role.
+.SS Elasticsearch is insecure in standalone mode
+.sp
+The Elasticsearch service in the default configuration supports only plaintext
+connections between the standalone host and clients. There\(aqs no client
+authentication or authorization policies as well. Due to that you should take
+care to not expose your standalone Elasticsearch service to the outside world
+without proper encryption and authentication.
+.sp
+In cluster mode, and with \fI\%debops.pki\fP role configured on the host, the
+\fI\%debops.elasticsearch\fP role will automatically enable the \fI\%X\-Pack\fP <\fBhttps://www.elastic.co/products/x-pack/\fP>
+plugin and configure TLS encryption for HTTP clients and Transport
+communication between cluster nodes. This is possible due to changes in the
+Elastic licensing (the default installation comes with the Basic subscription
+which provides support for TLS and user/group management via the X\-Pack
+plugin).
+.sp
+With secure cluster communication over TLS, the \fI\%debops.elasticsearch\fP
+role can use the Elasticsearch API to manage user accounts and role definitions
+in the cluster. A default set of \fI\%built\-in users\fP <\fBhttps://www.elastic.co/guide/en/elasticsearch/reference/current/built-in-users.html\fP> will be created
+automatically; passwords of these users will be stored in the
+\fBsecret/elasticsearch/credentials/built\-in/\fP directory on the Ansible
+Controller (managed by the \fI\%debops.secret\fP role). After that, with the
+base URL of the Elasticsearch API set in the
+\fI\%elasticsearch__api_base_url\fP variable, the role can manage
+Elasticsearch roles and user accounts using the \fBelastic\fP superuser account.
+.sp
+You can install additional plugins that provide encrypted connections,
+authentication, authorization and access control:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%X\-Pack\fP <\fBhttps://www.elastic.co/products/x-pack\fP>, an Elastic
+commercial plugin with free trial period. Supports encryption,
+authentication, access control, integrates with Kibana and Logstash. Since
+the plugin is developed by the same team, its releases are in parallel with
+Elasticsearch.
+.IP \(bu 2
+\fI\%Search Guard\fP <\fBhttps://search-guard.com/\fP>, an open source third
+party plugin with commercial support. Has features comparable with X\-Pack,
+with more basic features like HTTP and transport encryption, basic
+authentication and access control available free of charge.
+.IP \(bu 2
+\fI\%ReadonlyREST\fP <\fBhttps://readonlyrest.com/\fP>, an open source security plugin
+focused on the Elasticsearch HTTP REST interface security.
+.UNINDENT
+.SS Standalone deployment or cluster
+.sp
+With the default configuration, the \fBdebops.elasticsearch\fP role will deploy
+the Elasticsearch service in a \(dqstandalone\(dq mode without exposing the service
+to the outside world. This allows easy deployments for development or testing
+purposes.
+.sp
+In production environment, you are strongly advised to deploy Elasticsearch on
+at least three (3) nodes to ensure consistency in the cluster. To enable
+cluster mode, you will need to configure the firewall for Elasticsearch and use
+one or multiple Ansible inventory groups to design your cluster architecture.
+.sp
+The role currently does not support deployment of multiple Elasticsearch
+instances on one host. As an alternative, consider setting up an internal
+container environment with each Elasticsearch instance in a separate container
+with its own IP address or use \fI\%Elastic Cloud Elasticsearch Service\fP <\fBhttps://www.elastic.co/cloud/elasticsearch-service\fP> which does this for you and more.
+.sp
+See the \fI\%Elasticsearch clustering\fP for more details.
+.SS Use as a role dependency
+.sp
+The Elasticsearch main configuration file
+\fI\%does not support an include statement or conf.d directory\fP <\fBhttps://github.com/elastic/elasticsearch/issues/11362\fP>\&.
+To mitigate that and allow multiple Elasticsearch configuration sources from
+other Ansible roles, the \fBdebops.elasticsearch\fP role supports operation as
+a dependent role. This functionality can be used by other Ansible roles to
+better manage Elasticsearch plugins or extend the cluster configuration without
+the need to implement the entire role again and with preserved idempotency.
+.sp
+See the \fI\%Usage as a role dependency\fP for more details.
+.SS Example inventory
+.sp
+To deploy Elasticsearch in a standalone mode, you can add the host to the
+\fB[debops_service_elasticsearch]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_elasticsearch]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The default playbook supports use of different Ansible inventory groups for
+different types of Elasticsearch nodes.
+See \fI\%Elasticsearch clustering\fP for more details.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.elasticsearch\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Elasticsearch cluster
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_elasticsearch\(aq,
+           \(aqdebops_service_elasticsearch_master\(aq,
+           \(aqdebops_service_elasticsearch_data\(aq,
+           \(aqdebops_service_elasticsearch_ingest\(aq,
+           \(aqdebops_service_elasticsearch_lb\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare elasticsearch environment
+      ansible.builtin.import_role:
+        name: \(aqelasticsearch\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::elasticsearch\(aq, \(aqrole::secret\(aq, \(aqrole::elasticsearch:config\(aq ]
+
+  roles:
+
+    \- role: extrepo
+      tags: [ \(aqrole::extrepo\(aq, \(aqskip::extrepo\(aq, \(aqrole::elasticsearch\(aq ]
+      extrepo__dependent_sources:
+        \- \(aq{{ elasticsearch__extrepo__dependent_sources }}\(aq
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::elasticsearch\(aq, \(aqrole::elasticsearch:config\(aq ]
+      secret__directories:
+        \- \(aq{{ elasticsearch__secret__directories }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ elasticsearch__etc_services__dependent_list }}\(aq
+
+    \- role: sysctl
+      tags: [ \(aqrole::sysctl\(aq, \(aqskip::sysctl\(aq ]
+      sysctl__dependent_parameters:
+        \- \(aq{{ elasticsearch__sysctl__dependent_parameters }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ elasticsearch__ferm__dependent_rules }}\(aq
+
+    \- role: java
+      tags: [ \(aqrole::java\(aq, \(aqskip::java\(aq ]
+
+    \- role: elasticsearch
+      tags: [ \(aqrole::elasticsearch\(aq, \(aqskip::elasticsearch\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::elasticsearch\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::elasticsearch:config\fP
+Generate the Elasticsearch configuration taking into account different
+configuration sources.
+.UNINDENT
+.SH ELASTICSEARCH CLUSTERING
+.sp
+The Elasticsearch service can be deployed either on a single host in
+a \(dqstandalone\(dq mode, or in a cluster of multiple hosts. The cluster mode will
+be enabled automatically after a few important variables and inventory groups
+are configured.
+.SS Standalone mode vs cluster mode
+.sp
+In a standalone mode, the Elasticsearch service will not try to talk with any
+other Elasticsearch nodes. Service will be usable over \fBlocalhost\fP
+connection. This mode is good for prototyping, testing and development
+environments, however it\(aqs not very resilient.
+.sp
+In a cluster mode, multiple Elasticsearch nodes talk to each other in
+a configured network subnet, over TCP. Elasticsearch
+clients communicate with the cluster over HTTP REST interface, usually via
+a dedicated host with Kibana and/or Logstash as an intermediary.
+.SS Playbook execution
+.sp
+When multiple Elasticsearch hosts are managed as a cluster, any changes in the
+cluster configuration should be implemented on all hosts in the cluster at the
+same time to avoid issues with split\-brain or quorum. The role uses inventory
+groups to compute some specific values for all hosts in the cluster, however
+using the \fB\-\-limit\fP parameter of the \fBansible\-playbook\fP command will
+only configure those values on a subset of hosts. Remember to always keep the
+whole cluster configuration synchronized by running the Elasticsearch playbook
+on all hosts included in the cluster (without the \fB\-\-limit\fP parameter).
+.SS Ansible inventory groups
+.sp
+The \fBdebops.elasticsearch\fP role uses a set of Ansible inventory groups to
+detect the Elasticsearch node type and change the configuration accordingly.
+.sp
+The main inventory group is \fB[debops_service_elasticsearch]\fP\&. Hosts in this
+group are configured to behave in the same way \- all of them are eligible to be
+a master host, all of them can hold data, and all of them can use an ingest
+pipeline to process the input. This group is useful in small clusters,
+typically <10 hosts in total.
+.sp
+In larger clusters, the system administrator may want to separate the cluster
+hosts into separate node types. Each Ansible inventory group enables a separate
+feature, and hosts can be in multiple groups at once to mix and match the
+desired features:
+.INDENT 0.0
+.TP
+.B \fB[debops_service_elasticsearch_master]\fP
+Hosts in this Ansible inventory group are eligible to become masters.
+.TP
+.B \fB[debops_service_elasticsearch_data]\fP
+Hosts in this Ansible inventory group can hold data shards.
+.TP
+.B \fB[debops_service_elasticsearch_ingest]\fP
+Hosts in this Ansible inventory group can process incoming data via an ingest
+pipeline.
+.TP
+.B \fB[debops_service_elasticsearch_lb]\fP
+Hosts in this Ansible inventory group do not have any features explicitly
+enabled, and act as load balancers and coordinators within the cluster.
+.UNINDENT
+.sp
+You can check the \fI\%Elasticsearch node documentation\fP <\fBhttps://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html\fP>
+for more details about node features.
+.sp
+The inventory groups and their corresponding node functions are defined using
+default variables. The role uses Ansible inventory groups to automatically
+determine the list of hosts which will be used for discovery, as well as the number
+of eligible master hosts, therefore direct changes to the node function
+variables should be done with care.
+.SS Unicast host discovery, number of master hosts
+.sp
+The role automatically manages the list of hosts which should be contacted for
+initial host discovery and number of master\-eligible nodes based on the Ansible
+inventory group membership.
+.sp
+If the \fB[debops_service_elasticsearch_master]\fP group is not used, all of the
+hosts in the \fB[debops_service_elasticsearch]\fP inventory group will be added
+to the unicast discovery list, and all of them will be eligible to become
+masters.
+.sp
+When hosts are included in the \fB[debops_service_elasticsearch_master]\fP
+inventory group, only hosts in this group will be able to become masters, and
+only hosts in this group will be used for initial unicast discovery. Remember
+to always include an odd number of master\-eligible hosts to achieve quorum
+majority within the cluster.
+.SS Firewall configuration
+.sp
+The role supports a firewall managed by the \fI\%debops.ferm\fP Ansible role. When the
+firewall is enabled, Elasticsearch will be configured to listen to connections
+on private IP addresses defined on the host along with the \fBlocalhost\fP; if
+the firewall is not detected or disabled, Elasticsearch will listen only on the
+\fBlocalhost\fP interface by default.
+.sp
+To enable cluster mode, you need to define at least one IP address or a CIDR
+subnet in the \fI\%elasticsearch__allow_tcp\fP list. Make sure to only allow
+access from trusted hosts!
+.sp
+There\(aqs also a separate \fI\%elasticsearch__allow_http\fP variable, but you
+don\(aqt need to enable it unless you need a direct access to the Elasticsearch
+HTTP REST interface from remote hosts. Kibana and Logstash installed on the
+same host as an Elasticsearch service should be able to talk to it over
+\fBlocalhost\fP with no issues.
+.SS Elasticsearch API access
+.sp
+The \fI\%debops.elasticsearch\fP role relies on the Elasticsearch API to manage
+different parts of the cluster, currently user accounts and their roles. This
+is enabled with X\-Pack support and TLS encryption are configured in the
+cluster. To provide access to the API, define in the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+elasticsearch__api_base_url: \(aqhttps://es.example.com:9200\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When this variable is defined, the role will execute tasks against the API from
+a single host in the cluster at a time.
+.SH USAGE AS A ROLE DEPENDENCY
+.sp
+The \fBdebops.elasticsearch\fP role can be used as a dependency by other Ansible
+roles to manage Elasticsearch main configuration file idempotently.
+Configuration options from multiple roles can be merged together and included
+in the configuration file, or removed conditionally.
+.SS Dependent role variables
+.sp
+The role exposes three default variables that can be used by other Ansible
+roles as dependent variables:
+.INDENT 0.0
+.TP
+.B \fI\%elasticsearch__dependent_role\fP
+Required. Name of the role that uses the \fBdebops.elasticsearch\fP as
+a dependency. This will be used to store the configuration in its own YAML
+dictionary. The selected name shouldn\(aqt be changed, otherwise configuration
+will be desynchronized.
+.TP
+.B \fI\%elasticsearch__dependent_configuration\fP
+Required. List of the Elasticsearch configuration options defined in the same
+format as the main configuration. See \fI\%elasticsearch__configuration\fP
+for more details.
+.TP
+.B \fI\%elasticsearch__dependent_state\fP
+Optional. If not specified or \fBpresent\fP, the configuration will be included
+in the \fB/etc/elasticsearch/elasticsearch.yml\fP configuration file and
+stored as Ansible local fact. If \fBabsent\fP, the configuration will be
+removed from the generated configuration file.
+.UNINDENT
+.SS Dependent configuration storage and retrieval
+.sp
+The dependent configuration from other roles is stored in the \fBsecret/\fP
+directory on the Ansible Controller (see \fI\%debops.secret\fP for more details) in
+a JSON file, with each role configuration in a separate dictionary. The
+\fBdebops.elasticsearch\fP reads this file when Ansible local facts indicate that
+the Elasticsearch service is installed, otherwise a new empty file is created.
+This ensures that the stale configuration is not present on a new or
+re\-installed host.
+.sp
+The YAML dictionaries from different roles are be merged with the main
+configuration in the \fI\%elasticsearch__combined_configuration\fP variable
+that is used to generate the final configuration. The merge order of the
+different \fBelasticsearch__*_configuration\fP variables allows to further affect
+the dependent configuration through Ansible inventory if necessary, therefore
+the Ansible roles that use this method don\(aqt need to provide additional
+variables for this purpose themselves.
+.SS Example role variables
+.sp
+This file shows an example set of default variables included in a role that
+uses the \fBdebops.elasticsearch\fP role as a dependency:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# State of the application deployment
+application__deploy_state: \(aqpresent\(aq
+
+# Elasticsearch configuration for application
+application__elasticsearch__dependent_configuration:
+
+  \- name: \(aqapplication.option\(aq
+    value: True
+
+  \- \(aqapplication.other.option\(aq: False
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example role playbook
+.sp
+This file shows an example playbook for a role that uses the
+\fBdebops.elasticsearch\fP role as a dependency:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage application
+  collections: [ \(aqdebops.debops\(aq ]
+  hosts: [ \(aqdebops_service_elasticsearch_application\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare elasticsearch environment
+      ansible.builtin.import_role:
+        name: \(aqelasticsearch\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::elasticsearch\(aq, \(aqrole::secret\(aq, \(aqrole::elasticsearch:config\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::elasticsearch\(aq, \(aqrole::elasticsearch:config\(aq ]
+      secret__directories:
+        \- \(aq{{ elasticsearch__secret__directories }}\(aq
+
+    \- role: elasticsearch
+      tags: [ \(aqrole::elasticsearch\(aq ]
+      elasticsearch__dependent_role: \(aqapplication\(aq
+      elasticsearch__dependent_state: \(aq{{ application__deploy_state }}\(aq
+      elasticsearch__dependent_configuration:
+        \- \(aq{{ application__elasticsearch__dependent_configuration }}\(aq
+
+    \- role: application
+      tags: [ \(aqrole::application\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.elasticsearch\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS elasticsearch__native_roles
+.sp
+The \fBelasticsearch__*_native_roles\fP variables provide a way to manage the
+Elasticsearch roles used in \fI\%Role\-based access control\fP <\fBhttps://www.elastic.co/guide/en/elasticsearch/reference/current/authorization.html\fP> mechanisms. Roles can
+be defined using DebOps\(aq \fI\%Universal Configuration\fP; different features
+might require activation of specific Elastic License subscriptions.
+.sp
+This feature requires the X\-Pack plugin to be enabled as well as connection to
+the Elasticsearch cluster secured by the TLS encryption. Both of these will be
+enabled by the \fI\%debops.elasticsearch\fP role in a clustered configuration.
+Native roles will be managed via the \fI\%Elasticsearch Role API\fP <\fBhttps://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role.html\fP>, the base URL
+of which needs to be specified using the \fI\%elasticsearch__api_base_url\fP
+variable to be available.
+.SS Examples
+.sp
+Create \fBmy_admin_role\fP Elasticsearch role, based on the example included in
+the Roles API documentation:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+elasticsearch__native_roles:
+
+  \- name: \(aqmy_admin_role\(aq
+    data:
+      cluster: [ \(aqall\(aq ]
+      indices:
+        \- names: [ \(aqindex1\(aq, \(aqindex2\(aq ]
+          privileges: [ \(aqall\(aq ]
+          #field_security:  # requires a license
+          #  grant: [ \(aqtitle\(aq, \(aqbody\(aq ]
+          #query: \(dq{\e\(dqmatch\e\(dq: {\e\(dqtitle\e\(dq: \e\(dqfoo\e\(dq}}\(dq
+      applications:
+        \- application: \(aqmyapp\(aq
+          privileges: [ \(aqadmin\(aq, \(aqread\(aq ]
+          resources: [ \(dq*\(dq ]
+      run_as: [ \(aqother_user\(aq ]
+      metadata:
+        version: 1
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The Elasticsearch roles are defined using a list of YAML dictionaries with
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the Elasticsearch native role defined via the API.
+Configuration entries with the same name are merged and can modify each other
+in order of appearance.
+.TP
+.B \fBdata\fP
+Required. A YAML dictionary with Elasticsearch configuration for the role
+which will be passed via the API as JSON data. When multiple configuration
+entries are merged, the \fBdata\fP parameter is overwritten by the next entry
+in the list.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, the defined Elasticsearch role will
+be created or updated on each \fI\%debops.elasticsearch\fP Ansible role
+execution. If \fBabsent\fP, the defined role will be deleted from the cluster
+configuration. If \fBignore\fP, a given configuration entry will not be
+processed by the \fI\%debops.elasticsearch\fP role during execution \- this is
+a good way to avoid updating the role on each Ansible run, once it is
+configured.
+.UNINDENT
+.SS elasticsearch__native_users
+.sp
+The \fBelasticsearch__*_native_users\fP variables provide a way to manage the
+\fI\%Elasticsearch users\fP <\fBhttps://www.elastic.co/guide/en/elasticsearch/reference/current/setting-up-authentication.html\fP> used in \fI\%Role\-based access control\fP <\fBhttps://www.elastic.co/guide/en/elasticsearch/reference/current/authorization.html\fP> authentication.
+Users can be defined using DebOps\(aq \fI\%Universal Configuration\fP\&.
+.sp
+This feature requires the X\-Pack plugin to be enabled as well as connection to
+the Elasticsearch cluster secured by the TLS encryption. Both of these will be
+enabled by the \fI\%debops.elasticsearch\fP role in a clustered configuration.
+Native users will be managed via the \fI\%Elasticsearch User API\fP <\fBhttps://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-user.html\fP>, the base URL
+of which needs to be specified using the \fI\%elasticsearch__api_base_url\fP
+variable to be available.
+.SS Examples
+.sp
+Create \fBjacknich\fP Elasticsearch user, based on the example included in the
+User API documentation:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+elasticsearch__native_users:
+
+  \- name: \(aqjacknich\(aq
+    data:
+      password: \(aq{{ lookup(\(dqpassword\(dq, secret + \(dq/elasticsearch/credentials/\(dq
+                           + \(dqnative/jacknich/password\(dq) }}\(aq
+      roles: [ \(aqadmin\(aq, \(aqother_role1\(aq ]
+      full_name: \(aqJack Nicholson\(aq
+      email: \(aqjacknich@example.com\(aq
+      metadata:
+        intelligence: 7
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+An example user account with superuser privileges, equivalent to the
+\fBelastic\fP user:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: \(aqadmin\(aq
+  data:
+    full_name: \(aqElastic Administrator\(aq
+    password: \(aqtestpassword\(aq  # don\(aqt do this
+    email: \(aqadmin@example.net\(aq
+    roles: [ \(aqsuperuser\(aq ]
+  state: \(aqpresent\(aq  # change to \(aqignore\(aq afterwards
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The Elasticsearch users are defined using a list of YAML dictionaries with
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the Elasticsearch native user defined via the API.
+Configuration entries with the same name are merged and can modify each other
+in order of appearance.
+.TP
+.B \fBdata\fP
+Required. A YAML dictionary with Elasticsearch configuration for the user
+which will be passed via the API as JSON data. When multiple configuration
+entries are merged, the \fBdata\fP parameter is overwritten by the next entry
+in the list.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, the defined Elasticsearch user will
+be created or updated on each \fI\%debops.elasticsearch\fP Ansible role
+execution. If \fBabsent\fP, the defined user will be deleted from the cluster
+configuration. If \fBignore\fP, a given configuration entry will not be
+processed by the \fI\%debops.elasticsearch\fP role during execution \- this is
+a good way to avoid updating the user on each Ansible run, once it is
+configured.
+.UNINDENT
+.SS elasticsearch__configuration
+.sp
+The \fBelasticsearch__*_configuration\fP variables define the Elasticsearch
+configuration options that are set in the
+\fB/etc/elasticsearch/elasticsearch.yml\fP configuration file.
+.sp
+The main Elasticsearch configuration file format is YAML.
+The \fI\%reference documentation\fP <\fBhttps://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html\fP>
+defines two YAML formats recognized by Elasticsearch, hierarchical (YAML
+dictionary keys are indented), or flat (YAML dictionary keys are separated by
+dots). This role focuses only on the latter, flat format since it\(aqs used
+everywhere in the Elasticsearch documentation and seems to be the preferred
+method for the majority of the configuration options.
+.sp
+For quick reference, the Elasticsearch configuration file contains options in the
+following format:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cluster.name: example\-cluster
+node.name: node\-1
+network.host: [ _local_, _site_ ]
+bootstrap.memory_lock: true
+discovery.zen.minimum_master_nodes: 3
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBelasticsearch__*_configuration\fP variables are YAML lists of
+dictionaries. Each YAML dictionary defines an option, or redefines a previously
+defined option (the variables are flattened and then processed in order).
+.sp
+The first YAML dictionary key of each option (in above case, \fBcluster\fP,
+\fBnode\fP, \fBnetwork\fP, \fBbootstrap\fP, \fBdiscovery\fP is significant, and is used
+to separate configuration options into sections defined by the
+\fI\%elasticsearch__configuration_sections\fP variable.
+.sp
+Configuration options can be defined as YAML dictionaries directly, with the
+key being the name of the option, and value being its value:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+elasticsearch__configuration:
+  \- \(aqcluster.name\(aq: \(aqexample\-cluster\(aq
+  \- \(aqnode.name\(aq: \(aqnode\-1\(aq
+  \- \(aqnetwork.host\(aq: [ \(aq_local_\(aq, \(aq_site_\(aq ]
+  \- \(aqbootstrap.memory_lock\(aq: True
+  \- \(aqdiscovery.zen.minimum_master_nodes\(aq: 3
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The extended YAML dictionary format is detected if a YAML dictionary contains
+a \fBname\fP key. The dictionaries support specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+String. The name of the Elasticsearch option.
+.TP
+.B \fBvalue\fP
+The value of the Elasticsearch option. Can be a string, a number, a boolean
+or a YAML list.
+.TP
+.B \fBcomment\fP
+An optional comment added to the option, either as a string or a YAML text
+block.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the option will be included in the
+configuration. If \fBabsent\fP, the option will not be included. If
+\fBcomment\fP, the option will be present but commented out (it\(aqs an internal
+feature and may not work reliably for all cases).
+.TP
+.B \fBraw\fP
+Optional, a YAML text block. The name of the configuration option will be
+discarded and used only as a marker for these parameters. The contents of the
+\fBraw\fP key will be added as\-is to the configuration file. You can use this
+to include more extensive configuration defined as a hierarchical YAML
+structure. An example configuration which should be equivalent to the
+previous example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+elasticsearch__configuration:
+  \- name: \(aqnode.meta.host_type\(aq
+    raw: |
+      # Node type
+      node.master: true
+      node.data: true
+      node.ingest: true
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+You should make sure that the indentation of the YAML parameters is consistent
+through the configuration file.
+.SS elasticsearch__configuration_sections
+.sp
+The \fB/etc/elasticsearch/elasticsearch.yml\fP configuration file is
+structured in informal \(aqsections\(dq, each section contains configuration options
+from a specific group (\fBnode\fP, \fBcluster\fP, etc.). The
+\fI\%elasticsearch__configuration_sections\fP contains a YAML list of
+sections and option types to associate with them. The order of the entries on
+the list determines the order of the sections in the finished configuration
+file.
+.sp
+Each section definition is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Name of the section, stored as a comment.
+.TP
+.B \fBpart\fP or \fBparts\fP
+A string or a YAML list of configuration option prefixes (first YAML
+dictionary key of a given configuration option). Only the parts defined for
+a given section will be included in that section.
+.UNINDENT
+.sp
+After all of the sections are processed, any left over configuration options
+not matched with a particular section will be added at the end of the
+configuration file.
+.SS elasticsearch__plugins
+.sp
+The \fBelasticsearch__*_plugins\fP variables are YAML lists that can be used to
+install or remove Elasticsearch plugins. Support for plugin management using
+these variables is minimalistic; you can install plugins known by the Elastic
+\fI\%plugin repository\fP <\fBhttps://www.elastic.co/guide/en/elasticsearch/plugins/current/index.html\fP>,
+or from an URL. More involved management can be done by creating a separate
+role and using \fBdebops.elasticsearch\fP as a role dependency to manage
+configuration if necessary. See \fI\%Usage as a role dependency\fP for more
+details.
+.sp
+Each element of the list is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the plugin that shows up in the output of the
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+bin/elasticsearch\-plugin list
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+command. This parameter will be used to check the state of the plugin.
+.TP
+.B \fBurl\fP
+Optional. If the plugin is distributed via an URL, you can provide it here
+for the plugin management script to use instead of the plugin name.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the plugin and its configuration
+will be installed. If \fBabsent\fP the plugin and its configuration will be
+removed.
+.TP
+.B \fBconfiguration\fP or \fBconfig\fP
+Optional. Custom configuration for a given plugin, in the format recognized
+by the main configuration template.
+.sp
+See \fI\%elasticsearch__configuration\fP for more details.
+.UNINDENT
+.SS Examples
+.sp
+Install Java Script language support:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+elasticsearch__plugins:
+  \- name: \(aqlang\-javascript\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Nick Janetakis, Maciej Delmanowski, Reto Gantenbein
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

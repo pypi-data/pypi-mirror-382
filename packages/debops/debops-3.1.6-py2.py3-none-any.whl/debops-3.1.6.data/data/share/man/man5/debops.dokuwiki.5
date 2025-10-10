@@ -1,0 +1,220 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DOKUWIKI" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.dokuwiki \- Manage DokuWiki installation with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/dokuwiki\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%DokuWiki\fP <\fBhttps://www.dokuwiki.org/\fP> is an easy to use, file\-based wiki written in PHP5.
+\fBdebops.dokuwiki\fP role installs this wiki on a specified host with nginx
+as a webserver (using \fI\%debops.nginx\fP). You can optionally
+configure multiple DokuWiki instances with shared base installation using
+\fI\%DokuWiki vhost farm\fP <\fBhttps://www.dokuwiki.org/farms\fP> mode.
+.SH GETTING STARTED
+.sp
+By default DokuWiki is installed on a separate system account \fB\(dqdokuwiki\(dq\fP,
+in \fB/srv/www/dokuwiki/\fP subdirectory and will be accessible on
+\fBhttps://wiki.<domain>/\fP\&. \fI\%debops.nginx\fP and \fI\%debops.php\fP roles are used
+to configure the required environment.
+.SS Example inventory
+.sp
+You can install DokuWiki on a host by adding it to
+\fB[debops_service_dokuwiki]\fP group in your Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_dokuwiki]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook which uses \fBdebops.dokuwiki\fP role to install
+DokuWiki:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage DokuWiki
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_dokuwiki\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Apply keyring configuration for php environment
+      ansible.builtin.import_role:
+        name: \(aqkeyring\(aq
+      vars:
+        keyring__dependent_apt_keys:
+          \- \(aq{{ php__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::php\(aq, \(aqrole::nginx\(aq ]
+
+    \- name: Prepare php environment
+      ansible.builtin.import_role:
+        name: \(aqphp\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::php\(aq, \(aqrole::php:env\(aq, \(aqrole::logrotate\(aq ]
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ php__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ php__logrotate__dependent_config }}\(aq
+
+    \- role: php
+      tags: [ \(aqrole::php\(aq, \(aqskip::php\(aq ]
+      php__dependent_packages:
+        \- \(aq{{ dokuwiki__php__dependent_packages }}\(aq
+      php__dependent_pools:
+        \- \(aq{{ dokuwiki__php__dependent_pools }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ dokuwiki__ldap__dependent_tasks }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_upstreams:
+        \- \(aq{{ dokuwiki__nginx__dependent_upstreams }}\(aq
+      nginx__dependent_servers:
+        \- \(aq{{ dokuwiki__nginx__dependent_servers }}\(aq
+
+    \- role: dokuwiki
+      tags: [ \(aqrole::dokuwiki\(aq, \(aqskip::dokuwiki\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Post\-install steps
+.sp
+When Ansible is finished, if you don\(aqt use LDAP, you need to finish the
+configuration by opening the \fBhttps://wiki.<domain>/install.php\fP page. There
+you will be able to set the name of your new wiki, superuser account and
+password, and other settings.
+.sp
+You can then login to your wiki and configure it using the administrative
+interface.
+.sp
+Some of the provided plugins, for example \fBCodeMirror\fP, might not be
+installed correctly. In that case, reinstalling them using the admin interface
+should be enough to correctly enable them in DokuWiki.
+.SS LDAP support
+.sp
+If the LDAP environment managed by the \fI\%debops.ldap\fP role is configured on
+a host on which DokuWiki is installed, the \fI\%debops.dokuwiki\fP role will
+automatically integrate with it and configure LDAP authentication. In that
+case, use of the \fB/install.php\fP script might break the installation because
+the install script disables all authentication plugins apart from the
+\fBauthplain\fP plugin, using the \fBconf/plugins.local.php\fP configuration
+file. You can still do it if you wish, just remember to remove the \fBauthldap\fP
+entry from the mentioned file afterwards to restore LDAP support.
+.sp
+Alternatively, you can finish installation after logging in using an
+administrator account. You will have to define basic set of ACLs using the ACL
+manager \- for example to make the whole wiki require authentication to read,
+you can define an ACL entry for \fB@ALL\fP to \(dqNone\(dq, and an ACL entry for
+\fB@USER\fP to \(dqUpload\(dq, which will give users the broadest set of permissions
+without allowing normal users to delete things. The name of the wiki and
+license used by the wiki can be set in the Configuration Manager.
+.sp
+The \fI\%debops.dokuwiki\fP role by default creates a separate LDAP object (via
+the \fI\%debops.ldap\fP role) that contains the definition of user groups used
+by DokuWiki. The LDAP object will be a child of the LDAP account object used to
+access the LDAP directory. This configuration is meant to allow configuration
+of private DokuWiki instances for different groups of users in the LDAP
+directory. If you want to instead use the global groups defined in LDAP, you
+can change that by setting the \fI\%dokuwiki__ldap_private_groups\fP variable
+to \fBFalse\fP\&.
+.sp
+One LDAP group will be created by default \- \(dqDokuWiki Administrators\(dq. This is
+a \fBgroupOfNames\fP LDAP object that grants the superuser access to the wiki to
+people specified using the \fBmember\fP attribute. You can define your own
+additional groups in the same manner as long as they are put below the
+\fBou=Groups\fP LDAP object used by the wiki. Inside of the DokuWiki ACL manager,
+these groups have to be specified with the \fB@\fP prefix, for example
+\fB@DokuWiki Administrators\fP\&.
+.sp
+By default access to DokuWiki service is limited to user accounts that have the
+\fBauthorizedService\fP attribute with either \fBdokuwiki\fP, \fBweb\-public\fP or
+\fB*\fP values. To change the requirements or give access to the service to all
+users, you can edit the LDAP user filter used by DokuWiki, specified in the
+\fI\%dokuwiki__ldap_user_filter\fP variable.
+.sp
+You should also read the \fI\%LDAP Directory Information Tree\fP for details about LDAP
+objects and directory structure configured by the \fI\%debops.dokuwiki\fP role.
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

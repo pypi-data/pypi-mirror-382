@@ -1,0 +1,192 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.TCPWRAPPERS" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.tcpwrappers \- Manage host access controlled by libwrap
+.SH SYNOPSIS
+.sp
+\fBdebops run service/tcpwrappers\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-tags\fP \fBrole::tcpwrappers\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-skip\-tags\fP \fBskip::tcpwrappers\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.tcpwrappers\fP Ansible role can be used to manage entries in
+\fB/etc/hosts.allow\fP and \fB/etc/hosts.deny\fP which are used by TCP Wrappers to
+limit connections to daemons that utilize the \fBlibwrap\fP library.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+The default configuration implemented by \fBdebops.tcpwrappers\fP is focused
+around whitelisting specific IP addresses, CIDR subnets or other entries. Role
+will automatically block all incoming connections using \fB/etc/hosts.deny\fP and
+allow you to specify whitelisted exceptions in \fB/etc/hosts.allow\fP\&.
+.sp
+To support idempotent configuration of different services, role uses the
+Ansible \fBassemble\fP module to generate the \fB/etc/hosts.allow\fP file from
+fragments located in \fB/etc/hosts.allow.d/\fP directory. Any changes in the
+\fB/etc/hosts.allow\fP file directly will be lost.
+.sp
+Due to SSH service being crucial for Ansible operation, the role takes care not
+to block the Ansible Controller host from accessing it using data gathered
+automatically by \fBdebops.core\fP role, or by a separate list of Ansible
+Controller hosts.
+.SS Example inventory
+.sp
+The \fBdebops.tcpwrappers\fP role is included by default in the \fBcommon.yml\fP
+DebOps playbook. You don\(aqt need to configure anything in the inventory to
+enable it.
+.SS Example playbook
+.sp
+\fBdebops.tcpwrappers\fP is designed to be used from a playbook or a role as role
+dependency. Here\(aqs an example configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage TCP Wrappers
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_tcpwrappers\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+some of \fBdebops.tcpwrappers\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS tcpwrappers__allow
+.sp
+This is a list of \fB/etc/hosts.allow\fP entries defined as YAML dictionaries.
+Each entry will be stored in \fB/etc/hosts.allow.d/\fP directory in a separate
+file. The configuration roughly follows the conventions described in the
+\fBhosts_access(5)\fP and \fBhosts_options(5)\fP man pages. The list of known
+parameters:
+.INDENT 0.0
+.TP
+.B \fBdaemon\fP
+Required. Name or list of names of the daemons which should be configured,
+the first entry will be used in th filename if a custom one is not specified.
+.TP
+.B \fBclient\fP
+Optional. String or list of IP addresses, CIDR subnets, domain names and
+other \(dqclients\(dq that should be allowed (by default) to connect to a given
+service. If not specified, the access will be granted for all hosts, unless
+it\(aqs disabled by \fBitem.accept_any\fP parameter.
+.sp
+IPv6 addresses should be specified \(dqas is\(dq, they will be automatically
+converted to square bracket notation.
+.TP
+.B \fBoption\fP
+Optional. String or list of additional options for a particular entry. This
+will be added after list of clients. The colons (\fB:\fP) inside the options
+are automatically escaped by a backslash. See \fBhosts_options(5)\fP man page
+for possible values.
+.TP
+.B \fBcustom\fP
+Optional. A YAML text block with raw configuration in \fB/etc/hosts.allow\fP
+format.
+.TP
+.B \fBweight\fP
+Optional. Two\-digit number prefix added to the entry filename, to allow
+easier sorting of files in \fB/etc/hosts.allow.d/\fP directory.
+.TP
+.B \fBfilename\fP
+Optional. Custom name of the file stored in \fB/etc/hosts.allow.d/\fP\&. If not
+specified, a name will be generated based on the value of \fBitem.daemon\fP or
+\fBitem.daemons\fP parameter.
+.TP
+.B \fBcomment\fP
+Optional. A comment added to the given entry to explain its purpose.
+.TP
+.B \fBaccept_any\fP
+Optional, boolean. If not specified or \fBTrue\fP, without a specific client
+list the service that is being configured will accept connections from all
+hosts (\fBALL\fP). If specified and \fBFalse\fP, connections won\(aqt be allowed
+unless a list of clients is specified and not empty.
+.TP
+.B \fBstate\fP
+Optional. Either \fBpresent\fP or \fBabsent\fP\&. If specified and \fBabsent\fP, the
+configuration file will be removed from \fB/etc/hosts.allow.d/\fP directory,
+otherwise it will be created.
+.UNINDENT
+.SS Examples
+.sp
+Allow connection from anywhere to \fBsshd\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tcpwrappers__allow:
+  \- daemon: \(aqsshd\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Restrict access to \fBvsftpd\fP daemon to a set of particular subnets (IPv6
+addresses are wrapped in square brackets automatically):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tcpwrappers__allow:
+  \- daemon: [ \(aqvsftpd\(aq ]
+    client: [ \(aq192.0.2.0/24\(aq, \(aq2001:db8::/32\(aq ]
+    accept_any: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,44 @@
+#!{{ ansible_python['executable'] }}
+# -*- coding: utf-8 -*-
+
+# Copyright (C) 2015-2023 Maciej Delmanowski <drybjed@gmail.com>
+# Copyright (C) 2019      Imre Jonk <mail@imrejonk.nl>
+# Copyright (C) 2015-2023 DebOps <https://debops.org/>
+# SPDX-License-Identifier: GPL-3.0-only
+
+# {{ ansible_managed }}
+
+from __future__ import print_function
+from json import load, loads, dumps
+from sys import exit
+import subprocess
+import os
+import re
+
+
+def cmd_exists(cmd):
+    return any(
+        os.access(os.path.join(path, cmd), os.X_OK)
+        for path in os.environ["PATH"].split(os.pathsep)
+    )
+
+
+output = {}
+output['installed'] = cmd_exists('docker')
+
+try:
+    docker_version_stdout = subprocess.check_output(
+            ["docker", "--version"]
+            ).decode('utf-8').strip()
+
+    for line in docker_version_stdout.split('\n'):
+        if line.lower().startswith('docker version '):
+            version_string = line.split()[2]
+            version_string = version_string.split(',')[0]
+            # Strip version tag in Debian packaging
+            output['version'] = version_string.split('+')[0]
+
+except Exception:
+    pass
+
+print(dumps(output, sort_keys=True, indent=4))

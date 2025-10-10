@@ -1,0 +1,464 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.NSSWITCH" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.nsswitch \- configure Name Service Switch using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/nsswitch\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.nsswitch\fP Ansible role can be used to configure the Name Service
+Switch using the \fB/etc/nsswitch.conf\fP configuration file. The role can be
+used as a dependency of another Ansible role to allow management of NSS
+services after they have been configured. System administrators can use this
+role to enable or disable NSS services conditionally or change the preferred
+order of the NSS services.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The \fBdebops.nsswitch\fP role is designed to allow control over the
+\fB/etc/nsswitch.conf\fP configuration file both by other Ansible roles (as
+a role dependency) and by the system administrator. The Ansible roles can
+enable different NSS services after they have been configured on the host. The
+system administrator can decide what order the various NSS services should be
+used in and if they should be used in a particular NSS database lookup.
+.sp
+The default role configuration shouldn\(aqt affect the \fB/etc/nsswitch.conf\fP
+configuration file provided by the OS distribution, apart from changing the
+mDNS service from IPv4 to both IPv6 and IPv4 (see \fI\%mDNS (Avahi/ZeroConf) support\fP for
+more details). The convention on Debian is that different packages which
+provide NSS services modify the \fB/etc/nsswitch.conf\fP configuration file
+themselves, therefore the role tries to respect local modifications. A set of
+various NSS services (LDAP, SSS, Winbind) should be detected and enabled
+accordingly, however the order of the services comes from the role itself and
+might change from the one created by the Debian packages.
+.sp
+According to the \fI\%nsswitch.conf(5)\fP <\fBhttps://manpages.debian.org/nsswitch.conf(5)\fP>, processes that use the NSS
+configuration file read the \fB/etc/nsswitch.conf\fP only once, therefore
+a restart of these processes (for example \fBnscd\fP or \fBsssd\fP)
+might be needed.
+.sp
+At the moment the role restarts the \fBsystemd\-logind\fP service on the
+configuration changes, but only when the playbook is executed against a remote
+host, to avoid breaking local user session. Changes on \fBlocalhost\fP might need
+the system to be restarted for \fBsystemd\-logind\fP to reload the new
+configuration correctly.
+.SS mDNS (Avahi/ZeroConf) support
+.sp
+The role will replace the \fBmdns4_minimal\fP NSS service with \fBmdns_minimal\fP
+if the IPv6 support is enabled in the \fBdebops.avahi\fP Ansible role (detected
+via Ansible local facts). This will allow lookup of the \fB\&.local\fP domain over
+IPv6 network.
+.sp
+To disable this behaviour, set in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nsswitch__database_map:
+  \(aqhosts\(aq:
+    \- \(aqfiles\(aq
+    \- [ \(aqmdns4_minimal\(aq, \(aq[NOTFOUND=return]\(aq ]
+    \- \(aqdns\(aq
+    \- \(aqwins\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Use of the \fBmdns4_minimal\fP NSS service is currently an upstream default
+behaviour, which \fI\%was suggested for Debian in 2008\fP <\fBhttps://bugs.debian.org/466014\fP>\&.
+However the IPv6 deployment was not very widespread at the time, which is not
+true anymore. Because DebOps tries to be IPv6\-friendly and work out of the box
+with IPv6 network, the role by default will enable mDNS support on IPv6.
+If this becomes problematic, the default might change to leaving
+\fBmdns4_minimal\fP in its current state.
+.SS Example inventory
+.sp
+The \fBdebops.nsswitch\fP role is part of the common DebOps playbook. You don\(aqt
+need to do anything to enable it on all hosts.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.nsswitch\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Name Service Switch configuration
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_nsswitch\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: nsswitch
+      tags: [ \(aqrole::nsswitch\(aq, \(aqskip::nsswitch\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.nsswitch\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS nsswitch__services
+.sp
+The \fBnsswitch__*_services\fP variables define a list of NSS services which
+should be defined on a host. Each element of this list will be checked against
+the configuration stored in the \fI\%nsswitch__combined_database_map\fP and
+services that are present will be enabled in the finished configuration file.
+.sp
+To see a list of possible services, consult the \fI\%nsswitch.conf(5)\fP <\fBhttps://manpages.debian.org/nsswitch.conf(5)\fP>
+manual page. You can also check what NSS libraries are installed on the system
+by running the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dpkg \-l | grep \-E \(aq(libnss|libsss)\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS NSS service configuration in Ansible inventory
+.sp
+The \fI\%nsswitch__services\fP, \fI\%nsswitch__group_services\fP and
+\fI\%nsswitch__host_services\fP variables can be used in respective levels of
+the Ansible inventory to configure the NSS services on different hosts. For
+example, to make sure that a given host use LDAP lookups, add in the
+\fBansible/inventory/host_vars/<hostname>/nsswitch.yml\fP file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nsswitch__host_services: [ \(aqldap\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This configuration should enable \fBldap\fP NSS service for specific lookup
+databases, according to the configuration defined in the
+\fI\%nsswitch__database_map\fP variables.
+.sp
+To remove a specific NSS service from the configuration file, you can add in
+inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nsswitch__remove_services: [ \(aqsss\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS NSS service configuration by another role
+.sp
+The \fBdebops.nsswitch\fP Ansible role supports activation of NSS services from
+other roles via the \fI\%nsswitch__dependent_services\fP variable. The
+configuration will persist as long as the service activated by another role via
+dependent variables is one of the services known by the \fBdebops.nsswitch\fP
+roles and is included in the \fI\%nsswitch__database_map\fP configuration.
+.sp
+In an application role, define a variable that can be passed to the
+\fBdebops.nsswitch\fP role with list of NSS services to activate:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__nsswitch__dependent_services: [ \(aqsss\(aq, \(aqldap\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After that, you can use this variable in a playbook as a dependent variable:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure application with NSS service
+  collections: [ \(aqdebops.debops\(aq ]
+  hosts: [ \(aqdebops_service_application\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: application
+      tags: [ \(aqrole::application\(aq ]
+
+    \- role: nsswitch
+      tags: [ \(aqrole::nsswitch\(aq ]
+      nsswitch__dependent_services:
+        \- \(aq{{ application__nsswitch__dependent_services }}\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Make sure that the \fBdebops.nsswitch\fP role is used after your application
+role, or the one that configures a specific NSS service, that way it can
+automatically detect any changes in the \fB/etc/nsswitch.conf\fP
+configuration file made by the OS packages.
+.SS nsswitch__database_map
+.sp
+The \fBnsswitch__*_database_map\fP variables are YAML dictionaries which define
+the order of the NSS services for specific NSS databases. Each YAML dictionary
+key is a name of the NSS database, and its value is a YAML list (only lists are
+supported) of NSS services, which can contain different elements.
+.SS NSS services defined as strings
+.sp
+Each element of a YAML service list can be a string, which is a name of the NSS
+service which should be enabled for a given database. This service will be
+enabled when a corresponding string is found in the
+\fI\%nsswitch__combined_services\fP variable. For example, the configuration
+below will only enable file\-based user and group lookups:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nsswitch__services: [ \(aqfiles\(aq ]
+
+nsswitch__database_map:
+  \(aqpasswd\(aq: [ \(aqfiles\(aq, \(aqsss\(aq, \(aqldap\(aq ]
+  \(aqgroup\(aq:  [ \(aqfiles\(aq, \(aqsss\(aq, \(aqldap\(aq ]
+  \(aqshadow\(aq: [ \(aqfiles\(aq, \(aqsss\(aq, \(aqldap\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS NSS services defined as YAML lists
+.sp
+Another element type in a YAML service list is a YAML list. This format can be
+used to include custom actions described in the \fI\%nsswitch.conf(5)\fP <\fBhttps://manpages.debian.org/nsswitch.conf(5)\fP> for
+a given NSS service. The role checks the first element of the list for the NSS
+service name, if it should be enabled, the whole list will be included in the
+generated configuration file. Remember to write the actions with square
+brackets (see the example below). The following example will enable the \fBnis\fP
+database lookups for services, with a custom service action:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nsswitch__services: [ \(aqfiles\(aq, \(aqnis\(aq ]
+
+nsswitch__database_map:
+  \(aqservices\(aq:
+    \- [ \(aqnis\(aq, \(aq[NOTFOUND=return]\(aq ]
+    \- \(aqfiles\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS NSS services defined as YAML dictionaries
+.sp
+The last version of an element in a YAML service list is a YAML dictionary,
+with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBservice\fP
+Required. name of the NSS service to include in the service list.
+.TP
+.B \fBaction\fP
+Optional. NSS service action to add after a given service in the service
+list. You need to include the square brackets in this string.
+.TP
+.B \fBreplace\fP
+Optional. By default the role uses the \fBservice\fP parameter to look up
+existing NSS services in the \fB/etc/nsswitch.conf\fP configuration file
+and decide to include them. If the \fBreplace\fP parameter is specified, the
+role will instead look for the service name specified in it and if found,
+replace it with the \fBservice\fP string.
+.TP
+.B \fBrequire\fP
+Optional, boolean. If not present, or \fBTrue\fP, this NSS service will always
+be added if a given NSS service type is present in the
+\fI\%nsswitch__combined_services\fP list.
+.sp
+If \fBFalse\fP, role will not check if a given NSS service is present in the
+enabled services, but only of a given NSS service type is already present in
+the configuration file.
+.sp
+This parameter can be used to ensure that a given NSS service state is
+preserved without enforcing its presence in the generated
+\fB/etc/nsswitch.conf\fP config file.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the given NSS service will be
+considered for inclusion in the service list, depending on its presence in
+\fI\%nsswitch__combined_services\fP variable. if \fBabsent\fP, the given NSS
+service will be skipped during template generation. This can be used to
+enable or disable different NSS service entries conditionally.
+.UNINDENT
+.sp
+An example configuration which will enable a \fBldap\fP NSS lookup for user and
+group accounts on Ubuntu\-based hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nsswitch__services: [ \(aqfiles\(aq, \(aqldap\(aq ]
+
+nsswitch__database_map:
+
+  \(aqpasswd\(aq:
+
+    \- \(aqfiles\(aq
+
+    \- service: \(aqldap\(aq
+      state: \(aq{{ \(dqpresent\(dq
+                 if ansible_distribution == \(dqUbuntu\(dq
+                 else \(dqabsent\(dq }}\(aq
+
+  \(aqgroup\(aq:
+
+    \- \(aqfiles\(aq
+
+    \- service: \(aqldap\(aq
+      state: \(aq{{ \(dqpresent\(dq
+                 if ansible_distribution == \(dqUbuntu\(dq
+                 else \(dqabsent\(dq }}\(aq
+
+  \(aqshadow\(aq:
+
+    \- \(aqfiles\(aq
+
+    \- service: \(aqldap\(aq
+      state: \(aq{{ \(dqpresent\(dq
+                 if ansible_distribution == \(dqUbuntu\(dq
+                 else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The example below will make sure that \fBsudo\fP LDAP lookups will be
+enabled if \fBsudo\-ldap\fP package is enabled, but they won\(aqt be considered
+otherwise:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nsswitch__services: [ \(aqfiles\(aq, \(aqldap\(aq ]
+
+nsswitch__database_map:
+  \(aqsudoers\(aq:
+
+    \- service: \(aqfiles\(aq
+      require: False
+
+    \- service: \(aqldap\(aq
+      require: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS NSS service order
+.sp
+The order of elements in the NSS service lists is significant, and defines the
+order in which the system uses various services to lookup the information. If
+needed, the system administrator can change the order of services for
+a particular NSS database, using the additional \fBnsswitch__*_database_map\fP
+variables. Order cannot be changed from another role due to idempotency
+constraints, and because this property is related to the particular environment
+as a whole, rather than to a specific application/service.
+.sp
+For example, the default (simplified) configuration for hostname lookups could
+be defined as:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nsswitch__default_database_map:
+  \(aqhosts\(aq: [ \(aqfiles\(aq, \(aqdns\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In this configuration, the system resolver while looking for a hostname or an
+IP address, will first check the local \fB/etc/hosts\fP file, and if hostname
+is not found there, the system will ask the DNS database of a hostname.
+.sp
+If you want to change this order and look in the DNS database first, you can
+define a variable in Ansible inventory like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nsswitch__database_map:
+  \(aqhosts\(aq: [ \(aqdns\(aq, \(aqfiles\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+With this configuration in place, system should ask the DNS database before
+looking in local \fB/etc/hosts\fP file. If you plan to change a database
+service lookup order, make sure that you include all of the relevant services
+in your customized variable, since it will mask the default database list as
+a whole.
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

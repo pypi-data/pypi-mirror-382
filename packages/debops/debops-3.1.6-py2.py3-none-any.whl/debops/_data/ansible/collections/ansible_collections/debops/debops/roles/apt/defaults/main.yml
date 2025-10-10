@@ -1,0 +1,793 @@
+---
+# .. vim: foldmarker=[[[,]]]:foldmethod=marker
+
+# .. Copyright (C) 2013-2023 Maciej Delmanowski <drybjed@gmail.com>
+# .. Copyright (C) 2015-2017 Robin Schneider <ypid@riseup.net>
+# .. Copyright (C) 2014-2023 DebOps <https://debops.org/>
+# .. SPDX-License-Identifier: GPL-3.0-only
+
+# .. _apt__ref_defaults:
+
+# debops.apt default variables
+# ============================
+
+# .. contents:: Sections
+#    :local:
+#
+# .. include:: ../../../../includes/global.rst
+
+
+# General configuration [[[
+# -------------------------
+
+# .. envvar:: apt__enabled [[[
+#
+# Enable or disable management of the APT configuration and sources using this
+# role.
+apt__enabled: '{{ True if (ansible_pkg_mgr == "apt") else False }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__deploy_state [[[
+#
+# Enable (if ``present``) or disable (if ``absent``) management of the
+# :file:`/etc/apt/sources.list` configuration file by the role.
+apt__deploy_state: '{{ "present"
+                       if (ansible_facts.distribution in ["Debian", "Raspbian", "Ubuntu", "Devuan"])
+                       else "absent" }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__cache_valid_time [[[
+#
+# Update APT cache early in the playbook if it's older than 24h
+# Set to False to disable update (useful when changing APT mirrors)
+apt__cache_valid_time: '{{ ansible_local.core.cache_valid_time | d(60 * 60 * 24) }}'
+                                                                   # ]]]
+                                                                   # ]]]
+# Packages to install [[[
+# -----------------------
+
+# .. envvar:: apt__base_packages [[[
+#
+# Default base packages to install for APT support. You can use the
+# :ref:`debops.apt_install` role to install other packages not related to the
+# package manager.
+apt__base_packages:
+  - 'lsb-release'
+  - 'ca-certificates'
+  - '{{ "apt-transport-https"
+        if (ansible_distribution_release in
+            ["stretch", "trusty", "xenial"])
+        else [] }}'
+  - 'gnupg'
+
+                                                                   # ]]]
+# .. envvar:: apt__packages [[[
+#
+# List of additional APT packages to install for APT support. You can use the
+# :ref:`debops.apt_install` role to install other packages not related to the
+# package manager.
+apt__packages: []
+                                                                   # ]]]
+                                                                   # ]]]
+# The :file:`/etc/apt/sources.list` defaults [[[
+# ----------------------------------------------
+
+# These variables are used in configuration options of the
+# :file:`/etc/apt/sources.list` configuration file. They are exposed here for
+# convenience.
+
+# .. envvar:: apt__archive_types [[[
+#
+# List of source types to configure for the default package sources. Supported
+# choices: ``deb``, ``deb-src``.
+apt__archive_types: [ 'deb', 'deb-src' ]
+
+                                                                   # ]]]
+# .. envvar:: apt__archive_sources_disabled [[[
+#
+# If enabled, the 'deb-src' APT archive sources will be commented out by
+# default to make APT updates faster.
+apt__archive_sources_disabled: True
+
+                                                                   # ]]]
+# .. envvar:: apt__architecture [[[
+#
+# The default system architecture present on the host.
+apt__architecture: '{{ apt__architecture_map[ansible_facts.architecture]
+                       | d(ansible_facts.architecture) }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__architecture_map [[[
+#
+# A YAML dictionary which defines a mapping between Ansible architectures and
+# Debian/Ubuntu ports. Only definitions that are different from the detected
+# ones are listed here, otherwise the value of ``ansible_architecture`` is
+# used.
+apt__architecture_map:
+  'x86_64': 'amd64'
+  'armv7l': 'armhf'
+  'aarch64': 'arm64'
+
+                                                                   # ]]]
+# .. envvar:: apt__distribution [[[
+#
+# The Linux distribution present on the host.
+# Note: this deliberately does not default to ansible_local.core.distribution
+# because this local fact is set by the 'core' role, which runs later in the
+# common playbook.
+# Ref: https://github.com/debops/debops/issues/2046#issuecomment-1086702657
+apt__distribution: '{{ ansible_facts.lsb.id | d(ansible_facts.distribution) }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__distribution_release [[[
+#
+# The Linux distribution release present on the host.
+# Note: this deliberately does not default to
+# ansible_local.core.distribution_release because this local fact is set by the
+# 'core' role, which runs later in the common playbook.
+# Ref: https://github.com/debops/debops/issues/2046#issuecomment-1086702657
+apt__distribution_release: '{{ ansible_facts.lsb.codename
+                               | d(ansible_facts.distribution_release) }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__distribution_version [[[
+#
+# The OS distribution version, used for specific APT repositories.
+apt__distribution_version: '{{ ansible_facts.distribution_version }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__nonfree [[[
+#
+# Boolean. If enabled, non-free sections of a given distribution repository
+# will be enabled, otherwise they won't be present.
+#
+# By default non-free sections are enabled on hardware-based hosts due to
+# a possible requirement for non-free firmware packages. The fact script will
+# also check if non-free section was enabled in the original
+# :file:`sources.list` file and enable it accordingly.
+apt__nonfree: '{{ ansible_facts.ansible_local.apt.nonfree
+                  | d(True
+                      if (ansible_facts.virtualization_role is undefined or
+                          ansible_facts.virtualization_role != "guest")
+                      else False) }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__nonfree_firmware [[[
+#
+# Boolean. If enabled, sections of a given distribution repository which
+# contain non-free firmware packages will be enabled, otherwise they won't be
+# present.
+#
+# By default non-free firmware sections are enabled on hardware-based hosts due
+# to a possible requirement for non-free firmware packages.
+apt__nonfree_firmware: '{{ True
+                           if (ansible_facts.virtualization_role is undefined or
+                               ansible_facts.virtualization_role != "guest")
+                           else False }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__distribution_repository_map [[[
+#
+# YAML dictionary which maps the distribution OS to its default APT repository.
+# Values from here are used in multiple entries in the
+# :file:`/etc/apt/sources.list` configuration and are exposed here for
+# convenience.
+apt__distribution_repository_map:
+  'Debian': 'http://deb.debian.org/debian'
+  'Devuan': 'http://deb.devuan.org/merged'
+  'Ubuntu': '{{ "http://archive.ubuntu.com/ubuntu"
+                if (apt__architecture in ["amd64", "i386"])
+                else "http://ports.ubuntu.com/ubuntu-ports" }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__debian_archived_releases [[[
+#
+# List of Debian releases which have been archived and are not available in the
+# default APT repositories. This variable is used conditionally to detect if
+# a given OS release is archived.
+apt__debian_archived_releases: [ 'wheezy', 'jessie', 'stretch', 'buster' ]
+                                                                   # ]]]
+                                                                   # ]]]
+# The :file:`/etc/apt/sources.list` configuration entries [[[
+# -----------------------------------------------------------
+
+# .. _apt__ref_sources_defaults:
+
+# These variables define the contents of the :file:`/etc/apt/sources.list`
+# configuration file. See :ref:`apt__ref_sources` for more details.
+
+# .. envvar:: apt__debian_sources [[[
+#
+# APT source entries for the Debian distribution.
+apt__debian_sources:
+
+  - name: 'debian-release'
+    types: '{{ apt__archive_types }}'
+    uri: '{{ apt__distribution_repository_map.Debian | d() }}'
+    suites:
+      - '{{ apt__distribution_release }}'
+    components: [ 'main' ]
+    state: '{{ "present"
+               if (apt__distribution == "Debian")
+               else "ignore" }}'
+
+  - name: 'debian-release'
+    uri: 'http://archive.debian.org/debian'
+    state: '{{ "present"
+               if (apt__distribution == "Debian" and
+                   apt__distribution_release in apt__debian_archived_releases)
+               else "ignore" }}'
+
+  - name: 'debian-release'
+    suites:
+      - '{{ apt__distribution_release + "-updates" }}'
+    state: '{{ "present"
+               if (apt__distribution == "Debian" and
+                   apt__distribution_release not in apt__debian_archived_releases and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'debian-release'
+    suites:
+      - '{{ apt__distribution_release + "-backports" }}'
+    state: '{{ "present"
+               if (apt__distribution == "Debian" and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'debian-release'
+    components: [ 'non-free-firmware' ]
+    state: '{{ "ignore"
+               if (apt__distribution == "Debian" and
+                   apt__distribution_release in ["wheezy", "jessie", "stretch",
+                                                 "buster", "bullseye"])
+               else ("present"
+                     if (apt__distribution == "Debian" and
+                         apt__nonfree_firmware | bool)
+                     else "ignore") }}'
+
+  - name: 'debian-release'
+    components: [ 'contrib', 'non-free' ]
+    state: '{{ "present"
+               if (apt__distribution == "Debian" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+  - name: 'debian-release-security'
+    types: '{{ apt__archive_types }}'
+    uri: 'http://deb.debian.org/debian-security/'
+    suites:
+      - '{{ apt__distribution_release + "-security" }}'
+    components: [ 'main' ]
+    state: '{{ "present"
+               if (apt__distribution == "Debian" and
+                   apt__distribution_release not in apt__debian_archived_releases and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'debian-release-security'
+    uri: 'http://security.debian.org/'
+    suites:
+
+      # For some reason, filter doesn't accept '' string to reset the list of
+      # suites, so let's reset it "manually" for now.
+      - name: '{{ apt__distribution_release + "-security" }}'
+        state: 'absent'
+
+      - '{{ apt__distribution_release + "/updates" }}'
+
+    state: '{{ "present"
+               if (apt__distribution == "Debian" and
+                   apt__distribution_release not in apt__debian_archived_releases and
+                   apt__distribution_release in ["buster"] and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'debian-release-security'
+    components: [ 'non-free-firmware' ]
+    state: '{{ "present"
+               if (apt__distribution == "Debian" and
+                   apt__distribution_release not in apt__debian_archived_releases and
+                   apt__distribution_release not in ["buster", "bullseye"] and
+                   apt__distribution_version != "n/a" and
+                   apt__nonfree_firmware | bool)
+               else "ignore" }}'
+
+  - name: 'debian-release-security'
+    components: [ 'contrib', 'non-free' ]
+    state: '{{ "present"
+               if (apt__distribution == "Debian" and
+                   apt__distribution_release not in apt__debian_archived_releases and
+                   apt__distribution_version != "n/a" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__devuan_sources [[[
+#
+# APT source entries for the Devuan distribution.
+apt__devuan_sources:
+
+  - name: 'devuan-release'
+    types: '{{ apt__archive_types }}'
+    uri: '{{ apt__distribution_repository_map.Devuan | d() }}'
+    suites:
+      - '{{ apt__distribution_release }}'
+    components: [ 'main' ]
+    state: '{{ "present"
+               if (apt__distribution == "Devuan")
+               else "ignore" }}'
+
+  - name: 'devuan-release'
+    uri: 'http://archive.devuan.org/merged'
+    state: '{{ "present"
+               if (apt__distribution == "Devuan" and
+                   apt__distribution_release in ["jessie", "ascii"])
+               else "ignore" }}'
+
+  - name: 'devuan-release'
+    suites:
+      - '{{ apt__distribution_release + "-updates" }}'
+    state: '{{ "present"
+               if (apt__distribution == "Devuan" and
+                   apt__distribution_release not in ["jessie", "ascii"] and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'devuan-release'
+    suites:
+      - '{{ apt__distribution_release + "-backports" }}'
+    state: '{{ "present"
+               if (apt__distribution == "Devuan" and
+                   apt__distribution_release not in ["jessie"] and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'devuan-release'
+    components: [ 'contrib', 'non-free' ]
+    state: '{{ "present"
+               if (apt__distribution == "Devuan" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+  - name: 'devuan-release-security'
+    types: '{{ apt__archive_types }}'
+    uri: 'http://pkgmaster.devuan.org/merged'
+    suites:
+      - '{{ apt__distribution_release + "-security" }}'
+    components: [ 'main' ]
+    state: '{{ "present"
+               if (apt__distribution == "Devuan" and
+                   apt__distribution_release not in ["jessie", "ascii"] and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'devuan-release-security'
+    components: [ 'contrib', 'non-free' ]
+    state: '{{ "present"
+               if (apt__distribution == "Devuan" and
+                   apt__distribution_release not in ["jessie", "ascii"] and
+                   apt__distribution_version != "n/a" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__ubuntu_sources [[[
+#
+# APT source entries for the Ubuntu distribution.
+apt__ubuntu_sources:
+
+  - name: 'ubuntu-release'
+    comment: |
+      See http://help.ubuntu.com/community/UpgradeNotes for how to upgrade to
+      newer versions of the distribution.
+    types: '{{ apt__archive_types }}'
+    uri: '{{ apt__distribution_repository_map.Ubuntu | d() }}'
+    suites:
+      - '{{ apt__distribution_release }}'
+    components: [ 'main' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu")
+               else "ignore" }}'
+
+  - name: 'ubuntu-release'
+    components: [ 'restricted' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-updates'
+    comment: |
+      Major bug fix updates produced after the final release of the
+      distribution.
+    types: '{{ apt__archive_types }}'
+    uri: '{{ apt__distribution_repository_map.Ubuntu | d() }}'
+    suites:
+      - '{{ apt__distribution_release + "-updates" }}'
+    components: [ 'main' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-updates'
+    components: [ 'restricted' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-universe'
+    comment: |
+      N.B. software from this repository is ENTIRELY UNSUPPORTED by the Ubuntu
+      team. Also, please note that software in universe WILL NOT receive any
+      review or updates from the Ubuntu security team.
+    types: '{{ apt__archive_types }}'
+    uri: '{{ apt__distribution_repository_map.Ubuntu | d() }}'
+    suites:
+      - '{{ apt__distribution_release }}'
+      - '{{ apt__distribution_release + "-updates" }}'
+    components: [ 'universe' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu")
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-multiverse'
+    comment: |
+      N.B. software from this repository is ENTIRELY UNSUPPORTED by the Ubuntu
+      team, and may not be under a free licence. Please satisfy yourself as to
+      your rights to use the software. Also, please note that software in
+      multiverse WILL NOT receive any review or updates from the Ubuntu
+      security team.
+    types: '{{ apt__archive_types }}'
+    uri: '{{ apt__distribution_repository_map.Ubuntu | d() }}'
+    suites:
+      - '{{ apt__distribution_release }}'
+      - '{{ apt__distribution_release + "-updates" }}'
+    components: [ 'multiverse' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-backports'
+    comment: |
+      N.B. software from this repository may not have been tested as
+      extensively as that contained in the main release, although it includes
+      newer versions of some applications which may provide useful features.
+      Also, please note that software in backports WILL NOT receive any review
+      or updates from the Ubuntu security team.
+    types: '{{ apt__archive_types }}'
+    uri: '{{ apt__distribution_repository_map.Ubuntu | d() }}'
+    suites:
+      - '{{ apt__distribution_release + "-backports" }}'
+    components: [ 'main' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-backports'
+    components: [ 'restricted' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-backports'
+    components: [ 'universe' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-backports'
+    components: [ 'multiverse' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-partner'
+    comment: |
+      Uncomment the following two lines to add software from Canonical's
+      'partner' repository.
+      This software is not part of Ubuntu, but is offered by Canonical and the
+      respective vendors as a service to Ubuntu users.
+    types: '{{ apt__archive_types }}'
+    uri: 'http://archive.canonical.com/ubuntu'
+    suites:
+      - '{{ apt__distribution_release }}'
+    components: [ 'partner' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-security'
+    types: '{{ apt__archive_types }}'
+    uri: '{{ apt__distribution_repository_map.Ubuntu | d() }}'
+    suites:
+      - '{{ apt__distribution_release + "-security" }}'
+    components: [ 'main' ]
+    separate: False
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-security'
+    components: [ 'restricted' ]
+    separate: False
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-universe-security'
+    types: '{{ apt__archive_types }}'
+    uri: '{{ apt__distribution_repository_map.Ubuntu | d() }}'
+    suites:
+      - '{{ apt__distribution_release + "-security" }}'
+    components: [ 'universe' ]
+    separate: False
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a")
+               else "ignore" }}'
+
+  - name: 'ubuntu-release-multiverse-security'
+    types: '{{ apt__archive_types }}'
+    uri: '{{ apt__distribution_repository_map.Ubuntu | d() }}'
+    suites:
+      - '{{ apt__distribution_release + "-security" }}'
+    components: [ 'multiverse' ]
+    state: '{{ "present"
+               if (apt__distribution == "Ubuntu" and
+                   apt__distribution_version != "n/a" and
+                   apt__nonfree | bool)
+               else "ignore" }}'
+
+                                                                   # ]]]
+# .. envvar:: apt__sources [[[
+#
+# List of APT sources defined on all hosts in the Ansible inventory.
+apt__sources: []
+
+                                                                   # ]]]
+# .. envvar:: apt__group_sources [[[
+#
+# List of APT sources defined on hosts in a specific Ansible inventory group.
+apt__group_sources: []
+
+                                                                   # ]]]
+# .. envvar:: apt__host_sources [[[
+#
+# List of APT sources defined on specific hosts in the Ansible inventory.
+apt__host_sources: []
+
+                                                                   # ]]]
+# .. envvar:: apt__combined_sources [[[
+#
+# This variable combines all of the :file:`/etc/apt/sources.list` configuration
+# lists and is used in role tasks and templates.
+apt__combined_sources: '{{ apt__debian_sources
+                           + apt__devuan_sources
+                           + apt__ubuntu_sources
+                           + apt__sources
+                           + apt__group_sources
+                           + apt__host_sources }}'
+                                                                   # ]]]
+                                                                   # ]]]
+# Extra architectures [[[
+# -----------------------
+
+# These lists define extra architectures to be enabled on the host.
+# The main architecture does not need to be defined that way.
+
+# .. envvar:: apt__extra_architectures [[[
+#
+# List of extra architectures to configure on all hosts in Ansible inventory.
+apt__extra_architectures: []
+
+                                                                   # ]]]
+# .. envvar:: apt__group_extra_architectures [[[
+#
+# List of extra architectures to configure on hosts in specific Ansible inventory
+# group.
+apt__group_extra_architectures: []
+
+                                                                   # ]]]
+# .. envvar:: apt__host_extra_architectures [[[
+#
+# List of extra architectures to configure on specific hosts in Ansible inventory.
+apt__host_extra_architectures: []
+                                                                   # ]]]
+                                                                   # ]]]
+# APT packages to purge [[[
+# -------------------------
+
+# These lists define what APT packages should be purged (removed along with
+# their configuration, data files and unused dependencies) from the hosts after
+# APT repositories have been configured. Since this role is applied in the
+# bootstrap playbooks, the packages will be purged early on; this might be
+# useful in certain provisioning setups.
+#
+# Use only simple APT package names here. For conditional removal, refer to the
+# :ref:`debops.apt_install` role.
+
+# .. envvar:: apt__purge_packages [[[
+#
+# List of APT packages to purge on all hosts in the Ansible inventory.
+apt__purge_packages: []
+
+                                                                   # ]]]
+# .. envvar:: apt__purge_group_packages [[[
+#
+# List of APT packages to purge on hosts in a specific Ansible inventory group.
+apt__purge_group_packages: []
+
+                                                                   # ]]]
+# .. envvar:: apt__purge_host_packages [[[
+#
+# List of APT packages to purge on specific hosts in the Ansible inventory.
+apt__purge_host_packages: []
+                                                                   # ]]]
+                                                                   # ]]]
+# APT repository keys [[[
+# -----------------------
+
+# These lists define APT GPG keys to configure on hosts to enable authenticated
+# access to additional APT repositories. See :ref:`apt__ref_keys` for more
+# details.
+
+# .. envvar:: apt__keys [[[
+#
+# List of APT GPG keys to configure on all hosts in Ansible inventory.
+apt__keys: []
+
+                                                                   # ]]]
+# .. envvar:: apt__group_keys [[[
+#
+# List of APT GPG keys to configure on hosts in specific Ansible inventory
+# group.
+apt__group_keys: []
+
+                                                                   # ]]]
+# .. envvar:: apt__host_keys [[[
+#
+# List of APT GPG keys to configure on specific hosts in Ansible inventory.
+apt__host_keys: []
+                                                                   # ]]]
+                                                                   # ]]]
+# APT repositories [[[
+# --------------------
+
+# These lists define additional APT repositories in the
+# :file:`/etc/apt/sources.list.d/` directory. See :ref:`apt__ref_repositories` for
+# more details.
+
+# .. envvar:: apt__repositories [[[
+#
+# List of additional APT repositories for all hosts in Ansible inventory.
+apt__repositories: []
+
+                                                                   # ]]]
+# .. envvar:: apt__group_repositories [[[
+#
+# List of additional APT repositories for hosts in specific Ansible inventory
+# group.
+apt__group_repositories: []
+
+                                                                   # ]]]
+# .. envvar:: apt__host_repositories [[[
+#
+# List of additional APT repositories for specific hosts in Ansible inventory.
+apt__host_repositories: []
+
+                                                                   # ]]]
+# .. envvar:: apt__combined_repositories [[[
+#
+# Variable which combines all of the repository lists and is used in role tasks
+# and templates.
+apt__combined_repositories: '{{ apt__repositories
+                                + apt__group_repositories
+                                + apt__host_repositories }}'
+                                                                   # ]]]
+                                                                   # ]]]
+# APT authentication files [[[
+# ----------------------------
+
+# These lists define APT authentication information for repositories which
+# require HTTP Basic Authentication to access. See :ref:`apt__ref_auth_files`
+# for more details.
+
+# .. envvar:: apt__auth_files [[[
+#
+# Authentication configuration files which should be present on all hosts in
+# the Ansible inventory.
+apt__auth_files: []
+
+                                                                   # ]]]
+# .. envvar:: apt__group_auth_files [[[
+#
+# Authentication configuration files which should be present on hosts in
+# a specific Ansible inventory group.
+apt__group_auth_files: []
+
+                                                                   # ]]]
+# .. envvar:: apt__host_auth_files [[[
+#
+# Authentication configuration files which should be present on specific hosts
+# in the Ansible inventory.
+apt__host_auth_files: []
+                                                                   # ]]]
+                                                                   # ]]]
+# APT configuration files [[[
+# ---------------------------
+
+# These lists define additional APT configuration files in
+# :file:`/etc/apt/apt.conf.d/` directory.
+# See :ref:`apt__ref_configuration` for more details.
+
+# .. envvar:: apt__default_configuration [[[
+#
+# List of default APT configuration entries defined by the role.
+apt__default_configuration:
+
+  - name: 'non-free-firmware-note'
+    filename: 'non-free-firmware-note.conf'
+    comment: 'Disable note about Debian Bookworm moving firmware to a separate section'
+    raw: |
+      APT::Get::Update::SourceListWarnings::NonFreeFirmware "false";
+    state: '{{ "ignore"
+               if (apt__distribution == "Debian" and
+                   apt__distribution_release in ["wheezy", "jessie", "stretch",
+                                                 "buster", "bullseye"])
+               else "present" }}'
+
+  - name: 'no-recommends'
+    filename: '25no-recommends.conf'
+    comment: 'Should APT install recommended or suggested packages?'
+    raw: |
+      APT::Install-Recommends "false";
+      APT::Install-Suggests "false";
+    state: 'present'
+
+                                                                   # ]]]
+# .. envvar:: apt__configuration [[[
+#
+# List of additional APT configuration to add on all hosts in Ansible inventory.
+apt__configuration: []
+
+                                                                   # ]]]
+# .. envvar:: apt__group_configuration [[[
+#
+# List of additional APT configuration to add on hosts in specific Ansible
+# inventory group.
+apt__group_configuration: []
+
+                                                                   # ]]]
+# .. envvar:: apt__host_configuration [[[
+#
+# List of additional APT configuration to add on specific hosts in Ansible
+# inventory.
+apt__host_configuration: []
+
+                                                                   # ]]]
+# .. envvar:: apt__combined_configuration [[[
+#
+# Variable which combines all of the APT configuration lists and is used in
+# role tasks and templates.
+apt__combined_configuration: '{{ apt__default_configuration
+                                 + apt__configuration
+                                 + apt__group_configuration
+                                 + apt__host_configuration }}'
+                                                                   # ]]]
+                                                                   # ]]]

@@ -1,0 +1,232 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.RSTUDIO_SERVER" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.rstudio_server \- Manage RStudio Server using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/rstudio_server\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%RStudio\fP <\fBhttps://www.rstudio.com/\fP> is an Integrated Development Environment for
+the R programming language.
+.sp
+This Ansible role can be used to deploy RStudio Server, which is RStudio
+implemented as a web application accessible in a browser.
+.SH GETTING STARTED
+.SS Installation issues
+.sp
+The RStudio Server is not available through an APT repository, upstream
+releases a \fB\&.deb\fP package along with the sources. The role will check if the
+\fBrstudio\-server\fP package is available through APT; otherwise the \fB\&.deb\fP
+package will be downloaded directly from the project\(aqs website and installed
+using \fBdpkg\fP\&. The package integrity is checked via SHA256 checksum. The
+package can also be provided via a local APT repository if desired.
+.SS Example inventory
+.sp
+To configure a host for RStudio Server, it needs to be in the
+\fB[debops_service_rstudio_server]\fP Ansible group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Optional Java support in R environment
+# See \(aqdebops.cran\(aq role for mode details
+[debops_service_java]
+hostname
+
+[debops_service_rstudio_server]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.rstudio_server\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage RStudio Server service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_rstudio_server\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq,
+              \(aqrole::cran\(aq, \(aqrole::nginx\(aq, \(aqrole::rstudio_server\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ cran__keyring__dependent_apt_keys | d([]) }}\(aq
+        \- \(aq{{ nginx__keyring__dependent_apt_keys | d([]) }}\(aq
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ rstudio_server__keyring__dependent_gpg_keys | d([]) }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ rstudio_server__etc_services__dependent_list }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ cran__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ rstudio_server__nginx__dependent_servers }}\(aq
+
+    \- role: java
+      tags: [ \(aqrole::java\(aq, \(aqskip::java\(aq ]
+      java__install_jdk: True
+      when: cran__java_integration | bool
+
+    \- role: cran
+      tags: [ \(aqrole::cran\(aq, \(aqskip::cran\(aq ]
+      cran__dependent_packages:
+        \- \(aq{{ rstudio_server__cran__dependent_packages }}\(aq
+
+    \- role: rstudio_server
+      tags: [ \(aqrole::rstudio_server\(aq, \(aqskip::rstudio_server\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.rstudio_server\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS rstudio_server__allow_users
+.sp
+The \fBrstudio_server__*_allow_users\fP variables define a list of UNIX user
+accounts that should be added to the system group defined by the
+\fI\%rstudio_server__auth_group\fP\&. Accounts in this group will be able to
+login to the RStudio Server web application. Only already existing UNIX
+accounts will be added to the group, role does not create them automatically.
+.sp
+Each list entry can be a string containing an account name, or a YAML
+dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+The name of the UNIX account to include in the auth group.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the account will be added to the
+auth group.
+.UNINDENT
+.SS Examples
+.sp
+Allow specific UNIX accounts access to RStudio Server:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rstudio_server__allow_users:
+  \- \(aquser1\(aq
+  \- name: \(aquser2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rstudio_server__*_conf
+.sp
+These variables specify the contents of the RStudio Server configuration files,
+located in \fB/etc/rstudio/\fP directory. Each variable is a list with YAML
+dictionaries. Each entry can be written in a simple form where YAML dictionary
+key is the option name, and the value is the option value. More complex form
+can be defined using the parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+The name of the option to set.
+.TP
+.B \fBvalue\fP
+The value of the option to set. If it\(aqs empty, it will be removed from the
+configuration file.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the option will be added in the
+configuration file. If \fBabsent\fP, the option won\(aqt be included in the
+configuration file.
+.UNINDENT
+.SS Examples
+.sp
+Define options in the \fBrserver.conf\fP configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rstudio_server__rserver_conf:
+
+  \- \(aqwww\-address\(aq: \(aq127.0.0.1\(aq
+
+  \- name: \(aqwww\-port\(aq
+    value: \(aq8787\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

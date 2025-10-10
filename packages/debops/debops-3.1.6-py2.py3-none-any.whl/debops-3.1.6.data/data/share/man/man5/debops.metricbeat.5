@@ -1,0 +1,535 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.METRICBEAT" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.metricbeat \- Manage Metricbeat service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/metricbeat\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Metricbeat\fP <\fBhttps://www.elastic.co/beats/metricbeat\fP>, from \fI\%Elastic\fP <\fBhttps://www.elastic.co/\fP> is part of the Elastic Stack.  Metricbeat can
+be used to gather various metrics (CPU usage, disk I/O, application status,
+etc.) from host and services and send them to Elasticsearch database for
+processing.
+.sp
+The \fBmetricbeat\fP Ansible role configures Metricbeat on Debian/Ubuntu hosts.
+The software itself will be installed using the \fI\%debops.extrepo\fP
+Ansible role.
+.SH GETTING STARTED
+.SS Upstream package is used by default
+.sp
+The \fI\%debops.metricbeat\fP role depends on the \fI\%debops.extrepo\fP Ansible
+role to configure access to the Elastic.co APT repository. This means that
+usually the latest available Metricbeat release will be installed by default.
+If you require older releases, you can use the \fI\%debops.apt_preferences\fP
+role to select the desired package version.
+.sp
+Alternatively, you can \(dqmask\(dq the
+\fI\%metricbeat__extrepo__dependent_sources\fP variable in the Ansible
+inventory and configure the APT repositories yourself via the \fI\%debops.apt\fP
+role. You can also use the \fI\%debops.elastic_co\fP role to configure Elastic
+APT repositories specifically.
+.SS Default configuration
+.sp
+The \fBmetricbeat\fP role includes a basic configuration for Metricbeat which
+will by default enable metrics in the \fBsystem\fP module.
+.sp
+The default configuration does not try to connect to any existing Elasticsearch
+cluster. You should finish the configuration in the Ansible inventory to tailor
+the role to your own environment. An example configuration for an Elasticsearch
++ Kibana environment is provided below:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# Example configuration for Metricbeat deployment with an Elasticsearch cluster
+# as the data destination. Kibana is used as the UI layer.
+
+\-\-\-
+# Configuration for all Metricbeat instances
+# File: ansible/inventory/group_vars/debops_all_hosts/metricbeat.yml
+metricbeat__configuration:
+
+  \- name: \(aqoutput_elasticsearch\(aq
+    config:
+      output.elasticsearch:
+        hosts:
+          \- \(aqhttps://es1.example.org:9200\(aq
+          \- \(aqhttps://es2.example.org:9200\(aq
+          \- \(aqhttps://es3.example.org:9200\(aq
+        username: \(aqremote_monitoring_user\(aq
+        password: \(aq${REMOTE_USER_PASSWORD}\(aq
+
+  \- name: \(aqsetup_kibana\(aq
+    config:
+      setup.kibana:
+        host: \(dqhttps://kibana.example.org:443\(dq
+        # Elasticsearch account which can create Kibana dashboards
+        username: \(aqelastic\(aq
+        password: \(aq{{ lookup(\(dqfile\(dq, secret + \(dq/elasticsearch/credentials/\(dq
+                      + \(dqbuilt\-in/elastic/password\(dq) }}\(aq
+
+  \- name: \(aqsetup_ilm\(aq
+    config:
+      setup.ilm.overwrite: true
+
+  \- name: \(aqmonitoring\(aq
+    config:
+      monitoring:
+        enabled: true
+        elasticsearch:
+          username: \(aqremote_monitoring_user\(aq
+          password: \(aq${REMOTE_USER_PASSWORD}\(aq
+
+# Store the Metricbeat user password in Metricbeat keystore. The Elasticsearch
+# cluster should be deployed first to ensure that the passwords are present.
+metricbeat__keys:
+
+  \- RMOTE_USER_PASSWORD: \(aq{{ lookup(\(dqfile\(dq, secret + \(dq/elasticsearch/credentials/\(dq
+                             + \(dqbuilt\-in/remote_monitoring_user/password\(dq) }}\(aq
+
+
+\-\-\-
+# Configuration for Elasticsearch nodes
+# File: ansible/inventory/group_vars/debops_service_elasticsearch/metricbeat.yml
+metricbeat__group_snippets:
+
+  \- name: \(aqmodules.d/elasticsearch\-xpack.yml\(aq
+    config:
+
+      \- module: \(aqelasticsearch\(aq
+        hosts: [ \(aqhttps://{{ ansible_fqdn }}:9200\(aq ]
+        username: \(aqremote_monitoring_user\(aq
+        password: \(aq${REMOTE_USER_PASSWORD}\(aq
+        xpack.enabled: True
+        period: \(aq10s\(aq
+
+
+\-\-\-
+# Configuration for Kibana nodes
+# File: ansible/inventory/group_vars/debops_service_kibana/metricbeat.yml
+metricbeat__group_snippets:
+
+  \- name: \(aqmodules.d/kibana\-xpack.yml\(aq
+    config:
+
+      \- module: \(aqkibana\(aq
+        hosts: [ \(aqlocalhost:5601\(aq ]
+        username: \(aqremote_monitoring_user\(aq
+        password: \(aq${REMOTE_USER_PASSWORD}\(aq
+        xpack.enabled: True
+        period: \(aq10s\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For ease of use, the examples are provided in the \fI\%debops.metricbeat\fP role
+documentation in the DebOps monorepo. Elasticsearch and Kibana services can be
+configured using the \fI\%debops.elasticsearch\fP and \fI\%debops.kibana\fP
+roles, respectively.
+.sp
+Check the \fI\%Metricbeat configuration\fP <\fBhttps://www.elastic.co/guide/en/beats/metricbeat/current/configuring-howto-metricbeat.html\fP> upstream documentation to learn more
+about configuring Metricbeat for your environment and requirements.
+.SS Role debugging tips
+.sp
+Most of the configuration files generated by the role are protected by the
+Ansible \fBno_log\fP keyword. To make debugging easier, you can use the
+\fI\%debops__no_log\fP variable in an inventory (in the development
+environment) or with Ansible \fB\-\-extra\-vars\fP parameter (one time, for
+production environment) to disable log protection. See the variable
+documentation for more details.
+.SS Example inventory
+.sp
+To install and configure Metricbeat on a host, it needs to be included in the
+\fB[debops_service_metricbeat]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_metricbeat]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Fully\-fledged Elastic stack can be deployed like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+es1     ansible_host=es1.example.org
+es2     ansible_host=es2.example.org
+es3     ansible_host=es3.example.org
+kibana  ansible_host=kibana.example.org
+
+[debops_service_elasticsearch]
+es1
+es2
+es3
+
+[debops_service_kibana]
+kibana
+
+[debops_service_metricbeat:children]
+debops_service_elasticsearch
+debops_service_kibana
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.metricbeat\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Metricbeat service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_metricbeat\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: extrepo
+      tags: [ \(aqrole::extrepo\(aq, \(aqskip::extrepo\(aq, \(aqrole::metricbeat\(aq ]
+      extrepo__dependent_sources:
+        \- \(aq{{ metricbeat__extrepo__dependent_sources }}\(aq
+
+    \- role: metricbeat
+      tags: [ \(aqrole::metricbeat\(aq, \(aqskip::metricbeat\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::metricbeat\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.metricbeat\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS metricbeat__configuration
+.sp
+The \fBmetricbeat__*_configuration\fP variables define the contents of the
+\fB/etc/metricbeat/metricbeat.yml\fP configuration file. Each variable contains
+a list of YAML dictionaries; each dictionary defines a part of the
+configuration which gets merged together during Ansible execution.
+.sp
+You can read the \fI\%Metricbeat configuration documentation\fP <\fBhttps://www.elastic.co/guide/en/beats/metricbeat/current/configuring-howto-metricbeat.html\fP> to learn more about
+configuring Metricbeat itself.
+.SS Examples
+.sp
+Configure Metricbeat to output its data to Elasticsearch on another host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+metricbeat__configuration:
+
+  \- name: \(aqoutput_elasticsearch\(aq
+    config:
+      output.elasticsearch:
+        hosts:
+          \- \(aqelasticsearch.example.org:9200\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure Elasticsearch output, but over an encrypted connection (requires
+X\-Pack support) using certificates managed by the \fI\%debops.pki\fP role. The
+access to the cluster is protected by a password, stored in the Metricbeat
+keystore:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+metricbeat__configuration:
+
+  \- name: \(aqoutput_elasticsearch\(aq
+    config:
+      output.elasticsearch:
+        hosts:
+          \- \(aqhttps://elasticsearch.example.org:9200\(aq
+        ssl:
+          certificate_authorities: \(aq/etc/pki/realms/domain/CA.crt\(aq
+          certificate: \(aq/etc/pki/realms/domain/default.crt\(aq
+          key: \(aq/etc/pki/realms/domain/default.key\(aq
+        password: \(aq${ELASTIC_PASSWORD}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fI\%metricbeat__original_configuration\fP variable contains the
+configuration that comes with the \fBmetricbeat\fP APT package re\-implemented for
+consumption by the role. The \fI\%metricbeat__default_configuration\fP
+variable contains some additional configuration enabled by default.
+.SS Syntax
+.sp
+Each configuration entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. An identifier for a particular configuration entry, not used
+otherwise. The configuration entries with the same \fBname\fP parameter
+override each other.
+.TP
+.B \fBconfig\fP
+Required. A dictionary which holds the Metricbeat configuration written in
+YAML. The \fBconfig\fP values from different configuration entries are merged
+recursively using the \fBcombine\fP Ansible filter into a final YAML document.
+.sp
+YAML keys can be specified in a tree\-like structure:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+output:
+  elasticsearch:
+    hosts:
+      \- \(aqelasticsearch.example.org:9200\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Or, they can be defined on a single line, separated by dots:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+output.elasticsearch.hosts: [ \(aqelasticsearch.example.org:9200\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBcombine\fP Ansible filter does not automatically expand the dot\-notation
+to a tree\-like structure. Therefore it\(aqs important to use the same style
+thruought the configuration, otherwise the final YAML document will have
+duplicate entries.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration will be included
+in the generated \fB/etc/metricbeat/metricbeat.yml\fP configuration file.
+if \fBabsent\fP, the configuration will not be included in the final file. If
+\fBignore\fP, the entry will not be evaluated by Ansible during execution.
+.UNINDENT
+.SS metricbeat__snippets
+.sp
+The \fBmetricbeat__*_snippets\fP variables define the placement and contents of
+various \fB*.yml\fP files under the \fB/etc/metricbeat/\fP directory. The
+files can include Metricbeat configuration in YAML format.
+.SS Examples
+.sp
+Configure Metricbeat to gather the \fBnginx\fP metrics and send them to
+Elasticsearch:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+metricbeat__snippets:
+
+  \- name: \(aqmodules.d/nginx.yml\(aq
+    config:
+      \- module: \(aqnginx\(aq
+        metricsets:
+          \- \(aqstubstatus\(aq
+        period: \(aq10s\(aq
+        hosts: [ \(aqhttp://127.0.0.1\(aq ]
+        server_status_path: \(aqnginx_status\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can find more example configurations in the
+\fI\%metricbeat__default_snippets\fP variable.
+.SS Syntax
+.sp
+Each configuration entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Path of the configuration file, relative to the
+\fB/etc/metricbeat/\fP directory, with all needed subdirectories. The
+\fBname\fP parameter is also used as an identifier, entries with the same
+\fBname\fP parameter override each other in order of appearance.
+.sp
+Metricbeat includes by default all files in the \fBmodules.d/*.yml\fP path.
+Don\(aqt use the \fBmetricbeat.yml\fP as the filename, otherwise you will
+override the main configuration file.
+.TP
+.B \fBconfig\fP
+Required. A dictionary which holds the Metricbeat configuration written in
+YAML. The value can either be a dictionary or a list of dictionaries, the
+result in the generated file will always be a list.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration file will be
+generated. If \fBabsent\fP, the configuration file will not be generated, and
+an existing file will be removed. If \fBignore\fP, the entry will not be
+evaluated by Ansible during execution.
+.TP
+.B \fBcomment\fP
+Optional. Comment to be included at the top of the generated file.
+.TP
+.B \fBmode\fP
+Optional. Specify the filesystem permissions of the generated file. If not
+specified, \fB0600\fP will be used by default.
+.UNINDENT
+.SS metricbeat__keys
+.sp
+The \fBmetricbeat__*_keys\fP variables define the contents of the \fI\%Metricbeat
+keystore\fP <\fBhttps://www.elastic.co/guide/en/beats/metricbeat/current/keystore.html\fP> used to keep confidential data like passwords or access tokens. The
+keys can be referenced in the Metricbeat configuration files using the
+\fB${secret_key}\fP syntax.
+.SS Examples
+.sp
+Add an Elasticsearch password used for access over a secure connection. The
+password is retrieved from the \fBsecret/\fP directory on the Ansible
+Controller, managed by the \fI\%debops.secret\fP Ansible role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+metricbeat__keys:
+
+  \- ELASTIC_PASSWORD: \(aq{{ lookup(\(dqfile\(dq, secret + \(dq/elastic\-stack/elastic/password\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Update an existing key with new content (presence of the \fBforce\fP parameter
+will update the key on each Ansible run):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+metricbeat__keys:
+
+  \- name: \(aqELASTIC_PASSWORD\(aq
+    value: \(aqnew\-elasticsearch\-password\(aq
+    force: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remove a key from the Metricbeat keystore:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+metricbeat__keys:
+
+  \- name: \(aqELASTIC_PASSWORD\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each key entry is defined by a YAML dictionary. The keys can be defined using
+a simple format, with dictionary key being the secret key name, and its value
+being the secret value. In this case you should avoid the \fBname\fP or \fBvalue\fP
+as the secret keys.
+.sp
+Alternatively, secret keys can be defined using YAML dictionaries with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the secret key to store in the Metricbeat keystore.
+.TP
+.B \fBvalue\fP
+Optional. A string with the value which should be stored under a given key.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the key will be inserted into the
+keystore. If \fBabsent\fP, the key will be removed from the keystore.
+.TP
+.B \fBforce\fP
+Optional, boolean. If present and \fBTrue\fP, the specified key will be updated
+in the keystore.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

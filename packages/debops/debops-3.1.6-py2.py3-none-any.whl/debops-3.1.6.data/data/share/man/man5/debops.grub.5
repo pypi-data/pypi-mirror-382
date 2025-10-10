@@ -1,0 +1,238 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.GRUB" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.grub \- Manage GRUB configuration
+.SH SYNOPSIS
+.sp
+\fBdebops run service/grub\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+This Ansible role manages GRUB configuration. It detects kernel parameters
+which are currently set (probably during installation). Autodetected
+parameters can be merged or overwritten by Ansible variables.
+It can also enable both Linux kernel and GRUB serial console.
+.sp
+Parameter autodetection with values that contain spaces is not supported.
+.sp
+Additionally, this role allows you to configure password protection for GRUB.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To manage GRUB on a given host or a set of hosts, they need to be added to the
+\fB[debops_service_grub]\fP Ansible group in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_grub]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.grub\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure GRUB
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_grub\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: grub
+      tags: [ \(aqrole::grub\(aq, \(aqskip::grub\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Password protection
+.sp
+To enable password protection, simply define a superuser like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+grub__users:
+  \- name: \(aqsu\(aq
+    password: \(aqNBLWAThUq5\(aq
+    superuser: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The password will be hashed and salted on the Ansible controller and only the
+salted hash will be configured in the GRUB configuration.
+.sp
+With this change, GRUB will require authentication when attempting to change
+boot options or invoking a recovery shell. Booting menu entries will not
+require authentication so this configuration should be safe for normal
+operation.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.grub\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS grub__configuration
+.sp
+The \fBgrub__*_configuration\fP variables define the contents of the
+\fB/etc/default/grub.d/ansible.cfg\fP configuration file. The variables are
+lists of YAML dictionaries, the dictionaries with the same \fBname\fP parameter
+are merged together in an order specified by the
+\fI\%grub__combined_configuration\fP variable, which allows some of the
+configuration to be modified via Ansible inventory or other Ansible roles.
+.SS Examples
+.sp
+Configure unattended filesystem check and repair on boot:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+grub__configuration:
+  \- name: \(aqcmdline_linux_default\(aq
+    value:
+      \- \(aqfsck.mode=force\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remove the \fBquiet\fP parameter from the default kernel command line:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+grub__configuration:
+  \- name: \(aqcmdline_linux_default\(aq
+    value:
+      \- name: \(aqquiet\(aq
+        state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each variable contains a list of YAML dictionaries, each dictionary defines
+a configuration file option using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of a GRUB option, it\(aqs also used as an anchor for merging
+multiple configuration entries together.
+.sp
+The option name should be specified as lowercase, without the \fBGRUB_\fP
+prefix. For example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+GRUB_DEFAULT       \-> \(aqdefault\(aq
+GRUB_CMDLINE_LINUX \-> \(aqcmdline_linux\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can specify the full names with uppercase, but they will not be
+automatically merged with existing configuration.
+.TP
+.B \fBvalue\fP
+The value which should be set for a given GRUB option. Values can be YAML
+booleans, numbers, strings or lists of strings. Additionally, in a list you
+can specify values in an extended format as a YAML dictionary with
+parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The value you want to manage, a string.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the value will be included in the
+configuration. If \fBabsent\fP, the value will be removed from the
+configuration. If \fBignore\fP, a given entry will not be evaluated by the
+role.
+.UNINDENT
+.sp
+The \fBvalue\fP parameters that contain YAML lists from multiple configuration
+entries are merged together.
+.TP
+.B \fBstate\fP
+Optional. Specify the state of a given configuration entry. If not specified
+or \fBpresent\fP, the entry will be set in the GRUB configuration file. If
+\fBabsent\fP, the entry will be removed from the configuration file. If
+\fBignore\fP, this configuration entry will not be evaluated by the role.
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML text block with a comment added to a given
+configuration option in the GRUB config file.
+.TP
+.B \fBquote\fP
+Optional, boolean. If not specified or \fBTrue\fP, the value will be quoted. If
+\fBFalse\fP, the value will not be quoted.
+.TP
+.B \fBoriginal\fP
+Optional, boolean. If \fBTrue\fP, the role will add \fB$GRUB_<NAME>\fP string to
+the given configuration option, based on the entry name. This allows to
+preserve existing GRUB options from the \fB/etc/default/grub\fP; this is
+useful only for specific options like kernel parameters.
+.TP
+.B \fBexport\fP
+Optional, boolean. if \fBTrue\fP, the option will be exported in the GRUB
+environment by adding the \fBexport\fP prefix in the configuration file. This
+is only needed in specific configuration scenarios.
+.UNINDENT
+.SH AUTHOR
+Patryk Ściborek, Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,418 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.APT_MIRROR" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.apt_mirror \- Create a mirror of multiple APT repositories
+.SH SYNOPSIS
+.sp
+\fBdebops run service/apt_mirror\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%apt\-mirror\fP <\fBhttps://apt-mirror.github.io/\fP> script can be used to create full or partial mirrors of APT
+repositories. It uses syntax similar to the \fI\%sources.list(5)\fP <\fBhttps://manpages.debian.org/sources.list(5)\fP>
+configuration file, supports authenticated APT repositories, access over HTTPS
+and more.
+.sp
+The \fI\%debops.apt_mirror\fP role can be used to install and configure the
+\fBapt\-mirror\fP script to periodically pull different APT repositories and
+publish them using \fBnginx\fP for other hosts to use. The role supports
+configuration of multiple mirror \(dqinstances\(dq, which can be configured with
+different mirror frequency as needed.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The \fBapt\-mirror\fP Debian package creates a simple layout of mirror directories
+in \fB/var/spool/apt\-mirror/\fP directory and uses a single \fBcron\fP
+job to manage mirroring. The \fI\%debops.apt_mirror\fP extends this setup with
+multiple separate mirror configurations which converge in the same
+\fB/var/spool/apt\-mirror/mirror/\fP directory and use separate
+\fBcron\fP jobs for each set of mirrored repositories. This allows for
+different mirror frequency for specific APT repositories if desired.
+.sp
+The mirrored APT repositories are stored in the
+\fB/var/spool/apt\-mirror/mirror/\fP directory, which will be published using
+the \fBnginx\fP webserver via the \fI\%debops.nginx\fP role. Different APT
+repositories will be published under subdirectories based on their FQDNs, for
+example the Debian APT repository will be published as:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+http://<mirror.host>/deb.debian.org/debian
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+An example \fI\%sources.list(5)\fP <\fBhttps://manpages.debian.org/sources.list(5)\fP> entry can look like:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+deb http://<mirror.host>/deb.debian.org/debian bullseye main contrib non\-free
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The default \fBnginx\fP configuration separates HTTP and HTTPS protocols,
+so that the clients can select which protocol they prefer. Users can modify the
+\fBnginx\fP configuration if they want to enable HTTP Basic Authentication
+for the mirror by APT clients.
+.sp
+The APT clients still need to configure the GPG keys for a given mirrored APT
+repository separately. This can be done using the \fI\%debops.apt\fP or
+\fI\%debops.keyring\fP Ansible roles.
+.SS Usage behind a HTTP proxy
+.sp
+The \fBapt\-mirror\fP script uses \fBwget\fP behind the scenes to
+download files. If the mirror is located behind a HTTP proxy,
+\fB/var/spool/apt\-mirror/.wgetrc\fP configuration file with proxy
+configuration can be used to access the HTTP proxy \- it should work both on the
+command line as well as via the \fBcron\fP job.
+.SS Example inventory
+.sp
+To install and configure \fBapt\-mirror\fP on a given host, it should be
+included in a specific Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_apt_mirror]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.apt_mirror\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure APT mirroring service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_apt_mirror\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::nginx\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ apt_mirror__nginx__dependent_servers }}\(aq
+
+    \- role: apt_mirror
+      tags: [ \(aqrole::apt_mirror\(aq, \(aqskip::apt_mirror\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::apt_mirror\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.apt_mirror\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS apt_mirror__configuration
+.sp
+The \fBapt_mirror__*_configuration\fP variables define \(dqinstances\(dq of
+\fBapt\-mirror\fP configurations. Each instance has its own set of APT
+sources to mirror, its own configuration options and its own \fBcron\fP
+job with a separate frequency. Mirrored repositories are stored under the same
+\fB/var/spool/apt\-mirror/mirror/\fP directory and care should be taken to
+avoid conflicts.
+.SS Examples
+.sp
+Enable APT mirror of Debian Stable repository in the default configuration
+(make sure that the space requirements are met before enabling this).
+See \fI\%apt_mirror__default_configuration\fP variable for the initial options:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_mirror__configuration:
+
+  \- name: \(aqdefault\(aq
+    sources:
+
+      \- name: \(aqdebian\-stable\(aq
+        state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add an APT mirror for \fI\%InfluxData\fP <\fBhttps://www.influxdata.com/blog/package-repository-for-linux/\fP> and \fI\%Zabbix\fP <\fBhttps://www.zabbix.com/download\fP> APT repositories in the
+default configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_mirror__configuration:
+
+  \- name: \(aqdefault\(aq
+    sources:
+
+      \- name: \(aqinfluxdata\(aq
+        raw: \(aqdeb https://repos.influxdata.com/debian stable main\(aq
+
+      \- name: \(aqzabbix\(aq
+        type: \(aqdeb\(aq
+        uri: \(aqhttps://repo.zabbix.com/zabbix/6.4/debian\(aq
+        suite: \(aq{{ ansible_distribution_release }}\(aq
+        components: [ \(aqmain\(aq, \(aqcontrib\(aq, \(aqnon\-free\(aq ]
+
+      \- name: \(aqinfluxdata\-clean\(aq
+        type: \(aqclean\(aq
+        uri: \(aqhttps://repos.influxdata.com/debian\(aq
+
+      \- name: \(aqzabbix\-clean\(aq
+        type: \(aqclean\(aq
+        uri: \(aqhttps://repo.zabbix.com/zabbix/6.4/debian\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a new APT mirror instance with private APT repositories synchronized
+hourly using \fBcron\fP service:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_mirror__configuration:
+
+  \- name: \(aqinternal\(aq
+    cron_time: \(aq@hourly\(aq
+    sources:
+
+      \- name: \(aqapt\-repo\(aq
+        type: \(aqdeb\(aq
+        uri: \(aqhttps://username:password@apt.example.org/debian\(aq
+        suite: \(aqstable\(aq
+        components: [ \(aqmain\(aq ]
+
+      \- name: \(aqclean\-apt\-repo\(aq
+        type: \(aqclean\(aq
+        uri: \(aqhttps://apt.example.org/debian\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables are defined as a list of YAML dictionaires, parsed using
+\fI\%Universal Configuration\fP system. Each dictionary defines an \(dqinstance\(dq
+using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. An identifier for a particular \fBapt\-mirror\fP instance. The
+value is used in the filesystem paths and should be a simple alphanumeric
+string. Configuration entries with the same \fBname\fP parameters are merged
+during role execution and can affect each other via
+\fI\%Universal Configuration\fP principles.
+.TP
+.B \fBfilename\fP
+Optional. Name of the \fBapt\-mirror\fP configuration file to use,
+located under the \fB/etc/apt/\fP directory. If not specified, the
+configuration files are named in the format: \fBmirror.<name>.list\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given APT mirror instance will
+be configured on the host. If \fBabsent\fP, the mirror will not be configured
+and the configuration file will be removed. If \fBignore\fP, a given
+configuration entry will not be evaluated during role execution.
+.TP
+.B \fBcron_time\fP
+Optional. The string which defines a time period for a given APT mirror
+synchronization, in the \fI\%crontab(5)\fP <\fBhttps://manpages.debian.org/crontab(5)\fP> format. If not specified, the value
+of the \fI\%apt_mirror__cron_time\fP will be used instead.
+.TP
+.B \fBcron_user\fP
+Optional. The UNIX account under which a \fBcron\fP job will be executed
+for a particular APT mirror. If not specified, the value in the
+\fI\%apt_mirror__user\fP will be used by default.
+.TP
+.B \fBcron_command\fP
+Optional. The \fBcron\fP job which should be executed for a given APT
+mirror. If not specified, the configuration template will automatically
+generate a configuration suitable for sequential \fBapt\-mirror\fP
+operation (the script does not support parallel processing).
+.TP
+.B \fBoptions\fP
+Optional. List of YAML dictionaries which defines \fBapt\-mirror\fP
+configuration options stored in the mirror configuration file. The
+\fBoptions\fP parameters from configuration entries with the same \fBname\fP
+parameter are merged together and can affect each other. A set of default
+options is taken from the \fI\%apt_mirror__default_options\fP as a base,
+user options are merged on top of it.
+.sp
+The configuration is defined as a list of YAML dictionaries, each dictionary
+key being the option name and its value being the option value. Alternatively
+you can use specific parameters to control each option:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The name of the option.
+.TP
+.B \fBvalue\fP
+The value of the option, can be a number or a string.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the option is included in the
+configuration file. If \fBabsent\fP, the option will be removed from the
+configuration file. If \fBcomment\fP, the option will be present but it will
+be commented out. If \fBdynamic\fP, the value of a given option will be
+replaced with a value set at runtime in the configuration template
+(currently only the \fBvar_path\fP option utilizes this functionality).
+.TP
+.B \fBcomment\fP
+String or YAML text block with comments related to a given configuration
+option.
+.UNINDENT
+.TP
+.B \fBsources\fP
+Required. A list of APT repositories which will be mirrored by the
+\fBapt\-mirror\fP script. THe \fBsources\fP parameters from configuration
+entries with the same \fBname\fP parameter are merged together and can affect
+each other.
+.sp
+The list is defined using YAML dictionaries:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+An identifier of a given APT repository, used only internally by the role.
+Multiple sources with the same \fBname\fP are merged together and can affect
+each other.
+.TP
+.B \fBraw\fP
+String specifying an APT repository in the \fI\%sources.list(5)\fP <\fBhttps://manpages.debian.org/sources.list(5)\fP>
+one\-line\-style format, included in the generated configuration file as\-is.
+If this parameter is specified, it takes precedence over the parametrized
+configuration below.
+.TP
+.B \fBtype\fP
+Specify the APT repository type (\fBdeb\fP, \fBdeb\-src\fP, \fBdeb\-<arch>\fP for
+additional architecture mirrors, or \fBclean\fP to generate a cleanup script
+for a given repository).
+.TP
+.B \fBuri\fP
+Specify the URL of the APT repository to mirror or clean.
+.TP
+.B \fBsuite\fP
+Specify the repository suite which should be mirrored (this is usually
+named \fBstable\fP, or a specific distribution release like \fBbookworm\fP or
+\fBbullseye\fP).
+.TP
+.B \fBcomponent\fP / \fBcomponents\fP
+A string (first version) or a YAML list (second version) of repository
+components to mirror (this is usually \fBmain\fP, \fBcontrib\fP, \fBnon\-free\fP
+in Debian case, Ubuntu usually uses \fBmain\fP, \fBrestricted\fP, \fBuniverse\fP,
+\fBmultiverse\fP components).
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, a given source will be present in the
+generated configuration file. If \fBabsent\fP, a given source will be omitted
+from the generated configuration file. If \fBignore\fP, a given configuration
+entry will not be evaluated during role execution. If \fBcomment\fP, the
+source will be present but commented out.
+.TP
+.B \fBweight\fP
+A positive or negative integer which will affect the order of the sources in
+the generated configuration file. Positive weight pushes a given source
+down the list, negative weight lifts it up the list.
+.TP
+.B \fBcomment\fP
+String or YAML text block with comments related to a given source.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.
