@@ -1,0 +1,59 @@
+#!/usr/bin/env -S casa --nologfile --log2term --nologger -c  # noqa: EXE003
+from __future__ import annotations
+
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from pathlib import Path
+
+
+def average(
+    vis: Path,
+    output_vis: Path,
+    chanbin: int = 1,
+    timebin: str = "0s",
+) -> None:
+    _ = mstransform(
+        vis=vis.as_posix(),
+        outputvis=output_vis.as_posix(),
+        timeaverage=True,
+        chanaverage=True,
+        datacolumn="all",
+        chanbin=chanbin,
+        timebin=timebin,
+    )
+
+
+def get_parser() -> ArgumentParser:
+    parser = ArgumentParser(
+        description="Get the field name from a MS",
+        formatter_class=ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument("vis", type=Path, help="Input MeasurementSet.")
+    parser.add_argument("output_vis", type=Path, help="Output MeasurementSet.")
+    parser.add_argument(
+        "--chanbin",
+        type=int,
+        default=1,
+        help="Width (bin) of input channels to average to form an output channel.",
+    )
+    parser.add_argument(
+        "--timebin", type=str, default="0s", help="Bin width for time averaging.."
+    )
+
+    return parser
+
+
+def main() -> None:
+    parser = get_parser()
+    args = parser.parse_args()
+
+    _ = average(
+        vis=args.vis,
+        output_vis=args.output_vis,
+        chanbin=args.chanbin,
+        timebin=args.timebin,
+    )
+
+
+if __name__ == "__main__":
+    main()
