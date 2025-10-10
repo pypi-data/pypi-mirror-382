@@ -1,0 +1,590 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DOVECOT" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.dovecot \- Manage Dovecot IMAP/POP3 server using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/dovecot\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdovecot\fP daemon, maintained by the \fI\%Dovecot Project\fP <\fBhttps://www.dovecot.org/\fP>, is a
+modern IMAP and POP3 email server for Linux/UNIX\-like systems, written with
+security primarily in mind. Dovecot is an excellent choice for both small and
+large installations. It’s fast, simple to set up, requires no special
+administration and it uses very little memory.
+.sp
+The \fBdebops.dovecot\fP Ansible role can be used to configure the
+\fBdovecot\fP service on a host and to automatically setup
+various auxiliary roles, such as \fI\%debops.pki\fP for SSL/TLS encryption.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To enable the \fBdovecot\fP service on a host, you need to add it to the
+\fB[debops_service_dovecot]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_dovecot]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Default setup
+.sp
+If you don\(aqt specify any configuration values, the role will setup
+\fBdovecot\fP with \fIIMAP\fP, \fIIMAPS\fP, \fI\%LMTP\fP <\fBhttps://doc.dovecot.org/configuration_manual/protocols/lmtp_server/\fP>, \fI\%Sieve\fP <\fBhttps://doc.dovecot.org/configuration_manual/sieve/pigeonhole_sieve_interpreter/\fP> and \fI\%Quota\fP <\fBhttps://doc.dovecot.org/configuration_manual/quota/\fP>
+support.
+.sp
+In addition, \fILDAP\fP will automatically be enabled if the host is already
+configured to use \fI\%debops.ldap\fP, otherwise \fBdovecot\fP will be
+configured to allow every user which is able to login via PAM to also login
+via IMAP and access their emails.
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.dovecot\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: for example, \fI\%dovecot(1)\fP <\fBhttps://manpages.debian.org/dovecot(1)\fP>, \fI\%doveconf(1)\fP <\fBhttps://manpages.debian.org/doveconf(1)\fP> and
+\fI\%doveadm(1)\fP <\fBhttps://manpages.debian.org/doveadm(1)\fP>
+.IP \(bu 2
+The website of the \fI\%Dovecot Project\fP <\fBhttps://www.dovecot.org/\fP>, in particular the \fI\%configuration
+documentation\fP <\fBhttps://doc.dovecot.org/\fP>
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using the role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.dovecot\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Dovecot service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_dovecot\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare dovecot environment
+      ansible.builtin.import_role:
+        name: \(aqdovecot\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::dovecot\(aq, \(aqrole::secret\(aq, \(aqrole::ferm\(aq ]
+
+    \- name: Prepare postfix environment
+      ansible.builtin.import_role:
+        name: \(aqpostfix\(aq
+        tasks_from: \(aqmain_env\(aq
+      vars:
+        postfix__dependent_maincf:
+          \- role: \(aqdovecot\(aq
+            config: \(aq{{ dovecot__postfix__dependent_maincf }}\(aq
+        postfix__dependent_mastercf:
+          \- role: \(aqdovecot\(aq
+            config: \(aq{{ dovecot__postfix__dependent_mastercf }}\(aq
+      tags: [ \(aqrole::postfix\(aq, \(aqrole::secret\(aq, \(aqrole::ferm\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::postfix\(aq ]
+      secret__directories:
+        \- \(aq{{ postfix__secret__directories }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ dovecot__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ dovecot__ferm__dependent_rules }}\(aq
+
+    \- role: postfix
+      tags: [ \(aqrole::postfix\(aq, \(aqskip::postfix\(aq ]
+      postfix__dependent_maincf:
+        \- role: \(aqdovecot\(aq
+          config: \(aq{{ dovecot__postfix__dependent_maincf }}\(aq
+      postfix__dependent_mastercf:
+        \- role: \(aqdovecot\(aq
+          config: \(aq{{ dovecot__postfix__dependent_mastercf }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ dovecot__ldap__dependent_tasks }}\(aq
+
+    \- role: dovecot
+      tags: [ \(aqrole::dovecot\(aq, \(aqskip::dovecot\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible runs. This can be used after a host is first
+configured to speed up playbook execution when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::dovecot\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::dovecot:conf\fP
+Main configuration tag, should be used in the playbook to execute all of
+the role tasks relates to configuration creation.
+.TP
+.B \fBrole::dovecot:conf:sql\fP
+\fISQL\fP specific configuration subtag.
+.TP
+.B \fBrole::dovecot:conf:ldap\fP
+\fILDAP\fP specific configuration subtag.
+.TP
+.B \fBrole::dovecot:user\fP
+Limited to \fBdovecot\fP user configuration tasks.
+.TP
+.B \fBrole::dovecot:group\fP
+Limited to \fBdovecot\fP group configuration tasks.
+.UNINDENT
+.SH DEFAULT VARIABLES: CONFIGURATION
+.sp
+Some of \fBdebops.dovecot\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS dovecot__features
+.sp
+Currently supported features for \fI\%dovecot__features\fP are:
+.INDENT 0.0
+.TP
+.B \fBimap\fP
+\fBIMAP4rev2\fP (\fI\%RFC 9051\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc9051.html\fP>) with explicit \fBTLS\fP support via \fBSTARTTLS\fP,
+typically using port 143.
+.TP
+.B \fBimaps\fP
+\fBIMAP4rev2\fP with implicit \fBTLS\fP support, typically using port 993.
+.TP
+.B \fBpop3\fP
+\fBPOP3\fP (\fI\%RFC 1939\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc1939.html\fP>, extensions from \fI\%RFC 2449\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc2449.html\fP> and authentication
+from \fI\%RFC 1734\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc1734.html\fP>) with explicit \fBTLS\fP support via \fBSTARTTLS\fP, typically
+using port 110.
+.TP
+.B \fBpop3s\fP
+\fBPOP3\fP with implicit \fBTLS\fP support, typically using port 995.
+.TP
+.B \fBsieve\fP
+Support for mail filtering/sorting using \fBSieve\fP (\fI\%RFC 5228\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc5228.html\fP>) scripts
+and the \fBManageSieve\fP protocol (\fI\%RFC 5804\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc5804.html\fP>, both with various extensions
+from other RFCs), the latter typically using port 4190. See \fI\%Dovecot\(aqs
+ManageSieve Documentation\fP <\fBhttps://doc.dovecot.org/admin_manual/pigeonhole_managesieve_server/\fP> for further details.
+.TP
+.B \fBquota\fP
+Support for per\-user mail \fBquotas\fP\&. See
+\fI\%Dovecot\(aqs Quota Plugin Documentation\fP <\fBhttps://doc.dovecot.org/configuration_manual/quota_plugin/\fP> for further details.
+.TP
+.B \fBdsync\fP
+Support for two\-directional/pairwise \fBdsync\fP synchronization between two
+\fBdovecot\fP servers using \fBdovecot\fP\(aqs own \fBdsync\fP
+protocol, typically using port 12345. See
+\fI\%Dovecot\(aqs Replication Documentation\fP <\fBhttps://doc.dovecot.org/configuration_manual/replication/\fP> for further details.
+.UNINDENT
+.sp
+Note that \fBimaps\fP and \fBpop3s\fP (implicit TLS) are recommended
+over \fBimap\fP and \fBpop3\fP (explicit TLS) by \fI\%RFC 8314\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc8314.html\fP>\&. Furthermore,
+LMTP is recommended over LDA by the Dovecot project.
+.SS DSync Replication
+.sp
+Dovecot supports master/master replication using \fBdsync\fP\&.  The replication is
+done asynchronously, so high latency between the replicas isn\(aqt a problem.  The
+replication is done by looking at Dovecot index files (not what exists in the
+filesystem), so no mails get lost due to filesystem corruption or an accidental
+deletion, they will simply be replicated back.
+.sp
+Replication works only between server pairs. Currently dsync is only supported
+together with a virtual email user since dsync would need root access
+otherwise.
+.sp
+The most important configuration variable is \fI\%dovecot__dsync_host\fP,
+which needs to be set to point to the other server for each server in a sync
+pair. Assuming that you have two servers, named \fBmail1.example.com\fP and
+\fBmail2.example.com\fP, setting something like this in your Ansible inventory
+should be sufficient:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dovecot__dsync_host: \(aq{{ \(dqmail1.example.com\(dq
+                         if ansible_fqdn == \(dqmail2.example.com\(dq
+                         else \(dqmail2.example.com\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Other variables are \fI\%dovecot__dsync_port\fP,
+\fI\%dovecot__dsync_replica\fP, \fI\%dovecot__dsync_password_path\fP and
+\fI\%dovecot__dsync_password\fP, but these should all have sensible defaults
+for most installations.
+.sp
+For more information, see the Dovecot \fI\%Replication\fP <\fBhttps://wiki.dovecot.org/Replication\fP> wiki page.
+.SS dovecot__user_accounts
+.sp
+Currently supported mechanisms for \fI\%dovecot__user_accounts\fP are:
+.INDENT 0.0
+.TP
+.B \fBdeny\fP
+Deny access for a statically defined list of users (see
+\fI\%dovecot__deny_users\fP).
+.TP
+.B \fBsystem\fP
+Mail users are Linux system users.
+.TP
+.B \fBmysql\fP
+Mail users are stored in a MySQL/MariaDB database (see
+\fI\%SQL User Databases\fP below).
+.TP
+.B \fBpgsql\fP
+Mail users are stored in a PostgreSQL database (see
+\fI\%SQL User Databases\fP below).
+.TP
+.B \fBsqlite\fP
+Mail users are stored in a SQLite database (see
+\fI\%SQL User Databases\fP below).
+.TP
+.B \fBldap\fP
+Mail users are stored in the LDAP directory.
+.TP
+.B \fBpasswdfile\fP
+Users and passwords are stored in a file.
+.TP
+.B \fBcheckpassword\fP
+Users and passwords are stored in an external program.
+.UNINDENT
+.SS SQL User Databases
+.sp
+Users can be stored in an external \fBSQL\fP database (see
+\fI\%dovecot__user_accounts\fP above). In order to do so, a database\-driver
+specific connection string needs to be defined in
+\fI\%dovecot__sql_connect\fP\&. The parameters are generally provided as a
+space\-delimited string of \fBparameter=value\fP pairs (which means that it is not
+possible to use spaces in parameters), with the possible parameters defined by
+the used database type:
+.sp
+\fBpgsql\fP
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.TP
+.B \fBhost\fP
+The host on which the database server is running.
+.TP
+.B \fBport\fP
+The port on which the database server is listening.
+.TP
+.B \fBuser\fP
+The username to use when connecting to the database.
+.TP
+.B \fBpassword\fP
+The password to use when connecting to the database.
+.TP
+.B \fBdbname\fP
+The name of the database to use.
+.TP
+.B \fBmaxconns\fP
+The number of connections to create to the database (default 5).
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+\fBmysql\fP
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+The basic options (\fBhost\fP, \fBport\fP, \fBuser\fP, \fBpassword\fP, \fBdbname\fP)
+are the same as for \fBpgsql\fP, additional settings include:
+.INDENT 0.0
+.TP
+.B \fBclient_flags\fP
+See the MySQL manual.
+.TP
+.B \fBssl_ca, ssl_ca_path\fP
+Set either one or both to enable SSL.
+.TP
+.B \fBssl_cert, ssl_key\fP
+For sending client\-side certificates to the server.
+.TP
+.B \fBssl_cipher\fP
+Sets the minimum allowed cipher security (default: HIGH).
+.TP
+.B \fBssl_verify_server_cert\fP
+Verifies that the name in the server SSL certificate matches the host
+(default: no).
+.TP
+.B \fBoption_file\fP
+Read options from the given file instead of the default \fBmy.cnf\fP
+location.
+.TP
+.B \fBoption_group\fP
+Read options from the given group (default: client).
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+You can connect to UNIX sockets by using \fBhost=/var/run/mysql.sock\fP\&.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBsqlite\fP
+Only one parameter is supported \- the path to the database file (which
+is defined without the \fBparameter=value\fP format).
+.UNINDENT
+.sp
+Examples:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# pgsql
+dovecot__sql_connect: \(aqhost=192.168.1.1 dbname=users\(aq
+# mysql
+dovecot__sql_connect: \(aqhost=sql.example.com dbname=virtual user=virtual password=blarg\(aq
+# sqlite
+dovecot__sql_connect: \(aq/etc/dovecot/authdb.sqlite\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The database should have a structure like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+CREATE TABLE \(gausers\(ga (
+  \(gauserid\(ga varchar(128) NOT NULL,
+  \(gadomain\(ga varchar(128) NOT NULL,
+  \(gapassword\(ga varchar(128) NOT NULL,
+  \(gahome\(ga varchar(255) NOT NULL,
+  \(gauid\(ga int(11) NOT NULL,
+  \(gagid\(ga int(11) NOT NULL,
+  \(gaactive\(ga char(1) NOT NULL DEFAULT \(aqY\(aq,
+  \(gamaildir\(ga varchar(255) NOT NULL
+);
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Other configuration parameters of interest are
+\fI\%dovecot__sql_default_pass_scheme\fP,
+\fI\%dovecot__sql_password_query\fP, \fI\%dovecot__sql_user_query\fP, and
+\fI\%dovecot__sql_iterate_query\fP\&.
+.SS dovecot__configuration
+.sp
+The \fBdovecot__*_configuration\fP variables define the contents of the
+\fB/etc/dovecot/dovecot.conf\fP configuration file. The variables are merged
+in the order defined by the \fI\%dovecot__combined_configuration\fP variable,
+which allows modification of the default configuration through the Ansible
+inventory.
+.sp
+See the \fBdovecot\fP \fI\%configuration documentation\fP <\fBhttps://doc.dovecot.org/settings/\fP> for details on the
+possible configuration parameters.
+.SS Examples
+.sp
+See \fI\%dovecot__default_configuration\fP variable for an example of
+existing configuration.
+.sp
+Autosubscribe users to the \fBJunk\fP mailbox:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dovecot__group_configuration:
+
+  \- section: \(aqmailbox_namespaces\(aq
+    options:
+
+      \- name: \(aqnamespace inbox\(aq
+        options:
+
+          \- name: \(aqmailbox Junk\(aq
+            options:
+
+              \- name: \(aqauto\(aq
+                value: \(aqsubscribe\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Rename the \fBJunk\fP mailbox to \fBINBOX.Spam\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dovecot__group_configuration:
+
+  \- section: \(aqmailbox_namespaces\(aq
+    options:
+
+      \- name: \(aqnamespace inbox\(aq
+        options:
+
+          \- name: \(aqmailbox Junk\(aq
+            state: \(aqabsent\(aq
+
+          \- name: \(aqmailbox INBOX.Spam\(aq
+            options:
+
+              \- name: \(aqauto\(aq
+                value: \(aqsubscribe\(aq
+
+              \- name: \(aqspecial_use\(aq
+                value: \(aq\eJunk\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables contain a list of YAML dictionaries, each dictionary can have
+the following parameters:
+.INDENT 0.0
+.TP
+.B \fBsection\fP
+Required. Name of the section to create in the
+\fB/etc/dovecot/dovecot.conf\fP file. This parameter is used as an
+\(dqanchor\(dq, configuration entries with the same \fBsection\fP are combined
+together and affect each other in order of appearance.
+.TP
+.B \fBtitle\fP
+Optional. A short description of a given configuration \fBsection\fP\&.
+If not defined, the \fBsection\fP name itself will be used.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration section will be
+generated. If \fBhidden\fP, the section will be generated, but without a
+section header. If \fBabsent\fP, \fBignore\fP or \fBinit\fP, the configuration
+section will not be generated. If \fBcomment\fP, the section will be generated
+but commented out.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which can be used to affect the order
+of sections in the generated configuration file. Positive numbers add more
+\(dqweight\(dq to the section making it appear \(dqlower\(dq in the file; negative
+numbers subtract the \(dqweight\(dq and therefore move the section upper in the
+file.
+.TP
+.B \fBcomment\fP
+Optional. This parameter can be used to provide a short description
+which will be included in the generated configuration file.
+.TP
+.B \fBoptions\fP
+Required. A list of \fBdovecot\fP configuration options for a given
+\fBsection\fP\&.
+.sp
+Note that the \fBoptions\fP parameters can be used recursively to generate
+configuration blocks of arbitrary depth (as illustrated in the example
+above).
+.sp
+The options can be specified with the following parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. The name of a given \fBdovecot\fP configuration option
+for a given \fBsection\fP\&. Options with the same \fBsection\fP and \fBname\fP
+hierarchy will be merged in order of appearance.
+.TP
+.B \fBoption\fP
+Optional. An alternative to \fBname\fP to be used as the key in the
+\fBkey = value\fP pairs written to the configuration.
+.TP
+.B \fBvalue\fP
+Either \fBvalue\fP or \fBoptions\fP is required. This defines the value of a
+given configuration option. It can be either a string, a boolean, a number,
+or a YAML list (elements will be joined with commas).
+.TP
+.B \fBoptions\fP
+Either \fBvalue\fP or \fBoptions\fP is required. This parameters takes a list
+of configuration sub\-options, thus allowing \fBoptions\fP to be used
+recursively to generate configuration blocks of arbitrary depth (as
+illustrated in the example above).
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block which will be included in the
+configuration file \(dqas is\(dq. If this parameter is specified, the \fBname\fP
+and \fBvalue\fP parameters are ignored \- you need to specify the
+entire line(s) with configuration option names as well.
+.TP
+.B \fBstate\fP
+Optional. Same values as documented above.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block that contains comments about a given
+configuration option.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Reto Gantenbein, Maciej Delmanowski, David Härdeman
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

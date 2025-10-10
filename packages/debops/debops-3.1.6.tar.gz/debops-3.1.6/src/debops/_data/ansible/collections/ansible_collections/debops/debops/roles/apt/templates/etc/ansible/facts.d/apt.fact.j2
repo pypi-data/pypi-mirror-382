@@ -1,0 +1,75 @@
+#!{{ ansible_python['executable'] }}
+# -*- coding: utf-8 -*-
+
+# Copyright (C) 2013-2023 Maciej Delmanowski <drybjed@gmail.com>
+# Copyright (C) 2015-2017 Robin Schneider <ypid@riseup.net>
+# Copyright (C) 2014-2023 DebOps <https://debops.org/>
+# SPDX-License-Identifier: GPL-3.0-only
+
+# {{ ansible_managed }}
+
+from __future__ import print_function
+from json import loads, dumps
+from sys import exit
+import subprocess
+import os
+
+sources_list = ['/etc/apt/sources.list.dpkg-divert',
+                '/etc/apt/sources.list']
+
+nonfree_components = ['non-free', 'restricted', 'multiverse']
+nonfree_firmware_components = ['non-free-firmware']
+
+output = loads('''{{ ({
+        "enabled": apt__enabled,
+        "configured": True,
+        "components": [],
+        "nonfree": False,
+        "nonfree_firmware": False}) | to_nice_json }}''')
+
+try:
+
+    for sources_file in sources_list:
+        if (os.path.isfile(sources_file)
+                and os.access(sources_file, os.R_OK)):
+            fh = open(sources_file)
+
+            for line in fh:
+                if (line.startswith('deb') or
+                        line.startswith('deb-src')):
+                    source = line.split()
+                    for component in source[3:]:
+                        if component not in output['components']:
+                            output['components'].append(component)
+                        if component in nonfree_components:
+                            output['nonfree'] = True
+                        if component in nonfree_firmware_components:
+                            output['nonfree_firmware'] = True
+
+            fh.close()
+
+except Exception:
+    pass
+
+try:
+    main_arch = subprocess.check_output(
+        ['dpkg', '--print-architecture'],
+        stderr=subprocess.STDOUT).decode('utf-8').strip()
+    if main_arch:
+        output.update({'architecture': main_arch})
+
+except subprocess.CalledProcessError:
+    pass
+
+try:
+    foreign_arch = subprocess.check_output(
+        ['dpkg', '--print-foreign-architectures'],
+        stderr=subprocess.STDOUT).decode('utf-8').strip()
+    if foreign_arch:
+        output.update({'foreign_architectures':
+                       foreign_arch.split('\n')})
+
+except subprocess.CalledProcessError:
+    pass
+
+print(dumps(output, sort_keys=True, indent=4))

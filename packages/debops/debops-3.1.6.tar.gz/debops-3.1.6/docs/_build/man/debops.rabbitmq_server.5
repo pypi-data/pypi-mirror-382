@@ -1,0 +1,1213 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.RABBITMQ_SERVER" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.rabbitmq_server \- Manage RabbitMQ service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/rabbitmq_server\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%RabbitMQ\fP <\fBhttps://www.rabbitmq.com/\fP> is an Open Source message broker which supports \fI\%AMQP\fP <\fBhttps://en.wikipedia.org/wiki/Advanced_Message_Queuing_Protocol\fP>, \fI\%STOMP\fP <\fBhttps://en.wikipedia.org/wiki/Streaming_Text_Oriented_Messaging_Protocol\fP> and \fI\%MQTT\fP <\fBhttps://en.wikipedia.org/wiki/MQTT\fP> protocols.
+.sp
+This Ansible role can be used to install and manage RabbitMQ service on
+Debian/Ubuntu hosts.
+.SH GETTING STARTED
+.SS Shared Erlang cookie
+.sp
+The role configures the same Erlang cookie (password) on all hosts managed in
+a given environment with an idea that all of the hosts are joined in the same
+RabbitMQ cluster. If you want to do things differently, change the
+\fI\%rabbitmq_server__erlang_cookie_password\fP as needed.
+.SS Erlang 19.x from \(aqjessie\-backports\(aq on Debian Jessie
+.sp
+On Debian Jessie hosts, the role will configure an APT preference for
+backported Erlang 19.x packages from Debian Stretch. They provide better
+Elliptic Curve Cryptography (ECC) support and allow deactivation of TLS
+client\-initiated protocol renegotiation, which mitigates potential DoS attacks.
+.SS Encrypted client connections
+.sp
+The role will check if the \fI\%debops.pki\fP and \fI\%debops.dhparam\fP Ansible roles
+configured their environment on a host, and will automatically enable or
+disable support for encrypted AMQP connections. Plaintext connections will be
+available if encryption is disabled.
+.SS RabbitMQ clustering
+.sp
+By default the \fBdebops.rabbitmq_server\fP role configures RabbitMQ service in
+a standalone mode, without external access through the firewall. To allow for
+clustering, you need to define IP addresses and/or CIDR subnets, which will be
+allowed to connect to the \fBepmd\fP (Erlang Port Mapper Daemon) and \fBeinc\fP
+(Erlang Inter\-Process Communication) TCP ports. To do that, set the variable
+below in the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# Allow for cluster communication
+rabbitmq_server__cluster_allow: [ \(aq192.0.2.0/24\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After that, re\-run the role to apply changes to the firewall configuration.
+.sp
+At the moment role does not create clusters automatically. To create a cluster
+manually using three hosts (\fBhost1\fP, \fBhost2\fP, \fBhost3\fP) with \fBhost1\fP
+being the main cluster node, login to the other hosts and using the \fBroot\fP
+account, run the commands:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmqctl stop_app
+rabbitmqctl join_cluster rabbit@host1
+rabbitmqctl start_app
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can check the RabbitMQ cluster status by running the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmqctl cluster_status
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+See the \fI\%RabbitMQ Clustering Guide\fP <\fBhttps://www.rabbitmq.com/clustering.html\fP>
+for more details.
+.SS Inter\-node communication is not encrypted
+.sp
+Erlang supports encrypting communication between nodes (processes on the same
+or other hosts) using TLS, which RabbitMQ can use to
+\fI\%secure traffic between hosts\fP <\fBhttps://www.rabbitmq.com/clustering-ssl.html\fP>\&.
+However one downside is that when inter\-node traffic is encrypted,
+\fI\%Erlang uses dynamic random ports\fP <\fBhttps://groups.google.com/forum/#!msg/rabbitmq-users/rJaJWctOYKQ/q5nP2Cb-5k0J\fP>
+for communication, which might interfere with the host\(aqs firewall. Therefore by
+default \fBdebops.rabbitmq_server\fP role does not configure encrypted inter\-node
+communication. You should consider alternative means of securing the traffic
+between hosts, for example a separate VLAN or use of a VPN connection.
+.SS Example inventory
+.sp
+To configure RabbitMQ on a host, it should be added to the
+\fB[debops_service_rabbitmq_server]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_rabbitmq_server]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.rabbitmq_server\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage RabbitMQ service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_rabbitmq_server\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare rabbitmq_server environment
+      ansible.builtin.import_role:
+        name: \(aqrabbitmq_server\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::rabbitmq_server\(aq, \(aqrole::secret\(aq, \(aqrole::rabbitmq_server:config\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::rabbitmq_server\(aq, \(aqrole::rabbitmq_server:config\(aq ]
+      secret__directories:
+        \- \(aq{{ rabbitmq_server__secret__directories }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ rabbitmq_server__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ rabbitmq_server__ferm__dependent_rules }}\(aq
+
+    \- role: rabbitmq_server
+      tags: [ \(aqrole::rabbitmq_server\(aq, \(aqskip::rabbitmq_server\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH USAGE AS A ROLE DEPENDENCY
+.sp
+The \fBdebops.rabbitmq_server\fP role can be used as a dependency by other
+Ansible roles to manage RabbitMQ main configuration file idempotently.
+Configuration options from multiple roles can be merged together and included
+in the configuration file, or removed conditionally.
+.SS Dependent role variables
+.sp
+The role exposes three default variables that can be used by other Ansible
+roles as dependent variables:
+.INDENT 0.0
+.TP
+.B \fI\%rabbitmq_server__dependent_role\fP
+Required. Name of the role that uses the \fBdebops.rabbitmq_server\fP as
+a dependency. This will be used to store the configuration in its own YAML
+dictionary. The selected name shouldn\(aqt be changed, otherwise configuration
+will be desynchronized.
+.TP
+.B \fI\%rabbitmq_server__dependent_config\fP
+Required. List of the RabbitMQ configuration options defined in the same
+format as the main configuration. See \fI\%rabbitmq_server__config\fP for
+more details.
+.TP
+.B \fI\%rabbitmq_server__dependent_state\fP
+Optional. If not specified or \fBpresent\fP, the configuration will be included
+in the \fB/etc/rabbitmq/rabbitmq.config\fP configuration file and
+stored as Ansible local fact. if \fBabsent\fP, the configuration will be
+removed from the generated configuration file.
+.UNINDENT
+.SS Dependent configuration storage and retrieval
+.sp
+The dependent configuration from other roles is stored in the \fBsecret/\fP
+directory on the Ansible Controller (see \fI\%debops.secret\fP for more details) in
+a JSON file, with each role configuration in a separate dictionary. The
+\fBdebops.rabbitmq_server\fP role reads this file when Ansible local facts
+indicate that the RabbitMQ service is installed, otherwise a new empty file is
+created.  This ensures that the stale configuration is not present on a new or
+re\-installed host.
+.sp
+The YAML dictionaries from different roles are be merged with the main
+configuration in the \fI\%rabbitmq_server__combined_config\fP variable that
+is used to generate the final configuration. The merge order of the different
+\fBrabbitmq_server__*_config\fP variables allows to further affect the dependent
+configuration through Ansible inventory if necessary, therefore the Ansible
+roles that use this method don\(aqt need to provide additional variables for this
+purpose themselves.
+.SS Example role default variables
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# This is a set of default variables in an example \(aqapplication\(aq role that uses
+# dependent variables to pass configuration to \(aqdebops.rabbitmq_server\(aq role.
+
+# State of the application deployment
+application__deploy_state: \(aqpresent\(aq
+
+# RabbitMQ configuration defined by the application
+application__rabbitmq_server__dependent_config:
+
+  \- name: \(aqapplication_name\(aq
+    options:
+
+      \- name: \(aqconfig_first_option\(aq
+        value: \(aqvalue1\(aq
+
+      \- config_second_option: \(aqvalue2\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example role playbook
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# This is a playbook for an example \(aqapplication\(aq role which uses
+# \(aqdebops.rabbitmq_server\(aq as a dependency and passes its own set of
+# configuration options to it.
+
+\- name: Manage application
+  collections: [ \(aqdebops.debops\(aq ]
+  hosts: [ \(aqdebops_service_rabbitmq_application\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare rabbitmq_server environment
+      ansible.builtin.import_role:
+        name: \(aqrabbitmq_server\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::rabbitmq_server\(aq, \(aqrole::secret\(aq, \(aqrole::rabbitmq_server:config\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::rabbitmq_server\(aq, \(aqrole::rabbitmq_server:config\(aq ]
+      secret__directories:
+        \- \(aq{{ rabbitmq_server__secret__directories }}\(aq
+
+    \- role: rabbitmq_server
+      tags: [ \(aqrole::rabbitmq_server\(aq ]
+      rabbitmq_server__dependent_role: \(aqapplication\(aq
+      rabbitmq_server__dependent_state: \(aq{{ application__deploy_state }}\(aq
+      rabbitmq_server__dependent_config:
+        \- \(aq{{ application__rabbitmq_server__dependent_config }}\(aq
+
+    \- role: application
+      tags: [ \(aqrole::application\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.rabbitmq_server\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS rabbitmq_server__config
+.sp
+The \fBrabbitmq_server__*_config\fP variables describe contents of the
+\fB/etc/rabbitmq/rabbitmq.config\fP configuration file. Each entry in the
+\fBrabbitmq_server__*_config\fP variables is a YAML dictionary with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of an Erlang application to configure. Each application
+can contain a set of configuration options. Configuration options from
+multiple applications with the same \fBname\fP parameter are merged together.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given application configuration
+will be included in the finished configuration file.
+.sp
+If \fBabsent\fP, a given application configuration will be removed from the
+configuration file.
+.sp
+If \fBignore\fP, a given application entry is not evaluated by the
+configuration template. This can be used to conditionally enable or disable
+configuration sections.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block which will be added as a comment to the
+configuration section.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which will be used to affect the
+position of a given Erlang application within the configuration file. The
+higher the number, the more a given application section \(dqweighs\(dq, and
+therefore it will be placed lower in the finished configuration file.
+If not specified, \fB0\fP is used by default.
+.TP
+.B \fBoptions\fP
+A YAML list of configuration options for a given Erlang application.
+See \fI\%RabbitMQ configuration options\fP for more details.
+.UNINDENT
+.SS Examples
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# Create a basic set of Erlang applications used by RabbitMQ, based on the
+# example configuration file:
+
+rabbitmq_server__config:
+
+  \- name: \(aqrabbit\(aq
+    weight: 1
+
+  \- name: \(aqrabbitmq_management\(aq
+    comment: |
+      RabbitMQ Management Plugin
+
+      See https://www.rabbitmq.com/management.html for details
+    options: []
+    weight: 2
+
+  \- name: \(aqrabbitmq_management_agent\(aq
+    weight: 3
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS RabbitMQ configuration options
+.sp
+RabbitMQ is written in the \fI\%Erlang\fP <\fBhttps://en.wikipedia.org/wiki/Erlang_(programming_language)\fP>
+programming language, which is also used for its configuration. YAML, used by
+Ansible, does not provide enough data types to directly map them to the
+\fI\%Erlang data types\fP <\fBhttps://erlang.org/doc/reference_manual/data_types.html\fP>
+used in the RabbitMQ configuration file, therefore the configuration used by
+\fBdebops.rabbitmq_server\fP focuses on description of the desired data types and
+conditional activation of the configuration sections. This means that simple
+values like strings, numbers, lists are mapped directly, however more complex
+configuration needs to be written in Erlang using YAML text blocks. The role
+tries to detect the value type automatically, but in some cases you might need
+to use the extended YAML dictionary syntax described below.
+.sp
+The role does not provide original configuration variables due to the issues
+with template generation (commented out options are not supported). You can
+find a reference RabbitMQ configuration file after the service installation, in
+the \fB/usr/share/doc/rabbitmq\-server/rabbitmq.config.example.gz\fP file.
+An \fI\%example rabbitmq.config file\fP <\fBhttps://github.com/rabbitmq/rabbitmq-server/blob/master/docs/rabbitmq.config.example\fP>
+is also available online.
+.sp
+RabbitMQ configuration options are included in the \fBoptions\fP parameter of an
+Erlang application section (see \fI\%rabbitmq_server__config\fP for more
+details). The \fBoptions\fP parameter is a YAML list, each entry is a YAML
+dictionary. The dictionary keys are used as option names, and dictionary values
+are used as option values. You can specify simple options this way:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# Example of a set of simple RabbitMQ options
+rabbitmq_server__config:
+
+  \- name: \(aqrabbit\(aq
+    options:
+
+      # String
+      \- example_option: \(aqvalue\(aq
+
+      # Simple list
+      \- tcp_listeners: [ 5672 ]
+
+      # Boolean value
+      \- reverse_dns_lookups: True
+
+      # Numbers
+      \- vm_memory_high_watermark: 0.4
+
+      # Raw Erlang code (note absence of }, at the end)
+      \- tcp_listeners: |
+          [{\(dq127.0.0.1\(dq, 5672},
+           {\(dq::1\(dq,       5672}]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If a given dictionary contains a \fBname\fP parameter, the configuration template
+will switch to a more verbose option interpretation, using known parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+The name of a given configuration option. Multiple entries with the same name
+are merged together, with the latter ones takim precedence over the former.
+.TP
+.B \fBvalue\fP
+Required. A value to set for a given option. The value can be an YAML string,
+a list, number, boolean.
+.sp
+YAML text block is used to indicate a raw Erlang code which should be used as
+a value. The raw Erlang code should not end with any flow control Erlang
+characters (\fB}\fP or \fB},\fP), they will be added automatically by the role.
+.TP
+.B \fBtype\fP
+Optional. Specify the type of a given value to use. If the \fBtype\fP parameter
+is not specified, the template will try to select one based on the YAML value
+type. Supported value types:
+.INDENT 7.0
+.IP \(bu 2
+\fBstring\fP: a quoted string, selected automatically if a YAML string is
+used as the value;
+.IP \(bu 2
+\fBlist\fP: a list of values, selected automatically if a YAML list is used
+as the value;
+.IP \(bu 2
+\fBnumber\fP: an unquoted number, selected automatically if a YAML number or
+float is used as the value;
+.IP \(bu 2
+\fBboolean\fP: a boolean \fBtrue\fP/\fBfalse\fP value, selected automatically if
+a YAML boolean is used as the value;
+.IP \(bu 2
+\fBbit\-string\fP: a \fI\%bit string\fP <\fBhttps://erlang.org/doc/reference_manual/data_types.html#bit-strings-and-binaries\fP>
+value with special quotation marks. Only YAML strings are supported at this
+time;
+.IP \(bu 2
+\fBbit\-list\fP: a list of bit\-strings with special quotation marks. Only YAML
+strings are supported at this time. if the value type is set as
+\fBbit\-string\fP and a YAML list is set, the role should change to
+a \fBbit\-list\fP type automatically;
+.IP \(bu 2
+\fBraw\fP: a raw Erlang expression, inserted in the finished configuration
+file as\-is. The Erlang code should not end with Erlang flow control
+characters \fB}\fP or \fB},\fP, they will be added automatically by the role.
+if the value is specified using a YAML text block, the \fBraw\fP type should
+be selected automatically, based on the number of lines used in the value;
+.UNINDENT
+.TP
+.B \fBoption\fP
+Optional. If specified, the configuration option will use this value for the
+name instead of \fBname\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given option be included in the
+finished configuration file.
+.sp
+If \fBabsent\fP, a given option will be removed from the configuration file.
+.sp
+If \fBignore\fP, a given option entry is not evaluated by the configuration
+template. This can be used to conditionally enable or disable configuration
+options.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block which will be added as a comment to the
+configuration option.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which will be used to affect the
+position of a given option within the configuration file. The higher the
+number, the more a given option \(dqweighs\(dq, and therefore it will be placed
+lower in the finished configuration file. If not specified, \fB0\fP is used by
+default.
+.UNINDENT
+.SS Examples
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# Example of a set of verbose RabbitMQ options
+rabbitmq_server__config:
+
+  \- name: \(aqrabbit\(aq
+    options:
+
+      # String
+      \- name: \(aqexample_option\(aq
+        value: \(aqvalue\(aq
+        type: \(aqstring\(aq
+
+      # Simple list
+      \- name: \(aqtcp_listeners\(aq
+        value: [ 5672 ]
+        type: \(aqlist\(aq
+
+      # Boolean value
+      \- name: \(aqreverse_dns_lookups\(aq
+        value: True
+
+      # Numbers
+      \- name: \(aqvm_memroy_high_watermark\(aq
+        value: 0.4
+
+      # Bit\-string (result: \(aq<<\(dqbit\-string\(dq>>\(aq)
+      \- name: \(aqbit_option\(aq
+        value: \(aqbit\-value\(aq
+        type: \(aqbit\-string\(aq
+
+      # Bit\-list (result: \(aq[<<\(dq.*\(dq>>, <<\(dq.*\(dq>>, <<\(dq.*\(dq>>]\(aq)
+      \- name: \(aqdefault_permissions\(aq
+        value: [ \(aq.*\(aq, \(aq.*\(aq, \(aq.*\(aq ]
+        type: \(aqbit\-list\(aq
+
+      # Raw Erlang code (note absence of }, at the end)
+      \- name: \(aqtcp_listeners\(aq
+        value: |
+          [{\(dq127.0.0.1\(dq, 5672},
+           {\(dq::1\(dq,       5672}]
+        type: \(aqraw\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__plugins
+.sp
+The \fBrabbitmq_server__*_plugins\fP lists can be used to enable or disable
+RabbitMQ plugins conditionally. You can find the available plugins on a given
+host by running the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq\-plugins list
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Each list entry is either a RabbitMQ plugin name, or a YAML dictionary with
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+The name of a RabbitMQ plugin to manage.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, the plugin will be enabled. If
+\fBabsent\fP, the plugin will be disabled.
+.TP
+.B \fBprefix\fP
+Optional. Custom install prefix to a Rabbit.
+.UNINDENT
+.SS Examples
+.sp
+Enable the RabbitMQ Management Console agent:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__plugins:
+
+  \- \(aqrabbitmq_management_agent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__accounts
+.sp
+The \fBrabbitmq_server__*_accounts\fP list variables can be used to manage
+RabbitMQ user accounts. Each list entry is a YAML dictionary with specific
+parameters. The parameter names are the same as the \fBrabbitmq_user\fP Ansible
+module. Some more common parameters:
+.INDENT 0.0
+.TP
+.B \fBuser\fP or \fBname\fP
+The name of a given user account.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the user account will be created.
+If \fBabsent\fP, the user account will be removed.
+.TP
+.B \fBpassword\fP
+Optional. Plaintext password of a given user account. If not specified, the
+role will generate a random password and store it in the
+\fBsecret/rabbitmq_server/accounts/\fP directory on the Ansible Controller.
+See \fI\%debops.secret\fP Ansible role for more details.
+.TP
+.B \fBtags\fP
+Optional. A string or a YAML list of \fI\%tags\fP <\fBhttps://www.rabbitmq.com/management.html\fP>
+assigned to a given account. Possible choices: \fBmanagement\fP,
+\fBpolicymaker\fP, \fBmonitoring\fP, \fBadministrator\fP\&.
+.TP
+.B \fBvhost\fP
+Optional. Name of the virtual host to which a given set of permissions should
+apply. If not specified, \fB/\fP vhost is used by default.
+.TP
+.B \fBconfigure_priv\fP, \fBread_priv\fP, \fBwrite_priv\fP
+Optional. A regular expression which defines what resources on a given
+virtual host the user can configure, read from or write to. By default the
+\fB^$\fP regexp is used which means no permissions are given to any resources
+on a virtual host.
+.UNINDENT
+.SS Examples
+.sp
+Create an administrator account and a regular user account:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__accounts:
+
+  \- name: \(aqadmin_account\(aq
+    vhost: \(aq/\(aq
+    tags: [ \(aqadministrator\(aq ]
+    configure_priv: \(aq.*\(aq
+    read_priv: \(aq.*\(aq
+    write_priv: \(aq.*\(aq
+
+  \- name: \(aquser_account\(aq
+    vhost: \(aq/\(aq
+    read_priv: \(aq.*\(aq
+    write_priv: \(aq.*\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__user_limits
+.sp
+The \fBrabbitmq_server__*_user_limits\fP list variables can be used to configure
+\fI\%RabbitMQ per\-user connection limits\fP <\fBhttps://www.rabbitmq.com/docs/user-limits\fP> using Ansible. Each list entry is a YAML
+dictionary with specific parameters. The parameter names are the same as the
+\fBcommunity.rabbitmq.rabbitmq_user_limits\fP Ansible module.
+.sp
+The available parameters:
+.INDENT 0.0
+.TP
+.B \fBuser\fP
+Required. Name of the RabbitMQ user to configure.
+.TP
+.B \fBnode\fP
+Optional. Limit the user limits to a specific RabbitMQ node.
+.TP
+.B \fBmax_connections\fP
+Optional. The maximum number of connections that can be open to a given
+RabbitMQ user.
+.TP
+.B \fBmax_channels\fP
+Optional. The maximum number of channels that can be open to a given RabbitMQ
+user.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the user limit will be created.
+If \fBabsent\fP, the user limit will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Define limits for a specific user account:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__user_limits:
+
+  \- user: \(aqadmin_account\(aq
+    max_connections: 1000
+    max_channels: 100
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__vhosts
+.sp
+The \fBrabbitmq_server__*_vhosts\fP list variables can be used to manage
+RabbitMQ virtual hosts. Each list entry is a YAML dictionary with specific
+parameters. The parameter names are the same as the \fBrabbitmq_vhost\fP Ansible
+module. Some more common parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+The name of a given virtual host. If not specified, the whole list entry will
+be used as the name (see examples).
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the virtual host will be created.
+If \fBabsent\fP, the virtual host will be removed.
+.TP
+.B \fBtracing\fP
+Optional. Enable message tracing in a given virtual host.
+.UNINDENT
+.SS Examples
+.sp
+Create a set of virtual hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__vhosts:
+
+  \- \(aqvhost1\(aq
+
+  \- \(aqvhost2\(aq
+
+  \- name: \(aqvhost3\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__vhost_limits
+.sp
+The \fBrabbitmq_server__*_vhost_limits\fP list variables can be used to configure
+\fI\%RabbitMQ virtual host limits\fP <\fBhttps://www.rabbitmq.com/docs/vhosts#limits\fP> using Ansible. Each list entry is a YAML
+dictionary with specific parameters. The parameter names are the same as the
+\fBcommunity.rabbitmq.rabbitmq_vhost_limits\fP Ansible module. Available
+parameters:
+.INDENT 0.0
+.TP
+.B \fBvhost\fP
+Required. Name of the RabbitMQ virtual host to configure. The default virtual
+host is named \fB/\fP\&.
+.TP
+.B \fBnode\fP
+Optional. Limit the virtual host limits to a specific RabbitMQ node.
+.TP
+.B \fBmax_connections\fP
+Optional. The maximum number of connections that can be open to a given
+RabbitMQ virtual host.
+.TP
+.B \fBmax_queues\fP
+Optional. The maximum number of queues that can be created in a given RabbitMQ
+virtual host.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the virtual host limit will be
+created. If \fBabsent\fP, the virtual host limit will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Define virtual host limits for the default vhost:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__vhost_limits:
+
+  \- vhost: \(aq/\(aq
+    max_connections: 1000
+    max_queues: 100
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Reset limists on the default vrrtual host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__vhost_limits:
+
+  \- vhost: \(aq/\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__exchanges
+.sp
+The \fBrabbitmq_server__*_exchanges\fP list variables can be used to manage
+\fI\%RabbitMQ exchanges\fP <\fBhttps://www.rabbitmq.com/tutorials/amqp-concepts.html#exchanges\fP>\&. Each list entry is a YAML dictionary with specific
+parameters. The parameter names are the same as the
+\fBcommunity.rabbitmq.rabbitmq_exchange\fP Ansible module.
+.sp
+List of supported parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a given RabbitMQ exchange.
+.TP
+.B \fBvhost\fP
+Optional. Specify the RabbitMQ virtual host to which a given exchange applies.
+.TP
+.B \fBexchange_type\fP
+Optional. The type of a given RabbitMQ exchange. Supported choices:
+\fBdirect\fP, \fBfanout\fP, \fBtopic\fP, \fBheaders\fP, \fBx\-consistent\-hash\fP,
+\fBx\-delayed\-message\fP, \fBx\-random\fP, \fBx\-recent\-history\fP\&.
+.TP
+.B \fBdurable\fP
+Optional. If not specified or \fBTrue\fP, the exchange will be durable. If
+\fBFalse\fP, the exchange will be transient.
+.TP
+.B \fBauto_delete\fP
+Optional. If not specified or \fBFalse\fP, the exchange will not be deleted
+when the last queue is unbound from it. If \fBTrue\fP, the exchange will be
+deleted when the last queue is unbound from it.
+.TP
+.B \fBinternal\fP
+Optional. If not specified or \fBFalse\fP, the exchange will be a regular
+exchange. If \fBTrue\fP, the exchange will be an internal exchange, only
+available for other exchanges.
+.TP
+.B \fBarguments\fP
+Optional. A YAML dictionary with additional arguments to set for a given
+exchange.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the exchange will be created. If
+\fBabsent\fP, the exchange will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Create a set of RabbitMQ exchanges:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__exchanges:
+
+  \- name: \(aqexchange1\(aq
+    exchange_type: \(aqfanout\(aq
+    durable: False
+    auto_delete: True
+
+  \- name: \(aqexchange2\(aq
+    exchange_type: \(aqtopic\(aq
+    durable: True
+    auto_delete: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__queues
+.sp
+The \fBrabbitmq_server__*_queues\fP list variables can be used to manage \fI\%RabbitMQ
+queues\fP <\fBhttps://www.rabbitmq.com/tutorials/amqp-concepts.html#queues\fP>\&. Each list entry is a YAML dictionary with specific parameters. The
+parameter names are the same as the \fBcommunity.rabbitmq.rabbitmq_queue\fP
+Ansible module.
+.sp
+List of supported parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a given RabbitMQ queue.
+.TP
+.B \fBvhost\fP
+Optional. Specify the RabbitMQ virtual host to which a given queue applies.
+.TP
+.B \fBdurable\fP
+Optional. If not specified or \fBTrue\fP, the queue will be durable. If
+\fBFalse\fP, the queue will be transient.
+.TP
+.B \fBauto_delete\fP
+Optional. If not specified or \fBFalse\fP, the queue will not be deleted when
+the last consumer is removed. If \fBTrue\fP, the queue will be deleted when the
+last consumer is removed.
+.TP
+.B \fBauto_expires\fP
+Optional. The time in milliseconds after which the queue will be deleted if
+it is not used.
+.TP
+.B \fBdead_letter_exchange\fP
+Optional. The name of a dead\-letter exchange to which messages will be
+republished if they are rejected or expire.
+.TP
+.B \fBdead_letter_routing_key\fP
+Optional. The routing key to use when republishing messages to the dead\-letter
+exchange.
+.TP
+.B \fBmax_length\fP
+Optional. The maximum number of messages that the queue will hold.
+.TP
+.B \fBmax_priority\fP
+Optional. The maximum priority of messages that the queue will hold.
+.TP
+.B \fBmessage_ttl\fP
+Optional. The time in milliseconds after which a message will be removed from
+the queue if it is not consumed.
+.TP
+.B \fBarguments\fP
+Optional. A YAML dictionary with additional arguments to set for a given
+queue.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the queue will be created. If
+\fBabsent\fP, the queue will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Create a set of RabbitMQ queues:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__queues:
+
+  \- name: \(aqqueue1\(aq
+    durable: False
+    auto_delete: True
+    state: \(aqpresent\(aq
+
+  \- name: \(aqqueue2\(aq
+    durable: True
+    auto_delete: False
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__bindings
+.sp
+The \fBrabbitmq_server__*_bindings\fP list variables can be used to manage
+\fI\%RabbitMQ bindings\fP <\fBhttps://www.rabbitmq.com/tutorials/amqp-concepts.html#bindings\fP>\&. Each list entry is a YAML dictionary with specific
+parameters. The parameter names are the same as the
+\fBcommunity.rabbitmq.rabbitmq_binding\fP Ansible module.
+.sp
+List of parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a given RabbitMQ exchange which will be the source of a
+given binding.
+.TP
+.B \fBdestination\fP
+Required. The name of a given RabbitMQ queue or another exchange which will be
+a destination of a given binding.
+.TP
+.B \fBdestination_type\fP
+Required. The type of a given destination. Supported choices: \fBqueue\fP,
+\fBexchange\fP\&.
+.TP
+.B \fBvhost\fP
+Optional. Specify the RabbitMQ virtual host to which a given binding applies.
+.TP
+.B \fBrouting_key\fP
+Optional. The routing key to use when binding a queue to an exchange.
+.TP
+.B \fBarguments\fP
+Optional. A YAML dictionary with additional arguments to set for a given
+binding.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the binding will be created. If
+\fBabsent\fP, the binding will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Create a set of RabbitMQ bindings:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__bindings:
+
+  \- name: \(aqexchange1\(aq
+    destination: \(aqqueue1\(aq
+    destination_type: \(aqqueue\(aq
+    routing_key: \(aqexample\(aq
+    state: \(aqpresent\(aq
+
+  \- name: \(aqexchange2\(aq
+    destination: \(aqexchange1\(aq
+    destination_type: \(aqexchange\(aq
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__feature_flags
+.sp
+The \fBrabbitmq_server__*_feature_flags\fP list variables can be used to manage
+\fI\%RabbitMQ feature flags\fP <\fBhttps://www.rabbitmq.com/feature-flags.html\fP>\&. Each list entry is a YAML dictionary with specific
+parameters. The parameter names are the same as the
+\fBcommunity.rabbitmq.rabbitmq_feature_flag\fP Ansible module.
+.sp
+Supported parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a given RabbitMQ feature flag.
+.TP
+.B \fBnode\fP
+Optional. The name of a RabbitMQ node to which a given feature flag applies.
+.UNINDENT
+.SS Examples
+.sp
+Enable the \fBmaintenance_mode_status\fP feature flag on a specific Erlang node:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__feature_flags:
+
+  \- name: \(aqmaintenance_mode_status\(aq
+    node: \(aqrabbit@node1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__global_parameters
+.sp
+The \fBrabbitmq_server__*_global_parameters\fP list variables can be used to
+manage \fI\%RabbitMQ global parameters\fP <\fBhttps://www.rabbitmq.com/docs/parameters#parameter-management\fP>, defined for the entire cluster. Each list
+entry is a YAML dictionary with specific global parameters. The parameter names
+are the same as the \fBcommunity.rabbitmq.rabbitmq_global_parameter\fP Ansible
+module.
+.sp
+Configuration entry parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a given RabbitMQ parameter being set.
+.TP
+.B \fBvalue\fP
+The value of a given parameter in a JSON format. The values are usually
+quoted using single quotes and contain double\-quotes.
+.TP
+.B \fBnode\fP
+Optional. The name of a RabbitMQ node to which a given parameter applies.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the parameter will be created.
+If \fBabsent\fP, the parameter will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Set the value of the \fBcluster_name\fP global parameter:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__global_parameters:
+
+  \- name: \(aqcluster_name\(aq
+    value: \(aq\(dqmy\-cluster\(dq\(aq
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__parameters
+.sp
+The \fBrabbitmq_server__*_parameters\fP list variables can be used to manage
+\fI\%RabbitMQ parameters\fP <\fBhttps://www.rabbitmq.com/parameters.html\fP>\&. Each list
+entry is a YAML dictionary with specific parameters. The parameter names are
+the same as the \fBrabbitmq_parameter\fP Ansible module. Some more common
+parameters:
+.INDENT 0.0
+.TP
+.B \fBcomponent\fP
+Required. Name of the component of which the parameter is being set.
+.TP
+.B \fBname\fP
+Required. The name of a given RabbitMQ parameter being set.
+.TP
+.B \fBvalue\fP
+The value of a given parameter in a JSON format. The values are usually
+quoted using single quotes and contain double\-quotes.
+.TP
+.B \fBvhost\fP
+Optional. Specify the RabbitMQ virtual host to which a given parameter
+applies.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the parameter will be created.
+If \fBabsent\fP, the parameter will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Define a RabbitMQ parameter:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__parameters:
+
+  \- component: \(aqfederation\(aq
+    name: \(aqlocal\-username\(aq
+    value: \(aq\(dqguest\(dq\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rabbitmq_server__policies
+.sp
+The \fBrabbitmq_server__*_policies\fP list variables can be used to manage
+\fI\%RabbitMQ policies\fP <\fBhttps://www.rabbitmq.com/parameters.html\fP>\&. Each list
+entry is a YAML dictionary with specific parameters. The parameter names are
+the same as the \fBrabbitmq_policy\fP Ansible module. Some more common
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a given RabbitMQ policy.
+.TP
+.B \fBpattern\fP
+Required. A regexp pattern of RabbitMQ queue names to which a given policy applies.
+.TP
+.B \fBtags\fP
+Required. An YAML dictionary with key/value parameters that describe the
+policy. Relevant documentation can be found in the RabbitMQ Management
+Console, Admin section, Policies.
+.TP
+.B \fBvhost\fP
+Optional. Specify the RabbitMQ virtual host to which a given policy applies.
+.TP
+.B \fBapply_to\fP
+Optional. The resource type to which a given policy applies to. Supported
+choices: \fBall\fP, \fBexchanges\fP, \fBqueues\fP\&. If not specified, \fBall\fP is
+used by default.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the policy will be created.
+If \fBabsent\fP, the policy will be removed.
+.TP
+.B \fBpriority\fP
+Optional. The numerical priority of a given policy, used for sorting.
+.UNINDENT
+.SS Examples
+.sp
+Create a set of RabbitMQ policies:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rabbitmq_server__policies:
+
+  \- name: \(aqHA\(aq
+    pattern: \(aq.*\(aq
+    tags:
+      \(aqha\-mode\(aq: \(aqall\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

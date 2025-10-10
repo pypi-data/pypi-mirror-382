@@ -1,0 +1,289 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.YADM" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.yadm \- Manage yadm, Yet Another Dotfiles Manager
+.SH SYNOPSIS
+.sp
+\fBdebops run service/yadm\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Yet Another Dotfiles Manager\fP <\fBhttps://yadm.io/\fP> (\fByadm\fP) is a wrapper script around
+the \fBgit\fP command that manages \fI\%dotfiles\fP <\fBhttps://en.wikipedia.org/wiki/Hidden_file_and_hidden_directory\fP> located in the \fB$HOME\fP
+directory using a \fBgit\fP repository. yadm supports encrypted storage
+for sensitive files, alternative file selection based on host
+class/OS/hostname/user account, bootstrap script and Jinja templating.
+.sp
+The \fBdebops.yadm\fP Ansible role will install the \fByadm\fP script,
+either from an APT repository, or using the upstream \fBgit\fP repository.
+The role will also install a \fBzsh\fP shell and a few essential CLI
+applications.
+.sp
+Optionally, \fBdebops.yadm\fP role can clone selected dotfiles \fBgit\fP
+repositories to the host creating mirrors, that can be used by users or other
+Ansible roles to deploy dotfiles locally.
+.SH GETTING STARTED
+.SS Default dotfiles
+.sp
+The role does not clone any dotfile \fBgit\fP repositories defined in the
+\fI\%yadm__dotfiles\fP variables by default. To enable this you should set
+in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+yadm__dotfiles_enabled: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Without this, users still are able to use \fByadm\fP to install their own
+preferred dotfiles, and role ensures that commonly used CLI shells are present
+so that users are able to login if they use, for example, \fB/bin/zsh\fP
+as a shell defined in the LDAP directory.
+.sp
+The role exposes the \fBansible_local.yadm.dotfiles\fP Ansible local fact, which
+defines an absolute path to a default dotfiles repository mirrored locally.
+Other Ansible roles can use it to install a default set of dotfiles using
+\fByadm\fP on the users\(aq account. If installation of dotfiles is disabled,
+or the specified repository is not present, the variable will be empty.
+.SS Unsafe Repository error handling
+.sp
+Due to the \fI\%CVE\-2022\-24765\fP <\fBhttps://github.blog/open-source/git/git-security-vulnerability-announced/#cve-2022-24765\fP> \fBgit\fP security vulnerability, UNIX
+accounts cannot clone local \fBgit\fP repositories that are not owned by
+themselves. This causes issues with the \fByadm\fP repositories managed by
+the \fBroot\fP UNIX account via the role. To mitigate that, the role will add
+path to the clone repository in the \fB/etc/gitconfig\fP configuration file
+to tell \fBgit\fP that these specific repositories are safe.
+.SS Example inventory
+.sp
+The role is included by default in the \fBbootstrap\-ldap.yml\fP and the
+\fBcommon.yml\fP playbook, therefore you don\(aqt need to do anything to enable it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.yadm\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure yadm, Yet Another Dotfiles Manager
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_yadm\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::yadm\(aq ]
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ yadm__keyring__dependent_gpg_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ yadm__apt_preferences__dependent_list }}\(aq
+
+    \- role: yadm
+      tags: [ \(aqrole::yadm\(aq, \(aqskip::yadm\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::yadm\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.yadm\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%yadm(1)\fP <\fBhttps://manpages.debian.org/yadm(1)\fP>
+.IP \(bu 2
+The \fI\%yadm homepage\fP <\fBhttps://yadm.io/\fP> with documentation and examples
+.IP \(bu 2
+An \fI\%unofficial guide to dotfiles on GitHub\fP <\fBhttps://dotfiles.github.io/\fP>
+.IP \(bu 2
+\fI\%A curated list of dotfiles resources\fP <\fBhttps://github.com/webpro/awesome-dotfiles\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.yadm\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS yadm__dotfiles
+.sp
+The \fByadm__*_dotfiles\fP variables define a list of custom dotfile
+\fBgit\fP repositories to clone to the host, so that they are available
+locally. The dotfiles will be cloned to the directory defined by the
+\fI\%yadm__dotfiles_root\fP variable, with subdirectories corresponding to
+the repository host (for example \fBgithub.com\fP), repository owner (for example
+\fBdrybjed\fP), and finally the \fBdotfiles.git\fP directory, which contains a bare
+\fBgit\fP repository itself.
+.sp
+The repositories are cloned and/or updated using the \fBroot\fP account, with
+optional GPG signature verification. The role does not execute any code
+contained in the repositories at this stage. Users are then able to use the
+\fByadm\fP script to install or update their desired dotfiles from the
+local mirror instead of the remote repository. This can be done either
+manually, or via other Ansible roles.
+.sp
+Because \fByadm\fP uses the \fB$HOME\fP directory directly as the
+\fBgit\fP work directory, it\(aqs best to avoid putting non\-dotfile files
+like \fBREADME.md\fP and similar in the \fBmaster\fP branch of the repository
+(\fByadm\fP will check it out by default). If you want to present a README
+file in the dotfiles repository, you can put it on a separate \fBgit\fP
+branch and set it as default branch in the GitHub repository settings.
+.sp
+See \fI\%yadm dotfile repository examples\fP <\fBhttps://yadm.io/docs/examples\fP> for an example repositories compatible
+with \fByadm\fP script.
+.SS Examples
+.sp
+Clone dotfiles without any GPG signature verification:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+yadm__dotfiles:
+
+  \- name: \(aquser\(aq
+    git:
+      \- repo: \(aqhttps://github.com/user/dotfiles\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Disable the default \fBdrybjed\fP dotfiles from being cloned automatically and
+remove them if they are present:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+yadm__dotfiles:
+
+  \- name: \(aqdrybjed\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables are YAML lists, each list entry is a YAML dictionary that uses
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. A name of a given dotfile entry, not used otherwise. Entries with
+the same \fBname\fP parameter are merged together, this can be used to modify
+existing entries later on.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given dotfile repository will be
+cloned or updated by the role. If \fBabsent\fP, a given repository and GPG keys
+will be removed from the host, or will not be imported and cloned. If
+\fBignore\fP, a given configuration entry will be ignored during evaluation by
+the role.
+.TP
+.B \fBgpg\fP
+Optional. A string containing a GPG key fingerprint used to sign the commits
+and/or tags in the dotfile repository; you can also specify multiple GPG
+fingerprints as a YAML list. Spaces in the fingerprint will be automatically
+removed. An alternative format is a YAML dictionary for each list element,
+with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBid\fP
+The GPG key fingerprint.
+.TP
+.B \fBkeybase\fP
+Optional. The name of the \fI\%Keybase\fP <\fBhttps://keybase.io/\fP> profile which should be used to
+lookup the GPG key.
+.TP
+.B \fBstate\fP
+Optional, either \fBpresent\fP (import the GPG key) or \fBabsent\fP (remove the
+GPG key from the keyring).
+.UNINDENT
+.sp
+The specified GPG keys will be added to the \fBroot\fP GPG keyring in the
+\fB~/.gnupg/pubring.gpg\fP file and subsequently used to verify commits in
+cloned or updated \fBgit\fP repositories.
+.sp
+The GPG keys are managed via the \fI\%debops.keyring\fP Ansible role, see its
+documentation for more details.
+.TP
+.B \fBgit\fP
+Optional. A string containing an URL to the \fBgit\fP repository with
+dotfiles; you can also specify multiple URLs as a YAML list. Only public
+repositories accessible via \fBhttps://\fP make sense \- the role does not
+support cloning private repositories using a password, or repositories
+accessible over SSH connection. An alternative format is a YAML dictionary
+for each list element, with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBrepo\fP
+The URL of the repository.
+.TP
+.B \fBversion\fP
+The \fBgit\fP branch/tag to checkout \- not useful because the role
+will clone bare \fBgit\fP repositories without checking them out.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,187 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.PYTHON" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.python \- Manage Python environment using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/python\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run service/python_raw\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Python\fP <\fBhttps://www.python.org/\fP> is a popular, dynamic programming language available on GNU/Linux
+platforms. Ansible is written in Python and requires Python on remote host for
+normal operations.
+.sp
+The \fBdebops.python\fP Ansible role can be used to manage the Python environment
+on a Debian/Ubuntu host. Role supports multiple Python versions installed on
+a host at the same time, which is the default practice in Debian.
+.sp
+A special \(dqraw\(dq mode of operation with a separate Ansible playbook can be used
+to bootstrap Python environment on a host, so that Ansible can then install
+packages and operate normally.
+.SH GETTING STARTED
+.SS Support for multiple Python versions
+.sp
+The role allows management of multiple Python versions at the same time. The
+available Python version is dependent on the OS release used on a given host.
+.sp
+Separate default variables can be used to specify APT packages to install for
+Python 2.x and Python 3.x series. The different Python versions can then be
+enabled or disabled independently \- role automatically disables Python
+3 support on older OS releases without adequate versions available, and
+disables Python 2 support if Ansible is configured to use Python 3 interpreter
+on a given host, or Python 3.x is autodetected as the Python interpreter on
+Ansible Controller.
+.SS Python environment bootstrapping
+.sp
+The special \(dqraw\(dq mode of operation with a custom Ansible playbook that doesn\(aqt
+gather Ansible facts automatically can be used to \(dqbootstrap\(dq Python support on
+a host. Role will automatically purge an existing Python 2.x packages if Python
+2.x operation is disabled; this can be leveraged to maintain Python 3.x\-only
+setup, depending on the OS release used on the host.
+.sp
+To support environments without proper DNS service, the bootstrap playbook can
+inject host entries into the \fB/etc/hosts\fP configuration file, using the
+\fI\%python__raw_etc_hosts\fP variable. This can be used to configure access
+to APT repositories via a HTTP proxy, for example. After bootstrapping, the
+\fI\%debops.netbase\fP Ansible role takes over the \fB/etc/hosts\fP config
+file management.
+.SS Example inventory
+.sp
+The \fBdebops.python\fP role is included by default in the \fBcommon.yml\fP DebOps
+playbook; you don\(aqt need to add hosts to any Ansible groups to enable it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.python\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Python environment
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_python\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+There\(aqs a separate Ansible playbook that allows usage of the \fBdebops.python\fP
+role in a \(dqraw\(dq mode, without fact gathering. This can be used to bootstrap
+Python support on a host, so that normal Ansible modules can be used
+afterwards:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Bootstrap Python environment
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_python\(aq ]
+  strategy: linear
+  become: True
+  gather_facts: False
+
+  tasks:
+
+    \- name: Initialize Ansible support via raw tasks
+      ansible.builtin.import_role:
+        name: \(aqpython\(aq
+        tasks_from: \(aqmain_raw\(aq
+      tags: [ \(aqrole::python_raw\(aq, \(aqskip::python_raw\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::python\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+The \fI\%debops.resources\fP role can be used to manage pip and virtual
+environments, see \fI\%Python Virtual Environment management\fP documentation for more details.
+.sp
+List of other useful resources related to the \fBdebops.python\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%python(1)\fP <\fBhttps://manpages.debian.org/python(1)\fP>, \fI\%pip(1)\fP <\fBhttps://manpages.debian.org/pip(1)\fP>, \fI\%virtualenv(1)\fP <\fBhttps://manpages.debian.org/virtualenv(1)\fP>
+.IP \(bu 2
+\fI\%Debian Python Policy\fP <\fBhttps://www.debian.org/doc/packaging-manuals/python-policy/\fP>
+.IP \(bu 2
+\fI\%Python page\fP <\fBhttps://wiki.debian.org/Python\fP> in Debian Wiki
+.IP \(bu 2
+\fI\%Status of Python 3 packages in Debian\fP <\fBhttps://wiki.debian.org/Python/Python3Packages\fP>
+.IP \(bu 2
+\fI\%Debian plans for Python 3\fP <\fBhttps://lwn.net/Articles/642334/\fP> article in Linux Weekly News
+.IP \(bu 2
+\fI\%Python page\fP <\fBhttps://wiki.ubuntu.com/Python\fP> in Ubuntu Wiki
+.IP \(bu 2
+\fI\%Python (programming language)\fP <\fBhttps://en.wikipedia.org/wiki/Python_(programming_language)\fP> in Wikipedia
+.IP \(bu 2
+\fI\%import antigravity\fP <\fBhttps://xkcd.com/353/\fP>
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

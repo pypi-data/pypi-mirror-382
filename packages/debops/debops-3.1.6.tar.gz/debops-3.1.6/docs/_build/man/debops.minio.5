@@ -1,0 +1,940 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.MINIO" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.minio \- Install MinIO, Amazon S3 Compatible Object Storage
+.SH SYNOPSIS
+.sp
+\fBdebops run service/minio\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%MinIO\fP <\fBhttps://min.io/\fP> is an Open Source Amazon Simple Storage Service (S3) compatible
+object storage service.
+.sp
+The \fBdebops.minio\fP Ansible role can be used to deploy and configure MinIO in
+various scenarios, either as a single node, single tenant service, or a multi
+node and/or multi tenant distributed storage service. The role relies on other
+DebOps roles to install MinIO binary from upstream URL or build it from source
+code, configure firewall access, provide TLS support and configure web server
+access to the service. See the Getting Started page for more details about the
+deployment stack.
+.sp
+The \fI\%MinIO Client\fP <\fBhttps://docs.min.io/docs/minio-client-complete-guide\fP> application is used to interface with MinIO and perform
+various administrative tasks, including extended configuration of the service.
+It can be installed on a host using the \fI\%debops.mcli\fP Ansible role.
+.SH GETTING STARTED
+.SS Default installation and upgrades
+.sp
+The role will install the latest MinIO release available by default. After
+that, the selected release will be \(dqlocked\(dq via the Ansible local facts, and
+normal execution of the \fI\%debops.minio\fP role will not upgrade an existing
+installation.
+.sp
+To perform an upgrade, you can use the following command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run service/minio \-l <host|group> \-t role::golang \e
+                         \-e \(aqminio__upstream_upgrade=true\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This command will execute the \fI\%debops.golang\fP Ansible role in the context
+of the \fBservice/minio\fP playbook and perform the upgrade of MinIO binary
+if a new release is found. The existing MinIO instances will be restarted
+afterwards.
+.sp
+If you want to perform upgrades automatically when the role is executed when
+they are available, you can set the \fI\%minio__upstream_upgrade\fP variable
+to \fBTrue\fP in the Ansible inventory.
+.sp
+The previously downloaded MinIO releases are currently not removed
+automatically, therefore make sure that you clean up the
+\fB~_golang/go/src/\fP directory managed by the \fI\%debops.golang\fP role
+from time to time.
+.SS Dependent role usage
+.sp
+The \fI\%debops.minio\fP role is focused on configuration of the MinIO service,
+and relies on other DebOps roles for the actual installation and configuration
+of additional services:
+.INDENT 0.0
+.IP \(bu 2
+The \fI\%debops.golang\fP role is used to download and verify MinIO binary, or
+clone the MinIO source code and build the binary locally.
+.IP \(bu 2
+The \fI\%debops.keyring\fP role is used by the \fI\%debops.golang\fP role to
+fetch and import the MinIO GPG signing key used to verify the MinIO binaries
+or source code.
+.IP \(bu 2
+The \fI\%debops.pki\fP role (not included in the playbook) is used to provide
+the PKI infrastructure and X.509 certificates required for TLS connections to
+MinIO instances.
+.IP \(bu 2
+The \fI\%debops.sysctl\fP and \fI\%debops.sysfs\fP roles are used to configure
+kernel parameters in the \fB/proc/\fP and \fB/sys/\fP directories related
+to MinIO.
+.IP \(bu 2
+The \fI\%debops.nginx\fP role is used to configure the web server access to
+MinIO service over HTTPS and redirects the subdomain queries to the correct
+MinIO instances configured on the host.
+.IP \(bu 2
+The \fI\%debops.ferm\fP role is used to open the firewall access to MinIO
+instances via their TCP ports.
+.UNINDENT
+.sp
+See the provided Ansible playbook for the order of the roles and usage of the
+dependent role variables. Without the mentioned DebOps roles and services
+managed by them, \fI\%debops.minio\fP role alone will not deploy the MinIO
+service correctly.
+.SS Example inventory
+.sp
+To configure MinIO service on a host, it needs to be added to the
+\fB[debops_service_minio]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_minio]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+See the \fI\%MinIO deployment guide\fP more examples of distributed MinIO
+deployments.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.minio\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage MinIO service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_minio\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare minio environment
+      ansible.builtin.import_role:
+        name: \(aqminio\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::minio\(aq, \(aqrole::etc_services\(aq, \(aqrole::ferm\(aq,
+              \(aqrole::keyring\(aq, \(aqrole::golang\(aq, \(aqrole::nginx\(aq ]
+
+    \- name: Prepare sysfs environment
+      ansible.builtin.import_role:
+        name: \(aqsysfs\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::sysfs\(aq, \(aqrole::secret\(aq ]
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::golang\(aq ]
+      keyring__dependent_gpg_user: \(aq{{ golang__keyring__dependent_gpg_user }}\(aq
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+        \- \(aq{{ golang__keyring__dependent_gpg_keys }}\(aq
+      golang__dependent_packages:  # noqa var\-naming[no\-role\-prefix]
+        \- \(aq{{ minio__golang__dependent_packages }}\(aq
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::sysfs\(aq ]
+      secret__directories:
+        \- \(aq{{ sysfs__secret__directories | d([]) }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ golang__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ minio__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ minio__ferm__dependent_rules }}\(aq
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: sysctl
+      tags: [ \(aqrole::sysctl\(aq, \(aqskip::sysctl\(aq ]
+      sysctl__dependent_parameters:
+        \- \(aq{{ minio__sysctl__dependent_parameters }}\(aq
+
+    \- role: sysfs
+      tags: [ \(aqrole::sysfs\(aq, \(aqskip::sysfs\(aq ]
+      sysfs__dependent_attributes:
+        \- \(aq{{ minio__sysfs__dependent_attributes }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_upstreams:
+        \- \(aq{{ minio__nginx__dependent_upstreams }}\(aq
+      nginx__dependent_servers:
+        \- \(aq{{ minio__nginx__dependent_servers }}\(aq
+
+    \- role: golang
+      tags: [ \(aqrole::golang\(aq, \(aqskip::golang\(aq ]
+      golang__dependent_packages:
+        \- \(aq{{ minio__golang__dependent_packages }}\(aq
+
+    \- role: minio
+      tags: [ \(aqrole::minio\(aq, \(aqskip::minio\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::minio\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.minio\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%MinIO documentation\fP <\fBhttps://docs.min.io/\fP>
+.UNINDENT
+.SH MINIO DEPLOYMENT GUIDE
+.sp
+MinIO can be deployed in different ways depending on the desired configuration.
+You should refer to the \fI\%MinIO documentation\fP <\fBhttps://docs.min.io/\fP> for various deployment
+examples. This page focuses on explaining how to \fI\%deploy MinIO in multi\-tenant
+environment\fP <\fBhttps://docs.min.io/docs/multi-tenant-minio-deployment-guide.html\fP> using the \fI\%debops.minio\fP Ansible role to provide more
+complex examples of the role usage.
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+Once deployed, the structure of the MinIO cluster cannot be
+changed (\fI\%new disks/hosts cannot be added/removed from the cluster\fP <\fBhttps://github.com/minio/minio/issues/4364\fP>). It\(aqs
+best to prepare the desired configuration in a development environment
+before deploying it in production.
+.UNINDENT
+.UNINDENT
+.SS PKI infrastructure
+.sp
+MinIO supports encrypted connections using TLS and X.509 certificates \- when
+this mode is enabled, unencrypted HTTP connections are disabled, therefore
+communication with upstream MinIO services through the \fBnginx\fP proxy
+has to be done over HTTPS. The TLS protocol also enforces checking the
+\fBHost:\fP HTTP header against the currently enabled X.509 certificates \- any
+connections to hosts or IP addresses not in the X.509 certificates will be
+denied.
+.sp
+The \fI\%debops.minio\fP role uses the PKI infrastructure maintained by the
+\fI\%debops.pki\fP role when available. The default PKI deployment configures an
+internal Certificate Authority which is trusted by all hosts in the cluster; the
+host certificates contain wildcard addresses for the domain part as well as
+host subdomains, which simplifies the internal certificate management. However,
+if you plan to use public X.509 certificates for MinIO services directly, you
+need to ensure that the certificates use the correct FQDNs for each host in the
+cluster. The \fI\%debops.minio\fP role currently does not support using IP
+addresses for connections, this feature can be implemented if there\(aqs a demand
+for it.
+.sp
+Since connections from the outside to the MinIO cluster via the
+\fBnginx\fP proxy can be handled by a separate set of certificates, use of
+the internal CA and the \fBdomain\fP PKI realm for MinIO service is currently
+recommended.
+.SS Single tenant, multiple nodes
+.sp
+The default \fBmain\fP MinIO instance is configured for a single tenant on
+multiple, separate hosts with its access and secret keys stored in the
+\fBsecret/minio/distributed/main/\fP files on the Ansible Controller (see
+\fI\%debops.secret\fP role documentation for details). This configuration allows
+easy scaling of storage by setting up additional hosts with MinIO service
+installed on each one. The access and secret keys will be the same, therefore
+your application(s) can use the same credentials to access the storage on
+different nodes. An example inventory with 2 MinIO hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/hosts
+
+# Configure Ansible inventory groups
+[debops_all_hosts]
+server1    ansible_host=server1.example.org
+server2    ansible_host=server2.example.org
+
+[debops_service_minio]
+server1
+server2
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The MinIO instances will be reachable directly via these addresses:
+.INDENT 0.0
+.IP \(bu 2
+\fBhttps://server1.example.org:9000/\fP
+.IP \(bu 2
+\fBhttps://server2.example.org:9000/\fP
+.UNINDENT
+.sp
+The \fBnginx\fP HTTP proxy configured by \fI\%debops.minio\fP role will
+publish the MinIO instances on these addresses:
+.INDENT 0.0
+.IP \(bu 2
+\fBhttps://server1.example.org/\fP
+.IP \(bu 2
+\fBhttps://server2.example.org/\fP
+.UNINDENT
+.sp
+You can combine separate MinIO instances in a \fI\%federated mode\fP <\fBhttps://docs.min.io/docs/minio-federation-quickstart-guide.html\fP> to make host
+lookups via DNS easier, however this configuration is currently out of scope
+for the \fI\%debops.minio\fP role.
+.SS Single tenant, single node
+.sp
+If you want to configure separate tenants on each MinIO host, for example by
+separating tenants using LXC containers and frontend HTTP proxy, you can easily
+change the \fBmain\fP MinIO instance to standalone configuration by setting in
+the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/hosts
+
+# Configure Ansible inventory groups
+[debops_all_hosts]
+tenant1    ansible_host=tenant1.example.org
+tenant2    ansible_host=tenant2.example.org
+tenant3    ansible_host=tenant3.example.org
+
+[debops_service_minio]
+tenant1
+tenant2
+tenant3
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/group_vars/debops_all_hosts/minio.yml
+
+# Override configuration for \(aqmain\(aq instance
+minio__instances:
+  \- name: \(aqmain\(aq
+    standalone: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+With this configuration, each MinIO \fBmain\fP instance on a separate host gets
+its own set of access and secret keys stored in the
+\fBsecret/minio/standalone/<host>/main/\fP directory on the Ansible
+Controller.
+.sp
+The MinIO instances will be reachable directly via these addresses:
+.INDENT 0.0
+.IP \(bu 2
+\fBhttps://tenant1.example.org:9000/\fP
+.IP \(bu 2
+\fBhttps://tenant2.example.org:9000/\fP
+.IP \(bu 2
+\fBhttps://tenant3.example.org:9000/\fP
+.UNINDENT
+.sp
+The \fBnginx\fP HTTP proxy configured by \fI\%debops.minio\fP role will
+publish the MinIO instances on these addresses:
+.INDENT 0.0
+.IP \(bu 2
+\fBhttps://tenant1.example.org/\fP
+.IP \(bu 2
+\fBhttps://tenant2.example.org/\fP
+.IP \(bu 2
+\fBhttps://tenant3.example.org/\fP
+.UNINDENT
+.sp
+The DNS records and the X.509 certificates may contain wildcard addresses
+(\fB*.tenant1.example.org\fP, etc.) to allow access to buckets via subdomains in
+addition to access via subdirectories; for example
+\fBhttps://bucket.tenant1.example.org\fP will redirect to
+\fBhttps://tenant1.example.org/bucket/\fP\&.
+.SS Standalone deployment
+.sp
+In a \fI\%standalone deployment example\fP <\fBhttps://docs.min.io/docs/multi-tenant-minio-deployment-guide.html#standalone-deployment\fP>, we will configure MinIO with three
+tenants on a single MinIO host, once with a single disk drive, and once with
+multiple disk drives. In this example, the \fBmain\fP MinIO cluster will be
+removed for consistency.
+.sp
+Each MinIO tenant instance will be accessible over a separate TCP port. The
+\fBnginx\fP proxy configured by the \fI\%debops.minio\fP role will also
+allow connections to each MinIO instance based on its \fBname\fP parameter as
+a subdomain of the main DNS domain of the host. For that to work reliably,
+X.509 certificates used by the \fI\%debops.nginx\fP role need to include the
+relevant FQDN addresses.
+.sp
+The host configuration in the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/hosts
+
+# Configure Ansible inventory groups
+[debops_all_hosts]
+server    ansible_host=server.example.org
+
+[debops_service_minio]
+server
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The MinIO instances will be reachable directly via these addresses:
+.INDENT 0.0
+.IP \(bu 2
+\fBhttps://server.example.org:9001/\fP
+.IP \(bu 2
+\fBhttps://server.example.org:9002/\fP
+.IP \(bu 2
+\fBhttps://server.example.org:9003/\fP
+.UNINDENT
+.sp
+The \fBnginx\fP HTTP proxy configured by \fI\%debops.minio\fP role will
+publish the MinIO instances on these addresses:
+.INDENT 0.0
+.IP \(bu 2
+\fBhttps://tenant1.example.org/\fP
+.IP \(bu 2
+\fBhttps://tenant2.example.org/\fP
+.IP \(bu 2
+\fBhttps://tenant3.example.org/\fP
+.UNINDENT
+.sp
+Note that the proxied URLs are based on the MinIO instance names instead of the
+host names. The DNS configuration which directs the above FQDNs to the
+\fBserver.example.org\fP host has to be performed separately.
+.SS Multiple tenants on a single drive
+.sp
+In this set up there\(aqs a single host with large disk drive mounted at
+\fB/data\fP mount point (mounting can be configured by the
+\fI\%debops.mount\fP Ansible role). Since the default is to configure the MinIO
+instance volumes at \fB/srv/minio/\fP directory, we override that using the
+\fI\%minio__volumes_dir\fP variable. The role will configure each MinIO
+instance to use a subdirectory in the \fB/data\fP directory.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/host_vars/server/minio.yml
+
+# Override default MinIO volumes path
+minio__volumes_dir: \(aq/data\(aq
+
+# Ensure that data directory is accessible by the \(aqminio\(aq UNIX account
+minio__host_volumes:
+  \- \(aq/data\(aq
+
+# Configure MinIO instances
+minio__host_instances:
+
+  \- name: \(aqmain\(aq
+    state: \(aqabsent\(aq
+
+  \- name: \(aqtenant1\(aq
+    port: 9001
+    console_port: 19001
+
+  \- name: \(aqtenant2\(aq
+    port: 9002
+    console_port: 19002
+
+  \- name: \(aqtenant3\(aq
+    port: 9003
+    console_port: 19003
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Multiple tenants on multiple drives
+.sp
+In this case the storage server has 4 disk drives mounted at
+\fB/disk{1,4}/\fP directories. Here we have to specify each volume directly
+for each tenant, so that the data is distributed among the disk drives.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/host_vars/server/minio.yml
+
+# Ensure that data directories are accessible by the \(aqminio\(aq UNIX account
+minio__host_volumes:
+  \- \(aq/disk1/data\(aq
+  \- \(aq/disk2/data\(aq
+  \- \(aq/disk3/data\(aq
+  \- \(aq/disk4/data\(aq
+
+# Configure MinIO instances
+minio__host_instances:
+
+  \- name: \(aqmain\(aq
+    state: \(aqabsent\(aq
+
+  \- name: \(aqtenant1\(aq
+    port: 9001
+    console_port: 19001
+    volumes:
+      \- \(aq/disk1/data/tenant1\(aq
+      \- \(aq/disk2/data/tenant1\(aq
+      \- \(aq/disk3/data/tenant1\(aq
+      \- \(aq/disk4/data/tenant1\(aq
+
+  \- name: \(aqtenant2\(aq
+    port: 9002
+    console_port: 19002
+    volumes:
+      \- \(aq/disk1/data/tenant2\(aq
+      \- \(aq/disk2/data/tenant2\(aq
+      \- \(aq/disk3/data/tenant2\(aq
+      \- \(aq/disk4/data/tenant2\(aq
+
+  \- name: \(aqtenant3\(aq
+    port: 9003
+    console_port: 19003
+    volumes:
+      \- \(aq/disk1/data/tenant3\(aq
+      \- \(aq/disk2/data/tenant3\(aq
+      \- \(aq/disk3/data/tenant3\(aq
+      \- \(aq/disk4/data/tenant3\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Distributed deployment
+.sp
+The \fI\%distributed MinIO deployment\fP <\fBhttps://docs.min.io/docs/multi-tenant-minio-deployment-guide.html#distributed-deployment\fP> uses multiple hosts to distribute the data
+across a number of devices to improve resiliency. The minimum amount of hosts
+required by MinIO is 4, maximum is 32.
+.sp
+In this example, we will use 4 hosts with single disk each, mounted at the
+\fB/data\fP directory. The connection between MinIO instances will be done
+over TLS, connecting to the TCP ports directly. The \fBnginx\fP proxies on
+each host will be configured to direct the traffic to the local MinIO instance,
+in which case the \fBtenant\e\e{1,4\e\e}.example.org\fP DNS records should point to
+all \fBserver\e\e{1,4\e\e}.example.org\fP hosts in a round\-robin fashion.
+.sp
+An example Ansible inventory (note that the configuration is set at the
+\fB[minio_cluster1]\fP group level, not the host level):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/hosts
+
+# Configure Ansible inventory groups
+[debops_all_hosts]
+server1    ansible_host=server1.example.org
+server2    ansible_host=server2.example.org
+server3    ansible_host=server3.example.org
+server4    ansible_host=server4.example.org
+
+[minio_cluster1]
+server1
+server2
+server3
+server4
+
+[debops_service_minio:children]
+minio_cluster1
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The MinIO \fBtenant1\fP instance will be reachable directly via these addresses:
+.INDENT 0.0
+.IP \(bu 2
+\fBhttps://server1.example.org:9001/\fP
+.IP \(bu 2
+\fBhttps://server2.example.org:9001/\fP
+.IP \(bu 2
+\fBhttps://server2.example.org:9001/\fP
+.IP \(bu 2
+\fBhttps://server4.example.org:9001/\fP
+.UNINDENT
+.sp
+You can reach other MinIO instances in the same way by changing the destination
+TCP port.
+.sp
+The \fBnginx\fP HTTP proxy configured by \fI\%debops.minio\fP role will
+publish the MinIO instances on these addresses:
+.INDENT 0.0
+.IP \(bu 2
+\fBhttps://tenant1.example.org/\fP
+.IP \(bu 2
+\fBhttps://tenant2.example.org/\fP
+.IP \(bu 2
+\fBhttps://tenant3.example.org/\fP
+.UNINDENT
+.sp
+The DNS configuration which directs the above FQDNs to the underlying hosts has
+to be performed separately. You should use a round\-robin DNS records, where
+each \fBtenantX.example.org\fP record points to all servers in the cluster.
+.sp
+The configuration for the entire cluster is defined on the Ansible inventory
+group level, in this case \fB[minio_cluster1]\fP group. There can be multiple
+clusters defined in the Ansible inventory, just make sure that the
+MinIO\-related variables don\(aqt overlap between groups.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/group_vars/minio_cluster1/minio.yml
+
+# Ensure that data directory is accessible by the \(aqminio\(aq UNIX account
+minio__group_volumes:
+  \- \(aq/data\(aq
+
+# Configure MinIO instances
+minio__group_instances:
+
+  \- name: \(aqmain\(aq
+    state: \(aqabsent\(aq
+
+  \- name: \(aqtenant1\(aq
+    port: 9001
+    console_port: 19001
+    fqdn: \(aqtenant1.example.org\(aq
+    volumes:
+      \- \(aqhttps://server1.example.org:9001/data/tenant1\(aq
+      \- \(aqhttps://server2.example.org:9001/data/tenant1\(aq
+      \- \(aqhttps://server3.example.org:9001/data/tenant1\(aq
+      \- \(aqhttps://server4.example.org:9001/data/tenant1\(aq
+
+  \- name: \(aqtenant2\(aq
+    port: 9002
+    console_port: 19002
+    fqdn: \(aqtenant2.example.org\(aq
+    volumes:
+      \- \(aqhttps://server1.example.org:9002/data/tenant2\(aq
+      \- \(aqhttps://server2.example.org:9002/data/tenant2\(aq
+      \- \(aqhttps://server3.example.org:9002/data/tenant2\(aq
+      \- \(aqhttps://server4.example.org:9002/data/tenant2\(aq
+
+  \- name: \(aqtenant3\(aq
+    port: 9003
+    console_port: 19003
+    fqdn: \(aqtenant3.example.org\(aq
+    volumes:
+      \- \(aqhttps://server1.example.org:9003/data/tenant3\(aq
+      \- \(aqhttps://server2.example.org:9003/data/tenant3\(aq
+      \- \(aqhttps://server3.example.org:9003/data/tenant3\(aq
+      \- \(aqhttps://server4.example.org:9003/data/tenant3\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.minio\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS minio__instances
+.sp
+The \fBminio__*_instances\fP variable define the MinIO service instances, managed
+by \fBsystemd\fP\&. Each instance can be accessed over its TCP port,
+additionally for each instance a corresponding \fI\%debops.nginx\fP
+configuration is generated that allows access to the instance over HTTP via
+a subdomain based on its name.
+.SS Examples
+.sp
+By default the \fBmain\fP MinIO instance uses shared set of credentials to allow
+multiple hosts with the same \(dqtenant\(dq. With the configuration below, each host
+will have separate set of credentials, and therefore will be owned by
+a separate \(dqtenant\(dq:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+minio__instances:
+  \- name: \(aqmain\(aq
+    standalone: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Set an environment variable for a given MinIO instance, for example to set the
+instance region (variable names are converted to uppercase automatically):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+minio__instances:
+  \- name: \(aqmain\(aq
+    environment:
+      minio_region: \(aqus\-east\-1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create additional instances for new tenants:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+minio__instances:
+
+  \- name: \(aqtenant1\(aq
+    port: 9001
+    console_port: 19001
+
+  \- name: \(aqtenant2\(aq
+    port: 9002
+    console_port: 19002
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure a MinIO instance as \fI\%a NAS gateway\fP <\fBhttps://docs.min.io/docs/minio-gateway-for-nas.html\fP>, with a custom volume mounted
+from a remote storage server elsewhere:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+minio__volumes:
+  \- \(aq/shared/nasvol\(aq
+
+minio__instances:
+  \- name: \(aqnas\-gw\(aq
+    port: 9001
+    console_port: 19001
+    type: \(aqgateway\(aq
+    minio_options: \(aqnas\(aq
+    volumes: [ \(aq/shared/nasvol\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can find more example configurations in the
+\fI\%MinIO deployment guide\fP documentation page.
+.SS Syntax
+.sp
+The variables are a list, each instance is defined as a YAML dictionary with
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a MinIO instance, used in various file paths. Should be
+a short, alphanumeric string without spaces. Configuration entries with the
+same \fBname\fP parameter are merged together in order of appearance.
+.sp
+By default the \fBname\fP parameter is used as the subdomain of the DNS domain
+defined in the \fI\%minio__domain\fP variable, on which a given MinIO
+instance can be reached over HTTP, configured in the \fBnginx\fP
+service. This can be overridden using the \fBfqdn\fP parameter.
+.TP
+.B \fBport\fP
+Required. The TCP port on which a given MinIO instance listens for
+connections. Usually the port numbers start from \fB9000\fP up.
+.TP
+.B \fBconsole_port\fP
+Required. The static TCP port on which a given MinIO instance listens for
+connections to the embedded MinIO Console. If not set, MinIO will select
+a random console port on each startup. By convention, console port is the API
+port + 10000, so for example \fB19000\fP\&.
+.TP
+.B \fBserver_url\fP
+Optional. Specify the URL the MinIO Console should use for connecting to the
+MinIO Server. If not specified, \fBhttps://{{ minio__fqdn }}/\fP will be used
+automatically.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given MinIO instance and all
+related configuration will be created on a host. If \fBabsent\fP, a MinIO
+instance and related configuration will be removed from the host (data is
+left intact). If \fBignore\fP, a given configuration entry will not be
+evaluated during role execution.
+.TP
+.B \fBbind\fP
+Optional. A string that defines the IP address on which a given MinIO
+instance should listen for connections, for example \fBlocalhost\fP or
+\fB192.0.2.1\fP\&. If not defined, MinIO will listen for connections on all
+available interfaces.
+.TP
+.B \fBconsole_bind\fP
+Optional. A string that defines the IP address on which a given MinIO
+instance should listen for connections to the embedded MinIO Console, for
+example \fBlocalhost\fP or \fB192.0.2.1\fP\&. If not defined, MinIO will listen for
+connections on all available interfaces.
+.TP
+.B \fBallow\fP
+Optional. A list of IP addresses or CIDR subnets which are allowed to connect
+to a given MinIO instance over its TCP port, managed by the firewall. If not
+specified, connections from anywhere are allowed.
+.TP
+.B \fBfqdn\fP
+Optional. A Fully Qualified Domain Name on which a given MinIO instance can
+be reached, defined in the \fBnginx\fP configuration. If not specified,
+a FQDN will be generated automatically, based on the instance \fBname\fP
+parameter and the DNS domain defined in the \fI\%minio__domain\fP variable.
+.TP
+.B \fBdomain\fP / \fBdomains\fP
+Optional. A string or a list with additional DNS domain for which a given
+MinIO instance supports using subdomains as \(dqbucket\(dq names. The
+\fBnginx\fP service will be configured to pass requests on subdomains of
+these DNS domains to a given MinIO instance.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with comments for a given MinIO
+instance, included in the generated \fB/etc/minio/<name>\fP configuration
+file.
+.TP
+.B \fBtype\fP
+Optional. If not specified or \fBserver\fP, the MinIO instance is started in
+the \(dqserver\(dq mode, normal operation. If \fBgateway\fP, the MinIO instance is
+started in the \(dqgateway\(dq mode.
+.TP
+.B \fBstandalone\fP
+Optional, boolean. If not specified or \fBFalse\fP, the MinIO instance is
+configured in a \(dqdistributed\(dq mode, with the access and secret keys shared
+between instances with the same name on different host nodes. When \fBTrue\fP,
+a MinIO instance is configured in a \(dqstandalone\(dq mode, with each instance
+with the same name using different access and secret keys on different host
+nodes.
+.TP
+.B \fBvolumes\fP
+Optional. A string or a list with MinIO \(dqvolumes\(dq that store the data. This
+can be either an absolute path to a local filesystem directory, or a
+\fBhttps://\fP URL to a MinIO instance with absolute path to a filesystem
+directory, for example \fBhttps://disk.example.org:9000/srv/minio/disk\fP\&. See
+\fI\%MinIO deployment guide\fP for more relevant examples.
+.sp
+If not specified, a given MinIO instance will use a subdirectory based on its
+\fBname\fP parameter in the local filesystem \fI\%minio__volumes_dir\fP
+directory, by default \fB/srv/minio/\fP\&.
+.sp
+If the value is set to \fBFalse\fP boolean, the \fB$MINIO_VOLUMES\fP environment
+variable is not set and the volumes are not defined on the command line. This
+might be needed in certain configuration scenarios.
+.TP
+.B \fBminio_options\fP
+Optional. A string with additional \fBminio\fP binary options for
+a given MinIO instance. The \fB\-\-address\fP option is generated automatically
+by the role and should not be specified here.
+.TP
+.B \fBroot_user\fP
+Optional. A string which defines the MinIO instance \(dqroot\(dq account, should be
+an alphanumeric string. If not specified, the role will generate a randomized
+account name and store it in the \fBsecret/minio/\fP directory on the
+Ansible Controller, exact location depending on the instance deployment type
+(distributed or standalone). See \fI\%debops.secret\fP for more details about
+the \fBsecret/\fP directory.
+.TP
+.B \fBroot_password\fP
+Optional. A string which defines the MinIO instance \(dqroot\(dq account password,
+should be an randomized string. If not specified, the role will generate
+a randomized password and store it in the \fBsecret/minio/\fP directory on
+the Ansible Controller, exact location depending on the instance deployment
+type (distributed or standalone). See \fI\%debops.secret\fP for more details
+about the \fBsecret/\fP directory.
+.TP
+.B \fBbrowser\fP
+Optional, boolean. If not specified or \fBTrue\fP, the MinIO web interface is
+enabled on a given MinIO instance. Setting this parameter to \fBFalse\fP
+disables the web interface access.
+.TP
+.B \fBenvironment\fP
+Optional. YAML dictionary with key\-value pairs that define additional
+environment variables for a given MinIO instance, stored in the
+\fB/etc/minio/*\fP configuration files. Variable names are automatically
+converted to uppercase. Values can be either strings or YAML lists which will
+be concatenated using commas.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

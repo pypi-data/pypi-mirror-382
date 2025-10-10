@@ -1,0 +1,344 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS-PROJECT" "1" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops-project \- Create or manage a DebOps project directory
+.SH SYNOPSIS
+.sp
+\fBdebops project\fP [\-h|\-\-help] [<command>] [<args>]
+.sp
+\fBdebops project init\fP [\-h|\-\-help] [\-t|\-\-type legacy|modern] [\-V|\-\-default\-view <view>] [\-\-git|\-\-no\-git] [\-\-encrypt encfs|git\-crypt \-\-keys <recipient>,[<recipient>]] [\-v|\-\-verbose] <project_dir>
+.sp
+\fBdebops project mkview\fP [\-h|\-\-help] [\-\-project\-dir <project_dir>] [\-\-encrypt encfs|git\-crypt \-\-keys <recipient>,[<recipient>]] [\-v|\-\-verbose] <new_view>
+.sp
+\fBdebops project refresh\fP [\-h|\-\-help] [\-v|\-\-verbose] [<project_dir>]
+.sp
+\fBdebops project unlock\fP [\-h|\-\-help] [\-V|\-\-view <view>] [\-v|\-\-verbose] [<project_dir>]
+.sp
+\fBdebops project lock\fP [\-h|\-\-help] [\-V|\-\-view <view>] [\-v|\-\-verbose] [<project_dir>]
+.SH DESCRIPTION
+.sp
+The \fBdebops project\fP section contains commands related to creation and
+maintenance of the DebOps project directories. Each project directory can
+contain one or more Ansible inventories, a PKI infrastructure, and various
+other resources used in a given environment.
+.SH DEBOPS PROJECT INIT
+.sp
+This command can be used to initialize a new project directory, specified as
+the main argument. The script will check if a \fB\&.debops.cfg\fP file exists
+in a given directory; if not, it will be created along with a basic directory
+structure.
+.SS Options
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-t <legacy|modern>\fP, \fB\-\-type <legacy|modern>\fP
+Select the type of the project directory:
+.INDENT 7.0
+.IP \(bu 2
+\fBlegacy\fP: simple directory layout with a single Ansible inventory
+(default)
+.IP \(bu 2
+\fBmodern\fP: more complicated directory layout with multiple Ansible
+inventories separated into \(dqinfrastructure views\(dq
+.UNINDENT
+.TP
+.B \fB\-V <view>\fP, \fB\-\-default\-view <view>\fP
+Specify the name of the \(dqinfrastructure view\(dq used by default. If not
+specified, \(dqsystem\(dq will be created automatically. You can use slashes
+(\fB/\fP) to create hierarchical views, but nesting a view inside of another
+view is not allowed.
+.TP
+.B \fB\-\-git\fP
+Initialize a \fBgit\fP repository in the project directory (default)
+.TP
+.B \fB\-\-no\-git\fP
+Do not initialize a \fBgit\fP repository by default
+.TP
+.B \fB\-\-requirements\fP
+After the project directory is initialized, install Ansible Collections
+specified in the \fBansible/collections/requirements.yml\fP file using the
+\fBansible\-galaxy\fP command. This will be done by default in new DebOps
+projects.
+.TP
+.B \fB\-\-no\-requirements\fP
+Don\(aqt install Ansible Collections after the project directory is initialized.
+.TP
+.B \fB\-\-encrypt <encfs|git\-crypt>\fP
+Prepare the project directory to host encrypted \fBansible/secret/\fP
+subdirectory, used to store passwords, encryption keys and other confidential
+information. See the \fI\%debops.secret\fP Ansible role for more details.
+.sp
+You need to specify either \fBencfs\fP or \fBgit\-crypt\fP to select the encryption
+method (\fBgit\-crypt\fP requires an initialized \fBgit\fP repository). If
+encryption is enabled, you need to specify the list of GPG recipients as well,
+using the \fB\-\-keys\fP option.
+.TP
+.B \fB\-\-keys <recipient>[,recipient]\fP
+A list of GPG recipients (e\-mail addresses or key IDs) which will be allowed
+to unlock the \fBansible/secret/\fP directory encrypted with EncFS or
+git\-crypt. Separate multiple list entries by commas.
+.TP
+.B \fB\-v, \-\-verbose\fP
+Increase output verbosity. More letters means higher verbosity.
+.TP
+.B \fB<project_dir>\fP
+Path to the DebOps project directory to initialize. If not specified, DebOps
+will try to use the current directory to create a new project directory. The
+script will check if the current directory is a home directory and will stop
+operation in this case.
+.UNINDENT
+.SS Examples
+.sp
+Create a basic DebOps project directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops project init ~/src/projects/myproject
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a project directory with multiple infrastructure views:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops project init \-\-type modern ~/src/projects/myproject
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a project directory with EncFS encryption for secrets:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops project init \-\-encrypt encfs \e
+                    \-\-keys admin@example.org,otheradmin@example.org \e
+                    ~/src/projects/example.org
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEBOPS PROJECT MKVIEW
+.sp
+This command can be used in an existing project directory to create a new
+\(dqinfrastructure view\(dq, which contains:
+.INDENT 0.0
+.IP \(bu 2
+separate \fBansible.cfg\fP configuration file
+.IP \(bu 2
+separate Ansible inventory
+.IP \(bu 2
+separate \fBsecret/\fP directory for the \fI\%debops.secret\fP role
+.IP \(bu 2
+separate \fBresources/\fP directory for the \fI\%debops.resources\fP role
+.IP \(bu 2
+its own set of Ansible playbooks and roles
+.UNINDENT
+.sp
+Each view has its own configuration entry in the DebOps configuration tree.
+.SS Options
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-\-project\-dir <project_dir>\fP
+Path to the project directory to work on. If it\(aqs not specified, the script
+will use the current directory.
+.TP
+.B \fB\-\-encrypt <encfs|git\-crypt>\fP
+Prepare the new infrastructure view to host encrypted \fB<view>/secret/\fP
+subdirectory, used to store passwords, encryption keys and other confidential
+information. See the \fI\%debops.secret\fP Ansible role for more details.
+.sp
+You need to specify either \fBencfs\fP or \fBgit\-crypt\fP to select the encryption
+method. If encryption is enabled, you need to specify the list of GPG
+recipients as well, using the \fB\-\-keys\fP option.
+.TP
+.B \fB\-\-keys <recipient>[,recipient]\fP
+A list of GPG recipients (e\-mail addresses or key IDs) which will be allowed
+to unlock the \fB<view>/secret/\fP directory encrypted with EncFS or
+git\-crypt. Separate multiple list entries by commas.
+.TP
+.B \fB\-v, \-\-verbose\fP
+Increase output verbosity. More letters means higher verbosity.
+.TP
+.B \fB<new_view>\fP
+Name of the view to create. It will be used in the file system as well as in
+the configuration tree. You can use slashes (\fB/\fP) to create hierarchical
+views, but nesting a view inside of another view is not allowed.
+.UNINDENT
+.SS Examples
+.sp
+Create a new infrastructure view in the DebOps project directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops project mkview deployment
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a new infrastructure view with encrypted secrets:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops project mkview \-\-encrypt encfs \e
+                      \-\-keys admin@example.org,otheradmin@example.org \e
+                      deployment
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEBOPS PROJECT COMMIT
+.sp
+This command can be used to commit current contents of the project directory
+into the \fBgit\fP repository. Any modifications to the existing files as
+well as any untracked files will be committed automatically. The commit message
+is taken from the DebOps configuration; users can use \fBgit commit
+\-\-amend\fP command to edit the commit message afterwards.
+.SS Options
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-v, \-\-verbose\fP
+Increase output verbosity. More letters means higher verbosity.
+.TP
+.B \fB<project_dir>\fP
+Path to the project directory to refresh.
+.UNINDENT
+.SH DEBOPS PROJECT REFRESH
+.sp
+This command can be used to \(dqrefresh\(dq a given DebOps project directory. By
+default DebOps does not modify an existing \fBansible.cfg\fP configuration
+file. This allows the user to test new configuration if needed. When the
+\fBdebops project refresh\fP command is called, DebOps will generate a new
+\fBansible.cfg\fP configuration file based on the contents of its own
+internal configuration. The script will also ensure that the basic directory
+structure of a project exists.
+.SS Options
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-v, \-\-verbose\fP
+Increase output verbosity. More letters means higher verbosity.
+.TP
+.B \fB<project_dir>\fP
+Path to the project directory to refresh.
+.UNINDENT
+.SH DEBOPS PROJECT UNLOCK
+.sp
+When the project directory contains an encrypted \fBansible/secret/\fP
+directory, this command can be used to unlock it and provide access to
+encrypted data. This only works for project directories that have been
+initialized with EncFS or git\-crypt support (or that support has been configured
+manually).
+.sp
+Keep in mind that after unlocking the directory manually, DebOps will not lock it
+on subsequent Ansible runs. In such case you should use the \fBdebops
+project lock\fP command to secure the secrets.
+.sp
+When \fBgit\-crypt\fP is used to encrypt secrets, unlocking them will fail if the
+\fBgit\fP working directory contains uncommitted changes. This is expected
+behavior. Easiest way to mitigate this is to unlock the project before making
+any changes.
+.SS Options
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-V <view>, \-\-view <view>\fP
+Specify the name of the \(dqinfrastructure view\(dq to unlock. If not specified,
+the default view will be used automatically. Using this option overrides the
+automatic view detection performed by DebOps based on the current working
+directory.
+.TP
+.B \fB\-v, \-\-verbose\fP
+Increase output verbosity. More letters means higher verbosity.
+.TP
+.B \fB<project_dir>\fP
+Path to the project directory to unlock.
+.UNINDENT
+.SH DEBOPS PROJECT LOCK
+.sp
+This command can be used to lock and secure the \fBansible/secret/\fP
+directory after it has been unlocked using the \fBdebops project unlock\fP
+command. This only works in project directories that have been configured with
+either EncFS or git\-crypt encryption during initialization.
+.sp
+When \fBgit\-crypt\fP is used to encrypt secrets, locking them will fail if the
+\fBgit\fP working directory contains uncommitted changes. This is expected
+behavior. Easiest way to mitigate this is to commit any changes before locking
+the project directory.
+.SS Options
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-V <view>, \-\-view <view>\fP
+Specify the name of the \(dqinfrastructure view\(dq to lock. If not specified, the
+default view will be used automatically. Using this option overrides the
+automatic view detection performed by DebOps based on the current working
+directory.
+.TP
+.B \fB\-v, \-\-verbose\fP
+Increase output verbosity. More letters means higher verbosity.
+.TP
+.B \fB<project_dir>\fP
+Path to the project directory to lock.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

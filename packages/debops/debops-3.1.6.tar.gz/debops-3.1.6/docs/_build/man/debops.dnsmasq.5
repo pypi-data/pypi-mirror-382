@@ -1,0 +1,968 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DNSMASQ" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.dnsmasq \- Install and configure dnsmasq
+.SH SYNOPSIS
+.sp
+\fBdebops run service/dnsmasq\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%dnsmasq\fP <\fBhttp://www.thekelleys.org.uk/dnsmasq/doc.html\fP> is an application that provides DNS, DHCP, TFTP and Router
+Advertisement services in a compact package, suitable for small, internal
+networks. it\(aqs commonly used as a DNS cache and forwarder on desktop
+workstations or servers.
+.sp
+The \fBdebops.dnsmasq\fP Ansible role can be used to configure \fBdnsmasq\fP
+on a given host. By default the DNS cache will be configured, but the role
+checks for presence of different services like \fBlxc\-net\fP configured by the
+\fI\%debops.lxc\fP, \fBconsul\fP and specific network interfaces defined by
+the \fI\%debops.ifupdown\fP, and adjusts the configuration automatically.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+By default, the role configures \fBdnsmasq\fP to act as a caching and
+forwarding DNS server for the local machine. Additional configuration like
+support for Consul DNS service and LXC subdomain managed by the
+\fI\%debops.lxc\fP role is enabled when detected.
+.sp
+The initial configuration is designed with nested hierarchy of DNS servers in
+mind: by default answers about private IP addresses from external DNS servers
+are blocked to avoid rebinding, but the hosts\(aq own domain, as well as its
+parent domain are exempt from this, as long as the parent domain has 3 or more
+levels. The filtering of PTR requests will be disabled when the upstream
+nameservers are located in a private IP address ranges, or local LXC
+configuration is detected, to allow revDNS requests to be resolved.
+.sp
+If the host has the \fBbr2\fP network interface, it is assumed to be a local
+private network, and DHCP/DNS/PXE services are configured for it. The role will
+automatically create relevant configuration based on the IP addresses defined
+on the interface, as well as publish a DNS domain based on the interface name;
+this can be controlled using the \fI\%dnsmasq__interfaces\fP configuration
+variables. The role will automatically configure support for iPXE service
+managed by \fI\%debops.ipxe\fP role to allow customized PXE boot menus.
+.SS Example inventory
+.sp
+Hosts added to the \fBdebops_service_dnsmasq\fP inventory group will have the
+\fBdnsmasq\fP installed and configured.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_dnsmasq]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.dnsmasq\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure dnsmasq
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_dnsmasq\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare dnsmasq environment
+      ansible.builtin.import_role:
+        name: \(aqdnsmasq\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::dnsmasq\(aq, \(aqrole::ferm\(aq, \(aqrole::tcpwrappers\(aq ]
+
+  roles:
+
+    \- role: resolvconf
+      tags: [ \(aqrole::resolvconf\(aq, \(aqskip::resolvconf\(aq ]
+      resolvconf__dependent_services:
+        \- \(aqdnsmasq\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ dnsmasq__ferm__dependent_rules }}\(aq
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+      tcpwrappers__dependent_allow:
+        \- \(aq{{ dnsmasq__env_tcpwrappers__dependent_allow }}\(aq
+
+    \- role: dnsmasq
+      tags: [ \(aqrole::dnsmasq\(aq, \(aqskip::dnsmasq\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses \fBdebops.dnsmasq\fP together with the \fI\%debops.persistent_paths\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure dnsmasq and ensure persistence
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_dnsmasq_persistent_paths\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare dnsmasq environment
+      ansible.builtin.import_role:
+        name: \(aqdnsmasq\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::dnsmasq\(aq, \(aqrole::ferm\(aq, \(aqrole::tcpwrappers\(aq ]
+
+  roles:
+
+    \- role: resolvconf
+      tags: [ \(aqrole::resolvconf\(aq, \(aqskip::resolvconf\(aq ]
+      resolvconf__dependent_services:
+        \- \(aqdnsmasq\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ dnsmasq__ferm__dependent_rules }}\(aq
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+      tcpwrappers__dependent_allow:
+        \- \(aq{{ dnsmasq__env_tcpwrappers__dependent_allow }}\(aq
+
+    \- role: dnsmasq
+      tags: [ \(aqrole::dnsmasq\(aq, \(aqskip::dnsmasq\(aq ]
+
+    \- role: persistent_paths
+      tags: [ \(aqrole::persistent_paths\(aq, \(aqskip::persistent_paths\(aq ]
+      persistent_paths__dependent_paths: \(aq{{ dnsmasq__persistent_paths__dependent_paths }}\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses \fBdebops.dnsmasq\fP together with the \fBdebops\-contrib.apparmor\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+## Basically the same playbook as the one in DebOps core with the difference
+## that this playbook also uses the debops\-contrib.apparmor role to configure
+## AppArmor.
+
+\- name: Configure AppArmor for dnsmasq
+  collections: [ \(aqdebops.debops\(aq ]
+  hosts: [ \(aqdebops_contrib_service_dnsmasq\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare dnsmasq environment
+      ansible.builtin.import_role:
+        name: \(aqdnsmasq\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::dnsmasq\(aq, \(aqrole::ferm\(aq, \(aqrole::tcpwrappers\(aq ]
+
+  roles:
+
+    \- role: apparmor
+      tags: [ \(aqrole::apparmor\(aq ]
+      apparmor__local_dependent_config: \(aq{{ dnsmasq__apparmor__local_dependent_config }}\(aq
+
+
+\- name: Configure dnsmasq
+  collections: [ \(aqdebops.debops\(aq ]
+  hosts: [ \(aqdebops_contrib_service_dnsmasq\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ dnsmasq__ferm__dependent_rules }}\(aq
+
+    \- role: dnsmasq
+      tags: [ \(aqrole::dnsmasq\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS \fI\%debops.persistent_paths\fP support
+.sp
+In case the host in question happens to be a TemplateBasedVM on \fI\%Qubes OS\fP <\fBhttps://en.wikipedia.org/wiki/Qubes_OS\fP> or
+another system where persistence is not the default, it should be absent in
+\fBdebops_service_dnsmasq\fP and instead be added to the
+\fBdebops_service_dnsmasq_persistent_paths\fP Ansible inventory group
+so that the changes can be made persistent:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_dnsmasq_persistent_paths]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fI\%dnsmasq__base_packages\fP are expected to be present (typically
+installed in the TemplateVM).
+.sp
+Note that you will need to set \fBcore__unsafe_writes\fP to \fBTrue\fP when you
+attempt to update the configuration on a system that uses bind mounts for
+persistence. You can set \fBcore__unsafe_writes\fP directly in your inventory
+without the need to run the \fBdebops.core\fP role for this special case.
+Refer to \fI\%Templating or updating persistent files\fP <\fBhttps://docs.debops.org/en/latest/ansible/roles/persistent_paths/guides.html#templating-or-updating-persistent-files\fP> for details.
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.dnsmasq\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%dnsmasq(8)\fP <\fBhttps://manpages.debian.org/dnsmasq(8)\fP>, \fI\%dhcp\-options(5)\fP <\fBhttps://manpages.debian.org/dhcp-options(5)\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.dnsmasq\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS dnsmasq__interfaces
+.sp
+The \fBdnsmasq__*_interfaces\fP variables define per\-interface configuration of
+\fBdnsmasq\fP\&. Each defined network interface has its own subdomain, IP
+address ranges taken from the interface configuration, and some other options.
+The result is merged with the main \fBdnsmasq\fP configuration defined in
+the \fBdnsmasq__*_configuration\fP variables, which can be used to refine the
+generated parameters if necessary.
+.sp
+The \fBdnsmasq__*_interfaces\fP entries are merged together, and Ansible
+inventory can be used to override the defaults provided in the role.
+.SS Examples
+.sp
+Disable the interface configuration generated by default by the role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__interfaces:
+
+  \- name: \(aqbr2\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Generate interface configuration with a custom DNS subdomain, IP address ranges
+for DHCP and disabled boot services:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__interfaces:
+
+  \- name: \(aqbr2\(aq
+    addresses: [ \(aq192.0.2.1/24\(aq, \(aq2001:db8:feed:beef::1/64\(aq ]
+    domain: \(aqcustom.{{ ansible_domain }}\(aq
+    boot_enabled: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Generate interface configuration for an internal network with IPv6 Router
+Advertisements for specific internal IP addresses:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__interfaces:
+
+  \- name: \(aqbr_internal\(aq
+    dhcp_ipv6_mode: \(aqra\-names,ra\-stateless\(aq
+    ignore_interface_addresses: True
+    addresses:
+      \- \(aq192.0.2.1/24\(aq
+      \- \(aq2001:db8:feed:beef::1/64\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each entry in the \fBdnsmasq__*_interfaces\fP lists is a YAML dictionary with
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Network interface name for which to generate the configuration.
+This parameter is used as an anchor to merge multiple entries with the same
+\fBname\fP together.
+.TP
+.B \fBfilename\fP
+Optional. Override the name of the generated configuration file stored in the
+\fB/etc/dnsmasq.d/\fP directory. If not specified, the filename will be
+generated automatically based on the interface name.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP the interface configuration will be
+generated. If \fBabsent\fP, the interface configuration will be not generated,
+and existing configuration file will be removed. If \fBignore\fP, a given
+configuration entry will not be evaluated by the role.
+.sp
+This parameter can be used to conditionally enable or disable interface
+configuration, for example when a given interface is present on a host.
+.TP
+.B \fBtag\fP
+Optional. A string that defines a \(dqtag\(dq for a given network which can be used
+to define DHCP options for that specific network. If not specified, the
+interface name will be used by default.
+.TP
+.B \fBaddress\fP / \fBaddresses\fP
+Optional. List of IPv4 or IPv6 addresses in the \(dqhost/prefix\(dq format which
+should be used in the interface configuration.
+.sp
+You need to specify the IP address of the network interface and the subnet
+mask (prefix) in the CIDR format for it to be accepted by the role. The IP
+addresses will not be configured automatically, you can use the
+\fI\%debops.ifupdown\fP role to configure the network interfaces.
+.sp
+The role automatically gathers the existing network interface configuration
+and uses existing IP addresses defined on the network interface, therefore
+you don\(aqt need to use this parameter unless required for a specific
+application.
+.TP
+.B \fBignore_interface_addresses\fP
+Optional, boolean. If \fBTrue\fP, the role will not try to autodetect IP
+addresses of a given network interface to add them to router advertisements.
+This can be used with the \fBaddress\fP or \fBaddresses\fP parameters to select
+which IP addresses are advertised on a given network, for example to avoid
+advertising public IPv6 router address on internal IPv6 network, which can
+lead to multiple default routes on clients and issues with traffic flow.
+.TP
+.B \fBhostname\fP
+Optional. Specify the hostname which will be used in the interface DNS
+record. If not specified, the value in the \fI\%dnsmasq__hostname\fP
+variable is used by default.
+.TP
+.B \fBdomain\fP
+Optional. Define a custom DNS domain for a given interface. If not specified,
+a DNS domain will be generated automatically using the interface name and the
+value of the \fI\%dnsmasq__base_domain\fP variable. This domain will be
+advertised over DHCP with the search option, new DHCP clients will be added
+to the DNS on this domain as well.
+.TP
+.B \fBsearch\fP
+Optional. List of additional DNS domains to add to the DHCP search option.
+.TP
+.B \fBdhcp_enabled\fP
+Optional, boolean. If not specified or \fBTrue\fP, the DHCP service will be
+configured on a specific network interface. To disable, set this parameter to
+\fBFalse\fP\&.
+.TP
+.B \fBdhcp_range_state\fP
+Optional. If not specified or \fBpresent\fP, the role will configure a range of
+dynamic IP addresses in the DHCP server for a given network. If \fBabsent\fP,
+the DHCP range configuration will not be included in the generated
+configuration file.
+.TP
+.B \fBdhcp_range_start\fP
+Optional. Specify a positive number of IP addresses to reserve at the start
+of the subnet for static DHCP entries. If not specified, 10 IP addresses will
+be reserved by default.
+.TP
+.B \fBdhcp_range_end\fP
+Optional. Specify a negative number of IP addresses to reserve at the end of
+the subnet for static DHCP entries. If not specified, 10 IP addresses
+(specified as \fB\-10\fP) will be reserved by default.
+.TP
+.B \fBdhcp_lease\fP
+Optional. Specify the lease time for IP addresses on a given network
+interface. If not specified, \fB24h\fP will be used by default.
+.TP
+.B \fBdhcp_ipv6_mode\fP
+Optional. A string that defines DHCP IPv6 mode, see \fI\%dnsmasq(8)\fP <\fBhttps://manpages.debian.org/dnsmasq(8)\fP> for
+more details. If not specified, the value is defined as:
+\fBra\-names,ra\-stateless,slaac\fP\&.
+.TP
+.B \fBrouter_state\fP
+Optional. If not specified or \fBpresent\fP or \fBenabled\fP, the router will be
+advertised for the DHCP clients on a given network interface.
+If \fBdisabled\fP, the router advertisements will be disabled on a given network
+interface. If \fBabsent\fP, the router configuration option will not be
+included in the generated configuration file.
+.TP
+.B \fBrouter_gateway\fP
+Optional. Specify the IP address of the default router advertised by
+\fBdnsmasq\fP on a given interface. If not specified, \fBdnsmasq\fP
+will advertise its own host as the default router.
+.TP
+.B \fBboot_enabled\fP
+Optional, boolean. If not specified or \fBTrue\fP, enable support for booting
+clients over the network using TFTP and PXE services. To disable, set the
+value to \fBFalse\fP\&.
+.TP
+.B \fBboot_tftp_root\fP
+Optional. Absolute path of the TFTP root directory used for boot services on
+this interface. If not specified, the value of the
+\fI\%dnsmasq__boot_tftp_root\fP variable will be used by default.
+.TP
+.B \fBboot_filename\fP
+Optional. The name of the file which the network boot clients should load and
+run at boot time. If not specified, the value of the
+\fI\%dnsmasq__boot_filename\fP variable will be used by default.
+.TP
+.B \fBboot_server\fP
+Optional. The IP address of the \(dqnext server\(dq the network boot clients should
+contact for the TFTP service. If not specified, the \fBdnsmasq\fP will
+direct them to its own host automatically.
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block with raw \fI\%dnsmasq(8)\fP <\fBhttps://manpages.debian.org/dnsmasq(8)\fP> configuration
+options, added at the end of a given interface configuration file. This can
+be used to add configuration not covered by the above parameters.
+.UNINDENT
+.SS dnsmasq__dhcp_hosts, dnsmasq__dns_records
+.sp
+The \fI\%dnsmasq__dhcp_hosts\fP and \fI\%dnsmasq__dns_records\fP variables
+can be used to define configuration for specific DHCP clients and custom DNS
+resource records. The syntax for both variables is the same.
+.sp
+Configuration defined in these variables is not converted to the
+\fBdnsmasq__*_configuration\fP variable format, and entries defined in these
+lists are not merged together. The \fBdnsmasq\fP configuration defined
+here will be stored in a separate config file, with its filename defined in the
+\fI\%dnsmasq__dhcp_dns_filename\fP variable.
+.SS Examples of DHCP client configuration
+.sp
+Reserve a static IP address for a DHCP client with a particular MAC address:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dhcp_hosts:
+
+  \- mac: \(aq00:00:5e:00:53:01\(aq
+    ip: \(aq192.0.2.1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Override a hostname sent by a particular client, with reserved IP address:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dhcp_hosts:
+
+  \- name: \(aqcustom\-hostname\(aq
+    comment: \(dqThis is a custom static host entry\(dq
+    mac: \(aq00:00:5e:00:53:02\(aq
+    ip: \(aq192.0.2.2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add a \fBdbserver.example.org\fP DNS resource record for a DHCP client on
+a specified domain:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dhcp_hosts:
+
+  \- name: \(aqdbserver\(aq
+    domain: \(aqexample.org\(aq
+    mac: \(aq00:00:5e:00:53:03\(aq
+    ip: \(aq192.0.2.3\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a webserver host with multiple CNAME records on a given domain, for
+different web services:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dhcp_hosts:
+
+  \- name: \(aqwebserver\(aq
+    comment: \(aqInternal web services\(aq
+    domain: \(aqexample.org\(aq
+    mac: \(aq00:00:5e:00:53:04\(aq
+    ip: \(aq192.0.2.4\(aq
+    cname: [ \(aqcode\(aq, \(aqdcim\(aq, \(aqipam\(aq, \(aqcloud\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Ignore requests from a particular MAC address:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dhcp_hosts:
+
+  \- mac: \(aq00:00:5e:00:53:05\(aq
+    ignore: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Examples of DNS resource records
+.sp
+Define an MX resource record for a specific domain that points to the
+\fBdnsmasq\fP host for mail delivery:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dns_records:
+
+  \- mx: \(aqexample.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define custom mail servers for a particular domain, with specific priority:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dns_records:
+
+  \- mx: \(aqexample.com\(aq
+    target: \(aqmx1.example.com\(aq
+    priority: 10
+
+  \- mx: \(aqexample.com\(aq
+    target: \(aqmx2.example.com\(aq
+    priority: 20
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create an A resource record with a particular IP address:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dns_records:
+
+  \- host: \(aqother.example.org\(aq
+    address: \(aq192.0.2.30\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a TXT resource record with a DomainKeys Identified Mail (DKIM) entry:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dns_records:
+
+  \- txt: \(aqmail._domainkeys.example.org\(aq
+    value: \(aqv=DKIM1; k=rsa; p=<base64\-encoded public key>\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a multi\-line TXT resource record with custom characters inside:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dns_records:
+
+  \- txt: \(aqinfo.example.org\(aq
+    value:
+      \- \(dqCustom string with it\(aqs value quoted\(dq
+      \- \(dq\e\(dqAdditional string, with a comma\e\(dq\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a SRV resource record that points to a service, with default values for
+weight and priority:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dns_records:
+
+  \- srv: \(aq_http._tcp.example.org\(aq
+    target: \(aqwebserver.example.org\(aq
+    port: \(aq80\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a CNAME resource record that points to a different host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dns_records:
+
+  \- cname: \(aqalias.example.org\(aq
+    target: \(aqservice.example.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define PTR resource records for hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dnsmasq__dns_records:
+
+  \- ptr: \(aq40.2.0.192.in\-addr.arpa\(aq
+    target: \(aqhost1.example.org\(aq
+
+  \- ptr: \(aq{{ \(dq192.0.2.50\(dq | ansible.utils.ipaddr(\(dqrevdns\(dq) }}\(aq
+    target: \(aqhost2.example.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each entry in the list is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the entry will be added in the
+configuration file. If \fBabsent\fP, the entry will be removed from the
+configuration file. If \fBcomment\fP, the entry will be included in the
+configuration file, but commented out.
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML text block with a comment added to a given
+configuration entry.
+.TP
+.B \fBaddress\fP / \fBip\fP / \fBipaddr\fP
+Optional. Specify an IPv4 or IPv6 address, or a YAML list of addresses for
+a given entry.
+.sp
+In DHCP host configuration this parameter specifies the IP addresses which
+will be reserved for a particular host.
+.sp
+In DNS record configuration this parameter along with the \fBhost\fP / \fBa\fP /
+\fBaaaa\fP parameter defines a DNS A record; in case of multiple IP addresses,
+the first IP address will be used to create the host\(aqs DNS PTR record.
+.TP
+.B \fBcname\fP
+Optional. If defined in a DHCP client configuration, it\(aqs a list of DNS
+subdomains to add in the DNS database (the \fBdomain\fP parameter is also
+required in this case). All of the subdomains will point at a given host.
+.sp
+If defined in a DNS record, it\(aqs a Fully Qualified Domain Name that can be
+used to reference a specific target name. The \fBtarget\fP parameter is
+required in this case.
+.TP
+.B \fBraw\fP
+Optional. A string or YAML text block with raw \fBdnsmasq\fP
+configuration, which will be included in the generated file as\-is.
+.UNINDENT
+.sp
+The parameters below are related to DHCP host configuration:
+.INDENT 0.0
+.TP
+.B \fBname\fP / \fBhostname\fP
+Optional. Specify the hostname for a given DHCP client which will be
+registered in the DNS. This overrides any hostname sent by the client.
+.TP
+.B \fBhwaddr\fP / \fBmac\fP
+Optional. Specify the \fI\%media access control address\fP <\fBhttps://en.wikipedia.org/wiki/MAC_address\fP> of a host to create
+a DHCP client entry for it. You can specify multiple MAC addresses as a YAML
+list to set DHCP options shared between multiple hosts with different MAC
+addresses.
+.TP
+.B \fBid\fP
+Optional. Specify the \fI\%DHCP Unique Identifier\fP <\fBhttps://en.wikipedia.org/wiki/DHCPv6#DHCP_Unique_Identifier\fP> used in DHCPv6 configuration
+to identify a given DHCP client. Only one DUID can be used at a time.
+.TP
+.B \fBtag\fP
+Optional. Set a tag for a given DHCP client. This tag can be referenced by
+other \fBdnsmasq\fP configuration options to target specific DHCP
+clients or sets of clients.
+.TP
+.B \fBlease\fP
+Optional. Specify lease time for an IP address of a given DHCP client. If not
+specified, leases will be given for 24 hours (\fB24h\fP).
+.TP
+.B \fBignore\fP
+Optional, boolean. If specified and \fBTrue\fP, \fBdnsmasq\fP will ignore
+DHCP client requests from a specific MAC address.
+.TP
+.B \fBdomain\fP
+Optional. Specify a DNS domain on which a given DHCP client should be
+published. Only one domain at a time is allowed. The domain will be added to
+the DNS service managed by \fBdnsmasq\fP, the FQDN of the host will be
+pointed to its IPv4 and IPv6 addresses. Any subdomains specified with the
+\fBcname\fP parameter will be added to the DNS and pointed at the DHCP client.
+.UNINDENT
+.sp
+The parameters below are related to DNS record configuration:
+.INDENT 0.0
+.TP
+.B \fBhost\fP / \fBa\fP / \fBaaaa\fP
+Optional. Define a DNS A and/or AAAA record for a FQDN hostname. This
+parameter is used to define the hostname, and the \fBaddress\fP, \fBip\fP,
+\fBipaddr\fP or \fBtarget\fP parameter, which specifies the IP address, is
+required to complete the DNS record.
+.TP
+.B \fBtxt\fP
+Optional. Define a DNS TXT record. This parameter specifies the resource
+name, the \fBvalue\fP or \fBtarget\fP parameters are required to complete the
+record.
+.TP
+.B \fBvalue\fP
+Optional. Specify the content of the DNS TXT record, either as a string or as
+a YAML list.
+.TP
+.B \fBptr\fP
+Optional. Define the DNS PTR record. This parameter specifies the IP address
+in the \fI\%Reverse DNS lookup\fP <\fBhttps://en.wikipedia.org/wiki/Reverse_DNS_lookup\fP> format. The \fBtarget\fP parameter is required
+and specifies the corresponding DNS A or AAAA record.
+.TP
+.B \fBmx\fP
+Optional. Define a DNS MX record for a particular domain. Specify only the
+domain part (\fBexample.org\fP), not a FQDN address (\fBother.example.org\fP).
+.sp
+If only the \fBmx\fP parameter is specified, the \fBdnsmasq\fP DNS server
+will point to its own host as the MX host. If you want to specify a different
+host instead, you can do so by adding the \fBtarget\fP parameter. Optional
+\fBpreference\fP or \fBprioritty\fP parameters can be used to specify the MX
+record priority.
+.TP
+.B \fBsrv\fP
+Optional. Define \fI\%DNS SRV Records\fP\&. The parameter value is the
+name of the SRV record; the \fBtarget\fP and \fBport\fP parameters are required
+while the \fBpreference\fP, \fBpriority\fP and \fBweight\fP parameters are optional,
+see \fI\%DNS SRV Records\fP for further details.
+.TP
+.B \fBtarget\fP
+Optional. This parameter is used in various DNS record entries to specify the
+\(dqvalue\(dq of a given DNS resource, usually a hostname, an IP address or other
+data.
+.TP
+.B \fBpreference\fP / \fBpriority\fP
+Optional. These parameters are used with SRV or MX records to define priority
+for a given record, and tell the clients the desired order in which they
+should connect when there are multiple targets. The lower priority wins.
+.TP
+.B \fBweight\fP
+Optional. This parameter is used in the SRV record to further order different
+targets with the same priority.
+.TP
+.B \fBport\fP
+Optional. This parameter is used in the SRV record to specify the TCP/UDP
+port to which a given client should connect to. You can specify different
+ports for different targets if needed.
+.UNINDENT
+.sp
+The DNS record names (\fBA\fP, \fBAAAA\fP, \fBCNAME\fP, \fBPTR\fP, \fBSRV\fP, \fBTXT\fP,
+\fBMX\fP) can be specified as uppercase or lowercase.
+.SS dnsmasq__configuration
+.sp
+The \fBdnsmasq__*_configuration\fP variables define the contents of the
+\fB/etc/dnsmasq.d/*\fP configuration files. Each variable is a list of YAML
+dictionaries. The list entries with the same \fBname\fP parameter are merged
+together; this allows to change specific parameters in the Ansible inventory
+without the need to copy over the entire variable contents.
+.sp
+The interface configuration defined using the \fBdnsmasq__*_interfaces\fP
+variables is converted to this format via a lookup template, therefore it\(aqs
+possible to augment it using the \fBdnsmasq__*_configuration\fP variables.
+.SS Examples
+.sp
+To see the examples of the configuration, you can look at the
+\fI\%dnsmasq__default_configuration\fP variable which defines the
+\fBdnsmasq\fP default configuration set by the role.
+.SS Syntax
+.sp
+Each entry in the list is a YAML dictionary that describes one file in the
+\fB/etc/dnsmasq.d/\fP directory, using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The filename of the generated configuration file, it should include
+a \fB\&.conf\fP extension. This parameter is used to merge multiple entries with
+the same \fBname\fP together.
+.TP
+.B \fBfilename\fP
+Optional. This parameter can be used to override the filename used by the
+role, for example if you want to modify a different file than the \fBname\fP
+parameter would suggest.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the given configuration file will
+be generated. If \fBabsent\fP, the configuration file will not be generated
+and existing configuration file will be removed. If \fBignore\fP, a given
+configuration entry will not be evaluated by the role; this can be used to
+enable or disable configuration entries conditionally.
+.sp
+If \fBinit\fP, a given configuration entry will be prepared by the role, but it
+will not be activated by default \- these entries can be activated via Ansible
+inventory by setting the parameter to \fBpresent\fP\&.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment added at the top of the
+generated configuration file.
+.TP
+.B \fBraw\fP
+Optional. YAML text block with raw \fBdnsmasq\fP configuration file
+options. See \fI\%dnsmasq(8)\fP <\fBhttps://manpages.debian.org/dnsmasq(8)\fP> for syntax and possible options.
+.TP
+.B \fBoptions\fP
+Optional. A YAML list of \fBdnsmasq\fP configuration options defined in
+the configuration file. The \fBoptions\fP parameters from different
+configuration entries are merged together, therefore it\(aqs easy to modify
+specific parameters without the need to copy the entire value to the
+inventory.
+.sp
+Each element of the options list is a YAML dictionary with specific
+parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. This parameter defines the option name, and it needs to be unique
+in a given configuration file. Parameters from different options lists with
+the same \fBname\fP are merged together when the configuration entries are
+merged.
+.TP
+.B \fBoption\fP
+Optional. Because \fBdnsmasq\fP configuration files can specify the
+same options multiple times, and the \fBname\fP parameter has to be unique to
+correctly merge the options lists, the \fBoption\fP parameter can be used to
+specify the \(dqactual\(dq option name to be used in the configuration file.
+.TP
+.B \fBvalue\fP
+Optional. Specify the option value for a given option.
+.TP
+.B \fBraw\fP
+Optional. Specify the raw \fI\%dnsmasq(8)\fP <\fBhttps://manpages.debian.org/dnsmasq(8)\fP> configuration options as
+a string or a YAML text block. You can use this parameter to define
+\fBdnsmasq\fP options that don\(aqt have specific values, for example
+\fBbogus\-priv\fP or \fBrebind\-localhost\-ok\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given option will be included
+in the configuration file. If \fBabsent\fP, an option will be removed from
+the configuration file. If \fBcomment\fP, an option will be included in the
+configuration file but commented out.
+.sp
+If \fBinit\fP, the option will be prepared by the role but it will not be
+included in the configuration file.  This can be used to activate certain
+options via Ansible inventory. If \fBignore\fP, a given configuration entry
+will not be evaluated by the role. This can be used to conditionally enable
+or disable options in the configuration files.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment added to a given
+option.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

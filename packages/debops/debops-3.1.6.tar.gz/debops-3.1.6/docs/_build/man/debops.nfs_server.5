@@ -1,0 +1,344 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.NFS_SERVER" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.nfs_server \- manage NFS server using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/nfs_server\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.nfs_server\fP Ansible role can be used to configure a NFS server
+on Debian or Ubuntu hosts.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The role by default focuses on the NFSv4 support. The NFSv3 support can be
+enabled by setting the \fI\%nfs_server__v3\fP variable to \fBTrue\fP\&.
+The Kerberos support is not fully implemented at this point.
+.sp
+By default role expects a list of allowed clients in the
+\fI\%nfs_server__allow\fP variable. Example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nfs_server__allow: [ \(aq192.0.2.0/24\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When this list is not empty and contains IP addresses or CIDR subnets, the role
+will allow access to the \fBnfs\fP service through the firewall and configure NFS
+exports in the \fB/etc/exports.d/ansible.exports\fP configuration file. Only the
+NFS root pseudo filesystem is defined by default, in the \fB/srv/nfs/\fP
+directory. You should define additional exports, for example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nfs_server__exports:
+  \- path: \(aq/srv/nfs/shared\(aq
+    acl: \(aq192.0.2.0/24\(aq
+    options: \(aqrw,no_subtree_check,no_root_squash\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+check the \fI\%nfs_server__exports\fP documentation for more details.
+.sp
+You can mount the above NFS share on other hosts by using the commands:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mkdir \-p /media/nfs/shared
+mount \-t nfs4 \-o proto=tcp,port=2049,_netdev hostname:/shared /media/nfs/shared
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can also add an entry in the \fB/etc/fstab\fP configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+hostname:/shared   /media/nfs/shared   nfs4   noatime,nosuid,hard,intr,proto=tcp,port=2049,_netdev   0   0
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Refer to the \fI\%debops.nfs\fP role for information about how to configure NFS shares
+on other hosts using Ansible.
+.SS Example inventory
+.sp
+To enable NFS server support on a host, it needs to be included in the Ansible
+inventory in a specific group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_nfs_server]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.nfs_server\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure NFS Server
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_nfs_server\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq, \(aqrole::ferm\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ nfs_server__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nfs_server__ferm__dependent_rules }}\(aq
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+      tcpwrappers__dependent_allow:
+        \- \(aq{{ nfs_server__tcpwrappers__dependent_allow }}\(aq
+
+    \- role: nfs_server
+      tags: [ \(aqrole::nfs_server\(aq, \(aqskip::nfs_server\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::nfs_server\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.nfs_server\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS nfs_server__exports
+.sp
+This set of YAML lists can be used to define NFS exports. See the
+\fI\%exports(5)\fP <\fBhttps://manpages.debian.org/exports(5)\fP> for more information about possible configuration
+options.
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBpath\fP
+Required. Absolute path of the directory which will be exported by NFS. With
+NFS4, this path should be a subdirectory of the NFS4 root pseudo\-filesystem,
+which by default is defined as \fB/srv/nfs\fP\&. Refer to the
+\fI\%nfs_server__root_path\fP to see the current value.
+.sp
+The role will create this directory if it doesn\(aqt exist. You can use the
+\fBowner\fP, \fBgroup\fP and \fBmode\fP parameters to affect the directory
+ownership and attributes.
+.TP
+.B \fBoptions\fP
+A string or a YAML list of the parameters set for a given NFS export. If it\(aqs
+a string, each parameter needs to be delimited by a comma (\fB,\fP) for the
+role to properly recognize the parameters and convert to a YAML list for
+internal processing.
+.TP
+.B \fBbind\fP
+Optional. Absolute path of the directory on the remote host which will be
+bind\-mounted to the specified \fBpath\fP\&. This is useful when you want to
+export directories that are outside of the NFS4 root pseudo\-filesystem.
+.INDENT 7.0
+.TP
+.B \fBsrc\fP
+A string acting the same way as if you assigned the value directly
+to the \fBbind\fP option.
+.TP
+.B \fBoptions\fP
+A list of extra option to add to the mount. Useful if you need special
+behavior like waiting for other services to be started before the mount.
+.UNINDENT
+.TP
+.B \fBacl\fP
+Required. Access Control List of a given NFS export. This can be either
+a string (hostname, NIS netgroup, single IP address, single CIDR subnet), or
+a list of these elements. Alternatively, you can specify a list of YAML
+dictionaries, each dictionary with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBclient\fP or \fBclients\fP
+A string or YAML list of valid NFS client definitions.
+.TP
+.B \fBoptions\fP
+A string or YAML list of NFS export parameters defined for these clients.
+.TP
+.B \fBstate\fP
+Either \fBpresent\fP or \fBabsent\fP, enables or disables a given client entry.
+.UNINDENT
+.TP
+.B \fBcomment\fP
+Optional. A string or a YAML text block with a comment added to a given NFS
+export.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the NFS export will be present in
+the configuration file. If \fBabsent\fP, the NFS export will not be present in
+the generated configuration file. This does not have any effect on any
+bind\-mounted directories.
+.UNINDENT
+.SS Examples
+.sp
+Export NFS4 directories from the default \fB/etc/exports\fP configuration
+file. This is just an example, and the role provides the NFS4 root filesystem
+automatically, in a different directory.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nfs_server__exports:
+
+  \- path: \(aq/srv/nfs4\(aq
+    options: \(aqrw,sync,fsid=0,crossmnt,no_subtree_check\(aq
+    acl: \(aqgss/krb5i\(aq
+
+  \- path: \(aq/srv/nfs4/homes\(aq
+    options: \(aqrw,sync,no_subtree_check\(aq
+    acl: \(aqgss/krb5i\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Export the \fB/usr\fP directory read\-only, by bind\-mounting it to the NFS4
+root filesystem. Anyone can access it, barring any firewall configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nfs_server__exports:
+  \- path: \(aq/srv/nfs/usr\(aq
+    bind: \(aq/usr\(aq
+    options: [ \(aqro\(aq, \(aqno_subtree_check\(aq, \(aqasync\(aq ]
+    acl: \(aq*\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Export the \fB/srv/media\fP directory for different clients on the two
+networks, with different set of parameters:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nfs_server__exports:
+  \- path: \(aq/srv/nfs/media\(aq
+    bind: \(aq/srv/media\(aq
+    acl:
+
+      \- clients: \(aq192.0.2.0/24\(aq
+        options: \(aqro,no_subtree_check,async\(aq
+
+      \- clients: [ \(aq2001:db8:dead:beef::/64\(aq, \(aq*.example.org\(aq ]
+        options: [ \(aqrw\(aq, \(aqno_subtree_check\(aq, \(aqno_root_squash\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Export the \fB/usr\fP directory read\-only, by bind\-mounting it to the NFS4
+root filesystem, but only after the ZFS service has started.
+Anyone can access it, barring any firewall configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nfs_server__exports:
+  \- path: \(aq/srv/nfs/usr\(aq
+    bind:
+      src: \(aq/usr\(aq
+      options:
+
+        \- \(aqx\-systemd.requires=zfs\-mount.service\(aq
+
+    options: [ \(aqro\(aq, \(aqno_subtree_check\(aq, \(aqasync\(aq ]
+    acl: \(aq*\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

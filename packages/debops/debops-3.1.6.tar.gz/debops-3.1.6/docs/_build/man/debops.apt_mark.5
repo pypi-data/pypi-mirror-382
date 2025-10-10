@@ -1,0 +1,199 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.APT_MARK" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.apt_mark \- Set desired APT package state using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/apt_mark\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.apt_mark\fP Ansible role can be used to set the desired state of
+APT packages using \fI\%apt\-mark(8)\fP <\fBhttps://manpages.debian.org/apt-mark(8)\fP> command. It might be useful if a new
+Debian/Ubuntu install results in many packages which should be installed are
+marked for autoremoval, or if you want to hold certain APT packages in their
+current state. The role operates only on packages that are already installed.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The \fBdebops.apt_mark\fP role is included by default in the \fBcommon.yml\fP
+DebOps playbook; you don\(aqt need to add hosts to any Ansible groups to enable
+it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.apt_mark\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Mark APT package state
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_apt_mark\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: apt_mark
+      tags: [ \(aqrole::apt_mark\(aq, \(aqskip::apt_mark\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::apt_mark\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.apt_mark\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%apt\-mark(8)\fP <\fBhttps://manpages.debian.org/apt-mark(8)\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.apt_mark\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS apt_mark__packages
+.sp
+The \fBapt_mark__*_packages\fP list variables specify the desired state of the
+APT packages to set on the hosts. Only already installed APT packages are
+managed. Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of an APT package to configure. At the moment the role does
+not support usage of glob patterns (eg. \fBpackage\-*\fP).
+.TP
+.B \fBpackages\fP
+Optional. A list of APT packages to manage. If specified, the \fBname\fP
+parameter is ignored. Glob patterns are not supported.
+.TP
+.B \fBstate\fP
+Optional. This parameter defines what state to set for the specified
+package(s) The available states:
+.TS
+center;
+|l|l|l|.
+_
+T{
+T}	T{
+\fBauto\fP
+T}	T{
+\fBmanual\fP
+T}
+_
+T{
+\fBhold\fP
+T}	T{
+\fBauto\-hold\fP
+T}	T{
+\fBmanual\-hold\fP
+T}
+_
+T{
+\fBunhold\fP
+T}	T{
+\fBauto\-unhold\fP
+T}	T{
+\fBmanual\-unhold\fP
+T}
+_
+.TE
+.sp
+If not specified, \fBmanual\fP state is set by default, hold state is not
+changed. You can find out more about these states in the \fI\%apt\-mark(8)\fP <\fBhttps://manpages.debian.org/apt-mark(8)\fP>
+manual page.
+.UNINDENT
+.SS Examples
+.sp
+Mark a package as installed manually, so it won\(aqt be autoremoved:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_mark__packages:
+
+  \- name: \(aqzsh\(aq
+
+  \- name: \(aqbash\(aq
+    state: \(aqmanual\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Mark multiple installed packages as installed manually and held in their
+current state. Only the packages already installed will be affected:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_mark__packages:
+
+  \- name: \(aqnginx\-packages\(aq
+    state: \(aqmanual\-hold\(aq
+    packages:
+      \- \(aqnginx\(aq
+      \- \(aqnginx\-common\(aq
+      \- \(aqnginx\-extras\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,1124 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.FOODSOFT" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.foodsoft \- Setup and manage Foodsoft
+.SH INTRODUCTION
+.sp
+The \fBdebops\-contrib.foodsoft\fP role allows to setup your own \fI\%Foodsoft\fP <\fBhttps://www.foodcoops.net/\fP> instance.
+Foodsoft is a web\-based software to manage a non\-profit food coop (product catalog,
+ordering, accounting, job scheduling).
+.sp
+The role is based on the following documentation:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%Deployment (Debian)\fP <\fBhttps://github.com/foodcoop-adam/foodsoft/wiki/Deployment-%28Debian%29\fP>
+.IP \(bu 2
+\fI\%SETUP_DEVELOPMENT.md\fP <\fBhttps://github.com/foodcoops/foodsoft/blob/master/doc/SETUP_DEVELOPMENT.md#manual-configuration\fP>
+.IP \(bu 2
+\fI\%Dockerfile\fP <\fBhttps://github.com/foodcoops/foodsoft/blob/master/Dockerfile\fP>
+.UNINDENT
+.sp
+Note that the author of this role currently does not have an production
+deployment using this role but he will try to maintain this role as good as
+possible.
+He just wrote this role just for fun to try out Foodsoft.
+.SS Installation
+.sp
+This role requires at least Ansible \fBv2.1.5\fP\&. To install it, run:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ansible\-galaxy install debops\-contrib.foodsoft
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH GETTING STARTED
+.INDENT 0.0
+.IP \(bu 2
+\fI\%Database support\fP
+.IP \(bu 2
+\fI\%Webserver support\fP
+.IP \(bu 2
+\fI\%Example inventory\fP
+.IP \(bu 2
+\fI\%Example playbook\fP
+.IP \(bu 2
+\fI\%Ansible tags\fP
+.UNINDENT
+.SS Database support
+.sp
+It is recommended that you install a database server. You can install one on
+the same host as Foodsoft or choose a different host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_mariadb_server]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In case you chose a different host, you will need to specify which of your
+database servers the Foodsoft instance should use by specifying the database
+server host as \fI\%foodsoft__database_server\fP\&.
+.SS Webserver support
+.sp
+Currently, only \fBnginx\fP is supported using the \fI\%debops.nginx\fP
+role.
+.sp
+You will need to install \fBNginx\fP with Passenger support by setting:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nginx_flavor: \(aqpassenger\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+in your inventory.
+.SS Example inventory
+.sp
+To manage Foodsoft on a given host or set of hosts, they need to be added
+to the \fB[debops_service_foodsoft_nginx]\fP Ansible group in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_foodsoft_nginx]
+hostname
+
+[debops_service_mariadb_server]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Ansible playbook that uses the \fBdebops\-contrib.foodsoft\fP role together
+with \fI\%debops.nginx\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Setup and manage Foodsoft with Nginx as webserver
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_foodsoft_nginx\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: mariadb
+      tags: [ \(aqrole::mariadb\(aq ]
+      mariadb__dependent_databases: \(aq{{ foodsoft__mariadb__dependent_databases }}\(aq
+      mariadb__dependent_users: \(aq{{ foodsoft__mariadb__dependent_users }}\(aq
+      when: (foodsoft__database == \(aqmariadb\(aq)
+
+    \- role: ruby
+      tags: [ \(aqrole::ruby\(aq ]
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ foodsoft__nginx__dependent_servers }}\(aq
+
+    \- role: foodsoft
+      tags: [ \(aqrole::foodsoft\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The playbook is shipped with this role under
+\fB\&./docs/playbooks/\fP from which you can symlink it to your
+playbook directory.
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::foodsoft\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::foodsoft:pkgs\fP
+Tasks related to system package management like installing or
+removing packages.
+.TP
+.B \fBrole::foodsoft:config\fP
+Tasks related to configuring Foodsoft.
+.UNINDENT
+.SH DEBOPS-CONTRIB.FOODSOFT DEFAULT VARIABLES
+.SS Sections
+.INDENT 0.0
+.IP \(bu 2
+\fI\%System packages\fP
+.IP \(bu 2
+\fI\%FQDN and DNS addresses\fP
+.IP \(bu 2
+\fI\%Database configuration\fP
+.IP \(bu 2
+\fI\%Webserver configuration\fP
+.IP \(bu 2
+\fI\%Directory paths\fP
+.IP \(bu 2
+\fI\%System user and group\fP
+.IP \(bu 2
+\fI\%Foodsoft sources and deployment\fP
+.IP \(bu 2
+\fI\%Foodsoft configuration\fP
+.IP \(bu 2
+\fI\%Configuration for other Ansible roles\fP
+.UNINDENT
+.SS System packages
+.INDENT 0.0
+.TP
+.B foodsoft__base_packages
+.UNINDENT
+.sp
+List of base packages required by Foodsoft.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__base_packages:
+  \- \(aq{{ [\(dqruby2.0\(dq, \(dqruby2.0\-dev\(dq] if (ansible_distribution == \(dqUbuntu\(dq and ansible_distribution_release in [\(dqtrusty\(dq]) else [] }}\(aq
+
+  \- \(aqlibcurl3\-dev\(aq
+  \- \(aqlibxml2\-dev\(aq
+  \- \(aqlibxslt\-dev\(aq
+  \- \(aqlibffi\-dev\(aq
+  \- \(aqlibreadline\-dev\(aq
+
+  ## charlock_holmes
+  \- \(aqg++\(aq
+  ## https://stackoverflow.com/questions/15553792/error\-installing\-charlock\-holmes\-error\-installing\-gitlab/15556110#15556110
+  \- \(aqlibicu\-dev\(aq
+
+  ## RMagick
+  \- \(aqpkg\-config\(aq
+  \- \(aqlibmagickwand\-dev\(aq
+  \- \(aqruby\-magic\(aq
+  \- \(aqlibmagic\-dev\(aq
+
+  ## sqlite3
+  \- \(aq{{ [\(dqlibsqlite3\-dev\(dq] if (foodsoft__database in [\(dqsqlite\(dq]) else [] }}\(aq
+
+  ## mysql2
+  \- \(aq{{ [\(dqlibmysqlclient\-dev\(dq, \(dqlibmariadbd\-dev\(dq] if (foodsoft__database in [\(dqmariadb\(dq]) else [] }}\(aq
+
+  ## Install via gem
+  # \- \(aqruby\-charlock\-holmes\(aq
+  # \- \(aqruby\-rmagick\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__deploy_state
+.UNINDENT
+.sp
+What is the desired state which this role should achieve? Possible options:
+.INDENT 0.0
+.TP
+.B \fBpresent\fP
+Default. Ensure that Foodsoft is installed and configured as requested.
+.TP
+.B \fBabsent\fP
+Ensure that Foodsoft is uninstalled and it\(aqs configuration is removed.
+.TP
+.B \fBpurged\fP
+Same as \fBabsent\fP but additionally also ensures that the database and
+other persistent data is removed.
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__deploy_state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS FQDN and DNS addresses
+.INDENT 0.0
+.TP
+.B foodsoft__fqdn
+.UNINDENT
+.sp
+The Fully Qualified Domain Name of the Foodsoft instance. This address is
+used to configure the webserver frontend.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__fqdn: \(aqfoodsoft.{{ foodsoft__domain }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__domain
+.UNINDENT
+.sp
+Domain that will be configured for the Foodsoft instance.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__domain: \(aq{{ ansible_domain }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Database configuration
+.INDENT 0.0
+.TP
+.B foodsoft__database
+.UNINDENT
+.sp
+Autodetected variable containing the database management system which should be used.
+The supported and tested option is \fBmariadb\fP\&.
+.sp
+Refer to \fI\%Getting started\fP for details.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__database: \(aq{{ ansible_local.foodsoft.database
+                        if (ansible_local.foodsoft.database | d())
+                        else (\(dqmariadb\(dq
+                              if (ansible_local | d() and ansible_local.mariadb is defined)
+                              else (\(dqpostgresql\(dq
+                                    if (ansible_local | d() and ansible_local.postgresql is defined)
+                                    else \(dqno\-database\-detected\(dq)) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__database_server
+.UNINDENT
+.sp
+FQDN of the database server. It will be configured by
+the \fI\%debops.mariadb\fP <\fBhttps://github.com/debops/ansible-mariadb\fP> or \fI\%debops.postgresql\fP <\fBhttps://github.com/debops/ansible-postgresql\fP> role.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__database_server: \(aq{{ ansible_local[foodsoft__database].server }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__database_port
+.UNINDENT
+.sp
+Port database is listening on.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__database_port: \(aq{{ ansible_local[foodsoft__database].port }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__database_name
+.UNINDENT
+.sp
+Name of the database to use for Foodsoft.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__database_name: \(aqfoodsoft\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__database_user
+.UNINDENT
+.sp
+Database user to use for Foodsoft.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__database_user: \(aqfoodsoft\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__database_password_path
+.UNINDENT
+.sp
+Path to database password file.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__database_password_path: \(aq{{ secret + \(dq/\(dq + foodsoft__database + \(dq/\(dq
+                                      + ansible_local[foodsoft__database].delegate_to
+                                      + ((\(dq/\(dq + ansible_local[foodsoft__database].port)
+                                         if (foodsoft__database == \(dqpostgresql\(dq)
+                                         else \(dq\(dq)
+                                      + \(dq/credentials/\(dq + foodsoft__database_user + \(dq/password\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__database_password
+.UNINDENT
+.sp
+Database password for Foodsoft.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__database_password: \(aq{{ lookup(\(dqpassword\(dq, foodsoft__database_password_path + \(dq length=48 chars=ascii_letters,digits,.:\-_\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__database_name_map
+.UNINDENT
+.sp
+Database name mapping from the names as used in DebOps to Ruby database
+adapter names.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__database_name_map:
+  \(aqmariadb\(aq: \(aqmysql2\(aq
+  \(aqsqlite\(aq: \(aqsqlite3\(aq
+
+  # Legacy:
+  \(aqmysql\(aq: \(aqmysql2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__database_config
+.UNINDENT
+.sp
+Database configuration for Foodsoft. Written to \fBconfig/database.yml\fP\&.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__database_config:
+  production:
+    adapter: \(aq{{ foodsoft__database_name_map[foodsoft__database] }}\(aq
+    # socket: \(aq/tmp/mysql.sock\(aq
+    host: \(aq{{ foodsoft__database_server }}\(aq
+    reconnect: False
+    pool: 5
+    username: \(aq{{ foodsoft__database_user }}\(aq
+    password: \(aq{{ foodsoft__database_password }}\(aq
+    database: \(aq{{ foodsoft__database_name }}\(aq
+    encoding: \(aqutf8\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Webserver configuration
+.INDENT 0.0
+.TP
+.B foodsoft__webserver
+.UNINDENT
+.sp
+Autodetected variable containing the webserver which should be used.
+Currently only Nginx is supported.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__webserver: \(aq{{ ansible_local.foodsoft.webserver
+                         if (ansible_local.foodsoft.webserver | d())
+                         else (\(dqnginx\(dq
+                               if (ansible_local.nginx.enabled | d() | bool)
+                               else (\(dqapache\(dq
+                                     if (ansible_local.apache.enabled | d() | bool)
+                                     else \(dqno\-webserver\-detected\(dq)) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__webserver_user
+.UNINDENT
+.sp
+Name of the webserver user account which will be granted read only access to
+the Foodsoft application directory.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__webserver_user: \(aq{{ ansible_local.nginx.user | d(\(dqwww\-data\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Directory paths
+.INDENT 0.0
+.TP
+.B foodsoft__home_path
+.UNINDENT
+.sp
+The Foodsoft system account home directory.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__home_path: \(aq{{ ansible_local.nginx.www | d(\(dq/srv/www\(dq) + \(dq/\(dq + foodsoft__user }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__www_path
+.UNINDENT
+.sp
+Base web root directory for Foodsoft.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__www_path: \(aq{{ foodsoft__git_dest + \(dq/public\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS System user and group
+.INDENT 0.0
+.TP
+.B foodsoft__user
+.UNINDENT
+.sp
+System UNIX account used by the Foodsoft.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__user: \(aqfoodsoft\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__group
+.UNINDENT
+.sp
+System UNIX group used by the Foodsoft.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__group: \(aqfoodsoft\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__gecos
+.UNINDENT
+.sp
+Contents of the GECOS field set for the Foodsoft account.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__gecos: \(aqFoodsoft\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__shell
+.UNINDENT
+.sp
+The default shell set on the foodsoft account.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__shell: \(aq/usr/sbin/nologin\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Foodsoft sources and deployment
+.INDENT 0.0
+.TP
+.B foodsoft__git_repo
+.UNINDENT
+.sp
+The URI of the Foodsoft git source repository.
+There is also \fI\%https://github.com/foodcoop\-adam/foodsoft.git\fP which you can choose alternatively.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__git_repo: \(aqhttps://github.com/foodcoops/foodsoft.git\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__git_version
+.UNINDENT
+.sp
+The git branch or tag which will be installed.
+Defaults to the commit hash of latest release (4.5.1).
+This is done because Foodsoft development is not cryptographically
+signed and this role wants to comply with the
+\fI\%DebOps Software Source Policy\fP <\fBhttps://docs.debops.org/en/latest/debops-policy/docs/software-source-policy.html#software-installed-from-git-repositories\fP>\&.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__git_version: \(aqa7b6b0c803ca4a79ddab7cea92545b8cc188f952\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__git_dest
+.UNINDENT
+.sp
+Path where the Foodsoft sources will be checked out (installation path).
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__git_dest: \(aq{{ foodsoft__home_path + \(dq/foodcoops\-foodsoft\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__git_update
+.UNINDENT
+.sp
+Should new revisions be retrieved from the origin repository?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__git_update: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__bundler_exclude_groups
+.UNINDENT
+.sp
+Don’t install the Gems in the listed groups.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__bundler_exclude_groups:
+  \- \(aqtest\(aq
+
+  ## Contains SQLite gem.
+  \- \(aqdevelopment\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Foodsoft configuration
+.INDENT 0.0
+.TP
+.B foodsoft__name
+.UNINDENT
+.sp
+Name of this Foodsoft instance.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__name: \(aqFoodcoop\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__contact
+.UNINDENT
+.sp
+Foodcoop contact information (used for FAX messages).
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__contact:
+  street: \(aqGrüne Straße 23\(aq
+  zip_code: \(aq12323\(aq
+  city: \(aqBerlin\(aq
+  country: \(aqDeutschland\(aq
+  email: \(aq{{ foodsoft__email_sender }}\(aq
+  phone: \(aq030 323 232323\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__default_scope
+.UNINDENT
+.sp
+If \fI\%foodsoft__multi_coop_install\fP is true you have to use a coop name, which
+you you wanna be selected by default.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__default_scope: \(aqf\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__homepage
+.UNINDENT
+.sp
+Homepage URL.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__homepage: \(aqhttps://{{ foodsoft__fqdn }}/{{ foodsoft__default_scope }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__page_footer
+.UNINDENT
+.sp
+Page footer (html allowed). Default is a Foodsoft footer. Set to the word
+\(dqblank\(dq for no footer. If unchanged, the default footer of Foodsoft will be used.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__page_footer: \(aq<a href=\(dq{{ foodsoft__homepage }}/\(dq>{{ foodsoft__name }}</a>, setup by <a href=\(dqhttps://debops.org/\(dq>DebOps</a>.\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__email_sender
+.UNINDENT
+.sp
+Email address to be used as sender.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__email_sender: \(aqfoodsoft@{{ foodsoft__domain }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__error_recipients
+.UNINDENT
+.sp
+Email address to be used as sender.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__error_recipients:
+  \- \(aqadmin@{{ foodsoft__domain }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__multi_coop_install
+.UNINDENT
+.sp
+If you wanna serve more than one Foodcoop with one installation.
+Don\(aqt forget to setup databases for each Foodcoop. See also MULTI_COOP_INSTALL.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__multi_coop_install: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__upstream_config
+.UNINDENT
+.sp
+Configuration as defined by upstream Foodcoop in
+\fBconfig/app_config.yml.SAMPLE\fP\&.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__upstream_config: \(aq{{ lookup(\(dqfile\(dq, \(dqvars/sample_app_config.yml\(dq) | from_yaml }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__role_config
+.UNINDENT
+.sp
+This dict is managed by the role itself, controlled by other default variables.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__role_config:
+
+  multi_coop_install: \(aq{{ foodsoft__multi_coop_install | bool }}\(aq
+  default_scope: \(aq{{ foodsoft__default_scope }}\(aq
+  name: \(aq{{ foodsoft__name }}\(aq
+  contact: \(aq{{ foodsoft__contact }}\(aq
+  homepage: \(aq{{ foodsoft__homepage }}\(aq
+
+  # Default timezone, e. g. UTC, Amsterdam, Berlin, etc.
+  # FIXME: Foodsoft/Ruby seem to expect a different format than what debops.core returns.
+  # Potentially splitting at \(dq/\(dq and returning the second half of the string
+  # would do the job but that would need testing.
+  # Change manually if needed.
+  # time_zone: \(aq{{ ansible_local.tzdata.timezone | d(\(dqEtc/UTC\(dq) }}\(aq
+
+  # Page footer (html allowed). Default is a Foodsoft footer. Set to \(gablank\(ga for no footer.
+  page_footer: \(aq{{ foodsoft__page_footer }}\(aq
+
+  email_sender: \(aq{{ foodsoft__email_sender }}\(aq
+
+  # Config for the exception_notification plugin.
+  notification:
+    error_recipients: \(aq{{ foodsoft__error_recipients }}\(aq
+    sender_address: \(aq\(dqFoodsoft Error\(dq <{{ foodsoft__email_sender }}>\(aq
+    email_prefix: \(dq[Foodsoft]\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__config
+.UNINDENT
+.sp
+This dict is intended to be used in Ansible’s global inventory as needed.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__config: {}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__group_config
+.UNINDENT
+.sp
+This dict is intended to be used in a host inventory group of Ansible
+(only one host group is supported) as needed.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__group_config: {}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__host_config
+.UNINDENT
+.sp
+This dict is intended to be used in the inventory of hosts as needed.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__host_config: {}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__combined_config
+.UNINDENT
+.sp
+The configuration written to \fBconfig/app_config.yml\fP\&.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__combined_config: \(aq{{ foodsoft__upstream_config.default
+                               | combine(foodsoft__role_config)
+                               | combine(foodsoft__config)
+                               | combine(foodsoft__group_config)
+                               | combine(foodsoft__host_config) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Configuration for other Ansible roles
+.INDENT 0.0
+.TP
+.B foodsoft__mariadb__dependent_databases
+.UNINDENT
+.sp
+Configuration of the foodsoft database managed by the \fI\%debops.mariadb\fP <\fBhttps://github.com/debops/ansible-mariadb\fP> role.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__mariadb__dependent_databases:
+
+  \- database: \(aq{{ foodsoft__database_name }}\(aq
+    state: \(aq{{ \(dqpresent\(dq if (foodsoft__deploy_state != \(dqpurged\(dq) else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__mariadb__dependent_users
+.UNINDENT
+.sp
+Configuration of the foodsoft database user managed by the \fI\%debops.mariadb\fP <\fBhttps://github.com/debops/ansible-mariadb\fP> role.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__mariadb__dependent_users:
+
+  \- database: \(aq{{ foodsoft__database_name }}\(aq
+    state: \(aq{{ \(dqpresent\(dq if (foodsoft__deploy_state == \(dqpresent\(dq) else \(dqabsent\(dq }}\(aq
+    user: \(aq{{ foodsoft__database_user }}\(aq
+    password: \(aq{{ foodsoft__database_password }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B foodsoft__nginx__dependent_servers
+.UNINDENT
+.sp
+Configuration of the foodsoft nginx server, used by the \fI\%debops.nginx\fP <\fBhttps://github.com/debops/ansible-nginx\fP>
+Ansible role.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft__nginx__dependent_servers:
+
+  \- name: \(aq{{ foodsoft__fqdn }}\(aq
+    filename: \(aqdebops.foodsoft\(aq
+    by_role: \(aqdebops\-contrib.foodsoft\(aq
+    enabled: True
+    type: \(aqrails\(aq
+    root: \(aq{{ foodsoft__www_path }}\(aq
+    webroot_create: False
+
+    # Foodsoft manages this by itself by default.
+    # TODO: Should probably be disabled in Foodsoft so that DebOps can manage it.
+    hsts_enabled: False
+    frame_options: False
+    content_type_options: False
+    xss_protection: \(aq{{ omit }}\(aq
+
+    # Phusion Passenger options
+    passenger_user: \(aq{{ foodsoft__user }}\(aq
+    passenger_group: \(aq{{ foodsoft__group }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH COPYRIGHT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+foodsoft \- Setup and manage Foodsoft
+
+Copyright (C) 2015\-2017 Robin Schneider <ypid@riseup.net>
+Copyright (C) 2016\-2017 DebOps <https://debops.org/>
+SPDX\-License\-Identifier: GPL\-3.0\-only
+
+This Ansible role is part of DebOps.
+
+DebOps is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License version 3, as
+published by the Free Software Foundation.
+
+DebOps is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with DebOps. If not, see https://www.gnu.org/licenses/.
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

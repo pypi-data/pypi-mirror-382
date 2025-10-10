@@ -1,0 +1,453 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.CORE" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.core \- Prepare Ansible environment for DebOps roles
+.SH SYNOPSIS
+.sp
+\fBdebops run service/core\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.core\fP Ansible role takes care of variables that are shared among
+different roles and are useful to keep in a central location. This is done by
+leveraging functionality of \fI\%Ansible local facts\fP <\fBhttps://docs.ansible.com/ansible/latest/user_guide/playbooks_vars_facts.html#facts-d-or-local-facts\fP> stored on remote hosts to
+ensure that the variables are always evaluated by Ansible, even when playbook
+is run with or without different sets of role tags.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+By default \fBdebops.core\fP is run from its own \fBcore.yml\fP DebOps playbook by
+the \fBcommon.yml\fP playbook, which means that it is run on all hosts in the
+inventory.
+.sp
+To see what facts are configured on a host, run command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@host:~$ ansible <hostname> \-b \-m setup \-a \(aqfilter=ansible_local\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible Controller IP addresses
+.sp
+The \fBdebops.core\fP role gathers information about the IP address(es) from which the
+Ansible Controller host is connecting from using the \fB$SSH_CLIENT\fP environment
+variable on the remote host.
+.sp
+The list of Ansible Controller IP addresses is accessible as
+\fBansible_local.core.ansible_controllers\fP for other roles to use as
+needed.
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+For the IP address gathering to work correctly, you shouldn\(aqt specify
+\fBbecome\fP parameters in the Ansible inventory. In that case the playbook or
+task level setting won\(aqt be able to override the inventory setting and the
+IP address will be inaccessible to Ansible.
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+To get information about the IP address of the Ansible Controller,
+\fBdebops.core\fP needs to be run from special playbook, which does not switch to
+privileged mode by default, but the role within it does. That way, the role has
+access to the environment variables of the unprivileged account Ansible is
+connecting through and can read the \fB$SSH_CLIENT\fP environment variable and
+get the IP address.
+.sp
+Note: Hosts provisioned by the \fBbootstrap\fP playbook have a workaround in
+place so that the playbook could be run in privileged mode but to avoid
+problems with \fI\%other provisioning methods\fP <\fBhttps://github.com/debops/ansible-core/issues/6#issuecomment-141923939\fP>
+the role should be run in unprivileged mode as mentioned.
+.sp
+This is a playbook that is used to run the role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Prepare core environment
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_core\(aq,
+           \(aqdebops_service_bootstrap\(aq ]
+  become: False
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: core
+      tags: [ \(aqrole::core\(aq, \(aqskip::core\(aq ]
+      become: True
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you use your own set of custom playbooks, you can either copy the above
+playbook, or, if you have the DebOps playbooks installed in the default location,
+include the \fBcore.yml\fP playbook in your common playbook (it is sufficient to
+run it only once at the start of the playbook):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- include: ~/.local/share/debops/debops\-playbooks/playbooks/core.yml
+
+\- name: Common playbook
+  hosts: \(aqdebops_all_hosts\(aq
+  become: True
+
+  roles:
+
+    \- role: example\-role
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you use the default DebOps playbooks alongside your own custom ones, you don\(aqt
+need to include the \fBcore.yml\fP playbook at all.
+.sp
+See the usage guide in the \fBdebops.core\fP documentation for information about
+its use.
+.SH USAGE GUIDES
+.SS Design of global variables in DebOps
+.sp
+When Ansible playbooks are designed to be read\-only, to be able to get the
+updated versions, Ansible does not have good support for variables that are
+supposed to be accessed by different roles at any point. The issues arise when
+the user starts to use \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to selectively run
+parts of playbooks or roles – Ansible does not evaluate variables from roles that
+weren\(aqt included, which can change the environment and break the idempotency.
+.sp
+The solution to use the \fBgroup_vars/all/\fP directory in the playbook directory
+doesn\(aqt work, because variables defined there cannot be overwritten by Ansible
+inventory, thereby they cannot be changed as needed by the user. A separate
+Ansible role could be used with variables defined in it\(aqs
+\fBdefaults/main.yml\fP, but it would need to be a dependency of all the roles
+that used these variables, so virtually all roles would need to use it for
+consistency.
+.sp
+A different solution, which is implemented by the \fBdebops.core\fP role, is to use
+Ansible local facts defined on the remote hosts themselves as a data store for
+variables that are meant to be visible to all roles at all times. Ansible
+gathers these facts on any playbook execution and they are accessible from
+anywhere in the playbook or roles.
+.sp
+To make the configuration easier to modify by the user, values for these local
+facts are derived from \fBdebops.core\fP default variables, which means that the user
+can redefine them in the Ansible inventory. For consistency and idempotency
+this role will take care to use existing values even if their definitions are
+removed from the inventory.
+.sp
+By moving the variables to the remote host itself, \fBdebops.core\fP does not need to
+be included in all other roles as a dependency, and it can be simply executed
+once at the start of the playbook. To resolve issues with missing dict keys
+during Ansible runs, \fBdebops.core\fP is \(dqartificially required\(dq by all other
+DebOps roles. If the main DebOps playbook is used, this doesn\(aqt change
+anything, but if roles are used separately, or from a custom playbook,
+the \fBdebops.core\fP role should be included at the start, preferably in a separate
+play to make sure that Ansible re\-gathers the local facts after the role has
+configured them.
+.sp
+To make the local facts consistent and managed centrally, \fBdebops.core\fP
+provides a custom set of fact scripts which are used to dynamically gather
+certain facts about a given host. Any new custom fact scripts which is
+independent of a specific role, will be included in this one.
+.SS Custom local facts
+.sp
+The \fBdebops.core\fP role allows the user to specify custom variables which will be
+configured in the Ansible local facts on a given host. Three levels of
+variables that can be used:
+.INDENT 0.0
+.TP
+.B \fI\%core__facts\fP
+Dictionary which should be defined in the \fBinventory/group_vars/debops_all_hosts/\fP
+group which applies to all hosts in the inventory.
+.TP
+.B \fI\%core__group_facts\fP
+Dictionary which should be defined in the \fBinventory/group_vars/*/\fP
+group to set variables on specific sets of hosts. Only one group level is
+supported.
+.TP
+.B \fI\%core__host_facts\fP
+Dictionary which should be defined in \fBinventory/host_vars/*/\fP
+for a particular host.
+.UNINDENT
+.sp
+The key specifies the name of a variable in the \fBansible_local.core.*\fP namespace, with
+value being it\(aqs value. You can use normal YAML variables as values, even lists
+and dictionaries.
+.sp
+All variables defined in the inventory will be merged in one namespace, more
+specific variables overriding the less specific ones (global \-> group \-> host).
+.sp
+The role takes care to reuse already set local facts even if their definition
+has been removed from the inventory, however changes in the inventory will override
+local facts. It\(aqs best not to change already defined variables like file and
+directory paths, because that might break already configured software if the
+involved directories/files are not taken care of.
+.sp
+Additional variables can be used to manipulate facts defined on remote hosts:
+.INDENT 0.0
+.TP
+.B \fI\%core__remove_facts\fP
+List of fact names in \fBansible_local.core.*\fP which will be
+removed if found.
+.TP
+.B \fI\%core__reset_facts\fP
+Boolean. If set to \fBTrue\fP, \fBdebops.core\fP role will ignore facts already
+defined on remote hosts and recreate the \fBansible_local.core.*\fP namespace
+using only facts defined in Ansible inventory.
+.UNINDENT
+.SS Examples
+.sp
+Create a set of custom facts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+core__facts:
+  \(aqfact_name\(aq: \(aqfact_value\(aq
+  \(aqextra_list\(aq: [ \(aqlist\(aq, \(aqof\(aq, \(aqvalues\(aq ]
+  \(aqnested_dict\(aq:
+    \(aqsome_key\(aq: \(aqsome_value\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When above variables are defined they can be accessed using Jinja variables:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+fact_name: \(aq{{ ansible_local.core.fact_name }}\(aq
+extra_list: \(aq{{ ansible_local.core.extra_list | join(\(dq \(dq) }}\(aq
+nested_dict: \(aq{{ ansible_local.core.nested_dict.some_key }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Above code will work correctly if \fBdebops.core\fP has been executed previously
+on a host. If you want your role to be compatible with installations that don\(aqt
+use it, you need to write your variable like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+var: \(aq{{ ansible_local.core.fact_name | d(\(dqfact_value\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+That way Ansible won\(aqt emit an error about missing dictionary keys at each
+level of the \fBansible_local\fP variable namespace.
+.SS Custom host tags
+.sp
+\(dqHost tags\(dq work similar to custom local facts. The difference is that this is
+only a single list of items, merged from separate variables on all levels of
+the inventory. You can set host tags using the variables:
+.INDENT 0.0
+.TP
+.B \fI\%core__tags\fP
+Global list of tags, should be defined in \fBinventory/group_vars/debops_all_hosts/\fP
+.TP
+.B \fI\%core__group_tags\fP
+List of tags for a specific group, should be defined in
+\fBinventory/group_vars/*/\fP
+.TP
+.B \fI\%core__host_tags\fP
+List of tags for a specific host, should be defined in
+\fBinventory/host_vars/*/\fP
+.TP
+.B \fI\%core__static_tags\fP
+Any list specified here will override already defined tags.
+.UNINDENT
+.sp
+Tags can be accessed using the \fBansible_local.tags\fP list variable. Other roles
+can check if a given item is or is not present in this global list and perform
+actions depending on that state.
+.SS Examples
+.sp
+Check if a given value is in the tag list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Show debug output
+  debug: msg=\(dqTest\(dq
+  when: ansible_local | d() and ansible_local.tags | d() and
+        \(aqvalue\(aq in ansible_local.tags
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Check if a given value is not in the tag list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Show debug output
+  debug: msg=\(dqTest\(dq
+  when: ansible_local | d() and ansible_local.tags | d() and
+        \(aqvalue\(aq not in ansible_local.tags
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can find a list of host tags in the documentation of various roles which use
+them.
+.SS System administrator accounts
+.sp
+Common feature in various services is creation of an administrator account. The
+\fBdebops.core\fP role provides two Ansible local facts which can be used by
+other roles to make creation of these accounts easier.
+.INDENT 0.0
+.TP
+.B \fBansible_local.core.admin_groups\fP
+List of the UNIX system groups which contains system administrator accounts.
+.TP
+.B \fBansible_local.core.admin_users\fP
+List of the UNIX user accounts which are members of the above UNIX groups.
+These accounts should be used by the other Ansible roles to create
+administrator accounts if none were set by the user through the Ansible
+inventory.
+.UNINDENT
+.sp
+You can use the corresponding role default variables to control what admin
+accounts are available to other roles.
+.SS Examples
+.sp
+Define list of admin accounts to create in the application:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__admins: \(aq{{ ansible_local.core.admin_users | d([]) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Custom distribution and release facts
+.sp
+Ansible sometimes detects the installed OS distribution and release
+incorrectly. For example, current Debian Testing release is not detected at
+all, and the \fBansible_distribution_release\fP variable is set to \fBNA\fP which,
+if used in the roles, can break a lot of existing configuration.
+.sp
+The \fBdebops.core\fP role provides alternative set of the
+\fBansible_distribution\fP and \fBansible_distribution_release\fP variables through
+Ansible local facts, accessible as \fBansible_local.core.distribution\fP and
+\fBansible_local.core.distribution_release\fP\&. They use the original Ansible
+facts if they are not \fBNA\fP and refer to the \fBansible_lsb\fP otherwise; they
+can also be overridden through Ansible inventory. By using these local facts in
+your roles, you can have a centralized place to control these facts if
+necessary.
+.SS Examples
+.sp
+In your role default variables, create separate variables that hold the
+information about current distribution and release:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__distribution: \(aq{{ ansible_local.core.distribution | d(ansible_distribution) }}\(aq
+
+application__distribution_release: \(aq{{ ansible_local.core.distribution_release | d(ansible_distribution_release) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Global unsafe writes
+.sp
+Many Ansible modules related to file operations support the \fBunsafe_writes\fP
+parameter to allow operations that might be dangerous or destructive in certain
+conditions, but allow Ansible to work in specific environments, like
+bind\-mounted files or directories. The \fI\%core__unsafe_writes\fP default
+variable allows to activate this mode per\-host using Ansible inventory, for all
+roles that implement it.
+.sp
+To have an effect, roles that depend on the unsafe writes to function, should
+use the parameter in relevant tasks, like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Generate configuration file
+  template:
+    src: \(aqetc/application.conf.j2\(aq
+    dest: \(aq/etc/application.conf\(aq
+    owner: \(aqroot\(aq
+    group: \(aqroot\(aq
+    mode: \(aq0644\(aq
+    unsafe_writes: \(aq{{ True if (core__unsafe_writes | d(ansible_local.core.unsafe_writes | d()) | bool) else omit }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note that the way \fI\%core__unsafe_writes\fP is checked and takes precedence
+even from the context of another role is not otherwise done in DebOps.
+This was done in this case to allow to only enable
+\fI\%core__unsafe_writes\fP when necessary without the need to run the
+\fBdebops.core\fP role first and ensuring that it’s facts are made persistent as well.
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

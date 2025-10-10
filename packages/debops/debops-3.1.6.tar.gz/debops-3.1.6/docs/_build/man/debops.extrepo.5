@@ -1,0 +1,306 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.EXTREPO" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.extrepo \- Manage external APT sources using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/extrepo\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-tags\fP \fBrole::extrepo\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-skip\-tags\fP \fBskip::extrepo\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%extrepo\fP <\fBhttps://packages.debian.org/sid/extrepo\fP> Debian package provides an easy way to manage APT sources
+external to the Debian main archives. The \fI\%list of supported APT sources\fP <\fBhttps://salsa.debian.org/extrepo-team/extrepo-data\fP> is
+curated outside of the normal Debian release cycle and contains details about
+popular third\-party APT repositories maintained by software vendors.
+.sp
+The \fBdebops.extrepo\fP Ansible role can be used to manage third\-party APT
+repositories via Ansible using the \fBextrepo\fP package. The role is written as
+complimentary to the \fI\%debops.keyring\fP role which provides a similar
+functionality.
+.SH GETTING STARTED
+.SS Conflicts with other APT sources
+.sp
+Some packages from third\-party repositories, for example Google Chrome, may
+install their own \fB/etc/apt/sources.list.d/*.list\fP configuration files on
+installation. This might result in a conflict, since \fBextrepo\fP
+\fB\&.sources\fP files define a specific GPG key for each external APT source.
+You might see an error message while running \fBapt update\fP, for
+example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+E: Conflicting values set for option Signed\-By regarding source
+   http://dl.google.com/linux/chrome/deb/ stable:
+   /var/lib/extrepo/keys/google_chrome.asc !=
+E: The list of sources could not be read.
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+There\(aqs currently nothing the \fI\%debops.extrepo\fP role can do about this.
+To fix these issues, you might need to comment out the additional APT sources
+installed by the software package. Some third\-party packages support this
+situation and don\(aqt re\-create the APT sources, others might not. YMMV.
+.SS Example inventory
+.sp
+To install and configure \fBextrepo\fP on a given host, it should be included in
+a specific Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_extrepo]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+By default the role does not enable any APT sources. Users can do that via
+Ansible inventory using the \fI\%extrepo__*_sources\fP
+variables. Other Ansible roles can also interface with the
+\fI\%debops.extrepo\fP role through the \fI\%extrepo__dependent_sources\fP
+variable used on the playbook level.
+.sp
+The repository components enabled by \fBextrepo\fP (\fBmain\fP, \fBcontrib\fP,
+\fBnon\-free\fP, etc.) are set using the \fBansible_local.apt.components\fP Ansible
+local fact. You can use the \fI\%debops.apt\fP role to \fI\%enable non\-free
+components\fP which might be needed for certain repositories, for
+example \fI\%FastTrack repository\fP <\fBhttps://wiki.debian.org/FastTrack\fP> with packaged GitLab.
+.sp
+To pick a specific version of a package from the APT repository, you can use
+the \fI\%debops.apt_preferences\fP role.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.extrepo\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage external APT sources
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_extrepo\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: extrepo
+      tags: [ \(aqrole::extrepo\(aq, \(aqskip::extrepo\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::extrepo\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.extrepo\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%extrepo(1p)\fP <\fBhttps://manpages.debian.org/extrepo(1p)\fP>, \fI\%sources.list(5)\fP <\fBhttps://manpages.debian.org/sources.list(5)\fP>
+.IP \(bu 2
+\fI\%Announcement about the extrepo package\fP <\fBhttps://grep.be/blog/en/computer/debian/Announcing_extrepo/\fP>
+.IP \(bu 2
+\fI\%Blog post\fP <\fBhttps://grep.be/blog/en/computer/debian/Software_available_through_Extrepo/\fP> about some of the APT repositories available through
+\fBextrepo\fP
+.IP \(bu 2
+The \fI\%extrepo\-data repository\fP <\fBhttps://salsa.debian.org/extrepo-team/extrepo-data\fP> which contains metadata about third\-party APT
+sources
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.extrepo\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS extrepo__configuration
+.sp
+These variables define the contents of the \fB/etc/extrepo/config.yaml\fP
+configuration file. The original file is diverted to preserve its contents and
+avoid configuration changes during package upgrades.
+.SS Examples
+.sp
+Override the selection of the repository components via Ansible inventory (the
+default is based on the \fI\%debops.apt\fP local facts):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+extrepo__configuration:
+
+  \- name: \(aqpolicies\(aq
+    config:
+      enabled_policies: [ \(aqmain\(aq, \(aqcontrib\(aq, \(aqnon\-free\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables are defined as lists of YAML dictionaries. Each dictionary
+defines a part of the final configuration file; configuration entries are
+merged together and rendered as a YAML document. Each configuration entry is
+defined using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. An identifier for a particular configuration entry, not used in the
+configuration file itself. Entries with the same \fBname\fP parameter can be
+overridden by subsequent entries.
+.TP
+.B \fBconfig\fP
+Required. YAML dictionary with the \fBextrepo\fP configuration options.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration entry will
+be included in the generated configuration file. If \fBabsent\fP, the
+configuration entry will be removed from the generated configuration file. If
+\fBignore\fP, a given configuration entry will not be considered during
+template generation. This can be used to conditionally enable or disable
+configuration options.
+.UNINDENT
+.SS extrepo__sources
+.sp
+These lists define the names of the external APT sources available using the
+\fBextrepo\fP command, which should be configured on a host or a group of
+hosts. You can see the list of available APT sources by running the
+\fBextrepo search\fP command on the remote host after the \fBextrepo\fP
+package is installed.
+.SS Examples
+.sp
+Configure access to the \fI\%Debian FastTrack\fP <\fBhttps://fasttrack.debian.net/\fP> repositories (the official Debian
+Backports repository might also be needed, see \fI\%debops.apt\fP role for
+details). In this example we use a simple syntax to specify a list of APT
+sources.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+extrepo__sources:
+
+  \- \(aqfasttrack\(aq
+  \- \(aqfasttrack_backports\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Enable the Elastic APT repository to get access to Elasticsearch, Kibana,
+Filebeat and other packages.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+extrepo__sources:
+
+  \- \(aqelastic\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Make sure that the upstream Docker APT repository is disabled and enable the
+upstream Kubernetes repository.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+extrepo__sources:
+
+  \- name: \(aqkubernetes\(aq
+    state: \(aqpresent\(aq
+
+  \- name: \(aqdocker\-ce\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+You can specify a list of strings which define the names of the APT sources
+available via \fBextrepo\fP\&. To see the available APT sources, you can run
+the \fBextrepo search\fP command.
+.sp
+Alternatively, each list entry can be a YAML dictionary with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the APT source to manage.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the specified APT source will be
+enabled via the \fBextrepo\fP command. If \fBabsent\fP, the source file
+located in \fB/etc/apt/sources.list.d/extrepo_\fP\fIname\fP\fB\&.sources\fP will be
+removed.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

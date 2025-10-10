@@ -1,0 +1,183 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.LIBUSER" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.libuser \- Install libuser on a Debian/Ubuntu host using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/libuser\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%libuser\fP <\fBhttps://pagure.io/libuser/\fP> library and its corresponding package provides a set of
+commands and an API which can be used by tools like Ansible to manage UNIX
+account and group configuration in different NSS databases (local
+\fB/etc/passwd\fP and \fB/etc/group\fP databases, LDAP, NIS, etc.). This
+allows to abstract away user and group management and make it independent from
+the underlying database.
+.sp
+The \fBdebops.libuser\fP role installs and configures the \fBlibuser\fP package on
+Debian or Ubuntu hosts. The library is used by some other DebOps roles like
+\fI\%debops.users\fP, \fI\%debops.system_users\fP to manage local UNIX accounts
+and groups when the hosts are joined to an LDAP environment. The default
+configuration set up by the role ensures that Ansible \fBuser\fP and \fBgroup\fP
+modules, when instructed, can correctly create local account and group entries
+in the \fBpasswd\fP and \fBgroup\fP databases.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The \fBdebops.libuser\fP Ansible role is included by default in the
+\fBcommon.yml\fP DebOps playbook; you don\(aqt need to do anything to have it
+executed. It\(aqs also included in the \fBbootstrap.yml\fP and the
+\fBbootstrap\-ldap.yml\fP playbooks to help create the local sysadmin accounts
+during host bootstrapping.
+.sp
+If you don’t want to let \fBdebops.libuser\fP manage user accounts, you can
+disable it with the following setting in your inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libuser__enabled: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.libuser\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage local users and groups
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_libuser\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: libuser
+      tags: [ \(aqrole::libuser\(aq, \(aqskip::libuser\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Common role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::libuser\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBskip::libuser\fP
+Main role tag, should be used in the playbook to skip all of the role tasks.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.libuser\fP default variables have more extensive configuration than
+simple strings or lists, here you can find documentation and examples for them.
+.SS libuser__configuration
+.SS Examples
+.sp
+See the \fI\%libuser__original_configuration\fP variable for the original
+contents of the \fB/etc/libuser.conf\fP file and how they are represented in
+the role configuration.
+.SS Syntax
+.sp
+Each entry in the list is a YAML dictionary that describes the configuration file in the
+\fB/etc/libuser.conf\fP, using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. This parameter defines the option name, and it needs to be unique
+in a given configuration file. Parameters from different options lists with
+the same \fBname\fP are merged together when the configuration entries are
+merged.
+.TP
+.B \fBoptions\fP
+Optional. A YAML list of \fBlibuser\fP configuration options defined in
+the configuration file. The \fBoptions\fP parameters from different
+configuration entries are merged together, therefore it\(aqs easy to modify
+specific parameters without the need to copy the entire value to the
+inventory.
+.sp
+Each element of the options list is a YAML dictionary with specific
+parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required for the main options. The Name of the libuser option to add.
+.TP
+.B \fBoption\fP
+Optional. Override the \fBname\fP parameter to allow for multiple
+configuration options with the same parameter.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the entry will be added in the
+configuration file. If \fBabsent\fP, the entry will be removed from the
+configuration file. If \fBcomment\fP, the entry will be included in the
+configuration file, but commented out.
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML text block with a comment added to a given
+configuration entry.
+.TP
+.B \fBseparator\fP
+Optional, boolean. If \fBTrue\fP, add an empty line before the configuration
+parameter, useful for visually separating configuration options.
+.TP
+.B \fBvalue\fP
+Optional for main options. If specified, set a value of a given option.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Leonardo Bechea, Alin Alexandru
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

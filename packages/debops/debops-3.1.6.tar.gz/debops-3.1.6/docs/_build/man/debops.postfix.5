@@ -1,0 +1,1318 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.POSTFIX" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.postfix \- Configure Postfix SMTP service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/postfix\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.postfix\fP Ansible role can be used to install and manage
+\fI\%Postfix\fP <\fBhttps://en.wikipedia.org/wiki/Postfix_%28software%29\fP>, a SMTP server. It allows configuration of Postfix using Ansible
+inventory variables, and provides a flexible API to the Postfix configuration
+for other Ansible roles when it\(aqs used as a role dependency.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The \fBdebops.postfix\fP role configures a basic Postfix SMTP server with
+configuration similar to the \(dqInternet Site\(dq configuration enabled by default
+by the Debian package. With the default configuration, SMTP service listens for
+connections on port \fB25\fP from all hosts. Mail relay is authorized from
+\fBlocalhost\fP, other hosts are deferred. The SMTP server accepts mail addressed
+for the host\(aqs FQDN, but not it\(aqs domain. There\(aqs no default relayhost, Postfix
+delivers the mail directly to other hosts. Local mail is enabled by default,
+support for mail aliases is provided by the \fBdebops.etc_aliases\fP Ansible
+role.
+.sp
+Additional configuration is defined in separate variables and can be easily
+disabled or modified if necessary. To do that, you can modify the values of the
+\fI\%postfix__combined_maincf\fP and \fI\%postfix__combined_mastercf\fP
+variables.
+.sp
+The Postfix service will be configured to use TLS connections and strong
+encryption by default. This might interfere with SMTP service operation for
+older installations that don\(aqt support required features.
+.SS Example inventory
+.sp
+To install and configure Postfix on a host, it needs to be present in the
+\fB[debops_service_postfix]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_postfix]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.postfix\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Postfix SMTP service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_postfix\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare etc_aliases environment
+      ansible.builtin.import_role:
+        name: \(aqetc_aliases\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::etc_aliases\(aq, \(aqrole::secret\(aq, \(aqrole::postfix\(aq ]
+
+    \- name: Prepare postfix environment
+      ansible.builtin.import_role:
+        name: \(aqpostfix\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::postfix\(aq, \(aqrole::secret\(aq, \(aqrole::ferm\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::postfix\(aq ]
+      secret__directories:
+        \- \(aq{{ etc_aliases__secret__directories }}\(aq
+        \- \(aq{{ postfix__secret__directories }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ postfix__ferm__dependent_rules }}\(aq
+
+    \- role: etc_aliases
+      tags: [ \(aqrole::etc_aliases\(aq, \(aqskip::etc_aliases\(aq ]
+
+    \- role: postfix
+      tags: [ \(aqrole::postfix\(aq, \(aqskip::postfix\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::postfix\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH POSTFIX CONFIGURATION GUIDES
+.sp
+Here you can find a few guides that can help you configure more advanced
+Postfix features. Some of these can and are implemented as separate Ansible
+roles, here you can see the configuration specific to \fBdebops.postfix\fP role.
+.SS Postfix SMTP client with SASL authentication
+.sp
+This configuration is based on the \fI\%SMTP client SASL authentication HOWTO\fP <\fBhttp://www.postfix.org/SASL_README.html#client_sasl_enable\fP>\&.
+.sp
+We will configure Postfix to act as an SMTP client and send all mail to
+a remote relay which requires SMTP authentication. This guide assumes that you
+already have an e\-mail account set up elsewhere and you know the password.
+.sp
+For SASL authentication to work, Postfix requires \fBlibsasl2\-modules\fP package
+(there are some custom ones for LDAP, OTP, SQL). You need to tell
+\fBdebops.postfix\fP role to install one for you, via Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__packages: [ \(aqlibsasl2\-modules\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+It\(aqs best to keep the authentication details out of the Ansible inventory,
+therefore you should create a separate text file in the \fBansible/secret/\fP
+directory of the project directory (see \fI\%debops.secret\fP for details).
+.sp
+Create the file \fBansible/secret/postfix/smtp\-auth.key\fP\&. In it, put the
+e\-mail account username and password in the form:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+username:password
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You now need to create a lookup table with the authentication credentials for
+Postfix to consume. You can do this using Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__lookup_tables:
+
+  \- name: \(aqsmtp_sasl_password_maps.in\(aq
+    mode: \(aq0600\(aq
+    options:
+
+      \- name: \(aq[smtp.example.org]\(aq
+        value: \(aq{{ lookup(\(dqfile\(dq, secret + \(dq/postfix/smtp\-auth.key\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fB\&.in\fP filename suffix tells Postfix to generate a hash table with the
+file contents. The files should be secured with the \fB0600\fP permissions, so
+only \fBroot\fP will be able to read it.
+.sp
+The last piece of the puzzle is the Postfix configuration in the
+\fB/etc/postfix/main.cf\fP\&. You can set it via Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__maincf:
+
+  \- name: \(aqsmtp_sasl_auth_enable\(aq
+    value: True
+    state: present
+
+  \- name: \(aqsmtp_tls_security_level\(aq
+    value: \(aqencrypt\(aq
+    state: present
+
+  \- name: \(aqsmtp_sasl_tls_security_options\(aq
+    value: \(aqnoanonymous\(aq
+    state: present
+
+  \- name: \(aqrelayhost\(aq
+    value: \(aq[smtp.example.org]\(aq
+    state: present
+
+  \- name: \(aqsmtp_sasl_password_maps\(aq
+    value: [ \(aqhash:${config_directory}/smtp_sasl_password_maps\(aq ]
+    state: present
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When you run the \fBdebops.postfix\fP role with the above configuration, Postfix
+should now send all e\-mails to the \fBsmtp.example.org\fP relayhost with SMTP
+client authentication. You can send an e\-mail and check the logs in
+\fB/var/log/mail.log\fP to see if they are relayed correctly.
+.SH USAGE AS A ROLE DEPENDENCY
+.sp
+The \fBdebops.postfix\fP role can be used as a dependency by other Ansible roles
+to manage contents of the \fB/etc/postfix/main.cf\fP and
+\fB/etc/postfix/master.cf\fP configuration files idempotently.  Configuration
+options from multiple roles can be merged together and included in the Postfix
+configuration, or removed conditionally.
+.SS Dependent role variable
+.sp
+The role exposes the \fI\%postfix__dependent_maincf\fP and
+\fI\%postfix__dependent_mastercf\fP variables which can be used to define
+Postfix configuration options and services by other Ansible roles through the
+role dependent variables.
+.sp
+The variables are an YAML lists with YAML dictionaries as entries. A short
+format of the configuration uses the dictionary key as a name of the dependent
+role and dictionary value as that role\(aqs configuration, in the format defined
+by \fI\%Default variable details: postfix__maincf\fP and \fI\%Default variable details: postfix__mastercf\fP variables,
+respectively (see playbook excerpt below):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roles:
+
+  \- role: debops.postfix
+    postfix__dependent_maincf:
+      \- role_name: \(aq{{ role_name__postfix__dependent_maincf }}\(aq
+    postfix__dependent_mastercf:
+      \- role_name: \(aq{{ role_name__postfix__dependent_mastercf }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The extended version of the configuration uses YAML dictionaries with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBrole\fP
+Required. Name of the role, used to save its configuration in a YAML
+dictionary on the Ansible Controller. Shouldn\(aqt be changed once selected,
+otherwise the configuration will be desynchronized.
+.TP
+.B \fBconfig\fP
+Required. YAML list with configuration of the Postfix options and services in the
+same format defined by \fI\%Default variable details: postfix__maincf\fP and
+\fI\%Default variable details: postfix__mastercf\fP variables.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration will be included
+in the generated configuration files. If \fBabsent\fP, the configuration will
+be removed from the configuration files. If \fBignore\fP, a given configuration
+entries will be skipped during data evaluation and won\(aqt affect any existing
+entries.
+.UNINDENT
+.sp
+An example extended configuration (playbook excerpt):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roles:
+
+  \- role: debops.postfix
+    postfix__dependent_maincf:
+      \- role: \(aqrole_name\(aq
+        config: \(aq{{ role_name__postfix__dependent_maincf }}\(aq
+    postfix__dependent_mastercf:
+      \- role: \(aqrole_name\(aq
+        config: \(aq{{ role_name__postfix__dependent_mastercf }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above configuration layout allows for use of the multiple role dependencies
+in one playbook by providing configuration of each role in a separate
+configuration entry.
+.SS Dependent configuration storage and retrieval
+.sp
+The dependent configuration from other roles is stored in the \fBsecret/\fP
+directory on the Ansible Controller (see \fI\%debops.secret\fP for more details) in
+a JSON file (one for each variable), with each role configuration in a separate
+dictionary. The \fBdebops.postfix\fP role reads these files when Ansible local
+facts indicate that the Postfix is installed, otherwise empty files are
+created. This ensures that the stale configuration is not present on a new or
+re\-installed host.
+.sp
+The YAML dictionaries from different roles are merged with the main
+configuration in the \fI\%postfix__combined_maincf\fP and
+\fI\%postfix__combined_mastercf\fP variables that are used to generate the
+final configuration. The merge order of the different \fBpostfix__*_maincf\fP and
+\fBpostfix__*_mastercf\fP variables allows to further affect the dependent
+configuration through Ansible inventory if necessary, therefore the Ansible
+roles that use this method don\(aqt need to provide additional variables for this
+purpose themselves.
+.SS Example role default variables
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# This is a set of default variables in an example \(aqapplication\(aq role that uses
+# dependent variables to pass configuration to \(aqdebops.postfix\(aq role.
+
+
+# Additional APT packages to install for Postfix
+application__postfix__dependent_packages:
+  \- \(aqpostfix\-pgsql\(aq
+
+
+# Postfix main.cf configuration
+application__postfix__dependent_maincf:
+
+  \- name: \(aqapplication_destination_recipient_limit\(aq
+    value: 1
+
+
+# Postfix master.cf configuration
+application__postfix__dependent_mastercf:
+
+  \- name: \(aqapplication\(aq
+    type: \(aqunix\(aq
+    unpriv: False
+    chroot: False
+    command: \(aqpipe\(aq
+    args: |
+      flags=FR user=application argv=/usr/local/lib/application/bin/in\-pipe
+      ${nexthop} ${user}
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example role playbook
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# This is a playbook for an example \(aqapplication\(aq role which uses
+# \(aqdebops.postfix\(aq as a dependency and passes its own set of
+# configuration options to it.
+
+\- name: Manage application
+  collections: [ \(aqdebops.debops\(aq ]
+  hosts: [ \(aqdebops_service_application\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    # This role along with \(aqdebops.etc_aliases\(aq can be used to maintain the
+    # /etc/aliases database.
+    #
+    #\- name: Prepare etc_aliases environment
+    #  import_role:
+    #    name: \(aqetc_aliases\(aq
+    #    tasks_from: \(aqmain_env\(aq
+    #  tags: [ \(aqrole::etc_aliases\(aq, \(aqrole::secret\(aq, \(aqrole::postfix\(aq ]
+
+    \- name: Prepare postfix environment
+      ansible.builtin.import_role:
+        name: \(aqpostfix\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::postfix\(aq, \(aqrole::secret\(aq, \(aqrole::ferm\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::postfix\(aq ]
+      secret__directories:
+        \- \(aq{{ postfix__secret__directories }}\(aq
+
+    # Normally a \(aqdebops.ferm\(aq role would be here for \(aqdebops.postfix\(aq
+    # to manage the firewall. You don\(aqt need it if you run the main
+    # \(aqdebops.postfix\(aq playbook before yours.
+    #
+    #\- role: ferm
+    #  tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+    #  ferm__dependent_rules:
+    #    \- \(aq{{ etc_aliases__secret__directories }}\(aq
+    #    \- \(aq{{ postfix__ferm__dependent_rules }}\(aq
+
+    #\- role: etc_aliases
+    #  tags: [ \(aqrole::etc_aliases\(aq ]
+
+    \- role: postfix
+      tags: [ \(aqrole::postfix\(aq ]
+
+      postfix__dependent_packages:
+        \- \(aq{{ application__postfix__dependent_packages }}\(aq
+
+      postfix__dependent_maincf:
+
+        # Short form of dependent configuration
+        \- application: \(aq{{ application__postfix__dependent_maincf }}\(aq
+
+      postfix__dependent_mastercf:
+
+        # Expanded form of dependent configuration
+        \- role: \(aqapplication\(aq
+          config: \(aq{{ application__postfix__dependent_mastercf }}\(aq
+          state: \(aqpresent\(aq
+
+    \- role: application
+      tags: [ \(aqrole::application\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+some of \fBdebops.postfix\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS postfix__maincf
+.sp
+Configuration of the \fBpostfix__*_maincf\fP variables is described in a separate
+document, \fI\%Default variable details: postfix__maincf\fP\&.
+.SS postfix__mastercf
+.sp
+Configuration of the \fBpostfix__*_mastercf\fP variables is described in
+a separate document, \fI\%Default variable details: postfix__mastercf\fP\&.
+.SS postfix__maincf_sections
+.sp
+The \fB/etc/postfix/main.cf\fP configuration file is managed using informal
+\(dqsections\(dq, each section groups the common Postfix options.
+.sp
+The \fI\%postfix__maincf_sections\fP variable contains a list of sections defined
+by YAML dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Short name of the section, used in the configuration
+parameters to put a given option in a particular section.
+.TP
+.B \fBtitle\fP
+Optional. A short description of the section included as its header.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the section will be added in the
+configuration file. If \fBabsent\fP, the section will not be included in the
+file.
+.UNINDENT
+.SS Examples
+.sp
+Define a set of configuration sections:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__maincf_sections:
+
+  \- name: \(aqbase\(aq
+
+  \- name: \(aqadmin\(aq
+    title: \(aqAdministrator options\(aq
+
+  \- name: \(aqunknown\(aq
+    title: \(aqOther options\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS postfix__lookup_tables
+.sp
+The \fBpostfix__*_lookup_tables\fP variables can be used to manage
+\fI\%Postfix lookup tables\fP <\fBhttp://www.postfix.org/DATABASE_README.html\fP>\&.
+Each lookup table is a separate file located in the \fB/etc/postfix/\fP
+directory. The entries in the variables are merged together, therefore by using
+the same \fBname\fP key in multiple entries you can modify existing
+configuration, for example through Ansible inventory.
+.sp
+The lookup tables can be defined by other roles via role dependent variables,
+however the state of each dependent role is not tracked. Because of that it\(aqs
+best to use separate lookup tables for each Ansible role and join them together
+at the Postfix configuration level, via options defined in the \fBmain.cf\fP
+or \fBmaster.cf\fP configuration files.
+.sp
+Each entry that manages a lookup table is a YAML dictionary with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the lookup table to manage, it will be a file in the
+\fB/etc/postfix/\fP directory. This parameter is used as an anchor to merge
+separate entries together.
+.sp
+Files which names end with the \fB*.in\fP extension are assumed to be hashed
+tables, and will be processed automatically by \fBmake\fP when any
+changes are detected during role execution.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the lookup table will be
+generated. If \fBabsent\fP, the lookup table will be removed (hashed table
+files are not removed automatically). If \fBignore\fP, a given configuration
+entry will not be evaluated by Ansible.
+.TP
+.B \fBowner\fP
+Optional. The UNIX account which will be the owner of the generated file. If
+not specified, \fBroot\fP will be used by default.
+.TP
+.B \fBgroup\fP
+Optional. The UNIX group which will be the primary group of the generated
+file. If not specified, \fBpostfix\fP will be used by default.
+.TP
+.B \fBmode\fP
+Optional. The attributes set on the generated file. If not specified,
+\fB0640\fP will be set by default.
+.sp
+If you specify \fB0600\fP or \fB0640\fP file attributes, the task which manages
+the file will automatically set the \fBno_log\fP Ansible parameter to \fBTrue\fP,
+so that the contents of the file are not logged or displayed during Ansible
+execution.
+.TP
+.B \fBno_log\fP
+Optional, boolean. If not specified or \fBFalse\fP, the task will be processed
+normally. If \fBTrue\fP, the task execution will not be logged and any file
+contents will not be displayed in the Ansible output.
+.UNINDENT
+.sp
+The parameters below are related to the contents of the lookup table file:
+.INDENT 0.0
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with a comment added at the beginning of
+the lookup table file.
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block with the file contents which will be
+stored \(dqas\-is\(dq in the lookup table file.
+.TP
+.B \fBconfig\fP
+Optional. An YAML dictionary which defines an external Postfix lookup table,
+for example in a SQL database. Each dictionary key is an option name, and
+dictionary value is the option value. Values can be either strings or YAML
+lists. See the manpage of specific lookup tables for the supported options.
+.TP
+.B \fBconnection\fP
+Optional. An YAML dictionary which uses the same syntax as the \fBconfig\fP
+parameter. The \fBconnection\fP parameter can be used to define connection
+details for a particular database in a separate YAML dictionary, which then
+can be referenced in multiple lookup tables at once with different query
+configuration. See the examples below for an example usage.
+.TP
+.B \fBoptions\fP
+Optional. An YAML list with lookup table entries. Each entry is a YAML
+dictionary. If the dictionary has a \fBname\fP key, it will be interpreted as
+an extended entry with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The lookup key used by Postfix to find the specific entry in the table.
+.TP
+.B \fBvalue\fP
+The value or action returned by the lookup table.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given lookup table entry will
+be added in the file. If \fBabsent\fP, a given entry will be removed from the
+file. If \fBignore\fP, a given configuration will not be parsed by Ansible.
+If \fBcomment\fP, a given lookup table entry will be added but commented out.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment related to a given
+lookup table entry.
+.UNINDENT
+.sp
+If the \fBname\fP parameter is not found, first entry in a YAML dictionary is
+parsed as a key/value lookup table entry.
+.sp
+When a given lookup table is defined by multiple entries, the \fBoptions\fP
+parameters are merged together.
+.TP
+.B \fBcontent\fP
+Optional. An YAML list with lookup table entries. Each entry can be a string
+that defines a lookup table key, its value will be defined by the
+\fBdefault_action\fP parameter. Otherwise you can specify parameters similar to
+those supported by the \fBoptions\fP list. Contents of the \fBcontent\fP
+parameter are appended to the \fBoptions\fP contents. The \fBcontent\fP
+parameters from multiple entries are not merged together.
+.TP
+.B \fBdefault_action\fP
+Optional. The default action defined for the lookup table entries that don\(aqt
+specify one themselves.
+.UNINDENT
+.sp
+If the \fBconnection\fP or \fBconfig\fP parameters are specified, for convenience
+you can specify the options that control the lookup table configuration from
+the \fI\%ldap_table(5)\fP <\fBhttps://manpages.debian.org/ldap_table(5)\fP>, \fI\%mysql_table(5)\fP <\fBhttps://manpages.debian.org/mysql_table(5)\fP>, \fI\%sqlite_table(5)\fP <\fBhttps://manpages.debian.org/sqlite_table(5)\fP> and
+\fI\%pgsql_table(5)\fP <\fBhttps://manpages.debian.org/pgsql_table(5)\fP> as the lookup table parameters, on the same level as the
+\fBname\fP parameter.
+.SS Examples
+.sp
+Define a set of virtual mail aliases using a raw YAML text block, stored in
+a hashed lookup table:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__lookup_tables:
+
+  \- name: \(aqvirtual_alias_maps.in\(aq
+    raw: |
+      name.surname@example.org     user1@example.org
+      name.othername@example.org   user2@example.org
+
+postfix__maincf:
+  \- virtual_alias_maps: [ \(aqhash:${config_directory}/virtual_alias_maps\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define virtual mailbox table stored in a MySQL database. Lookup table file will
+be only readable by the \fBroot\fP account to secure the password for the
+database:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__lookup_tables:
+
+  \- name: \(aqvirtual_mailbox_maps.cf\(aq
+    config:
+      hosts:    [ \(aqdb1.example.net\(aq, \(aqdb2.example.net\(aq ]
+      user:     \(aqmailuser\(aq
+      password: \(aqmailpassword\(aq
+      dbname:   \(aqmail\(aq
+      query:    \(dqSELECT maildir FROM mailbox WHERE local_part=\(aq%u\(aq AND domain=\(aq%d\(aq AND active=\(aq1\(aq\(dq
+
+postfix__maincf:
+  \- virtual_mailbox_maps: [ \(aqproxy:mysql:${config_directory}/virtual_mailbox_maps.cf\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The same example with connection details defined in a separate variable which
+can be reused in multiple lookup tables:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+db_connection:
+  hosts:    [ \(aqdb1.example.net\(aq, \(aqdb2.example.net\(aq ]
+  user:     \(aqmailuser\(aq
+  password: \(aqmailpassword\(aq
+  dbname:   \(aqmail\(aq
+
+postfix__lookup_tables:
+
+  \- name: \(aqvirtual_mailbox_maps.cf\(aq
+    connection: \(aq{{ db_connection }}\(aq
+    query:      \(dqSELECT maildir FROM mailbox WHERE local_part=\(aq%u\(aq AND domain=\(aq%d\(aq AND active=\(aq1\(aq\(dq
+
+postfix__maincf:
+  \- virtual_mailbox_maps: [ \(aqproxy:mysql:${config_directory}/virtual_mailbox_maps.cf\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note that the parameters of a particular table can be defined on the same level
+as the \fBname\fP parameter, for ease of use.
+.sp
+Create a list of banned HELO/EHLO names which contains the host\(aqs IP addresses
+and FQDN hostname, stored in a hashed lookup table:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__lookup_tables:
+
+  \- name: \(aqbanned_helo_names.in\(aq
+    content: \(aq{{ ansible_all_ipv4_addresses + ansible_all_ipv6_addresses
+                 + [ ansible_fqdn, \(dqlocalhost\(dq, \(dq127.0.0.1\(dq ] }}\(aq
+    default_action: \(aqREJECT You are not me\(aq
+
+postfix__maincf:
+
+  \- name: \(aqsmtpd_helo_restrictions\(aq
+    value:
+      \- name: \(aqcheck_helo_access hash:${config_directory}/banned_helo_names\(aq
+        weight: \-100
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a CIDR lookup table that contains a custom blacklist/whitelist of
+networks that can talk to the SMTP \(aqsubmission\(aq service:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__lookup_tables:
+
+  \- name: \(aqsubmission_client_access.cidr\(aq
+    options:
+
+      \- name: \(aq192.0.2.0/24\(aq
+        value: \(aqREJECT Connections not allowed from TEST\-NET\-1 network\(aq
+
+      \- \(aq10.10.0.0/16\(aq: \(aqOK\(aq
+
+postfix__maincf:
+
+  \- name: \(aqsubmission_smtpd_client_restrictions\(aq
+    value:
+      \- \(aqcheck_client_access cidr:${config_directory}/submission_client_access.cidr\(aq
+      \- \(aqreject\(aq
+
+postfix__mastercf:
+
+  \- name: \(aqsubmission\(aq
+    options:
+      \- name: \(aqsmtpd_client_restrictions\(aq
+        value: \(aq${submission_smtpd_client_restrictions}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS: POSTFIX__MAINCF
+.sp
+The \fBpostfix__*_maincf\fP variables are used to define the contents of the
+\fB/etc/postfix/main.cf\fP configuration file. The variables are YAML lists,
+concatenated together into \fI\%postfix__combined_maincf\fP variable, which
+is passed to the configuration template.
+.sp
+Each list entry is a YAML dictionary, which can be written in a simple or
+complex form. Entries that control Postfix parameters of the same name will be
+combined together in order of appearance.
+.SS Simple form of the configuration parameters
+.sp
+Simple form of the Postfix \fBmain.cf\fP configuration uses the dictionary
+key as a option name, and its value as that option\(aqs parameters:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__maincf:
+
+  # Option with boolean value
+  \- append_dot_mydomain: False
+
+  # Option with integer value
+  \- mailbox_size_limit: 0
+
+  # Option with string value
+  \- myorigin: \(aq/etc/mailname\(aq
+
+  # Option with multiple values in a list
+  \- mydestination: [ \(aqexample.org\(aq, \(aqlocalhost\(aq ]
+
+  # Option with an empty value
+  \- relayhost: \(aq\(aq
+
+  # Option with multiline value
+  \- debugger_command: |
+      PATH=/bin:/usr/bin:/usr/local/bin:/usr/X11R6/bin
+      ddd $daemon_directory/$process_name $process_id & sleep 5
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/postfix/main.cf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+append_dot_mydomain = no
+mailbox_size_limit = 0
+myorigin = /etc/mailname
+mydestination = example.org, localhost
+relayhost =
+debugger_command =
+    PATH=/bin:/usr/bin:/usr/local/bin:/usr/X11R6/bin
+    ddd $daemon_directory/$process_name $process_id & sleep 5
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The parameters in the configuration file will be present in the order they were
+first defined in the variables.
+.SS Complex form of the configuration parameters
+.sp
+Complex form of the Postfix \fBmain.cf\fP configuration is detected when
+a dictionary key contains a \fBname\fP parameter. In that case, the role will
+interpret the entry using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+The name of the configuration option to manage. This parameter is used as an
+identifier during the variable parsing.
+.TP
+.B \fBvalue\fP
+Required. A value which should be set for a given option. Values can be YAML
+strings, text blocks, integers, booleans and lists (not dictionaries). Lists
+can contain simple strings, numbers, or YAML dictionaries that describe each
+value in greater detail. See \fI\%Configuration values and their interactions\fP for more
+details.
+.TP
+.B \fBoption\fP
+Optional. If specified, the option will use this string as the \(dqname\(dq instead
+of the \fBname\fP value. This is useful to create examples in the configuration
+file that have the same name as existing configuration options.
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML dictionary with additional comments for a given
+configuration option.
+.TP
+.B \fBseparator\fP
+Optional, boolean. if \fBTrue\fP, an empty line will be added above a given
+option, useful for readability.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the option will be present in the
+finished configuration file.
+.sp
+If \fBabsent\fP, the option will not be included in the configuration file.
+.sp
+If \fBignore\fP, the given entry will not be evaluated by the role, and no
+changes will be done to the preceding parameters with the same name. This can
+be used to conditionally activate entries with different configuration.
+.sp
+If \fBhidden\fP, the option will not be displayed in the configuration file,
+but any comments will be present. This can be used to add free\-form comments
+in the Postfix configuration file.
+.sp
+If \fBcomment\fP, the option will be present, but it will be commented out.
+This can be used to add examples in the configuration file.
+.sp
+If \fBappend\fP, the given entry will be evaluated only if an entry with the
+same name already exists. The current state will not be changed.
+.TP
+.B \fBsection\fP
+Optional. Name of the section of the \fB/etc/postfix/main.cf\fP
+configuration file in which a given option should be placed. If it\(aqs no
+specified, \fBunknown\fP section is used.
+See \fI\%postfix__maincf_sections\fP for more details.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which affects the position of a given
+option in the configuration file, within the selected section. The higher the
+number, the more a given option \(dqweighs\(dq and the lower it will be placed in
+the finished configuration file. Negative numbers make the option \(dqlighter\(dq
+and it will be placed higher.
+.TP
+.B \fBcopy_id_from\fP
+Optional. This is an internal role parameter which can be used to change the
+relative position of a given option in the configuration file. If you specify
+a name of an option, it\(aqs internal \(dqid\(dq number (used for sorting) will be
+copied to the current option. This can be used to move options around to
+different configuration file sections.
+.UNINDENT
+.SS Examples
+.sp
+Define the previous example using complex form:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__maincf:
+
+  \- name: \(aqappend_dot_mydomain\(aq
+    comment: \(aqappending .domain is the MUA\(aqs job.\(aq
+    value: False
+    state: \(aqcomment\(aq
+
+  \- name: \(aqmailbox_size_limit\(aq
+    value: 0
+
+  \- name: \(aqmyorigin\(aq
+    value: \(aq/etc/mailname\(aq
+
+  \- name: \(aqmydestination\(aq
+    value: [ \(aqexample.org\(aq, \(aqlocalhost\(aq ]
+    weight: 100
+
+  \- name: \(aqrelayhost\(aq
+    value: \(aq\(aq
+
+  \- name: \(aqdebugger_command\(aq
+    value: |
+      PATH=/bin:/usr/bin:/usr/local/bin:/usr/X11R6/bin
+      ddd $daemon_directory/$process_name $process_id & sleep 5
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/postfix/main.cf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# appending .domain is the MUA\(aqs job.
+#append_dot_mydomain = no
+
+mailbox_size_limit = 0
+myorigin = /etc/mailname
+relayhost =
+debugger_command =
+    PATH=/bin:/usr/bin:/usr/local/bin:/usr/X11R6/bin
+    ddd $daemon_directory/$process_name $process_id & sleep 5
+
+mydestination = example.org, localhost
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The parameters in the configuration file will be present in the order they were
+first defined in the variables, unless the \fBweight\fP parameter is added, which
+will change the order.
+.SS Configuration values and their interactions
+.sp
+The \fI\%Postfix main.cf configuration\fP <\fBhttp://www.postfix.org/postconf.5.html\fP>
+uses key\-value format, with values being either strings, numbers, booleans or
+lists. The first three types are handled by the \fBdebops.postfix\fP role as
+normal.
+.sp
+List values are by default concatenated to allow easy extension of existing
+values. The values in a list are either YAML strings, numbers, or can be
+defined as YAML dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP or \fBparam\fP
+Required. The value itself, usually a string.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, the value will be included in the
+list.
+.sp
+If \fBabsent\fP, the value will be removed from the list.
+.sp
+If \fBignore\fP, the given entry will not be evaluated by the role, and will
+not change the state of the value. This can be used to enable or disable
+values conditionally.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which affects the position of a given
+value in the list. The higher the number, the more a given value \(dqweighs\(dq and
+the lower it will be placed in the finished list. Negative numbers make the
+value \(dqlighter\(dq and it will be placed higher.
+.UNINDENT
+.SS Example list
+.sp
+Define a list with conditional values:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__maincf:
+
+  \- name: \(aqmydestination\(aq
+    value:
+
+      \- \(aq{{ ansible_fqdn }}\(aq
+
+      \- name: \(aq{{ ansible_domain }}\(aq
+        state: \(aq{{ \(dqpresent\(dq
+                   if (ansible_domain.split(\(dq.\(dq)|count > 1)
+                   else \(dqignore\(dq }}\(aq
+
+      \- name: \(aqlocalhost\(aq
+        weight: 100
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Base value replacement
+.sp
+Repeating the string, number or boolean option will result in the latter entry
+replacing the former entry:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__maincf:
+
+  # Old value
+  \- myorigin: \(aq/dev/null\(aq
+
+  # New, active value
+  \- myorigin: \(aq/etc/mailname\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/postfix/main.cf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+myorigin = /etc/mailname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Lists are merged together
+.sp
+The list parameters behave differently. Specifying the same option multiple
+times, if the preceding option was a list, will add the specified parameters to
+the list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__maincf:
+
+  \- mydestination: [ \(aqexample.org\(aq, \(aqlocalhost\(aq ]
+
+  \- mydestination: [ \(aqexample.com\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/postfix/main.cf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mydestination = example.org, localhost, example.com
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS How to reset a list
+.sp
+If the option was a list, and subsequent option specified a boolean, string or
+a number, the value will replace the previous one, instead of adding to a list.
+This can be used to reset the list instead of appending to it.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__maincf:
+
+  \- inet_interfaces: [ \(aq127.0.0.1\(aq, \(aq::1\(aq ]
+
+  \- inet_interfaces: \(aqall\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/postfix/main.cf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+inet_interfaces = all
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Lists don\(aqt add duplicates
+.sp
+The role checks if a given list element is already present, and it won\(aqt add
+a duplicate value to the list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__maincf:
+
+  \- mydestination: [ \(aqexample.org\(aq, \(aqlocalhost\(aq ]
+
+  \- mydestination: [ \(aqexample.org\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/postfix/main.cf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mydestination = example.org, localhost
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS: POSTFIX__MASTERCF
+.sp
+The \fBpostfix__*_mastercf\fP variables are used to define the contents of the
+\fB/etc/postfix/master.cf\fP configuration file. The variables are YAML
+lists, concatenated together into \fI\%postfix__combined_mastercf\fP
+variable, which is passed to the configuration template.
+.sp
+Each list entry is a YAML dictionary. Entries that control Postfix parameters
+of the same name will be combined together in order of appearance.
+.SS Configuration variable format
+.sp
+The \fBmaster.cf\fP configuration entries are defined using specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+The name of the Postfix service to manage. This parameter is used as an
+identifier during the variable parsing. If \fBcommand\fP parameter is not
+specified, the service will use its name (or \fBservice\fP parameter, if
+present) as the command to execute.
+.TP
+.B \fBservice\fP
+Optional. If specified, the service will use this string as the \(dqname\(dq instead
+of the \fBname\fP value. This is useful to create examples in the configuration
+file that have the same name as existing configuration options.
+.TP
+.B \fBtype\fP
+Required. Specify the service type (\fBinet\fP, \fBunix\fP, \fBfifo\fP, \fBpass\fP).
+.TP
+.B \fBprivate\fP
+Optional, boolean. Specify the service \(dqprivate\(dq status.
+.TP
+.B \fBunpriv\fP
+Optional, boolean. Specify the service \(dqunprivileged\(dq status.
+.TP
+.B \fBchroot\fP
+Optional, boolean. Specify the service \(dqchroot\(dq status.
+.TP
+.B \fBwakeup\fP
+Optional. Time in seconds after which the Postfix master process will connect
+to the service and send a wake up signal.
+.TP
+.B \fBmaxproc\fP
+Optional. Maximum number of processes that can run at the same time for
+a given service.
+.TP
+.B \fBcommand\fP
+Optional. The Postfix command to execute for a given service. If not
+specified, \fBservice\fP and \fBname\fP parameters are used in that order of
+appearance.
+.TP
+.B \fBargs\fP
+Optional. String or an YAML text block with custom arguments to pass to
+a given service.
+.TP
+.B \fBoptions\fP
+Optional. YAML list of \fBmain.cf\fP configuration options to override for
+a given service. The syntax is the same as the \fBpostfix__*_maincf\fP
+configuration variables. See \fI\%Default variable details: postfix__maincf\fP for more details.
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML dictionary with additional comments for a given
+service.
+.TP
+.B \fBseparator\fP
+Optional, boolean. if \fBTrue\fP, an empty line will be added above a given
+service, useful for readability.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the service will be present in the
+finished configuration file.
+.sp
+If \fBabsent\fP, the service will not be included in the configuration file.
+.sp
+If \fBignore\fP, the given entry will not be evaluated by the role, and no
+changes will be done to the preceding parameters with the same name. This can
+be used to conditionally activate entries with different configuration.
+.sp
+If \fBhidden\fP, the service will not be displayed in the configuration file,
+but any comments will be present. This can be used to add free\-form comments
+in the Postfix configuration file.
+.sp
+If \fBcomment\fP, the service will be present, but it will be commented out.
+This can be used to add examples in the configuration file.
+.sp
+If \fBappend\fP, the given entry will be evaluated only if an entry with the
+same name already exists. The current state will not be changed.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which affects the position of a given
+service in the configuration file. The higher the number, the more a given
+service \(dqweighs\(dq and the lower it will be placed in the finished
+configuration file. Negative numbers make the service \(dqlighter\(dq and it will
+be placed higher.
+.TP
+.B \fBcopy_id_from\fP
+Optional. This is an internal role parameter which can be used to change the
+relative position of a given option in the configuration file. If you specify
+a name of an option, it\(aqs internal \(dqid\(dq number (used for sorting) will be
+copied to the current option. This can be used to move options around to
+different configuration file sections.
+.UNINDENT
+.SS Examples
+.sp
+Define a SMTP Postfix service
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__mastercf:
+
+  \- name: \(aqsmtp\(aq
+    type: \(aqinet\(aq
+    private: False
+    chroot: True
+    command: \(aqsmtpd\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/postfix/master.cf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+smtp      inet  n       \-       y       \-       \-       smtpd
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The parameters in the configuration file will be present in the order they were
+first defined in the variables, unless the \fBweight\fP parameter is added, which
+will change the order.
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

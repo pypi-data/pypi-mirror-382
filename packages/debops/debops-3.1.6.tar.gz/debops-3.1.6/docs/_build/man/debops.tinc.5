@@ -1,0 +1,793 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.TINC" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.tinc \- Configure tinc mesh VPN network
+.SH SYNOPSIS
+.sp
+\fBdebops run service/tinc\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%tinc\fP <\fBhttps://tinc-vpn.org/\fP> is a Virtual Private Network daemon, it can be used to create encrypted
+and tunneled connections to other hosts, forming a separate network, either
+a centralized or a mesh one.
+.sp
+\fBdebops.tinc\fP Ansible role allows you to install and configure a mesh VPN
+using \fBtinc\fP, including automatic public key exchange between all hosts in
+the Ansible inventory, connection to external hosts and secure configuration.
+.SH GETTING STARTED
+.sp
+The \fBdebops.tinc\fP role by itself only defines the connections between hosts,
+posing as Ethernet tunnels. To make a proper network, you need a defined
+subnet and a way to assign IP addresses to hosts in the network. You can use
+the \fI\%debops.ifupdown\fP role to define an internal subnet for the hosts in
+the VPN, and \fI\%debops.dnsmasq\fP to provide DHCP and DNS services inside the
+network.
+.SS Example inventory
+.sp
+Hosts added to the \fB[debops_service_tinc]\fP inventory group will have the
+\fBtinc\fP daemon installed and configured.
+.sp
+Here is a example inventory that defines a Tinc \fBmesh0\fP VPN with one of the
+hosts acting as the DHCP/DNS server and optionally a gateway:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_ifupdown]
+gateway
+
+[debops_service_dnsmasq]
+gateway
+
+[debops_service_tinc]
+gateway
+hostname1
+hostname2
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you don\(aqt want the hosts to be included by default in any Tinc mesh
+networks, you can put them in the \fB[debops_service_tinc_aux]\fP inventory group
+instead.
+.sp
+The \fBgateway\fP needs some additional configuration which should be placed in
+the Ansible inventory of the host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tinc__host_networks:
+  \(aqmesh0\(aq:
+    bridge: \(aqbr2\(aq
+
+ifupdown__host_interfaces:
+  \(aqbr2\(aq:
+    type: \(aqbridge\(aq
+    inet: \(aqstatic\(aq
+    inet6: \(aqstatic\(aq
+    nat: True
+    addresses:
+      \- \(aq2001:db8::23/64\(aq
+      \- \(aq192.0.2.23/24\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+By default Tinc configures host configuration to contain the primary FQDN address
+of a given host, so that when its IP address changes, Tinc will query the DNS
+to get the current IP address. In addition, all publicly routable IP addresses
+will be added to the host configuration file as well.
+.sp
+However, the FQDN will only be added, if a given host has a publicly routable
+IP address. This means that hosts without public IPs won\(aqt have their addresses
+mentioned in their host configuration file. This allows these hosts to still connect
+to a public gateway with access to the Tinc network.
+.sp
+If you want to test the Tinc VPN only on a private network, or allow VPN
+connections between hosts, you can tell the \fBdebops.tinc\fP role to add the
+private IP addresses of the hosts to their host configuration files by adding
+in the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tinc__host_addresses: \(aq{{ tinc__host_addresses_fqdn +
+                          tinc__host_addresses_ip_public +
+                          tinc__host_addresses_ip_private }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+The \fBdebops.tinc\fP role uses other roles present in the DebOps project to
+configure certain aspects of a host, like firewall, installation of the
+\fBtinc\fP package from Debian Backports repository on certain OS releases, and
+so on. To do that, a special Ansible playbook is used to access other roles.
+A \(dqmini role\(dq called \fBdebops.tinc/env\fP is used to pass variable data
+generated from templates to other roles.
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.tinc\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure Tinc VPN
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_tinc\(aq, \(aqdebops_service_tinc_aux\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare tinc environment
+      ansible.builtin.import_role:
+        name: \(aqtinc\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::tinc\(aq, \(aqrole::tinc:secret\(aq, \(aqrole::secret\(aq, \(aqrole::ferm\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::tinc:secret\(aq ]
+      secret__directories: \(aq{{ tinc__env_secret__directories }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list: \(aq{{ tinc__env_etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules: \(aq{{ tinc__env_ferm__dependent_rules }}\(aq
+
+    \- role: tinc
+      tags: [ \(aqrole::tinc\(aq, \(aqskip::tinc\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses \fBdebops.tinc\fP together with the \fI\%debops.persistent_paths\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure Tinc VPN and ensure persistence
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_tinc_persistent_paths\(aq, \(aqdebops_service_tinc_aux\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare tinc environment
+      ansible.builtin.import_role:
+        name: \(aqtinc\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::tinc\(aq, \(aqrole::tinc:secret\(aq, \(aqrole::secret\(aq, \(aqrole::ferm\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::tinc:secret\(aq ]
+      secret__directories: \(aq{{ tinc__env_secret__directories }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list: \(aq{{ tinc__env_etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules: \(aq{{ tinc__env_ferm__dependent_rules }}\(aq
+
+    \- role: tinc
+      tags: [ \(aqrole::tinc\(aq, \(aqskip::tinc\(aq ]
+
+    \- role: persistent_paths
+      tags: [ \(aqrole::persistent_paths\(aq, \(aqskip::persistent_paths\(aq ]
+      persistent_paths__dependent_paths: \(aq{{ tinc__persistent_paths__dependent_paths }}\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Static vs DHCP connection type
+.sp
+By default, the \fBdebops.tinc\fP role configures a node to start its VPN interface
+in a \(dqDHCP\(dq mode, without connecting to any other bridge interface, and ask the
+mesh network for an IP address.
+.sp
+To have properly configured networking in the mesh, you need to configure at
+least one VPN host to work in a \(dqstatic\(dq mode and preferably connect it to
+a bridge which connects to a network with DHCP/DNS server. If the \fBbridge\fP
+parameter is specified without the \fBlink_type\fP, role will assume that the
+host should be configured as \fBstatic\fP and enable this automatically.
+.sp
+Example network configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tinc__host_networks:
+  \(aqmesh0\(aq:
+    link_type: \(aqstatic\(aq
+    bridge: \(aqbr2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In this mode, hosts will be configured to start their VPN interface with a
+dummy \fB0.0.0.0\fP IP address and connect it to a specified bridge.
+This bridge can be created by the \fI\%debops.ifupdown\fP\&.
+.sp
+In \(dqstatic\(dq mode, the VPN interface will act as another layer 2 connection on
+the bridge and DHCP requests from the VPN will be passed along to a suitable
+server. You can configure a DHCP/DNS server using \fI\%debops.dnsmasq\fP\&.
+.SS Host configuration exchange
+.sp
+The \fBdebops.tinc\fP role uses directories created in the \fBsecret/tinc/\fP
+directory on the Ansible Controller to exchange host configuration files which
+contain the RSA public keys between hosts in a given VPN. Each network has its
+own directory tree:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+secret/tinc/
+└── networks/
+    └── mesh0/
+        ├── by\-group/
+        │\ \  ├── all/
+        │\ \  │\ \  └── hosts/
+        │\ \  └── debops_service_tinc_mesh0/
+        │\ \      └── hosts/
+        ├── by\-host/
+        │\ \  ├── gateway/
+        │\ \  │\ \  └── hosts/
+        │\ \  ├── hostname1/
+        │\ \  │\ \  └── hosts/
+        │\ \  └── hostname/
+        │\ \      └── hosts/
+        └── by\-network/
+            └── mesh0/
+                └── hosts/
+                    ├── gateway
+                    ├── hostname1
+                    └── hostname2
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+By default all host configuration files in a given mesh network will be stored in:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+secret/tinc/networks/<mesh>/by\-network/<mesh>/hosts/
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBby\-group/all/hosts/\fP directory can be used to distribute public keys to
+all hosts in a given mesh network. You can also distribute the keys only to
+hosts in a particular Ansible group, or even to a specific host.
+.sp
+Only the hosts in the current \fBansible\-playbook\fP run will get the keys
+present in the \fBhosts/\fP directories. This means that when you add a new host
+to the mesh, you will need to run the role against all of the hosts of the
+mesh, otherwise the new host won\(aqt be accepted by the mesh due to unknown
+public keys.
+.SS Support for systemd tinc@.service instances
+.sp
+On a legacy systems without \fBsystemd\fP, you can manage Tinc VPN networks using
+the \fB/etc/init.d/tinc\fP init script.
+.sp
+If \fBsystemd\fP is detected as the current init process, \fBdebops.tinc\fP will
+configure a set of \fBsystemd\fP unit files:
+.INDENT 0.0
+.TP
+.B \fBtinc.service\fP
+This is the main unit that manages all of the Tinc VPN networks and
+propagates start/stop/restart events.
+.TP
+.B \fBtinc@.service\fP
+This unit can be used to manage individual Tinc networks. The unit argument
+is the name of the VPN.
+.UNINDENT
+.sp
+With \fBsystemd\fP, you can manage each Tinc network separately by issuing
+commands:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+systemctl status tinc@mesh0
+systemctl start tinc@mesh0
+systemctl stop tinc@mesh0
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS \fI\%debops.persistent_paths\fP support
+.sp
+In case the host in question happens to be a TemplateBasedVM on \fI\%Qubes OS\fP <\fBhttps://en.wikipedia.org/wiki/Qubes_OS\fP> or
+another system where persistence is not the default, it should be absent in
+\fBdebops_service_tinc\fP and instead be added to the
+\fBdebops_service_tinc_persistent_paths\fP Ansible inventory group
+so that the changes can be made persistent:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_tinc_persistent_paths]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note that the \fI\%tinc__user\fP (\fBtinc\-vpn\fP by default) created by the
+role is not made persistent because making \fB/etc/passwd\fP and related
+files persistent might interfere with template changes.
+.sp
+You will need to ensure that the user exists by one of the following ways:
+.INDENT 0.0
+.IP \(bu 2
+Create the user in the template using \fBuseradd \-\-system tinc\-vpn \-\-comment \(aqtinc VPN service\(aq \-\-home\-dir \(aq/etc/tinc\(aq \-\-shell \(aq/bin/false\(aq\fP
+.IP \(bu 2
+Running the above command on start in the TemplateBasedVM
+.IP \(bu 2
+Run the role against your template with the role configured in such a way
+that it only creates the user.
+Note that this is normally \fI\%discouraged on Qubes OS\fP <\fBhttps://www.qubes-os.org/doc/software-update-vm/#notes-on-trusting-your-templatevms\fP>\&.
+.UNINDENT
+.sp
+Besides that, the \fI\%tinc__base_packages\fP are expected to be present (typically installed in the TemplateVM).
+.sp
+Also note that you will need to set \fBcore__unsafe_writes\fP to \fBTrue\fP when you
+attempt to update the configuration on a system that uses bind mounts for
+persistence. You can set \fBcore__unsafe_writes\fP directly in your inventory
+without the need to run the \fBdebops.core\fP role for this special case.
+Refer to \fI\%Templating or updating persistent files\fP <\fBhttps://docs.debops.org/en/latest/ansible/roles/persistent_paths/guides.html#templating-or-updating-persistent-files\fP> for details.
+.SH EXAMPLES
+.SS Minimal
+.sp
+Minimal configuration of a default Tinc \fBmesh0\fP VPN:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tinc__networks:
+  \(aqmesh0\(aq:
+    port: \(aq655\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Per\-group VPN
+.sp
+Create a separate Tinc network with a specific group of hosts included in the
+\fB[tinc_vpn]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# inventory/group_vars/tinc_vpn/tinc.yml
+tinc__group_networks:
+  \(aqvpn0\(aq:
+    port: \(aq656\(aq
+    inventory_groups: \(aqtinc_vpn\(aq
+    connect_to: \(aq{{ groups.tinc_vpn }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Star network
+.sp
+Create a star network with 192.0.2.0/24 with the master connecting to the slaves:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# master node:
+tinc__host_networks:
+  \(aqstar0\(aq:
+    address: \(dq192.0.2.254/24\(dq
+    connect_to: \(aqslave01\(aq
+    connect_to: \(aqslave02\(aq
+    bridge: [ \(aqbr0\(aq ]
+
+# slave01 node:
+tinc__host_networks:
+  \(aqstar0\(aq:
+    address: \(dq192.0.2.1/24\(dq
+    host_address: \(dq{{ ansible_host }}\(dq
+
+# slave02 node:
+tinc__host_networks:
+  \(aqstar0\(aq:
+    address: \(dq192.0.2.2/24\(dq
+    host_address: \(dq{{ ansible_host }}\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS IPv6 over IPv4 tunnel
+.sp
+Obtain IPv6 connectivity while in an IPv4\-only network.
+.sp
+This assumes a \fB[tinc_dualstack]\fP group with IPv4\-accessible hosts and a
+\fB[tinc_ipv4only]\fP group for hosts that need a tunnel.
+.sp
+Hosts in \fB[tinc_dualstack]\fP should have the \fItap\fP interface bridged via
+\fIbr0\fP to an interfaces that is receiving router advertisements.
+See \fI\%debops.ifupdown\fP for information on how to do that and
+\fI\%debops.radvd\fP if you need to set up router advertisement.
+.sp
+Note that if you bridge the \fItap\fP interface to a wired interface in the
+\fB[tinc_ipv4only]\fP hosts, you may be providing IPv6 to the whole network.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# inventory/group_vars/tinc_dualstack/tinc.yml
+\(aqsix_tunnel\(aq:
+   port: \(aq49180\(aq
+   link_type: \(aqstatic\(aq
+   bridge: \(aqbr0\(aq
+
+# inventory/group_vars/tinc_ipv4only/tinc.yml
+\(aqsix_tunnel\(aq:
+   port: \(aq49180\(aq
+   link_type: \(aqdynamic\(aq
+   connect_to: \(aq{{ groups.tinc_dualstack }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.tinc\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS tinc__networks
+.sp
+The \fBtinc__*_networks\fP variables is a collection of YAML dictionaries that
+define Tinc networks. All dictionaries are recursively combined together in the
+order they appear in the \fBdefaults/main.yml\fP file.
+.sp
+Each entry in the \fBtinc__*_networks\fP dictionaries is a YAML dictionary. The
+key of a given entry is either a network interface name (for example \fBmesh0\fP
+or \fBtap0\fP) or a \(dqlabel\(dq that holds the preferences for a network denoted by
+the \fBname\fP parameter. Configuration parameters in labeled sections will be
+merged with the real network preferences.
+.sp
+You can also use YAML lists of dictionaries, however you cannot combine both
+dictionaries and lists in the same \fBtinc__*_networks\fP variable. YAML
+dictionaries specified in a list need to have the \fBname\fP parameter that
+specifies the interface name, otherwise they will be skipped.
+.sp
+Each Tinc network is described by specific parameters:
+.INDENT 0.0
+.TP
+.B \fBport\fP
+Required. TCP and UDP port used by this Tinc VPN.
+.TP
+.B \fBname\fP
+Optional. Name of the mesh network, used as the name of the directory in
+\fB/etc/tinc/\fP as well as the \fBsystemd\fP instance argument. If not
+specified, the YAML dictionary key will be used as the network name.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBinterface\fP
+Optional. Name of the virtual Ethernet device which will be managed by the
+Tinc VPN.
+.sp
+If not specified, the role will generate an interface name from the network
+name and device type (\fBtun\fP or \fBtap\fP). If the interface name does not
+start with \fBtun\fP or \fBtap\fP, the device type will be added as a prefix to
+the generated interface name.
+.sp
+Using names like \fBtunX\fP or \fBtapX\fP will ensure that DNS configuration
+received from the nameserver will be ordered correctly by the \fBresolvconf\fP
+package.
+.TP
+.B \fBnode_reachable\fP
+Optional, boolean. Defaults to \fBTrue\fP\&. Whether a node should be reachable
+for other nodes or if the node should act in \(dqclient mode\(dq.
+If the node is in \(dqclient mode\(dq, the Firewall will not allow other nodes to
+initiate a connection to the Tinc daemon. Furthermore, the Tinc daemon is
+configured to only listen on the loopback interface.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBallow\fP
+Optional. List of IP addresses or CIDR subnets which will be allowed to
+connect to the Tinc VPN port through the firewall. If this list is empty, any
+IP address can connect.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBbridge\fP
+Optional. Name of the network bridge to which the virtual Ethernet device
+will be connected, if the interface is configured in the \(dqstatic\(dq mode.
+This should be set on a host that provides the DHCP and DNS services for the
+mesh.
+.sp
+If the \fBbridge\fP parameter is specified, and the \fBlink_type\fP parameter is
+not specified, role will automatically enable the \fBstatic\fP link type.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBlink_type\fP
+Optional. If empty, \fBdebops.tinc\fP defaults to a standalone network
+interface with \fBdhclient\fP requesting network configuration using
+DHCP. Possible values are:
+.INDENT 7.0
+.TP
+.B \fBstatic\fP
+Set the Tinc interface in a \(dqstatic\(dq mode with an IP address, optionally
+attached to a network bridge. This should usually be done just on one host
+in the mesh to provide DHCP/DNS services.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBhwaddr\fP
+Optional. By default the \fBtinc\-up\fP script will create the virtual Ethernet
+device with a random, but predictable and not changing MAC address. Using
+\fBitem.hwaddr\fP you can specify your own MAC address (in the format accepted
+by \fBip link\fP command).
+Set the MAC address value to \fB\(aq*\(aq\fP to let the system
+generate a random hardware address.
+.TP
+.B \fBmetric\fP
+Optional. Specify the network metric which will affect the Linux routing
+table. If not specified, by default the role will tell \fBdhclient\fP to
+set the \fB100\fP metric which should prevent issues with misconfigured default
+route.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBboot\fP
+Optional, boolean. Enable or disable start of the given Tinc VPN at boot
+time. By default all mesh networks are started at boot.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBuser\fP
+Optional. Name of the UNIX user account under which the \fBtincd\fP daemon will
+be running. If not specified, \fBtincd\fP will be run under \fBtinc\-vpn\fP
+account.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBmlock\fP
+Optional, boolean. If present and \fBTrue\fP, \fBtincd\fP will be executed with
+the \fB\-\-mlock\fP option which will lock the daemon\(aqs memory in RAM, preventing
+the system from moving it to the swap space.
+When no connection can be established, it can be tried to set this to \fBFalse\fP\&.
+Apparently the \(dqError while processing METAKEY from\(dq might not be fully
+resolved in Debian Jessie (problem also occurred with 1.0.28 from
+jessie\-backports). This usually happens when the amount of RAM reserved for
+locked process memory is too low. See the \fI\%tinc__ulimit_memlock\fP
+variable for more details.
+.TP
+.B \fBchroot\fP
+Optional, boolean. If \fBTrue\fP, the \fBtincd\fP daemon will be run chrooted to
+the directory with the VPN configuration files.
+.TP
+.B \fBstate\fP
+Optional, string. Whether the  mesh should be \fBpresent\fP or \fBabsent\fP\&.
+Defaults to \fBpresent\fP\&.
+.TP
+.B \fBaddress\fP or \fBaddresses\fP
+Optional. List of IP addresses in the \fBhost/prefix\fP form which should be
+configured on the Tinc network interface if it\(aqs configured statically.
+.TP
+.B \fBhost_address\fP or \fBhost_addresses\fP
+Optional. List of FQDN or IP addresses which should be included in the host
+configuration. These addresses will tell other Tinc nodes how to connect to
+a specific host.
+.sp
+If not specified, the role will use the filtered list of the host\(aqs FQDN (if
+the public IP addresses are available) and public IPv4/IPv6 addresses.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBexclude_address\fP or \fBexclude_addresses\fP
+Optional. List of FQDN or IP addresses which should be excluded from the host
+configuration. This list excludes the IP addresses of the mesh interface as
+well as the bridge interface, so that Tinc doesn\(aqt try to connect to remote
+hosts over the VPN connection.
+.TP
+.B \fBmode\fP
+Optional. Specify the Tinc routing mode to use for this network connection
+(\fBrouter\fP, \fBswitch\fP, \fBhub\fP). If not specified, the \fBswitch\fP mode is
+used by default. See the \fI\%tinc.conf(5)\fP <\fBhttps://manpages.debian.org/tinc.conf(5)\fP> for more details.
+.TP
+.B \fBdevice_type\fP
+Optional. Specify the network device type used by Tinc. If not specified,
+\fBtap\fP is used by default. See the \fI\%tinc.conf(5)\fP <\fBhttps://manpages.debian.org/tinc.conf(5)\fP> for more details.
+.TP
+.B \fBcipher\fP
+Optional. The cipher used to encrypt the connections. If not specified, the
+role will use the AES\-256\-CBC algorithm.
+.TP
+.B \fBdigest\fP
+Optional. The digest algorithm used to authenticate the connections. If not
+specified, the role will use the SHA512 algorithm.
+.TP
+.B \fBcompression\fP
+Optional. A level of compression used by Tinc (0\-11). By default the
+compression is disabled (0).
+.TP
+.B \fBaddress_family\fP
+Optional. Specify the address family to use for network connections
+(\fBipv4\fP, \fBipv6\fP, \fBany\fP). If not specified, \fBany\fP is used by default.
+.TP
+.B \fBhostname\fP
+Optional. Set the hostname used by this host. If not specified, the value of
+\fI\%tinc__hostname\fP will be used automatically.
+.TP
+.B \fBinventory_self\fP
+Optional. List of inventory names that the host is known as. This is used to
+filter out the current host from the list of hosts to connect to. If not
+specified, th \fI\%tinc__inventory_self\fP value is used instead.
+.TP
+.B \fBinventory_groups\fP
+Optional. List of names of the Ansible inventory groups that are used to
+manage Tinc networks. This list will be used to create directories required
+by the role in the \fBsecret/\fP directory on Ansible Controller.
+.TP
+.B \fBconnect_to\fP
+Optional. List of hosts which a given Tinc node should connect to, the host
+names are the names of the files in the :file\(gahosts/\(ga Tinc directory. If not
+specified, and the host is not configured as \(dqstatic\(dq, the global
+\fI\%tinc__inventory_hosts\fP list is used to select which hosts to connect
+to.
+.TP
+.B \fBadd_connect_to\fP
+Optional. Additional list of hosts to connect to. This can be used to add
+additional connections to the mesh network, for example to external hosts.
+This list will be added to the existing autogenerated list of hosts to
+connect to.
+.TP
+.B \fBtinc_options\fP
+Optional. Dictionary variable which specifies options stored in the
+\fB/etc/tinc/<network>/tinc.conf\fP configuration file. Each key of the dict is
+the option name, values can be strings or lists of strings, in which case the
+option will be repeated as many times as there are elements in the list.
+.sp
+If not specified, Tinc configuration will be autogenerated by the role with
+sensible defaults. If specified, role will use the autogenerated values,
+therefore you need to specify all required Tinc configuration.
+.sp
+To see the list of available options, check the \fI\%tinc.conf(5)\fP <\fBhttps://manpages.debian.org/tinc.conf(5)\fP> manual page.
+.TP
+.B \fBadd_tinc_options\fP
+Optional. Dictionary variable which specifies additional options stored in
+the \fB/etc/tinc/<network>/tinc.conf\fP configuration file. Unlike
+\fBtinc_options\fP, this parameter will not \(dqmask\(dq the autogenerated values but
+will add the specified options to the autogenerated ones.
+.TP
+.B \fBtinc_host_options\fP
+Optional. Dictionary variable which specifies options stored in the
+\fB/etc/tinc/<network>/hosts/<hostname>\fP configuration file. Each key of the
+dict is the option name, values can be strings or lists of strings, in which
+case the option will be repeated as many times as there are elements in the
+list.
+.sp
+To see the list of available options, check the \fI\%tinc.conf(5)\fP <\fBhttps://manpages.debian.org/tinc.conf(5)\fP> manual page.
+.TP
+.B \fBdns_nameservers\fP
+Optional. Specify list of DNS nameservers to configure in
+\fB/etc/resolv.conf\fP\&. The configuration will be performed by the
+\fBresolvconf\fP command. This option is used only in the \(dqstatic\(dq
+network interface configuration.
+.TP
+.B \fBdns_search\fP
+Optional. Specify list of DNS search domains to configure in
+\fB/etc/resolv.conf\fP\&. The configuration will be performed by the
+\fBresolvconf\fP command. This option is used only in the \(dqstatic\(dq
+network interface configuration.
+.TP
+.B \fBaccept_ra\fP
+Optional. Specify the \fIaccept_ra\fP value for the configured tinc interface.
+If missing or \fITrue\fP, defaults to \fI\(aq1\(aq\fP\&. If set to anything else than
+\fI\(aq0\(aq\fP, \fI\(aq1\(aq\fP, \fI\(aq2\(aq\fP or \fITrue\fP, the value will not be set and behaviour
+will depend on the OS settings.
+See: \fIip\-sysctl.txt\fP in the Linux Kernel Documentation.
+.TP
+.B \fBpost_up\fP
+Optional. If defined, \fIdebops.tinc\fP will call this code after setting up
+the interface when it is going up.
+.TP
+.B \fBpre_down\fP
+Optional. If defined, \fIdebops.tinc\fP will call this code before cleaning up
+the interface when it is going down.
+.TP
+.B \fBtinc_up\fP
+Optional. If defined, \fIdebops.tinc\fP will not attempt to help you configure
+the interface when it is going up but will try run this instead.
+You will have the same variables available.
+If you use this, make sure you review and understand
+\fIdebops.tinc/templates/etc/tinc/networks/tinc\-up.j2\fP\&.
+.TP
+.B \fBtinc_down\fP
+Optional. If defined, \fIdebops.tinc\fP will not attempt to help you configure
+the interface when it is going down but will try to run this instead.
+You will have the same variables available.
+If you use this, make sure you review and understand
+\fIdebops.tinc/templates/etc/tinc/networks/tinc\-down.j2\fP\&.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

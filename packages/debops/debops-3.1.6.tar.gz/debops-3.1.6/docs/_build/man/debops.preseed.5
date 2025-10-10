@@ -1,0 +1,504 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.PRESEED" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.preseed \- Manage Debian Preseeding configuration with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/preseed\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Preseeding\fP <\fBhttps://wiki.debian.org/DebianInstaller/Preseed\fP> is a way to configure the Debian Installer non\-interactively.
+During installation, a special text file can be downloaded over HTTP, this file
+can provide answers to the installer questions.
+.sp
+After installation, a custom shell script will be downloaded and run in the
+target environment to prepare host for remote use (an admin account will be
+created, SSH keys will be configured, optionally a Salt Minion will be
+installed and will start on the next boot).
+.SH GETTING STARTED
+.SS iPXE integration
+.sp
+The \fI\%debops.preseed\fP role integrates very well with the Debian\-Installer
+configuration provided with the \fI\%debops.ipxe\fP role. You can use the menu
+system defined there to select different Preseed flavors and provide needed
+parameters like hostname and Debian mirror to use.
+.SS How Debian Installer preseeding works
+.sp
+The Debian Installer can use automatic \fBpreseed.cfg\fP lookup system when
+specific kernel parameters are defined during the boot process. These
+parameters are:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+auto=true url=<seed>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If a simple string and not a full URL is specified as \fB<seed>\fP, Debian
+Installer will expand it to:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+http://<seed>/d\-i/<release>/preseed.cfg
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To enable Preseeded installation, after starting the Debian Installer, navigate
+the menu to \(dqAdvanced options\(dq \-> \(dqAutomated Install\(dq. Next, press the
+\fB<Tab>\fP key, this will let you enter additional boot options. Now you can
+specify the URL of the Preseed file. The menu system implemented in the
+\fI\%debops.ipxe\fP role can do this automatically for you when you select
+preseed installation method.
+.SS Default set of Preseed flavors
+.sp
+Debian Preseeding can be used to provision various types of hardware or virtual
+machines. Not all of them are the same however, and to facilitate that, the
+\fI\%debops.preseed\fP role implements a system of preseed \(dqflavors\(dq which can
+be selected to enable different configuration options. The current set of
+\(dqflavors\(dq available by default is:
+.TS
+center;
+|l|l|l|.
+_
+T{
+T}	T{
+root\-only
+T}	T{
+administrative user
+T}
+_
+T{
+hardware, non\-free APT repos, manual partitioning
+T}	T{
+\fBdebian\fP
+T}	T{
+\fBdebian\-user\fP
+T}
+_
+T{
+virtual machine, guided single LVM partition
+T}	T{
+\fBdebian\-vm\fP
+T}	T{
+\fBdebian\-vm\-user\fP
+T}
+_
+.TE
+.sp
+If we assume that the DNS domain of the cluster is \fBexample.org\fP, the Preseed
+flavors are presented as DNS subdomains of the main server domain by default
+defined as \fBseed.example.org\fP\&. For this to work reliably, DNS database needs
+to contain CNAME records that point to the Preseed server, for example:
+.INDENT 0.0
+.IP \(bu 2
+\fBdebian.seed.example.org\fP
+.IP \(bu 2
+\fBdebian\-vm.seed.example.org\fP
+.IP \(bu 2
+\fBdebian\-user.seed.example.org\fP
+.IP \(bu 2
+\fBdebian\-vm\-user.seed.example.org\fP
+.UNINDENT
+.sp
+For convenience, you might also want to create a short DNS records for the
+\fB*.seed\fP \(dqdomain\(dq that can be used in the menu system implemented by
+the \fI\%debops.ipxe\fP role:
+.INDENT 0.0
+.IP \(bu 2
+\fBdebian.seed\fP
+.IP \(bu 2
+\fBdebian\-vm.seed\fP
+.IP \(bu 2
+\fBdebian\-user.seed\fP
+.IP \(bu 2
+\fBdebian\-vm\-user.seed\fP
+.UNINDENT
+.sp
+You can create your own Preseed \(dqflavors\(dq in the same way, just remember to add
+the needed CNAME DNS records.
+.SS Example inventory
+.sp
+To configure the Preseed server, you can add a host to the
+\fB[debops_service_preseed]\fP group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_preseed]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.preseed\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Provide Debian Preseed configuration files over HTTP
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_preseed\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::nginx\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__servers:
+        \- \(aq{{ preseed__nginx__dependent_servers }}\(aq
+
+    \- role: preseed
+      tags: [ \(aqrole::preseed\(aq, \(aqskip::preseed\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::preseed\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fI\%debops.preseed\fP Ansible
+role:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%\(dqHands\-Off\(dq Debian Installation\fP <\fBhttps://hands.com/d-i/\fP>
+.IP \(bu 2
+The \fI\%Debian Installer Pressed page\fP <\fBhttps://wiki.debian.org/DebianInstaller/Preseed\fP> on Debian Wiki
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.preseed\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS preseed__definitions
+.sp
+The \fBpreseed__*_definitions\fP variables are used to define what Debian Preseed
+configuration files and \fBpostinst.sh\fP scripts will be available on the
+Preseed server. Each combination consists of a preseed \(dqflavor\(dq which is used
+to provide different combination of configuration options at boot time, and
+a \(dqrelease\(dq which defines the Debian releases that will be able to use a given
+\(dqflavor\(dq[1]\&.
+.SS Examples
+.sp
+Create a new Preseed definition with modifications to the default configuration
+which will configure the host as being located in Germany with German UI by
+default. The \fBdebian\-de.seed.example.org\fP DNS record needs to point to the
+Preseed server for this to work as expected. Ensure that a few Debian releases
+can be used if needed.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+This is just an example; locale configuration is set by default based
+on the facts of the \fI\%debops.locales\fP role applied on the Preseed server
+host. You shouldn\(aqt have to set these preferences in most cases.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Variable which holds Preseed modifications used in multiple definitions
+preseed_options_german_locale:
+
+  \- name: \(aqdebian\-installer/locale\(aq
+    value: \(aqde_DE.UTF\-8\(aq
+    state: \(aqpresent\(aq
+
+  \- name: \(aqkeyboard\-configuration/xkb\-keymap\(aq
+    value: \(aqde\(aq
+    state: \(aqpresent\(aq
+
+preseed__definitions:
+
+  \- name: \(aqdebian\-stretch\-de\(aq
+    flavor: \(aqdebian\-de\(aq
+    release: \(aqstretch\(aq
+    options: \(aq{{ preseed_options_german_locale }}\(aq
+
+  \- name: \(aqdebian\-buster\-de\(aq
+    flavor: \(aqdebian\-de\(aq
+    release: \(aqbuster\(aq
+    options: \(aq{{ preseed_options_german_locale }}\(aq
+
+  \- name: \(aqdebian\-bullseye\-de\(aq
+    flavor: \(aqdebian\-de\(aq
+    release: \(aqbullseye\(aq
+    options: \(aq{{ preseed_options_german_locale }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can find a list of the default Preseed definitions in the
+\fI\%preseed__default_definitions\fP variable.
+.SS Syntax
+.sp
+The Preseed definitions use the \fI\%Universal Configuration\fP system to define
+configuration entries. The variables are combined using
+\fI\%preseed__combined_definitions\fP variable which defines the general
+order of merging the entries.
+.sp
+Each definition is created using a specific set of parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. An identifier of a given Preseed definition, not used otherwise.
+Must be unique across all definitions. Entries with the same \fBname\fP are
+merged in order of appearance and can affect each other.
+.TP
+.B \fBflavor\fP
+Required. Name of the \(dqflavor\(dq of a particular Debian Preseed. Multiple
+definitions can have the same flavor (this is mandatory if you want to
+support more than one Debian release at a time). Flavors need to be
+configured in the DNS so that hosts can reach the Preseed server while
+booting.
+.TP
+.B \fBrelease\fP
+Required. Name of a Debian release (\fBbullseye\fP, \fBbuster\fP, etc.) which can
+use a particular Debian Preseed definition. Multiple definitions can have the
+same release as long as they use different flavors.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given Preseed definition will be
+created on the host. If \fBabsent\fP, a given definition will be removed from
+the host (the \fB<release>/\fP directory itself will be removed).
+.TP
+.B \fBoptions\fP
+Optional. A list of \fBpreseed.cfg\fP configuration options defined using
+the \fI\%preseed__configuration\fP format. Because there are usually
+multiple definitions for a given \(dqflavor\(dq, it\(aqs easier to put options you
+want to change in a separate variable which can be referenced in the
+inventory using Jinja expansion.
+.sp
+The role uses the \(dqconfiguration template\(dq defined by the main
+\fI\%preseed__configuration\fP variables as the base for each Preseed
+definition. The options specified here will override the ones defined
+elsewhere. Since many options are commented out by default, it\(aqs good
+practice to always specify the state \fBpresent\fP as needed to be sure that
+the option is in the correct state.
+.TP
+.B \fBroot_sshkeys\fP
+Optional. YAML list of SSH public keys which should be added to the UNIX
+\fBroot\fP account on the provisioned host using a \fBpostinst.sh\fP script.
+The SSH keys specified here will be combined with the ones specified in the
+\fI\%preseed__root_sshkeys\fP list.
+.TP
+.B \fBadmin_username\fP
+Optional. Name of the UNIX administrative account which should be configured
+for full \fBsudo\fP access and provisioned with administrator SSH public
+keys. The UNIX account will not be created by the \fBpostinst.sh\fP script;
+you need to use the relevant Debian Preseed options to either create it
+automatically or allow the manual creation during provisioning.
+.TP
+.B \fBadmin_sshkeys\fP
+Optional. YAML list of SSH public keys which should be added to the UNIX
+administrative account on the provisioned host using a \fBpostinst.sh\fP
+script. The SSH keys specified here will be combined with the ones specified
+in the \fI\%preseed__admin_sshkeys\fP list.
+.TP
+.B \fBpostinst_commands\fP
+Optional. YAML text block with \fI\%bash(1)\fP <\fBhttps://manpages.debian.org/bash(1)\fP> commands which will be executed
+at the end of the provisioning process by the \fBpostinst.sh\fP script
+using \fBeval\fP\&. The commands are executed one by one so you should use simple
+expressions without loops or conditional statements. Commands specified here
+will be executed after the ones specified in the
+\fI\%preseed__debian_postinst_commands\fP variable.
+.UNINDENT
+.SS preseed__configuration
+.sp
+The \fBpreseed__*_configuration\fP variables define the default contents of the
+\fBpreseed.cfg\fP configuration files. They can be thought of as a \(dqtemplate\(dq
+for Preseed configurations which can be further augmented in separate \(dqflavors\(dq
+or OS releases using the \fBoptions\fP parameters.
+.SS Examples
+.sp
+Enable network console in Debian Installer on all Preseed flavors and releases.
+A file with SSH public keys should be published on a reachable host.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+preseed__configuration:
+
+  \- name: \(aqanna/choose_modules\(aq
+    value: \(aqnetwork\-console\(aq
+    state: \(aqpresent\(aq
+
+  \- name: \(aqnetwork\-console/authorized_keys_url\(aq
+    value: \(aqhttp://192.0.2.1/openssh\-key\(aq
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The original Preseed configuration, based on the \fI\%Example Debian Stable preseed
+file\fP <\fBhttps://www.debian.org/releases/stable/example-preseed.txt\fP> can be found in the \fI\%preseed__original_configuration\fP variable.
+Customizations to the original options included by default in the role can be
+found in the \fI\%preseed__default_configuration\fP variable.
+.SS Syntax
+.sp
+The Preseed configuration is based on the \fI\%Universal Configuration\fP
+system. The separate variables are merged in the
+\fI\%preseed__combined_configuration\fP variable which defines the merge
+order of configuration entries. Configuration is defined using a list of YAML
+dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the Preseed configuration option. Entries with the same
+\fBname\fP parameter are merged in order of appearance and can affect each
+other.
+.TP
+.B \fBoption\fP
+Optional. If a configuration option has multiple \(dqversions\(dq, each needs to be
+defined using an unique \fBname\fP parameter to avoid overwriting. In this case
+the \fBoption\fP parameter can be used to specify the actual name of the
+Preseed configuration option stored in the config file.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with additional comments added to an
+option. The strings \fB${flavor}\fP and \fB${release}\fP inside comments will be
+replace with the current definition\(aqs \(dqflavor\(dq and \(dqrelease\(dq values.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration option will be
+included in the generated configuration file. If \fBabsent\fP, a given option
+will not be included in the generated file. If \fBcomment\fP, the option will
+be included but commented out (inactive). If \fBhidden\fP, a configuration
+option will not be added but its comments will (this is useful to add
+separate comment sections). If \fBignore\fP, a given entry will not be
+evaluated during role execution.
+.sp
+It\(aqs suggested to use \fBpresent\fP explicitly if any options are defined in
+the inventory to ensure that the customized options are uncommented, since
+most of the existing options are commented out by default.
+.TP
+.B \fBowner\fP
+Optional. Each Preseed option has an \(dqowner\(dq package, usually \fBd\-i\fP as in
+Debian\-Installer which will be used as default if this parameter is not
+specified. Some options have different owners.
+.TP
+.B \fBtype\fP
+Optional. Specify the type of a given Preseed option, either a \fBstring\fP,
+\fBboolean\fP, \fBselect\fP, \fBmultiselect\fP or \fBpassword\fP\&. If not specified,
+the role will try to guess the correct type based on the defined value
+\- strings and booleans are recognized automatically. The role will default to
+\fBstring\fP if the correct type cannot be determined.
+.TP
+.B \fBseen\fP
+Optional, boolean. If present and \fBFalse\fP, the role will mark a given
+option as \(dqnot seen\(dq by the Debian\-Installer. This is supposed to allow
+manual confirmation of a given option, but this hasn\(aqt been observed in
+practice \- further testing is needed.
+.TP
+.B \fBvalue\fP
+The value of a given option. This can be either a string, a YAML list which
+will be concatenated into a string separated by spaces, a boolean
+\fBTrue\fP/\fBFalse\fP or a YAML text block with multiline value. Empty strings
+are permitted.
+.sp
+If a YAML list is used, multiple entries with the same \fBname\fP parameter
+will merge the lists together. To reset an existing list, use an empty string
+in a separate entry.
+.UNINDENT
+.SH FOOTNOTES
+.IP [1] 5
+The \(dqrelease\(dq mechanism is explicitly required by Debian\-Installer which
+will use the URL in the form \fBhttps://<host>/d\-i/<release>/./preseed.cfg\fP
+to retrieve the configuration file automatically.
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

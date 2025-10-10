@@ -1,0 +1,468 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.SSHD" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.sshd \- Manage OpenSSH server using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/sshd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%OpenSSH\fP <\fBhttps://www.openssh.com/\fP> is a secure replacement for \fBtelnet\fP and other remote control
+programs. It allows you to connect to remote hosts over a encrypted communication
+channel and to perform a variety of tasks. It\(aqs also the primary communication channel
+used by Ansible.
+.SH GETTING STARTED
+.SS Changes from Debian defaults
+.sp
+The \fBdebops.sshd\fP role will configure the OpenSSH server to lookup the client
+hostnames in DNS by setting the \fBUseDNS\fP option to \fByes\fP (the Debian and
+upstream default is \fBno\fP). This allows use of the DNS hostnames and domains
+in the authorized keys files and PAM access control rules.
+.sp
+The role will divert the original \fB/etc/pam.d/sshd\fP configuration file
+and generate a new one, with PAM access control enabled and using the separate
+\fB/etc/security/access\-sshd.conf\fP configuration file. The ACL rules are
+defined in the \fI\%sshd__pam_access__dependent_rules\fP variable and are
+managed by the \fI\%debops.pam_access\fP Ansible role.
+.sp
+To disable the custom access control configuration, set the
+\fI\%sshd__pam_deploy_state\fP variable to \fBabsent\fP\&. The PAM access control
+file will still be generated, but it will not be used by the \fBsshd\fP service.
+.SS Global root access
+.sp
+By default the \fI\%debops.pam_access\fP configuration restricts access to the
+\fBroot\fP account to hosts on the same DNS domain, for security. This might
+cause unintended lockouts if your Ansible Controller host is on a completely
+different domain than the remote host.
+.sp
+To disable the restricted access and allow connections to the \fBroot\fP account
+from anywhere on the network, you can set in your Ansible inventory, for
+example in \fBansible/inventory/group_vars/debops_all_hosts/pam_access.yml\fP file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pam_access__rules:
+
+  \- name: \(aqsshd\(aq
+    state: \(aqappend\(aq
+    options:
+
+      \- name: \(aqallow\-root\(aq
+        origins: \(aqALL\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Then, you need to apply the changes to the configuration using the \(dqcontext\(dq of
+the \fI\%debops.sshd\fP role, for example by executing the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ debops run service/sshd \-l <host> \-\-tags role::pam_access \-\-diff
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This command will apply the PAM access configuration defined by the
+\fI\%debops.sshd\fP role with modifications from the inventory; they won\(aqt be
+applied in other contexts of the \fI\%debops.pam_access\fP role is used in and
+shouldn\(aqt affect other access lists.
+.sp
+You could also add subnets, domains or other origins instead of allowing access
+from any host; refer to the \fI\%pam_access__rules\fP for more details.
+.SS Access to the \fBroot\fP account via password
+.sp
+The \fI\%debops.sshd\fP role checks if the \fB/root/.ssh/authorized_keys\fP
+file is present on the host, using Ansible local facts defined by the
+\fI\%debops.root_account\fP role. If the file is present, we assume that the
+sysadmin SSH keys are on the host, and password\-based access to the \fBroot\fP
+account is disabled by setting the \fBPermitRootLogin\fP option to
+\fBprohibit\-password\fP and the \fBPasswordAuthentication\fP option to \fBno\fP\&.
+.sp
+If the SSH authorized keys file is not present, the host is assumed to not be
+fully provisioned yet. The \fBPermitRootLogin\fP option as well as the
+\fBPasswordAuthentication\fP option will be set to \fByes\fP to permit access to
+the \fBroot\fP account via SSH. Note that the default PAM access policy set in
+the \fI\%sshd__pam_access__dependent_rules\fP variable still applies and
+access to the \fBroot\fP account will be limited to hosts on the same DNS domain.
+.sp
+Alternatively, if the sysadmin accounts are configured using the
+\fI\%debops.system_users\fP Ansible role, access to the \fBroot\fP account via
+password and password authentication will also be disabled.
+.SS Useful variables
+.sp
+This is a list of role variables which you most likely want to define in
+Ansible inventory to customize OpenSSH server:
+.INDENT 0.0
+.TP
+.B \fI\%sshd__whitelist\fP / \fI\%sshd__group_whitelist\fP / \fI\%sshd__host_whitelist\fP
+Lists which contain IP addresses or CIDR subnets that are permitted to
+connect to OpenSSH without restrictions or firewall limits. Adding entries
+here will not impose additional restrictions, unlike using \fBsshd__*_allow\fP
+lists.
+.TP
+.B \fI\%sshd__known_hosts\fP / \fI\%sshd__group_known_hosts\fP / \fI\%sshd__host_known_hosts\fP
+Here you can add lists of FQDN hostnames which should be added to systemwide
+\fB/etc/ssh/ssh_known_hosts\fP file. For example, setting:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sshd__known_hosts: [ \(aqgithub.com\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+will add GitHub SSH fingerprint and allow you to clone git repositories over
+SSH with proper host authentication, without the need to ignore host
+fingerprints.
+.TP
+.B \fI\%sshd__authorized_keys_lookup\fP
+Boolean. If \fBTrue\fP, role will enable lookup of SSH public keys in external
+authentication databases, like LDAP. This might require additional
+configuration using \fBsshd__ldap_*\fP variables.
+.sp
+LDAP key lookup depends on system\-wide LDAP configuration in
+\fB/etc/ldap/ldap.conf\fP, which can be performed (at the moment) using
+\fI\%debops.ldap\fP role. It will be configured when \fI\%LDAP\-POSIX
+integration\fP is enabled on a given host.
+.UNINDENT
+.SS Example inventory
+.sp
+\fBdebops.sshd\fP role is part of the \fBcommon.yml\fP DebOps playbook. It will be
+executed automatically on every host managed by DebOps.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.sshd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage OpenSSH Server
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_sshd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare sshd environment
+      ansible.builtin.import_role:
+        name: \(aqsshd\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::sshd\(aq, \(aqrole::ldap\(aq ]
+
+  roles:
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ sshd__ferm__dependent_rules }}\(aq
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+      tcpwrappers_dependent_allow:
+        \- \(aq{{ sshd__tcpwrappers__dependent_allow }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ sshd__ldap__dependent_tasks }}\(aq
+
+    \- role: pam_access
+      tags: [ \(aqrole::pam_access\(aq, \(aqskip::pam_access\(aq ]
+      pam_access__dependent_rules:
+        \- \(aq{{ sshd__pam_access__dependent_rules }}\(aq
+
+    \- role: sudo
+      tags: [ \(aqrole::sudo\(aq, \(aqskip::sudo\(aq ]
+      sudo__dependent_sudoers:
+        \- \(aq{{ sshd__sudo__dependent_sudoers }}\(aq
+
+    \- role: sshd
+      tags: [ \(aqrole::sshd\(aq, \(aqskip::sshd\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::sshd\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::sshd:config\fP
+Execute tasks related to \fBsshd\fP configuration file.
+.TP
+.B \fBrole::sshd:known_hosts\fP
+Scan specified host fingerprints and add them to system\-wide \fBknown_hosts\fP\&.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.sshd\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS sshd__configuration
+.sp
+The \fBsshd__*_configuration\fP default variables define the contents of the
+\fB/etc/ssh/sshd_config\fP configuration file. The role uses
+\fI\%Universal Configuration\fP to generate this configuration file. You can
+read the \fI\%sshd_config(5)\fP <\fBhttps://manpages.debian.org/sshd_config(5)\fP> manual page for details about SSH daemon
+configuration options.
+.SS Examples
+.sp
+Enable debug logs in the SSH service to diagnose connection issues:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sshd__configuration:
+
+  \- LogLevel: \(aqDEBUG\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a list of UNIX groups allowed to access the SSH service:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sshd__configuration:
+
+  \- AllowGroups: [ \(aqadmins\(aq, \(aqsshusers\(aq, \(aqsftponly\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This is an example of the \(dqsimple syntax\(dq definition. Note that the PAM
+configuration used in the role is much more flexible than the \fBAllowGroups\fP
+option.
+.sp
+Configure SSH service to accept plaintext password authentication on the
+\fBroot\fP UNIX account (you shouldn\(aqt do this in production environments!):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sshd__configuration:
+
+  \- name: \(aqPermitRootLogin\(aq
+    value: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure SSH daemon to listen on additional TCP ports for network connections:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sshd__configuration:
+
+  \- name: \(aqPort\(aq  # default
+    state: \(aqpresent\(aq
+
+  \- name: \(aqPort_2222\(aq
+    option: \(aqPort\(aq
+    value: 2222
+    copy_id_from: \(aqPort\(aq
+
+  \- name: \(aqPort_3322\(aq
+    option: \(aqPort\(aq
+    value: 3322
+    copy_id_from: \(aqPort\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Alternatively, you can specify a list of TCP ports using the
+\fI\%sshd__ports\fP variable which will generate the corresponding
+configuration options.
+.sp
+You can check the \fI\%sshd__original_configuration\fP variable to see an
+example configuration that comes with the \fBopenssh\-server\fP Debian package.
+The changes added by DebOps are set in the
+\fI\%sshd__default_configuration\fP variable which is also a good source of
+examples.
+.SS Syntax
+.sp
+Each configuration entry in the list is a YAML dictionary. The simple form of
+the configuration uses the dictionary keys as the parameter names, and
+dictionary values as the parameter values. Remember that the parameter names
+need to be specified in the exact case they are used in the documentation (e.g.
+\fBPermitRootLogin\fP, \fBClientAliveCountMax\fP), otherwise they will be
+duplicated in the generated configuration file. It\(aqs best to use a single YAML
+dictionary per configuration option.
+.sp
+If the YAML dictionary contains the \fBname\fP key, the configuration switches to
+the complex definition mode, with configuration options defined by specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Specify the name of the SSH daemon configuration parameter. The
+case is important and should be the same as specified in the configuration
+file or the \fI\%sshd_config(5)\fP <\fBhttps://manpages.debian.org/sshd_config(5)\fP> manual page, otherwise the configuration
+entries will be duplicated.
+.sp
+Multiple configuration entries with the same \fBname\fP parameter are merged
+together in order of appearance. This can be used to modify parameters
+conditionally.
+.TP
+.B \fBoption\fP
+Optional. If a given \fI\%sshd_config(5)\fP <\fBhttps://manpages.debian.org/sshd_config(5)\fP> configuration option needs to be
+specified more than once (for example \fBPort\fP, \fBListenAddress\fP or
+\fBMatch\fP), you need to use unique \fBname\fP parameters in each case. The
+\fBoption\fP parameter can be used to specify the actual option name in such
+case.
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block with \fI\%sshd_config(5)\fP <\fBhttps://manpages.debian.org/sshd_config(5)\fP> configuration
+options which will be included as\-is in the generated configuration file.
+When the \fBraw\fP parameter is specified, \fBname\fP and \fBvalue\fP options are
+not included so they need to be present explicitly. Jinja statements can be
+used to further augment the generated output.
+.TP
+.B \fBvalue\fP
+Required. The value of a given configuration option. It can be a string,
+number, \fBTrue\fP/\fBFalse\fP boolean or a YAML list. List entries will be
+joined with the space character
+.sp
+Lists can use simple strings and numbers, or can be defined using YAML
+dictionary with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The value of a given list element (string, number).
+.TP
+.B \fBweight\fP
+Positive or negative number, by default \fB0\fP\&. Weight can be used to affect
+the order of list elements, with negative weight resulting in a given
+element being moved \(dqup\(dq towards the start of the list, and positive number
+resulting in an element being moved \(dqdown\(dq towards the end of the list.
+.UNINDENT
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration parameter
+will be present in the generated configuration file. If \fBabsent\fP, a given
+parameter will be removed from the configuration file. If \fBcomment\fP, the
+parameter will be present but commented out.
+.sp
+If the state is \fBinit\fP, the parameter will be \(dqprimed\(dq in the configuration
+pipeline, but it will be commented out in the generated configuration file.
+Any subsequent configuration entry with the same \fBname\fP will switch the
+state to \fBpresent\fP \- this is used to define the default parameters in the
+role which can be changed via the Ansible inventory.
+.sp
+If the state is \fBignore\fP, a given configuration entry will not be evaluated
+during role execution. This can be used to activate configuration entries
+conditionally.
+.TP
+.B \fBconfig\fP
+Optional. String or YAML text block with \fI\%sshd_config(5)\fP <\fBhttps://manpages.debian.org/sshd_config(5)\fP> configuration
+options specified as\-is (boolean variables should be specified as \fByes\fP or
+\fBno\fP, not the Jinja/YAML equivalents). The contents will be included
+indented after a given configuration option. This parameter is meant to be
+used with the \fBMatch\fP configuration option to specify \fBMatch\fP options
+used by the SSH service.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with additional comments for a specific
+configuration option.
+.TP
+.B \fBseparator\fP
+Optional, boolean. If specified and \fBTrue\fP, a given configuration option
+will be separated by an empty line from previous options. Used for cosmetic
+purposes to better match the original \fB/etc/ssh/sshd_config\fP
+configuration file.
+.TP
+.B \fBweight\fP
+Optional. Positive or negative number, by default \fB0\fP\&. Weight can be used
+to affect the order of configuration options (important, first option sets
+the configuration in the SSH daemon), with negative weight resulting in
+a given configuration being moved \(dqup\(dq in the generated config file, and
+positive number resulting in an option being moved \(dqdown\(dq in the generated
+config file.
+.TP
+.B \fBcopy_id_from\fP
+Optional. Name of a configuration entry (\fBname\fP parameter), which should be
+used as an \(dqanchor\(dq for a given entry. This parameter can be used to group
+related configuration options together \- for example multiple \fBPort\fP
+options (see the examples section above). The \fBweight\fP parameter can be
+used to fine\-tune the order of options in the generated configuration file.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider, David Härdeman
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

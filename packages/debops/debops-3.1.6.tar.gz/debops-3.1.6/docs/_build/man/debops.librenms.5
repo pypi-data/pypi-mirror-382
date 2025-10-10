@@ -1,0 +1,460 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.LIBRENMS" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.librenms \- Manage LibreNMS service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/librenms\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%LibreNMS\fP <\fBhttp://www.librenms.org/\fP> is a network monitoring dashboard written in PHP. It can use SNMP,
+\fBcollectd\fP, \fBcheck_mk\fP or other agents to gather data from variety of
+devices (switches, routers, servers, etc.) and graph them using RRD. It\(aqs easy
+to use, and can perform autodiscovery to find and monitor additional devices.
+.sp
+\fBdebops.librenms\fP role will manage a central LibreNMS monitoring host and web
+interface.
+.SH GETTING STARTED
+.SS LibreNMS configuration
+.sp
+LibreNMS requires a MariaDB/MySQL database server. You can configure
+one using \fBdebops.mariadb_server\fP and \fBdebops.mariadb\fP, either on the
+same host as LibreNMS, or remotely.
+.sp
+The SNMP protocol is used to gather metrics from devices. Network switches / routers should
+have an option to enable SNMP in their configuration, on Debian hosts you can use the
+\fBdebops.snmpd\fP role to install and configure \fBsnmpd\fP service.
+The \fBdebops.librenms\fP role will automatically use the username and password created
+by the \fBdebops.snmpd\fP role as SNMP v3 credentials.
+.sp
+LLDP/xDP protocol is used for device autodiscovery and network map generation.
+The \fBdebops.snmpd\fP role will automatically install a suitable LLDP daemon for you.
+If you enable SNMP/LLDP on the LibreNMS host as well as other hosts, after
+installation LibreNMS should automatically detect and add nearby devices when
+it adds its own host to the database.
+.sp
+After installation, the LibreNMS webpage should be available at the \fBnms.\fP subdomain.
+.sp
+You can access the LibreNMS CLI commands by switching to the \fBlibrenms\fP system
+user, for example via \fBsudo\fP\&. You can find the installation in
+the \fB~/sites/public\fP directory by default.
+.SS Useful variables
+.sp
+This is a list of role variables which you are most likely want to define in
+Ansible’s inventory to customize LibreNMS:
+.INDENT 0.0
+.TP
+.B \fBlibrenms__snmp_communities\fP
+List of SNMP v1/v2c communities LibreNMS should use to authenticate to
+network devices. By default it contains the community \fBpublic\fP\&.
+.TP
+.B \fBlibrenms__admin_accounts\fP
+List of admin accounts created in the LibreNMS database. Passwords are stored
+automatically in the \fBsecret/\fP directory, see the \fBdebops.secret\fP role for more
+details. By default an admin account based on the \fBansible_user\fP variable
+is created.
+.TP
+.B \fBlibrenms__devices\fP
+List of devices to add to the LibreNMS database. Specify FQDN hostnames or IP
+addresses. By default LibreNMS will add its own host, based on
+the \fBansible_fqdn\fP variable.
+.UNINDENT
+.SS Example inventory
+.sp
+To install and configure LibreNMS on a host, you need to add the host to the
+\fB[debops_service_librenms]\fP Ansible host group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_librenms]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook which uses the \fBdebops.librenms\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage LibreNMS service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_librenms\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Apply keyring configuration for php environment
+      ansible.builtin.import_role:
+        name: \(aqkeyring\(aq
+      vars:
+        keyring__dependent_apt_keys:
+          \- \(aq{{ php__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ mariadb__keyring__dependent_apt_keys }}\(aq
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::php\(aq, \(aqrole::nginx\(aq, \(aqrole::mariadb\(aq ]
+
+    \- name: Prepare php environment
+      ansible.builtin.import_role:
+        name: \(aqphp\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::php\(aq, \(aqrole::php:env\(aq, \(aqrole::logrotate\(aq ]
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ php__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ php__logrotate__dependent_config }}\(aq
+        \- \(aq{{ librenms__logrotate__dependent_config }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::mariadb\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ librenms__python__dependent_packages3 }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages3 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ librenms__python__dependent_packages2 }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages2 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: php
+      tags: [ \(aqrole::php\(aq, \(aqskip::php\(aq ]
+      php__dependent_packages:
+        \- \(aq{{ librenms__php__dependent_packages }}\(aq
+      php__dependent_pools:
+        \- \(aq{{ librenms__php__dependent_pools }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ librenms__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ librenms__nginx__dependent_upstreams }}\(aq
+
+    \- role: mariadb
+      tags: [ \(aqrole::mariadb\(aq, \(aqskip::mariadb\(aq ]
+      mariadb__dependent_users:
+        \- \(aq{{ librenms__mariadb__dependent_users }}\(aq
+
+    \- role: librenms
+      tags: [ \(aqrole::librenms\(aq, \(aqskip::librenms\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after the host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::librenms\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::librenms:source\fP
+Clone or pull latest changes from LibreNMS repository.
+.TP
+.B \fBrole::librenms:config\fP
+Run tasks related to LibreNMS configuration, including \fB~/.snmp/snmp.conf\fP,
+\fBconfig.php\fP, creation of admin accounts and device discovery.
+.TP
+.B \fBrole::librenms:database\fP
+Configure and initialize LibreNMS database.
+.TP
+.B \fBrole::librenms:snmp_conf\fP
+Update \fB~/.snmp/snmp.conf\fP configuration files.
+.TP
+.B \fBrole::librenms:admins\fP
+Create missing LibreNMS admin accounts.
+.TP
+.B \fBrole::librenms:devices\fP
+Add missing devices to LibreNMS database.
+.UNINDENT
+.SH DEFAULT VARIABLES: CONFIGURATION
+.sp
+Some of \fBdebops.librenms\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS librenms__snmp_credentials
+.sp
+LibreNMS can use multiple SNMPv3 credentials at once, each one defined in
+a YAML dict. Default set of credentials managed by \fBdebops.snmpd\fP which will
+use it for all DebOps\-based hosts in the cluster will be used automatically by
+\fBdebops.librenms\fP\&. You can add more entries in \fBlibrenms__snmp_credentials\fP
+list as needed.
+.sp
+Parameters which define SNMP credentials:
+.INDENT 0.0
+.TP
+.B \fBauthname\fP
+SNMP v3 username.
+.TP
+.B \fBauthpass\fP
+SNMP v3 authentication password.
+.TP
+.B \fBcryptopass\fP
+SNMP v3 encryption password.
+.TP
+.B \fBauthlevel\fP
+Authentication and privacy level required by connection, you most likely want
+to use \fBauthPriv\fP to request encrypted authentication and encrypted
+privacy.
+.TP
+.B \fBauthalgo\fP
+Authentication encryption algorithm used for this credentials, either \fBSHA\fP
+or \fBMD5\fP\&.
+.TP
+.B \fBcryptoalgo\fP
+Privacy encryption algorithm used for this credentials, either \fBAES\fP or
+\fBDES\fP\&.
+.UNINDENT
+.sp
+For an example of SNMP v3 credentials, check out
+\fBlibrenms__snmp_credentials_default\fP variable in \fBdefaults/main.yml\fP\&.
+.SS librenms__configuration_maps
+.sp
+LibreNMS configuration is stored as PHP \fB$config\fP dictionary in
+\fBconfig.php\fP in main project directory. To make it easier to manage using
+Ansible, a Jinja template is used to recursively convert a list of dictionaries
+in YAML format to PHP format. Configuration is split into multiple
+dictionaries, so that separate sections can be modified easier without the need
+to copy everything to Ansible inventory.
+.sp
+Basic YAML syntax mirrors PHP syntax for dictionaries. Specifying your
+configuration in a YAML dict like:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+librenms__configuration_maps:
+  \- \(aq{{ librenms__configuration }}\(aq
+
+librenms__configuration:
+  comment: \(aqExample configuration\(aq
+  \(aqdict_string\(aq: \(aqstring\(aq
+  \(aqdict_bool\(aq: True
+  \(aqdict_int\(aq: 10
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Will result in PHP configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+### Example configuration
+$config[\(aqdict_string\(aq] = \(dqstring\(dq;
+$config[\(aqdict_bool\(aq] = TRUE;
+$config[\(aqdict_int\(aq] = 10;
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Special key \fBcomment\fP is reserved for comments in the configuration.
+.sp
+You can use YAML lists as well:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+librenms__configuration_maps:
+  \- \(aq{{ librenms__configuration }}\(aq
+
+librenms__configuration:
+  \(aqdict_list\(aq: [ \(aqfirst\(aq, \(aqsecond\(aq, \(aqthird\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will result in dict\-like list which appends entries to already existing
+ones from defaults:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$config[\(aqdict_list\(aq][] = \(dqfirst\(dq;
+$config[\(aqdict_list\(aq][] = \(dqsecond\(dq;
+$config[\(aqdict_list\(aq][] = \(dqthird\(dq;
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can also define a specific list without appending to existing list using
+\fBarray\fP dict key:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+librenms__configuration_maps:
+  \- \(aq{{ librenms__configuration }}\(aq
+
+librenms__configuration:
+  \(aqdict_array\(aq: { array: [ \(aqone\(aq, \(aqtwo\(aq, \(aqthree\(aq ] }
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will result in PHP configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$config[\(aqdict_array\(aq] = array(\(dqone\(dq, \(dqtwo\(dq, \(dqthree\(dq);
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Dictionaries and list can be nested as well:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+librenms__configuration_maps:
+  \- \(aq{{ librenms__configuration }}\(aq
+
+librenms__configuration:
+  \(aqdict_nested\(aq:
+    \(aqsecond_level\(aq:
+      \(aqthird_list\(aq: [ \(aqabc\(aq, \(aqdef\(aq ]
+      \(aqthird_string\(aq: \(aqexample string\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will result in PHP configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$config[\(aqdict_nested\(aq][\(aqsecond_level\(aq][\(aqthird_list\(aq][] = \(dqabc\(dq;
+$config[\(aqdict_nested\(aq][\(aqsecond_level\(aq][\(aqthird_list\(aq][] = \(dqdef\(dq;
+$config[\(aqdict_nested\(aq][\(aqsecond_level\(aq][\(aqthird_string\(aq] = \(dqexample string\(dq;
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can use lists of dictionaries as well. They will be automatically
+enumerated at the correct level. This YAML configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+librenms__configuration_maps:
+  \- \(aq{{ librenms__configuration }}\(aq
+
+librenms__configuration:
+  \(aqdicts\(aq:
+
+    \- key0: \(aqvalue0\(aq
+      key1: \(aqvalue1\(aq
+
+    \- key0: \(aqvalue2\(aq
+      key1: \(aqvalue3\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+will result in PHP configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$config[\(aqdicts\(aq][0][\(aqkey0\(aq] = \(dqvalue0\(dq;
+$config[\(aqdicts\(aq][0][\(aqkey1\(aq] = \(dqvalue1\(dq;
+$config[\(aqdicts\(aq][1][\(aqkey0\(aq] = \(dqvalue2\(dq;
+$config[\(aqdicts\(aq][1][\(aqkey1\(aq] = \(dqvalue3\(dq;
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Template conversion might be incomplete, however at the moment it\(aqs enough to
+generate correct \fBconfig.php\fP file for LibreNMS.
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

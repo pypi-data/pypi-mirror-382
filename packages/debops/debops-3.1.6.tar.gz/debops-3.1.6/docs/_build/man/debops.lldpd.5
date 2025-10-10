@@ -1,0 +1,257 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.LLDPD" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.lldpd \- Install and configure LLDP service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/lldpd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+Link\-Layer Discovery Protocol is an industry standard protocol which enables
+network devices to exchange information about themselves with their neighbors
+connected over network links. This in turn can be used to locate other devices
+connected to a particular device and port.
+.sp
+The \fI\%lldpd\fP <\fBhttps://packages.debian.org/stable/lldpd\fP> Debian package provides a lightweight \fBlldpd\fP daemon
+which implements this protocol and can be installed on Debian/Ubuntu based
+hosts to advertise the LLDP notifications to other devices. This might be
+useful in more complex environments with multiple layers of infrastructure
+comprised of physical hosts, virtual machines and containers.
+.sp
+The \fBdebops.lldpd\fP role can be used to install and manage the
+\fBlldpd\fP service and by default will try to distinguish virtualized
+hosts (VMs, containers) from physical ones to make their management easier by
+changing their \(dqChassisID\(dq attribute to reflect their virtualized status.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The \fBdebops.lldpd\fP role is included by default in the \fBcommon.yml\fP
+DebOps playbook; you don\(aqt need to do anything to have it executed.
+.sp
+If you don’t want to let \fBdebops.lldpd\fP role install and configure the
+service, you can disable it with the following setting in your inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lldpd__enabled: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.lldpd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage LLDP service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_lldpd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: lldpd
+      tags: [ \(aqrole::lldpd\(aq, \(aqskip::lldpd\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::lldpd\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.lldpd\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%lldpd(8)\fP <\fBhttps://manpages.debian.org/lldpd(8)\fP>, \fI\%lldpcli(8)\fP <\fBhttps://manpages.debian.org/lldpcli(8)\fP>
+.IP \(bu 2
+The \fI\%lldpd homepage\fP <\fBhttps://lldpd.github.io/\fP>
+.IP \(bu 2
+\fI\%Link\-Layer Discovery Protocol\fP <\fBhttps://en.wikipedia.org/wiki/Link_Layer_Discovery_Protocol\fP> page on Wikipedia
+.IP \(bu 2
+The \fI\%community.general.lldp\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/community/general/lldp_module.html\fP> Ansible module which can gather LLDP
+information from hosts.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.lldpd\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS lldpd__configuration
+.sp
+These variables define the contents of the \fB/etc/lldpd.d/\fP
+configuration directory. Each configuration entry is a file with contents
+defined either directly, or via the \fBoptions\fP parameter. You can read the
+\fI\%lldpcli(8)\fP <\fBhttps://manpages.debian.org/lldpcli(8)\fP> manual page to see the available commands.
+.SS Examples
+.sp
+The \fI\%default role configuration\fP
+includes creation of the ChassisID attribute override for virtual machines and
+containers. To disable this functionality within the \fBlldpd\fP daemon
+itself, you can add an \(dqunconfigure\(dq command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lldpd__configuration:
+
+  \- name: \(aqunchassis\(aq
+    options:
+      \- \(aqunconfigure system chassisid\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Alternatively, using the raw version:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lldpd__configuration:
+
+  \- name: \(aqunchassis\(aq
+    raw: |
+      unconfigure system chassisid
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Specify the device description attribute:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+lldpd__configuration:
+
+  \- name: \(aqdescription\(aq
+    options:
+      \- \(aqconfigure system description\(aq: \(aqCustom device located in rack a1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables are defined as lists of YAML dictionaries. Each dictionary
+defines a separate configuration file in the \fB/etc/lldpd.d/\fP directory.
+Each configuration entry is defined using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the generated configuration file, the role will include the
+\fB\&.conf\fP suffix automatically. Configuration files are read by the
+daemon in alphabetical order so naming is important. Entries with the same
+\fBname\fP parameter can be overridden by subsequent entries.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with additional comments included in
+a given configuration file.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration file will be
+generated. If \fBabsent\fP, the configuration file will be removed from the
+host. If \fBcomment\fP, the configuration file will be generated but commands
+inside will be commented out. If \fBignore\fP, a given configuration entry will
+not be considered during template generation. This can be used to
+conditionally enable or disable configuration options.
+.TP
+.B \fBraw\fP
+String or YAML text block with \fI\%lldpcli(8)\fP <\fBhttps://manpages.debian.org/lldpcli(8)\fP> commands which will be
+included in the generated configuration file \(dqas is\(dq.
+.TP
+.B \fBoptions\fP
+List of \fI\%lldpcli(8)\fP <\fBhttps://manpages.debian.org/lldpcli(8)\fP> commands which will be included in the generated
+configuration file. The \fBoptions\fP lists from multiple entries with the same
+\fBname\fP parameter are merged together. You can specify them either as
+a string which denotes the whole command, or as a YAML dictionary with key
+and value being the command and its argument quoted in double\-quotes (\(dq\(dq).
+Alternatively, you can define each command using a YAML dictionary with
+specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The \fI\%lldpcli(8)\fP <\fBhttps://manpages.debian.org/lldpcli(8)\fP> command. Multiple entris with the same \fBname\fP
+parameter are merged together in order of appearance and can override each
+other.
+.TP
+.B \fBoption\fP
+If a given command needs to be specified multiple times with different
+values, you can use the \fBoption\fP parameter to specify the actual
+\fI\%lldpcli(8)\fP <\fBhttps://manpages.debian.org/lldpcli(8)\fP> command to be included in the generated configuration
+file.
+.TP
+.B \fBvalue\fP
+The value of a given \fI\%lldpcli(8)\fP <\fBhttps://manpages.debian.org/lldpcli(8)\fP> command, surrounded by double
+quotes.
+.TP
+.B \fBstate\fP
+If not defined or \fBpresent\fP, a given command will be included in the
+generated configuration file. If \fBabsent\fP, a given command will not be
+included in the generated configuration file.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

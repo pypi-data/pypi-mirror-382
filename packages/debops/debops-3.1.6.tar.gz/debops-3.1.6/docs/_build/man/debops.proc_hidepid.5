@@ -1,0 +1,135 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.PROC_HIDEPID" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.proc_hidepid \- Configure /proc hidepid= options
+.SH SYNOPSIS
+.sp
+\fBdebops run service/proc_hidepid\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+This role will ensure that the \fB/proc\fP filesystem is mounted with the
+\fBhidepid=\fP option enabled. \fI\%The \(aqhidepid=\(aq option\fP <\fBhttps://wiki.archlinux.org/index.php/Security#hidepid\fP> can be used to hide
+processes that don\(aqt belong to a particular user account.
+.SH GETTING STARTED
+.SS Word of precaution
+.sp
+This role was written in 2018 to change \fBhidepid\fP for the whole system. On
+2020\-11\-26 systemd 247 was released which introduced the \fBProtectProc\fP
+setting. Setting \fBhidepid\fP for the whole system has drawbacks. Read
+\fI\%Is mounting /proc with \(dqhidepid=2\(dq recommended with RHEL7 and later?\fP <\fBhttps://www.influxdata.com/blog/package-repository-for-linux/\fP> and
+\fI\%Why is the mount option \(dqhidepid=2\(dq not used by default, is there a danger in using it?\fP <\fBhttps://security.stackexchange.com/questions/259134/why-is-the-mount-option-hidepid-2-not-used-by-default-is-there-a-danger-in-us\fP>\&.
+.sp
+The way to move forward is to contribute \fBProtectProc\fP to all upstream
+projects, wait until Debian releases them and then potentially deprecate this
+role. Until then, this role provides hardening with the potential of breaking
+things.
+.SS Handling of polkit
+.sp
+> \fI\%Confirmed\fP <\fBhttps://bugs.debian.org/cgi-bin/bugreport.cgi?bug=860040\fP>, giving access to /proc to polkitd user (running polkitd) is not
+> enough, the authentication agent seems to requires that as well (and granting
+> my user access to /proc denies the interest of hidepid).
+.sp
+\fI\%https://github.com/Kicksecure/security\-misc/issues/173\fP
+.sp
+\fI\%https://github.com/systemd/systemd/issues/29893\fP
+.sp
+So if polkit is detected or planned to be installed on a host, this hardening
+on a system level will not be enabled.
+.SS Static GID assignment
+.sp
+The \fBprocadmins\fP group uses a static GID \fB70\fP, chosen based on the default
+set of system groups provided in Debian with usable range between 61\-99. This
+becomes important in environments with LXC containers where, depending on the
+configuration, host and container GIDs could differ, resulting in a different
+set of users being able to see the \fB/proc\fP contents. Thus, the need to
+synchronize the GID between distinct environments sharing the same GID
+namespace (the same kernel).
+.SS Ansible local facts
+.sp
+The \fBdebops.proc_hidepid\fP role provides a set of Ansible local facts
+available in the \fBansible_local.proc_hidepid.*\fP hierarchy. You can use the
+facts to add application UNIX accounts to the correct UNIX system group that
+allows them access to the \fB/proc\fP filesystem.
+.SS Example inventory
+.sp
+The \fBdebops.proc_hidepid\fP role is included by default in the \fBcommon.yml\fP
+DebOps playbook; you don\(aqt need to add hosts to any Ansible groups to enable
+it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.proc_hidepid\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage /proc hidepid= configuration
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_proc_hidepid\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: proc_hidepid
+      tags: [ \(aqrole::proc_hidepid\(aq, \(aqskip::proc_hidepid\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::proc_hidepid\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

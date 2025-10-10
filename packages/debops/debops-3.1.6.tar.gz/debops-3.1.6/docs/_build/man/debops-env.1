@@ -1,0 +1,213 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS-ENV" "1" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops-env \- Execute external commands in DebOps project environment
+.SH SYNOPSIS
+.sp
+\fBdebops env\fP [\-h|\-\-help] [\-\-project\-dir <project_dir>] [\-V|\-\-view <view>] [\-\-scope full|local] [\-v|\-\-verbose]
+.sp
+\fBdebops env\fP [\-\-project\-dir <project_dir>] [\-V|\-\-view <view>] [\-v|\-\-verbose] <command [args]>
+.SH DESCRIPTION
+.sp
+The \fBdebops env\fP command can be used to inspect the environment
+variables defined in DebOps runtime environment. It can also execute external
+commands within that environment, similarly to the \fI\%env(1)\fP <\fBhttps://manpages.debian.org/env(1)\fP> command.
+.SH DEBOPS ENV
+.sp
+Without additional arguments, it will display the variables which will be
+present at runtime in the process environment. Any arguments that are unknown
+to the subcommand will be treated as an external command to execute within the
+DebOps project environment. This might be useful to run various Ansible
+commands with a proper \fB$ANSIBLE_CONFIG\fP environment variable and other
+variables defined by the user.
+.sp
+If a project directory contains encrypted secrets, they will be automatically
+unlocked before executing the external command and locked afterwards if
+necessary.
+.SS Options
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-\-project\-dir <project_dir>\fP
+Path to the project directory to work on. If it\(aqs not specified, the script
+will use the current directory.
+.TP
+.B \fB\-V <view>, \-\-view <view>\fP
+Specify the name of the \(dqinfrastructure view\(dq to use for executing commands.
+If not specified, the default view will be used automatically. Using this
+option overrides the automatic view detection performed by DebOps based on
+the current working directory.
+.TP
+.B \fB\-\-scope full|local\fP
+Specify if only the variables defined by DebOps should be displayed
+(\fBlocal\fP, default), or all variables present in the runtime environment
+(\fBfull\fP).
+.TP
+.B \fB\-v, \-\-verbose\fP
+Increase output verbosity. More letters means higher verbosity.
+.TP
+.B \fBcommand args\fP
+Specify a command to execute inside of the DebOps project environment, with
+all variables set at runtime. Any arguments specified after the command will
+be passed along as that command\(aqs arguments.
+.UNINDENT
+.SS Examples
+.sp
+Show environment variables defined by DebOps:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops env
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Show all environment variables defined at DebOps runtime:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops env \-\-scope full
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Parse Ansible inventory and output its structure in a JSON format:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops env ansible\-inventory \-\-list | jq .
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Parse Ansible inventory using non\-default \(dqinfrastructure view\(dq:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops env \-V deployment ansible\-inventory \-\-list
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+List Ansible collections accessible in the DebOps project directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops env ansible\-galaxy collection list
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Run a shell command within the scope of the DebOps project:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops env ansible\-navigator
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH ENVIRONMENT FILES
+.sp
+DebOps scripts support multiple configuration files which can be used to affect
+its execution environment:
+.INDENT 0.0
+.IP \(bu 2
+\fB/etc/default/debops\fP (per\-system environment)
+.IP \(bu 2
+\fB$XDG_CONFIG_HOME/debops/environment\fP (per\-user environment)
+.IP \(bu 2
+\fB<project directory>/.debops/environment\fP (per\-project environment)
+.IP \(bu 2
+\fB<project directory>/.env\fP (per\-project environment ignored by version
+control)
+.UNINDENT
+.sp
+To see the list of the environment files used for configuration, you can run
+the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops config list
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can use these files to store environment variables which are then added to
+the runtime environment of the \fBdebops\fP subcommands and processes
+executed through them. One of the more important variables is
+\fB$ANSIBLE_CONFIG\fP which specifies the path to the \fBansible.cfg\fP
+configuration file. This variable is generated dynamically by DebOps based on
+the current project and view directories, and cannot be overridden from the
+configuration files.
+.sp
+Environment files are compatible with the \fI\%python\-dotenv\fP <\fBhttps://pypi.org/project/python-dotenv/\fP> project. Each
+environment variable is specified as:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+NAME=value
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Empty lines and lines starting with the \fB#\fP character are ignored.
+.SH AUTHOR
+Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

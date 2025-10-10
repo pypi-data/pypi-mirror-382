@@ -1,0 +1,255 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.SUDO" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.sudo \- Configure 'sudo' support using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/sudo\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.sudo\fP role can be used to ensure that \fBsudo\fP is
+supported on a host. The role will automatically install \fBsudo\-ldap\fP APT
+package if LDAP support is detected on a host, otherwise a normal \fBsudo\fP APT
+package will be installed.
+.SH GETTING STARTED
+.SS Support for sudoers in LDAP
+.sp
+The \fI\%debops.sudo\fP role will automatically enable integration with the
+\fI\%debops.ldap\fP Ansible role to configure support for \fBsudoers\fP rules
+defined in the LDAP directory. When the LDAP support and \fI\%LDAP\-POSIX
+integration\fP is enabled on a host, the role will register its
+own LDAP account object (using \fI\%debops.ldap\fP as a dependency) and
+configure access to the LDAP directory using simple bind. The
+\fI\%debops.slapd\fP role will create the needed LDAP directory structures
+required for \fBsudoers\fP rules.
+.sp
+See the \fI\%sudoers.ldap(5)\fP <\fBhttps://manpages.debian.org/sudoers.ldap(5)\fP> manual page for more details about the LDAP
+support in \fBsudo\fP\&.
+.SS Example inventory
+.sp
+The \fBdebops.sudo\fP role is included by default in the \fBcommon.yml\fP DebOps
+playbook; you don\(aqt need to add hosts to any Ansible groups to enable it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.sudo\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure sudo service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_sudo\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ sudo__ldap__dependent_tasks }}\(aq
+
+    \- role: sudo
+      tags: [ \(aqrole::sudo\(aq, \(aqskip::sudo\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::sudo\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.sudo\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%sudo(8)\fP <\fBhttps://manpages.debian.org/sudo(8)\fP>, \fI\%sudoers(5)\fP <\fBhttps://manpages.debian.org/sudoers(5)\fP>, \fI\%sudoers.ldap(5)\fP <\fBhttps://manpages.debian.org/sudoers.ldap(5)\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.sudo\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS sudo__sudoers
+.sp
+The \fBsudo__*_sudoers\fP variables define \fBsudo\fP configuration located
+in \fB/etc/sudoers.d/\fP directory. Each variable is a list of YAML
+dictionaries, with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the configuration section, used as a filename, and as
+a marker which merges multiple configuration entries together.
+.TP
+.B \fBfilename\fP
+Optional. Set custom filename for a given configuration file, located in
+\fB/etc/sudoers.d/\fP directory.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with comments added at the beginning of
+the configuration file.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP (default), the configuration file
+will be generated. If \fBabsent\fP, the configuration file will be removed.
+.sp
+If \fBinit\fP, the configuration for a given entry will be prepared but not
+actually present on the host. It can be activated conditionally in a later
+entry.
+.sp
+If \fBignore\fP, a given configuration entry will not be evaluated by the role.
+.TP
+.B \fBraw\fP
+Optional. A string or YAML text block with \fI\%sudoers(5)\fP <\fBhttps://manpages.debian.org/sudoers(5)\fP> configuration
+added at the end of the configuration file as\-is.
+.TP
+.B \fBoptions\fP
+Optional. A list of \fI\%sudoers(5)\fP <\fBhttps://manpages.debian.org/sudoers(5)\fP> configuration snippets specified as
+YAML dictionaries. Each dictionary can have specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. Name of a configuration section, only used as a handle for
+merging options from multiple configuration entries.
+.TP
+.B \fBvalue\fP
+Required. A string or YAML text block that contains the \fI\%sudoers(5)\fP <\fBhttps://manpages.debian.org/sudoers(5)\fP>
+configuration snippet. Values from different configuration entries will be
+merged into one list and present in the configuration file.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment about a given option.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which influences the order in which
+the entries will be present in the configuration file. The lower the
+number, the higher in the file a given option will be present.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given configuration option will
+be added in the configuration file. If \fBabsent\fP, a given option will be
+removed from the configuration file.
+.UNINDENT
+.UNINDENT
+.SS Examples
+.sp
+Allow user \fBray\fP on host \fBrushmore\fP to run specific commands with elevated
+privileges without password confirmation:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sudo__sudoers:
+
+  \- name: \(aqray\-nopasswd\-commands\(aq
+    raw: |
+      ray   rushmore = NOPASSWD: /bin/kill, /bin/ls, /usr/bin/lprm
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Override some of the built\-in defaults conditionally:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sudo__sudoers:
+
+  \- name: \(aq00\-defaults\-override\(aq
+    options:
+
+      \- name: \(aqsyslog\-auth\(aq
+        comment: \(aqLog events to syslog via \(dqauth\(dq facility\(aq
+        value: \(aqDefaults    syslog=auth\(aq
+
+      \- name: \(aqdisable\-lecture\(aq
+        comment: \(dqDon\(aqt show the default lecture on specific hosts\(dq
+        value: |
+          Defaults    !lecture
+        state: \(aq{{ \(dqpresent\(dq
+                   if (ansible_hostname == \(aqbastion\(aq)
+                   else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+On the contrary, don\(aqt create the above defaults file when a host is in
+a specific Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sudo__group_sudoers:
+
+  \- name: \(aq00\-defaults\-override\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

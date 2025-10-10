@@ -1,0 +1,160 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.WPCLI" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.wpcli \- Install WP-CLI framework using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/wpcli\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%WP\-CLI\fP <\fBhttps://wp-cli.org/\fP> framework is a PHP script which can be used to manage \fI\%WordPress\fP <\fBhttps://wordpress.org/\fP>
+installations via the Linux shell. It provides a command line interface to WP
+Admin dashboard, provides an interface for \fBcron\fP task execution for
+a given WordPress website, create backups, and lots of other things.
+.sp
+The \fBdebops.wpcli\fP Ansible role can be used to install WP\-CLI on a host
+managed by DebOps, which in turn enables management of per\-user WordPress
+websites. The role is designed with shared hosting environment in mind; users
+need to utilize other DebOps/Ansible roles to manage the \fI\%webserver\fP, \fI\%database engine\fP, \fI\%PHP
+environment\fP and \fI\%UNIX accounts\fP, etc.
+.SH GETTING STARTED
+.SS Default host customization
+.sp
+The role provides the \fBrun\-wp\-cron\fP Bash script which can be used to
+execute the WP Cron tasks via the command line or \fBcron\fP service.
+.sp
+A special daily \fBcron\fP job is enabled by default; it looks for the
+\fBwp\-config.php\fP files in the \fB/home\fP and \fB/srv\fP directories
+and changes their permissions to \fB0600\fP if they are world\-readable. This is
+done because WordPress installer creates these files with \fB0666\fP permissions,
+which is a security risk in shared hosting environments.
+.SS Example inventory
+.sp
+To install the WP\-CLI framework on a host, the host needs to be added to the
+\fB[debops_service_wpcli]\fP Ansible inventory group. This will also install the
+PHP environment required to use the script.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_wpcli]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.wpcli\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install WP\-CLI framework
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_wpcli\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Apply keyring configuration for php environment
+      ansible.builtin.import_role:
+        name: \(aqkeyring\(aq
+      vars:
+        keyring__dependent_apt_keys:
+          \- \(aq{{ php__keyring__dependent_apt_keys }}\(aq
+        keyring__dependent_gpg_keys:
+          \- \(aq{{ wpcli__keyring__dependent_gpg_keys }}\(aq
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::php\(aq, \(aqrole::wpcli\(aq ]
+
+    \- name: Prepare php environment
+      ansible.builtin.import_role:
+        name: \(aqphp\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::php\(aq, \(aqrole::php:env\(aq, \(aqrole::logrotate\(aq ]
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ php__apt_preferences__dependent_list }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ php__logrotate__dependent_config }}\(aq
+
+    \- role: php
+      tags: [ \(aqrole::php\(aq, \(aqskip::php\(aq ]
+      php__dependent_packages:
+        \- \(aq{{ wpcli__php__dependent_packages }}\(aq
+
+    \- role: wpcli
+      tags: [ \(aqrole::wpcli\(aq, \(aqskip::wpcli\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::wpcli\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Alin Alexandru
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

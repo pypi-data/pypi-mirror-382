@@ -1,0 +1,22 @@
+---
+# Copyright (C) 2017 Maciej Delmanowski <drybjed@gmail.com>
+# Copyright (C) 2017 DebOps <https://debops.org/>
+# SPDX-License-Identifier: GPL-3.0-only
+
+- name: Update Postwhite in the background using async
+  ansible.builtin.command: /usr/local/lib/postwhite
+  async: '1800'
+  poll: '0'
+  register: postwhite__register_async
+  changed_when: postwhite__register_async.changed | bool
+  when: postwhite__initial_update_method == 'async'
+
+- name: Update Postwhite in the background using batch
+  ansible.builtin.shell: |
+    set -o nounset -o pipefail -o errexit &&
+    echo '/usr/local/lib/postwhite' | batch > /dev/null 2>&1
+  args:
+    executable: 'bash'
+  register: postwhite__register_batch
+  changed_when: postwhite__register_batch.changed | bool
+  when: postwhite__initial_update_method == 'batch'

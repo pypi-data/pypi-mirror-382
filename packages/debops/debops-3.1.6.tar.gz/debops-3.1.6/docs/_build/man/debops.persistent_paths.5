@@ -1,0 +1,298 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.PERSISTENT_PATHS" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.persistent_paths \- Ensure paths are stored on persistent storage
+.SH SYNOPSIS
+.sp
+\fBdebops run service/persistent_paths\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+This role provides a generic mechanism to declare which files/directories
+are required to be persistent. How this information is used can then be defined in
+this role.
+.sp
+On \fI\%Qubes OS\fP <\fBhttps://en.wikipedia.org/wiki/Qubes_OS\fP>, all work gets done in AppVMs which are typically based on
+TemplateVMs.  Only a few paths in such TemplateBasedVM will persist a reboot,
+mainly \fB/home\fP and \fB/rw\fP\&. Package installation and the like is
+supposed to happen in TemplateVMs only but configuration can happen in either
+VM type as desired. If changes should be made in a TemplateBasedVM however it
+needs to be made sure that they are persistent.
+.sp
+Since Qubes OS R3.2 the \fI\%bind\-dirs\fP <\fBhttps://www.qubes-os.org/doc/bind-dirs/\fP> script and related configuration can be used
+to easily make additional paths persistent by bind mounting them from
+\fB/rw/bind\-dirs/\fP to the desired path.
+.sp
+\fBdebops.persistent_paths\fP allows other Ansible roles to interact with
+\fI\%bind\-dirs\fP <\fBhttps://www.qubes-os.org/doc/bind-dirs/\fP> by using this role as a dependency role.
+An example which does this is \fBdebops.cryptsetup\fP\&.
+.sp
+The role can also be used by the system administrator to manage \fI\%bind\-dirs\fP <\fBhttps://www.qubes-os.org/doc/bind-dirs/\fP>
+using the Ansible inventory.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To manage persistence of paths on a TemplateBasedVM it should be included in the
+\fBdebops_service_persistent_paths\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_persistent_paths]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The role can also run against a TemplateVM to prepare paths which will then be
+persistent in AppVMs based on the TemplateVM.
+.sp
+If the role is used as a dependency role, you as user of the main role do not
+need to do anything with this role except from having it installed and using
+the appropriate playbook provided by the main role.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.persistent_paths\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Ensure paths are stored on persistent storage
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_persistent_paths\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: persistent_paths
+      tags: [ \(aqrole::persistent_paths\(aq, \(aqskip::persistent_paths\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Qubes OS
+.sp
+The \fBqubes\-core\-agent\fP package needs to be installed in the TemplateVM which
+is the default for the \fI\%official Debian templates\fP <\fBhttps://www.qubes-os.org/doc/templates/debian/\fP>\&.
+.sp
+Note that currently you will need an unreleased version of \fI\%bind\-dirs.sh\fP <\fBhttps://github.com/QubesOS/qubes-core-agent-linux/blob/master/vm-systemd/bind-dirs.sh\fP> in place for
+some roles which use \fBdebops.persistent_paths\fP to work correctly (ref:
+\fI\%bind\-dirs: Create ro if bind target exists\fP <\fBhttps://github.com/QubesOS/qubes-core-agent-linux/pull/42\fP>).
+.sp
+Refer to \fI\%bind\-dirs\fP <\fBhttps://www.qubes-os.org/doc/bind-dirs/\fP> for more details and limitations.
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::persistent_paths\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::persistent_paths:qubes_os\fP
+Tasks related to Qubes OS.
+.UNINDENT
+.SH USAGE GUIDES
+.sp
+Role authors who want to support platforms like \fI\%Qubes OS\fP <\fBhttps://en.wikipedia.org/wiki/Qubes_OS\fP> and other
+environments where persistence is not the default can do so by using this role
+as a dependency role, either has hard or soft dependency (DebOps default).
+.sp
+The general mode of operation looks like this:
+.INDENT 0.0
+.IP 1. 3
+Your service role is run as usual writing to non\-persistent paths.
+.IP 2. 3
+\fBdebops.persistent_paths\fP is run to ensure that paths specified by the
+service role are persistent.
+.UNINDENT
+.sp
+To make this happen, you would typically include a default variable like
+\fBrole_name__persistent_paths__dependent_paths\fP in your service role like this
+one:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# .. envvar:: role_name__persistent_paths__dependent_paths [[[
+#
+# Configuration for the debops.persistent_paths_ Ansible role.
+role_name__persistent_paths__dependent_paths:
+
+  \(aq50_role_owner_role_name\(aq:
+    by_role: \(aqrole_owner.role_name\(aq
+    paths:
+      \- \(aq/etc/example1\(aq
+      \- \(aq/etc/example2\(aq
+                                                                   # ]]]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+And then pass this to \fBdebops.persistent_paths\fP when calling the role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- role: role_owner.role_name
+  tags: [ \(aqrole::role_name\(aq ]
+
+\- role: persistent_paths
+  tags: [ \(aqrole::persistent_paths\(aq ]
+  persistent_paths__dependent_paths: \(aq{{ role_name__persistent_paths__dependent_paths }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note that as \fI\%Qubes OS\fP <\fBhttps://en.wikipedia.org/wiki/Qubes_OS\fP> and similar platforms are not the main target
+platforms of DebOps, an additional playbook which features
+\fBdebops.persistent_paths\fP support should be included in roles instead of extending the default role playbook.
+User can then select the role playbook they want to run using Ansible groups as needed.
+.sp
+Examples of roles which use/support \fBdebops.persistent_paths\fP:
+.INDENT 0.0
+.IP \(bu 2
+\fBdebops.cryptsetup\fP
+.IP \(bu 2
+\fBdebops.dnsmasq\fP
+.IP \(bu 2
+\fBdebops.tinc\fP
+.UNINDENT
+.SS Templating or updating persistent files
+.sp
+Qubes OS supports persistent files or directories in TemplateBasedVM using bind
+mounts. The files and directories marked for persistent storage are copied to
+a separate directory and mounted over the original files.
+.sp
+Note that bind mounted files (and directories) don’t allow \fIrename\fP nor
+\fIunlinkat\fP sys calls. This means that once a file has been made persistent by
+bind mounting it, updates to the file needs to be done using the
+\fBunsafe_writes\fP parameter which many file related Ansible modules support.
+.sp
+Refer to the \fI\%debops.core usage guide\fP <\fBhttps://docs.debops.org/en/latest/ansible/roles/core/guides.html#global-unsafe-writes\fP>
+for details.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.persistent_paths\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS persistent_paths__paths
+.sp
+\fI\%persistent_paths__paths\fP and similar dictionary variables
+can be used to manage the persistence of paths.
+.sp
+The dictionary key should be used to bundle different paths together which are needed to achieve one goal.
+This allows to mask/overwrite them later in the hierarchy as defined by \fI\%persistent_paths__combined_paths\fP\&.
+For use as dependency role, the key should be \fB{{ weight }}_{{ role_owner }}_{{ role_name }}{{ optional_tags }}\fP
+where \fBweight\fP should be a two\-digit number. For DebOps roles, the weight \fB50\fP should be used.
+For direct use, the key could be \fB70_local_mlocate\fP for example.
+.sp
+Each dictionary value is a dictionary by itself with the following supported options:
+.INDENT 0.0
+.TP
+.B \fBpaths\fP
+Required, list of strings. Paths to make persistent.
+The same path can be required to be persistent by multiple parties.
+.TP
+.B \fBstate\fP
+Optional, string. Defaults to \fBpresent\fP\&.
+Options:
+.INDENT 7.0
+.TP
+.B \fBpresent\fP
+The paths should be persistent.
+.TP
+.B \fBabsent\fP
+The paths are not required to be persistent. A possibly existing persistent
+state is not removed by this. Note that other parties might still require
+paths to be persistent which is not effected by setting one entry to \fBabsent\fP\&.
+.UNINDENT
+.TP
+.B \fBby_role\fP
+Optional, string. Name of the Ansible role in the format
+\fB{{ role_owner }}.{{ role_name }}\fP which is responsible for the entry.
+This option probably only makes sense in the use as dependency role.
+.UNINDENT
+.SS Examples
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+persistent_paths__dependent_paths:
+
+  \(aq50_debops_cryptsetup\(aq:
+    by_role: \(aqdebops.cryptsetup\(aq
+    paths:
+      \- \(aq/etc/fstab\(aq
+      \- \(aq/etc/crypttab\(aq
+      \- \(aq/var/local/keyfiles\(aq
+      \- \(aq/var/backups/luks_header_backup\(aq
+      \- \(aq/media\(aq
+
+persistent_paths__group_paths:
+
+  \(aq70_local_mlocate\(aq:
+    paths:
+      \- \(aq/var/lib/mlocate\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

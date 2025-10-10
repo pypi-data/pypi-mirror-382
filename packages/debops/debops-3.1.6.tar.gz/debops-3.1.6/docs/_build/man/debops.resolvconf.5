@@ -1,0 +1,208 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.RESOLVCONF" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.resolvconf \- Configure systemw-wide DNS resolver via Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/resolvconf\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fB/etc/resolv.conf\fP configuration file defines the system\-wide DNS
+resolver configuration. It is a central location to configure the DNS
+nameservers, search domains and other options. In modern Linux systems, many
+services might want to change that configuration file to enable their
+functionality \- \fI\%NetworkManager\fP <\fBhttps://wiki.debian.org/NetworkManager\fP>, \fBifupdown\fP, \fI\%dnsmasq\fP <\fBhttps://wiki.debian.org/HowTo/dnsmasq\fP>, \fBunbound\fP
+being several examples of that.
+.sp
+To avoid clashes between various software packages modifying the
+\fB/etc/resolv.conf\fP file, the \fBresolvconf\fP package provides a stable API
+to the \fB/etc/resolv.conf\fP that combines information from other services
+and creates a consistent resolver configuration.
+.sp
+The \fBdebops.resolvconf\fP Ansible role further updates the \fBresolvconf\fP
+configuration to fix issues with outdated defaults on modern Debian/Ubuntu
+hosts. By default the role will update the interface order list to include the
+\fI\%Predictable Network Interface Names\fP <\fBhttps://www.freedesktop.org/wiki/Software/systemd/PredictableNetworkInterfaceNames/\fP> as well as clarify the order of the
+NetworkManager interfaces. The role will also automatically rearrange the
+configuration of VPN tunnels if a local DNS resolver is detected.
+.sp
+Contrary to its name, the \fBdebops.resolvconf\fP role does not configure the
+\fB/etc/resolv.conf\fP file directly. You should consult the documentation of
+various DNS\-related services to see how you can modify the contents of this
+file through them.
+.SH GETTING STARTED
+.SS Support for static configuration
+.sp
+In addition to handling DNS configuration from multiple sources, the role
+supports \(dqstatic\(dq DNS configuration created via a script. To use it, set the
+\fI\%resolvconf__static_enabled\fP variable to \fBTrue\fP, and specify the
+\fI\%resolv.conf(5)\fP <\fBhttps://manpages.debian.org/resolv.conf(5)\fP> configuration as a string or YAML text block:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+resolvconf__static_content: |
+  nameserver 192.0.2.1
+  search example.org example.net
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The script will create a file in the \fBresolvconf\fP runtime directory,
+by default named \fBlo.static\fP, which will merge the specified
+configuration with other DNS sources. The role will also configure
+\fBsystemd\fP to apply the static configuration on system boot.
+.SS Example inventory
+.sp
+The \fBdebops.resolvconf\fP role is included by default in the \fBcommon.yml\fP
+DebOps playbook; you don\(aqt need to add hosts to any Ansible groups to enable
+it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.resolvconf\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage system\-wide DNS resolver configuration
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_resolvconf\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: resolvconf
+      tags: [ \(aqrole::resolvconf\(aq, \(aqskip::resolvconf\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::resolvconf\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.resolvconf\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%resolvconf(8)\fP <\fBhttps://manpages.debian.org/resolvconf(8)\fP>, \fI\%resolv.conf(5)\fP <\fBhttps://manpages.debian.org/resolv.conf(5)\fP>
+.IP \(bu 2
+The \fI\%resolv.conf\fP <\fBhttps://wiki.debian.org/resolv.conf\fP> Debian Wiki page
+.IP \(bu 2
+Local DNS resolvers available in DebOps: \fI\%debops.dnsmasq\fP,
+\fI\%debops.unbound\fP
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.resolvconf\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS resolvconf__interface_order
+.sp
+The \fBresolvconf__*_interface_order\fP variables define the contents of the
+\fB/etc/resolvconf/interface\-order\fP configuration file \- see the
+\fI\%interface\-order(5)\fP <\fBhttps://manpages.debian.org/interface-order(5)\fP> manual page for details about this file.
+.SS Examples
+.sp
+See the \fI\%resolvconf__original_interface_order\fP default variable to see
+the original contents of the configuration file represented in the role. The
+\fI\%resolvconf__default_interface_order\fP variable contains the
+modifications to the original configuration file defined in the role by default
+and enabled conditionally.
+.SS Syntax
+.sp
+The contents of the \fBresolvconf__*_interface_order\fP variables are a list of
+YAML dictionaries, each dictionary defines a section of the configuration file
+using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. A name of a given section, used only as a handle for a given
+configuration entry. Multiple entries with the same \fBname\fP parameter are
+merged together and can affect a given entry in order of appearance.
+.TP
+.B \fBvalue\fP
+Required. A string or a YAML text block which will be inserted in the
+generated configuration file. See the \fI\%interface\-order(5)\fP <\fBhttps://manpages.debian.org/interface-order(5)\fP> for details
+about what can be defined here.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with additional comments about a given
+configuration entry.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration section will
+be included in the generated configuration file. If \fBabsent\fP,
+a configuration section will be removed from the generated configuration
+file. If \fBignore\fP, a given configuration entry will not be evaluated by the
+role during its execution.
+.TP
+.B \fBcopy_id_from\fP
+Optional. Name of a configuration entry (its \fBname\fP parameter) from which
+a given entry should copy its internal \(dqid\(dq value. This can be used to roughly
+place a given configuration entry near the specified configuration section
+without the need to modify the order of all of the other entries.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which defines an additional \(dqweight\(dq
+of a given entry relative to other configuration entries. This parameter can
+be used to fine\-tune the order of the configuration sections in the generated
+configuration file.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

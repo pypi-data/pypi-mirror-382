@@ -1,0 +1,298 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.LIBVIRTD_QEMU" "5" "Oct 09, 2025" "v3.1.6" "DebOps"
+.SH NAME
+debops.libvirtd_qemu \- Manage libvirtd QEMU configuration
+.SH SYNOPSIS
+.sp
+\fBdebops run service/libvirtd_qemu\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.libvirtd_qemu\fP role manages the QEMU configuration used by the
+libvirt daemon. It is a part of the \fI\%debops.libvirtd\fP, separated to
+allow easier configuration maintenance.
+.SH GETTING STARTED
+.SS This role is part of the DebOps libvirtd configuration
+.sp
+The \fBdebops.libvirtd_qemu\fP role manages the libvirtd QEMU\-related
+configuration. It can be used as standalone, however the role is intentionally
+very limited and relies on the \fI\%debops.libvirtd\fP to do most of the
+work related to package installation and environment setup. You are strongly
+advised to use the roles and their playbooks together.
+.SS Example inventory
+.sp
+The role is used by the \fI\%debops.libvirtd\fP playbook and will be enabled
+automatically on hosts that are included in the \fB[debops_service_libvirtd]\fP
+Ansible inventory group.
+.sp
+This role can be enabled on virtualization hosts separately. You can do this by
+adding a host to the \fB[debops_service_libvirtd_qemu]\fP group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_libvirtd_qemu]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.libvirtd_qemu\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install and manage libvirtd QEMU configuration
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_libvirtd_qemu\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ libvirtd_qemu__ferm__dependent_rules }}\(aq
+
+    \- role: libvirtd_qemu
+      tags: [ \(aqrole::libvirtd_qemu\(aq, \(aqskip::libvirtd_qemu\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::libvirtd_qemu\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.libvirtd_qemu\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS libvirtd_qemu__configuration
+.sp
+The \fBlibvirtd_qemu__*_configuration\fP variables are YAML lists which define
+the contents of the \fB/etc/libvirt/qemu.conf\fP configuration file. The
+lists are parsed by the template in order defined by the
+\fI\%libvirtd_qemu__combined_configuration\fP variable, which allows
+modification of the parameters defined in earlier lists by the latter ones.
+.sp
+Each element of the list is a YAML dictionary. The dictionary can specify
+\fBqemu\fP configuration parameters as dictionary keys and they values as
+dictionary values:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirtd_qemu__configuration:
+
+  \- \(aqmin_workers\(aq: 5
+    \(aqmax_workers\(aq: 20
+
+  \- \(aqunix_sock_group\(aq:    \(aqlibvirt\(aq
+    \(aqunix_sock_ro_perms\(aq: \(aq0770\(aq
+    \(aqunix_sock_rw_perms\(aq: \(aq0770\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Parameters specified in this way will automatically be configured as \(dqpresent\(dq
+in the configuration file to override any \(dqcomment\(dq state (see below).
+.sp
+Alternatively, each YAML dictionary can contain a \fBname\fP key, which tells the
+role to interpret a given dictionary using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the parameter to manage. Parameter names can contain
+alphanumeric characters and an underscore (\fB_\fP) character. See the
+\fB/etc/libvirt/qemu.conf\fP configuration file for a list of known
+parameters and their meaning.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the parameter will be present in
+the configuration file. If \fBabsent\fP, the parameter will not be included in
+the generated configuration file. If \fBcomment\fP, the parameter will be
+commented out in the configuration file. If \fBignore\fP, a given YAML
+dictionary will not be evaluated.
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML dictionary with a comment for a particular
+parameter.
+.TP
+.B \fBvalue\fP
+Optional. Specify the value of a given parameter. Values can be booleans,
+numbers, quoted strings or YAML lists of strings; empty variants work as
+well. If value parameter is not specified, an empty string will be set and
+the parameter will be automatically quoted.
+.TP
+.B \fBsection\fP
+Optional. Specify the name of the section of the configuration file in which
+the parameter should be placed. Section names and their order are defined in
+the \fI\%libvirtd_qemu__configuration_sections\fP variable. If a section is not
+specified, an \fBunknown\fP section will be automatically selected.
+.TP
+.B \fBweight\fP
+Optional. Positive or negative number that affects the placement of the
+parameter within the configuration file section. The heavier the \(dqweight\(dq,
+the lower the parameter will be placed; negative numbers make the \(dqweight\(dq
+parameter lighter therefore it will be placed higher. If weight is not
+specified, it\(aqs set at \fB0\fP\&.
+.UNINDENT
+.SS Examples
+.sp
+Add custom parameters:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirtd_qemu__configuration:
+
+  \- name: \(aqcustom_param\(aq
+    value: \(aqcustom\-value\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Change the section and order of existing parameters:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirtd_qemu__configuration:
+
+  \- name: \(aqlisten_tls\(aq
+    section: \(aqauthn\(aq
+    weight: 30
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Comment out a specific parameter conditionally:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirtd_qemu__configuration:
+
+  \- name: \(aqlisten_addr\(aq
+    value: \(aq0.0.0.0\(aq
+    state: \(aq{{ \(dqpresent\(dq
+               if ansible_distribution == \(dqDebian\(dq
+               else \(dqcomment\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS libvirtd_qemu__configuration_sections
+.sp
+This list defines the sections of the \fB/etc/libvirt/qemu.conf\fP
+configuration file, as well as their order in the generated file. Each element
+of the list is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the section, specified in the configuration entries as the
+\fBsection\fP parameter. Should be short and recognizable.
+.TP
+.B \fBtitle\fP
+Required. A short description of the given configuration file section which
+will be added as a header.
+.TP
+.B \fBcomment\fP
+Optional. a string or a YAML dictionary with additional comments about
+a given section, added after the title.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the section will be included in
+the configuration file. If \fBabsent\fP, the entire section (including the
+parameters that belong to it) will be omitted in the generated configuration
+file. If \fBhidden\fP, the section will be present but the title and section
+comment will not be included.
+.UNINDENT
+.SS Examples
+.sp
+Set a custom list of sections:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirtd_qemu__configuration_sections:
+
+  \- name: \(aqsection\-one\(aq
+    title: \(aqFirst section\(aq
+
+  \- name: \(aqsection\-two\(aq
+    title: \(aqSection with hidden title\(aq
+    state: \(aqhidden\(aq
+
+  \- name: \(aqsection\-three\(aq
+    title: \(aqThird section\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.
