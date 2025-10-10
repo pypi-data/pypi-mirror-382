@@ -1,0 +1,115 @@
+// DQL (Data Quality Language) Grammar for Lark Parser
+// Adapted from docs/dql-specification.md
+
+// Start symbol
+?start: dql_file
+
+// Top-level structure
+dql_file: from_block+
+
+from_block: FROM model_name expectation+
+
+// Model declaration
+model_name: IDENTIFIER
+
+// Expectation statement
+expectation: EXPECT target operator_clause severity_clause? cleaner_clause?
+
+// Target types
+target: column_target | row_target
+
+column_target: "column" "(" STRING ")"
+row_target: "row" WHERE condition
+
+// Operators
+operator_clause: operator_name operator_args?
+
+operator_name: to_be_null
+            | to_not_be_null
+            | to_match_pattern
+            | to_be_between
+            | to_be_in
+            | to_be_unique
+
+to_be_null: "to_be_null"
+to_not_be_null: "to_not_be_null"
+to_match_pattern: "to_match_pattern"
+to_be_between: "to_be_between"
+to_be_in: "to_be_in"
+to_be_unique: "to_be_unique"
+
+operator_args: "(" arg_list ")"
+arg_list: arg ("," arg)*
+arg: STRING | NUMBER | list
+
+list: "[" arg_list "]"
+
+// Severity
+severity_clause: SEVERITY severity_level
+severity_level: SEVERITY_CRITICAL | SEVERITY_WARNING | SEVERITY_INFO
+
+SEVERITY.2: "severity"i
+SEVERITY_CRITICAL: "critical"i
+SEVERITY_WARNING: "warning"i
+SEVERITY_INFO: "info"i
+
+// Cleaners (Epic 3)
+cleaner_clause: cleaner_call+
+cleaner_call: ON_FAILURE CLEAN_WITH "(" STRING cleaner_args? ")"
+cleaner_args: "," arg_list
+
+// Row-level conditions
+condition: comparison | logical_expr | "(" condition ")"
+
+comparison: expr COMPARATOR expr
+
+logical_expr: condition (AND | OR) condition
+           | NOT condition
+
+// Expressions (values, columns, functions)
+expr: column_ref
+   | value
+   | function_call
+   | arithmetic_expr
+   | "(" expr ")"
+
+column_ref: "column" "(" STRING ")"
+
+value: STRING | NUMBER | NULL
+
+// String and arithmetic functions
+function_call: concat_func
+
+concat_func: "CONCAT" "(" expr ("," expr)+ ")"
+
+arithmetic_expr: expr ARITH_OP expr
+
+ARITH_OP: "+" | "-" | "*" | "/"
+
+COMPARATOR: "==" | "!=" | "<=" | ">=" | "<" | ">"
+
+// Lexical tokens (case-insensitive keywords)
+FROM.2: "from"i
+EXPECT.2: "expect"i
+WHERE.2: "where"i
+NULL.2: "null"i
+AND.2: "and"i
+OR.2: "or"i
+NOT.2: "not"i
+ON_FAILURE.2: "on_failure"i
+CLEAN_WITH.2: "clean_with"i
+
+// Identifiers (PascalCase model names)
+IDENTIFIER: /[A-Z][a-zA-Z0-9_]*/
+
+// Strings (single or double quotes)
+STRING: /"[^"]*"/ | /'[^']*'/
+
+// Numbers (integers and floats)
+NUMBER: /[+-]?[0-9]+(\.[0-9]+)?/
+
+// Whitespace and comments (ignored)
+%import common.WS
+%ignore WS
+COMMENT: /#[^\n]*/
+%ignore COMMENT
