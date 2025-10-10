@@ -1,0 +1,445 @@
+==============
+Helper methods
+==============
+
+  >>> import pymongo
+  >>> import m01.fake.finder
+  >>> from m01.fake import pprint
+
+  >>> def setUpDocuments(docs):
+  ...     collection = m01.fake.testing.getTestCollection()
+  ...     collection.delete_many({})
+  ...     storage = collection.getDocumentStorage()
+  ...     for doc in docs:
+  ...         storage[doc['_id']] = doc
+  ...     return collection
+
+
+getFilteredDocuments
+--------------------
+
+Get filtered documents from a list of documents. This method is used for filter
+all available documents by the given filter criteria:
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...    },{
+  ...     '_id': '2',
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {'_id': '1'}
+  >>> m01.fake.finder.getFilteredDocuments(collection, filter)
+  [{'_id': '1'}]
+
+
+More then one document can match the filter criteria:
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'group': '1',
+  ...    },{
+  ...     '_id': '2',
+  ...     'group': '1',
+  ...    },{
+  ...     '_id': '3',
+  ...     'group': '2',
+  ...    },{
+  ...     '_id': '4',
+  ...     'group': '2',
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {'group': '1'}
+  >>> m01.fake.finder.getFilteredDocuments(collection, filter)
+  [{'_id': '1', 'group': '1'}, {'_id': '2', 'group': '1'}]
+
+
+But we can skip more documents by set multi to False:
+
+  >>> filter = {'group': '1'}
+  >>> m01.fake.finder.getFilteredDocuments(collection, filter, multi=False)
+  [{'_id': '1', 'group': '1'}]
+
+All documents must match all criteria:
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'group': '1',
+  ...     'section': '1',
+  ...    },{
+  ...     '_id': '2',
+  ...     'group': '1',
+  ...     'section': '1',
+  ...    },{
+  ...     '_id': '3',
+  ...     'group': '1',
+  ...     'section': '2',
+  ...    },{
+  ...     '_id': '4',
+  ...     'group': '1',
+  ...     'section': '2',
+  ...    },{
+  ...     '_id': '5',
+  ...     'group': '2',
+  ...     'section': '1',
+  ...    },{
+  ...     '_id': '6',
+  ...     'group': '2',
+  ...     'section': '1',
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter= {'group': '1', 'section': '1'}
+  >>> pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'group': '1', 'section': '1'}, {'_id': '2', 'group': '1', 'section': '1'}]
+
+
+projection
+----------
+
+The projection allows to return partial document values. As you can see, we
+will get the _id, value defined for the defined field names in the projection
+list:
+
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'group': '1',
+  ...     'section': '1',
+  ...    },{
+  ...     '_id': '2',
+  ...     'group': '1',
+  ...     'section': '1',
+  ...    },{
+  ...     '_id': '3',
+  ...     'group': '1',
+  ...     'section': '2',
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {}
+  >>> projection = ['group']
+  >>> m01.fake.finder.getFilteredDocuments(collection, filter,
+  ...     projection=projection)
+  [{'_id': '1', 'group': '1'},
+   {'_id': '2', 'group': '1'},
+   {'_id': '3', 'group': '1'}]
+
+  >>> filter = {}
+  >>> projection = ['_id']
+  >>> m01.fake.finder.getFilteredDocuments(collection, filter,
+  ...     projection=projection)
+  [{'_id': '1'}, {'_id': '2'}, {'_id': '3'}]
+
+
+skip
+-----
+
+We can skip items from the result:
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'modified': False,
+  ...     'text': 'bar',
+  ...     },{
+  ...     '_id': '2',
+  ...     'modified': False,
+  ...     'text': 'foo',
+  ...     },{
+  ...     '_id': '3',
+  ...     'modified': False,
+  ...     'text': 'foobar',
+  ...     }]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {}
+  >>> skip = 1
+  >>> pprint(m01.fake.finder.getFilteredDocuments(collection, filter, skip=skip))
+  [{'_id': '2', 'modified': False, 'text': 'foo'},
+   {'_id': '3', 'modified': False, 'text': 'foobar'}]
+
+
+limit
+-----
+
+We can limit the result:
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'modified': False,
+  ...     'text': 'bar',
+  ...     },{
+  ...     '_id': '2',
+  ...     'modified': False,
+  ...     'text': 'foo',
+  ...     },{
+  ...     '_id': '3',
+  ...     'modified': False,
+  ...     'text': 'foobar',
+  ...     }]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {}
+  >>> limit = 2
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter, limit=limit))
+  [{'_id': '1', 'modified': False, 'text': 'bar'},
+   {'_id': '2', 'modified': False, 'text': 'foo'}]
+
+
+sort
+----
+
+Let's test the sort criteria:
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'modified': False,
+  ...     'text': 'bar',
+  ...     },{
+  ...     '_id': '2',
+  ...     'modified': False,
+  ...     'text': 'foo',
+  ...     },{
+  ...     '_id': '3',
+  ...     'modified': False,
+  ...     'text': 'foobar',
+  ...     }]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {}
+  >>> sort = None
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter, sort=sort))
+  [{'_id': '1', 'modified': False, 'text': 'bar'},
+   {'_id': '2', 'modified': False, 'text': 'foo'},
+   {'_id': '3', 'modified': False, 'text': 'foobar'}]
+
+  >>> filter = {}
+  >>> sort = {'text': pymongo.ASCENDING}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter, sort=sort))
+  [{'_id': '1', 'modified': False, 'text': 'bar'},
+   {'_id': '2', 'modified': False, 'text': 'foo'},
+   {'_id': '3', 'modified': False, 'text': 'foobar'}]
+
+  >>> filter = {}
+  >>> sort = {'text': pymongo.DESCENDING}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter, sort=sort))
+  [{'_id': '1', 'modified': False, 'text': 'bar'},
+   {'_id': '2', 'modified': False, 'text': 'foo'},
+   {'_id': '3', 'modified': False, 'text': 'foobar'}]
+
+
+
+$gt operator
+------------
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'num': 1,
+  ...    },{
+  ...     '_id': '2',
+  ...     'num': 42,
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {'num': {'$gt': 2}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '2', 'num': 42}]
+
+
+$lt operator
+------------
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'num': 1,
+  ...    },{
+  ...     '_id': '2',
+  ...     'num': 42,
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {'num': {'$lt': 2}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'num': 1}]
+
+
+$gte operator
+-------------
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'num': 1,
+  ...    },{
+  ...     '_id': '2',
+  ...     'num': 42,
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {'num': {'$gte': 2}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '2', 'num': 42}]
+
+  >>> filter = {'num': {'$gte': 1}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'num': 1}, {'_id': '2', 'num': 42}]
+
+
+$lte operator
+-------------
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'num': 1,
+  ...    },{
+  ...     '_id': '2',
+  ...     'num': 42,
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {'num': {'$lte': 2}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'num': 1}]
+
+  >>> filter = {'num': {'$lte': 42}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'num': 1}, {'_id': '2', 'num': 42}]
+
+
+$ne operator
+------------
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'num': 1,
+  ...    },{
+  ...     '_id': '2',
+  ...     'num': 42,
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {'num': {'$ne': 2}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'num': 1}, {'_id': '2', 'num': 42}]
+
+  >>> filter = {'num': {'$ne': 42}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'num': 1}]
+
+
+$in operator
+------------
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'num': 1,
+  ...    },{
+  ...     '_id': '2',
+  ...     'num': 42,
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {'num': {'$in': [1, 2, 3]}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'num': 1}]
+
+  >>> filter = {'num': {'$in': [1, 2, 3, 42, 43]}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'num': 1}, {'_id': '2', 'num': 42}]
+
+
+$exists operator
+----------------
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'num': 1,
+  ...    },{
+  ...     '_id': '2',
+  ...     'num': 42,
+  ...    }
+  ... ]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {'num': {'$exists': True}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'num': 1}, {'_id': '2', 'num': 42}]
+
+  >>> filter = {'num': {'$exists': False}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  []
+
+  >>> filter = {'nada': {'$exists': True}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  []
+
+  >>> filter = {'nada': {'$exists': False}}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'num': 1}, {'_id': '2', 'num': 42}]
+
+
+nested keys
+-----------
+
+Let's test some nested document filters:
+
+  >>> docs = [
+  ...    {
+  ...     '_id': '1',
+  ...     'key': '1',
+  ...     'modified': False,
+  ...     'nested': {
+  ...        'key': '1.1',
+  ...        'modified': False,
+  ...        }
+  ...     },{
+  ...     '_id': '2',
+  ...     'key': '2',
+  ...     'modified': False,
+  ...     'nested': {
+  ...        'key': '2.1',
+  ...        'modified': False,
+  ...        }
+  ...     },{
+  ...     '_id': '3',
+  ...     'key': '3',
+  ...     'modified': True,
+  ...     'nested': {
+  ...        'key': '3.1',
+  ...        'modified': True,
+  ...        }
+  ...     }]
+  >>> collection = setUpDocuments(docs)
+
+  >>> filter = {'nested.key': '1.1'}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+    [{'_id': '1', 'key': '1', 'modified': False, 'nested': {'key': '1.1', 'modified': False}}]
+
+  >>> filter = {'nested.modified': False}
+  >>> m01.fake.pprint(m01.fake.finder.getFilteredDocuments(collection, filter))
+  [{'_id': '1', 'key': '1', 'modified': False, 'nested': {'key': '1.1', 'modified': False}},
+   {'_id': '2', 'key': '2', 'modified': False, 'nested': {'key': '2.1', 'modified': False}}]
