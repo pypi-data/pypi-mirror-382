@@ -1,0 +1,276 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DROPBEAR_INITRAMFS" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.dropbear_initramfs \- Setup the dropbear ssh server in initramfs
+.SH SYNOPSIS
+.sp
+\fBdebops run service/dropbear_initramfs\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.dropbear_initramfs\fP role allows you to setup SSH access
+to the initramfs prior to the root filesystem being mounted using Dropbear as
+SSH server.
+.sp
+This can be used to unlock a full disk encrypted host remotely via SSH.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.dropbear_initramfs\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS dropbear_initramfs__interfaces
+.sp
+The \fI\%dropbear_initramfs__interfaces\fP and similar dictionaries behave
+similar to the \fBifupdown__*_interfaces\fP dictionaries of the \fI\%debops.ifupdown\fP
+role. Refer to the documentation of \fI\%debops.ifupdown\fP for details.
+.sp
+Compared to the \fI\%debops.ifupdown\fP, only a limited subset of parameters is
+currently supported:
+.INDENT 0.0
+.TP
+.B \fBtype\fP
+Optional. Anything other than \fBether\fP will be ignored.
+.TP
+.B \fBinet\fP
+Optional. IPv4 configuration method used by a given interface.
+If you set this parameter to \fBFalse\fP, no IPv4 configuration will be
+applied.
+Currently only \fBstatic\fP (default) and \fBFalse\fP is supported.
+.TP
+.B \fBinet6\fP
+Optional. IPv6 configuration method used by a given interface.
+If you set this parameter to \fBFalse\fP, no IPv6 configuration will be
+applied.
+Currently only \fBstatic\fP (default) and \fBFalse\fP is supported.
+.TP
+.B \fBaddress\fP or \fBaddresses\fP
+Optional. A string or a list of IPv4 and/or IPv6 addresses to set on
+a given network interface, in the form of \fBipaddress/prefix\fP or CIDR.
+Remember that you need to specify the host IP address and not the network;
+the \fB192.0.2.1/24\fP is the correct notation, and \fB192.0.2.0/24\fP is
+incorrect.
+.TP
+.B \fBgateway\fP or \fBgateways\fP
+Optional. Specify the IPv4 or IPv6 address of the network gateway to which outgoing
+packets will be directed. If it\(aqs a list of addresses, first valid address
+for a network type will be used as the gateway.
+.UNINDENT
+.SS Examples
+.sp
+Configure \fBeth0\fP with a global IPv6 address.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+dropbear_initramfs__interfaces:
+  \(aqeth0\(aq:
+    inet: False
+    inet6: \(aqstatic\(aq
+    addresses:
+      \- \(aq2001:db8::23/64\(aq
+    gateways:
+      \- \(aq2001:db8::\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS dropbear_initramfs__authorized_keys
+.sp
+The \fI\%dropbear_initramfs__authorized_keys\fP and similar variables are
+used to define what SSH keys should be allowed for remote initramfs login.
+.sp
+Each list item is a dictionary with the following supported options:
+.INDENT 0.0
+.TP
+.B \fBkey\fP
+Required. String containing either a SSH public key, or an URL to a resource
+which returns a file with SSH public keys (only one URL is allowed at the
+moment), or a list of SSH public keys.
+.TP
+.B \fBkey_options\fP
+Optional. String or list of SSH options which should be set for each key
+specified on the \fBitem.key\fP list.
+Refer to \fBdropbear(8)\fP for details.
+.sp
+If this parameter is not specified, SSH public keys will use options set in
+the \fI\%dropbear_initramfs__authorized_keys_key_options\fP variable. To
+override this variable for a particular entry, set the \fBitem.key_options\fP
+parameter as empty string or list.
+.sp
+The specified SSH key options are applied to all keys specified in the
+\fBitem.key\fP parameter in this specific entry. To use different key
+options for different SSH keys, specify them in separate entries on the list.
+.TP
+.B \fBexclusive\fP
+Optional, boolean. If defined and \fBTrue\fP, the role will remove all other
+SSH public keys and set only the SSH public keys defined by \fBitem.key\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If undefined or \fBpresent\fP, the SSH public keys specified in the
+\fBitem.keys\fP parameter will be added. If \fBabsent\fP, the specified SSH
+public keys will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Set SSH keys from a file on the Ansible Controller as the only allowed keys for
+remote initramfs login:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+dropbear_initramfs__authorized_keys:
+  \- sshkeys: \(aq{{ lookup(\(dqfile\(dq, \(dq/path/to/admin23.pub\(dq) }}\(aq
+    exclusive: True
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Ensure that given SSH public keys are allowed for remote initramfs login:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+dropbear_initramfs__group_authorized_keys:
+  \- key: \(aqssh\-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQCriBiAJ76UtTD1eWv...\(aq
+  \- key: \(aqssh\-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDfE/F747VSqti0byU...\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH RELATED PROJECTS
+.INDENT 0.0
+.IP \(bu 2
+\fI\%FDEunlock\fP <\fBhttps://fdeunlock.readthedocs.io/en/latest/\fP> – Check and unlock full disk encrypted systems via ssh
+.IP \(bu 2
+\fI\%Mandos\fP <\fBhttps://wiki.recompile.se/wiki/Mandos\fP> – System for allowing servers with encrypted root file systems to reboot unattended and/or remotely
+.IP \(bu 2
+\fI\%Comparison of Mandos and FDEunlock\fP <\fBhttps://fdeunlock.readthedocs.io/en/latest/related_projects.html\fP>
+.UNINDENT
+.sp
+The following Ansible roles do the same thing as this role and have been
+deprecated by this role:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%systemli.rootcrypto\fP <\fBhttps://github.com/systemli/ansible-rootcrypto\fP>
+.IP \(bu 2
+\fI\%martin\-v.sshpreluks\fP <\fBhttps://github.com/martin-v/ansible-sshpreluks\fP>
+.UNINDENT
+.sp
+Refer to \fI\%Migrating from other Ansible roles\fP for details.
+.SH DESIGN GOALS
+.INDENT 0.0
+.IP \(bu 2
+Don’t overwrite global configuration files like
+\fB/etc/initramfs\-tools/initramfs.conf\fP and similar as this can lead to
+problems like newer package versions trying to upgrade the file.
+\fB/etc/initramfs\-tools/conf.d\fP and other \fB*.d\fP directories are
+preferred and used for this.
+.IP \(bu 2
+If additional kernel modules need to be loaded in the initramfs then this
+functionally should be added to the \fI\%debops\-contrib.kernel_module\fP <\fBhttps://github.com/debops-contrib/ansible-kernel_module\fP> role.
+Note that all modules listed in \fB/etc/initramfs\-tools/modules\fP are
+force loaded as can be read in \fB/usr/sbin/mkinitramfs\fP\&.
+An initramfs hook should be used instead of touching the
+\fB/etc/initramfs\-tools/modules\fP file.
+.UNINDENT
+.SH UPGRADE NOTES
+.sp
+The upgrade notes only describe necessary changes that you might need to make
+to your setup in order to use a new role release.
+.SS Upgrade from v0.1.0 to v0.2.0
+.sp
+All inventory variables have been renamed so you might need to update your
+inventory.
+You will need to read the updated documentation and upgrade your inventory
+manually.
+.SH MIGRATING FROM OTHER ANSIBLE ROLES
+.sp
+This role tries to work for all common use cases and combine similar roles
+previously created by independent authors which basically do the same thing.
+Refer to \fI\%Combine efforts\fP <\fBhttps://github.com/martin-v/ansible-sshpreluks/issues/1\fP> for details.
+.SS From \fI\%martin\-v.sshpreluks\fP <\fBhttps://github.com/martin-v/ansible-sshpreluks\fP>
+.sp
+All inventory variables have been renamed so you might need to update your
+inventory.
+You will need to read the role documentation and upgrade your inventory
+manually.
+.SS From \fI\%systemli.rootcrypto\fP <\fBhttps://github.com/systemli/ansible-rootcrypto\fP>
+.sp
+All inventory variables have been renamed so you might need to update your
+inventory.
+A subset of them can be automatically updated using this script:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#!/usr/bin/env bash
+
+## Upgrade inventory variables for migration from systemli.rootcrypto to debops.dropbear_initramfs.
+## The script is idempotent.
+
+git ls\-files \-z \(dq$(git rev\-parse \-\-show\-toplevel)\(dq | xargs \-\-null \-I \(aq{}\(aq find \(aq{}\(aq \-type f \-print0 \e
+ | xargs \-\-null sed \-\-in\-place \-\-regexp\-extended \(aq
+     s/rootcrypto_network_device/dropbear_initramfs__network_device/g;
+     s/rootcrypto_network_address/dropbear_initramfs__network_address/g;
+     s/rootcrypto_network_netmask/dropbear_initramfs__network_netmask/g;
+     s/rootcrypto_network_gateway/dropbear_initramfs__network_gateway/g;
+   \(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The script is bundled with this role under
+\fB\&./docs/scripts/migrate\-from\-systemli.rootcrypto\-to\-debops.dropbear_initramfs\fP
+and can be invoked from there.
+.sp
+You will need to read the role documentation and upgrade your remaining
+inventory manually.
+.SH AUTHOR
+Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,335 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.SYSCTL" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.sysctl \- Manage kernel parameters using sysctl
+.SH SYNOPSIS
+.sp
+\fBdebops run service/sysctl\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.sysctl\fP Ansible role manages Linux kernel parameters.
+It comes with kernel hardening and shared memory optimization enabled by
+default.
+The kernel hardening is ported from \fI\%hardening.os\-hardening\fP <\fBhttps://github.com/hardening-io/ansible-os-hardening\fP> for optimal
+compatibility with DebOps.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The \fBdebops.sysctl\fP role is included by default in the \fI\%DebOps common
+playbook\fP <\fBhttps://github.com/debops/debops/blob/master/ansible/playbooks/common.yml\fP> and you don\(aqt need to add hosts to a custom inventory group to
+activate the role.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.sysctl\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage kernel parameters using sysctl
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_sysctl\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: sysctl
+      tags: [ \(aqrole::sysctl\(aq, \(aqskip::sysctl\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::sysctl\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.sysctl\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS sysctl__writable
+.sp
+Certain parts of the \fI\%proc(5)\fP <\fBhttps://manpages.debian.org/proc(5)\fP> filesystem can be mounted with read\-only
+permissions to limit privileges in certain contexts, like unprivileged
+containers. Usually the \fB/proc/sys/\fP filesystem is bind\-mounted as
+read\-only and specific paths inside which are correctly namespaced by the
+kernel, for example \fB/proc/sys/net/\fP directory, are bind\-mounted with
+read\-write permissions.
+.sp
+When the \fBsysctl\fP command tries to modify kernel parameters in
+read\-only path, it returns with an error. Since the \fBdebops.sysctl\fP calls the
+\fBsysctl\fP command directly, in such case the playbook execution will
+stop and users will be forced to manually recover from the error.
+.sp
+To avoid this, the role checks via Ansible local facts, what paths in
+\fB/proc/sys/\fP directory are writable, and only creates configuration
+entries for the paths that can be modified in the current context. Any
+parameters that cannot modify kernel variables will be automatically commented
+out with additional comment marking that parameter as read\-only.
+.sp
+This mechanism is controlled by the \fI\%sysctl__writable\fP default
+variable. It contains a list of paths in the \fB/proc/sys/\fP directory which
+can be written to, for example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sysctl__writable: [ \(aqnet\(aq, \(aqfs.nfs\(aq, \(aqkernel\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The path elements need to be separated by a dot (\fB\&.\fP) instead of a slash
+(\fB/\fP) to be correctly used by the role.
+.SS sysctl__parameters
+.sp
+The \fBsysctl__*_parameters\fP variables contain configuration of the kernel
+parameters stored in the \fB/etc/sysctl.d/\fP directory. The variables are
+merged in the order specified by the \fI\%sysctl__combined_parameters\fP
+variable, the parameters can be manipulated using Ansible inventory without the
+need to copy the entire default variable.
+.sp
+Each list entry is a YAML dictionary that defines one configuration file with
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the configuration section. Multiple entries with the same
+name will be merged together in order of appearance. The name is used as
+a part of the filename and it\(aqs best not to change it without complete
+redeployment of the configuration file.
+.TP
+.B \fBfilename\fP
+Optional. Specify the filename of the configuration file to manage in the
+\fB/etc/sysctl.d/\fP directory (the \fB\&.conf\fP suffix needs to be included).
+If the \fBfilename\fP parameter is not specified, the file will be named as:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/sysctl.d/{{ weight }}\-{{ name }}.conf
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBdivert\fP
+Boolean, optional. When specified and \fBTrue\fP, the original configuration
+file will be diverted using \fI\%dpkg\-divert(1)\fP <\fBhttps://manpages.debian.org/dpkg-divert(1)\fP>\&. If a configuration file is
+due to be removed, the original file will be reverted back into place.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment added at the top of the
+generated configuration file.
+.TP
+.B \fBstate\fP
+Optional. Specify the desired state of the configuration file. Known states:
+.TS
+center;
+|l|l|.
+_
+T{
+Value
+T}	T{
+Description
+T}
+_
+T{
+\fBpresent\fP
+T}	T{
+\fBDefault if not specified.\fP The configuration file will be
+generated in the \fB/etc/sysctl.d/\fP directory.
+T}
+_
+T{
+\fBabsent\fP
+T}	T{
+The configuration file will be removed from the
+\fB/etc/sysctl.d/\fP directory if present, and it won\(aqt be
+generated.
+T}
+_
+T{
+\fBcomment\fP
+T}	T{
+The configuration file will be generated but all of the
+kernel parameters will be commented out. This can be used to
+disable the entire configuration file, preserving the set
+parameter values for reference.
+T}
+_
+T{
+\fBignore\fP
+T}	T{
+A given configuration entry will not be processed by the role
+and all of the kernel parameters defined in it will not be
+present in the generated configuration file.
+T}
+_
+.TE
+.TP
+.B \fBoptions\fP
+Required. A list of entries that define kernel parameters present in a given
+configuration file. Each entry is a YAML dictionary, the entries can be
+specified in a simple or complex form. An example of a simple form:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sysctl__parameters:
+  \- name: \(aqnetwork\(aq
+    options:
+
+      \- \(aqnet.ipv4.ip_forward\(aq: True
+
+      \- \(aqnet.ipv4.icmp_ratelimit\(aq: 100
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Complex form is enabled when the \fBname\fP parameter is used. You can use the
+parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. Name of the kernel parameter to configure.
+.TP
+.B \fBvalue\fP
+Required. The value of a given kernel parameter which should be set. Values
+can be YAML booleans (converted to \fB0\fP or \fB1\fP in the configuration
+file), numbers and strings.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with additional comments about a given
+kernel parameter.
+.TP
+.B \fBstate\fP
+Optional. Specify the desired state of a given kernel parameter. Possible
+states:
+.TS
+center;
+|l|l|.
+_
+T{
+Value
+T}	T{
+Description
+T}
+_
+T{
+\fBpresent\fP
+T}	T{
+The kernel parameter will be present in the generated
+configuration file.
+T}
+_
+T{
+\fBabsent\fP
+T}	T{
+The kernel parameter will be absent from the configuration
+file.
+T}
+_
+T{
+\fBcomment\fP
+T}	T{
+The kernel parameter will be present in the configuration
+file, but it will be commented out.
+T}
+_
+T{
+\fBignore\fP
+T}	T{
+A given option will be ignored by the role during template
+generation.
+T}
+_
+.TE
+.UNINDENT
+.sp
+The \fBoptions\fP parameters from multiple configuration entries with the same
+\fBname\fP parameter are merged, you can use this to modify existing parameters
+defined in the role default variables via Ansible inventory, without copying
+the entire default variable.
+.UNINDENT
+.SS Examples
+.sp
+Enable IPv4 forwarding using the default configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sysctl__parameters:
+
+  \- name: \(aqnetwork\(aq
+    options:
+
+      \- name: \(aqnet.ipv4.ip_forward\(aq
+        Value: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can also check the \fI\%sysctl__default_parameters\fP variable for more
+examples.
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

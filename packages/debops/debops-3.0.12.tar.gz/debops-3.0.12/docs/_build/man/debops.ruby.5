@@ -1,0 +1,192 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.RUBY" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.ruby \- Manage Ruby environment with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/ruby\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.ruby\fP role can be used to configure a Ruby environment. The role
+will install Ruby packages from the current OS release, as well as specified
+Ruby gems, either system\-wide or on a selected user account.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To configure a Ruby environment on a given host or set of hosts, they need to
+be added to \fB[debops_service_ruby]\fP Ansible group in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_ruby]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.ruby\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Ruby environment
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_ruby\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ ruby__apt_preferences__dependent_list }}\(aq
+
+    \- role: ruby
+      tags: [ \(aqrole::ruby\(aq, \(aqskip::ruby\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.ruby\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS ruby__gems
+.sp
+These lists can be used to install system\-wide Ruby gems. Each element of
+a list is either a name of a Ruby gem, or an YAML dictionary with parameters
+for the \fBgem\fP Ansible module. See that module documentation for specific
+parameter syntax. Some more important parameters are:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Name of the Ruby gem which should be installed. If not specified, entire
+entry will be treated as a Ruby gem name.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the gem will be installed
+system\-wide. If specified and \fBabsent\fP, gem will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Install custom Ruby gems on all hosts in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ruby__gems:
+
+  \- \(aqmako\(aq
+
+  \- name: \(aqnokogiri\(aq
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS ruby__user_gems
+.sp
+These lists can be used to install Ruby gems on an user account. Unlike the
+system\-wide gems, you cannot specify simple gem names as list entries, only
+YAML dictionaries are allowed. Each entry uses parameters supported by \fBgem\fP
+Ansible module, as well as some additional parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Specify the name of a Ruby gem to install.
+.TP
+.B \fBowner\fP
+Required. Specify name of the user account on which the Ruby gem will be
+installed. If it does not exist, the user account will be automatically
+created as a system account, with its own primary group named after the
+account.
+.TP
+.B \fBuser\fP
+Required if \fBowner\fP is not set. Specify the user account on which a given
+Ruby gem should be installed. The account needs to exist. To automatically
+create the account if needed, use the \fBowner\fP parameter.
+.TP
+.B \fBgroup\fP
+Optional. Specify the primary group of the user account which will be created
+by the role if it doesn\(aqt exist.
+.TP
+.B \fBhome\fP
+Optional. Specify the path to the home directory of the newly\-created user
+account. If not specified, the home directory path will be created
+automatically, based on the \fBowner\fP parameter.
+.TP
+.B \fBsystem\fP
+Optional, boolean. If not specified or \fBTrue\fP, the new user account will be
+a \(dqsystem\(dq account, with UID and GID <1000. If specified and \fBFalse\fP, the
+user account will be a normal user account.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the gem will be installed
+on the user account. If specified and \fBabsent\fP, gem will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Install Ruby gems on a specific user account, on all hosts. The user account
+will be created if it doesn\(aqt exist:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ruby__user_gems:
+  \- name: \(aqmako\(aq
+    owner: \(aqapplication\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

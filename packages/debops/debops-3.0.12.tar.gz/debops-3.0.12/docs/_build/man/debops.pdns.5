@@ -1,0 +1,341 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.PDNS" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.pdns \- Manage PowerDNS authoritative server
+.SH SYNOPSIS
+.sp
+\fBdebops run [<args>] [\-\-] service/pdns [ansible_args]\fP
+.SH DESCRIPTION
+.sp
+The \fBdebops.pdns\fP role can be used to configure \fI\%PowerDNS Authoritative
+Server\fP <\fBhttps://www.powerdns.com/auth.html\fP>, whose service is called \(aqpdns\(aq in Debian. pdns supports multiple
+backends like major relational databases, LDAP servers and plain text files.
+Backends that support native replication can be used in place of traditional
+zone transfers. Furthermore, pdns can be used for geographical load balancing
+and has excellent DNSSEC support, currently supporting the vast majority of
+DNSSEC\-enabled domains in Europe. pdns is extensible using a wide variety
+of scripting languages.
+.SH GETTING STARTED
+.sp
+The default configuration assumes that the target host has been configured with
+\fI\%debops.postgresql_server\fP\&.
+.sp
+Without any additional configuration, the \fBservice/pdns\fP playbook will
+configure a PostgreSQL role on the target host, create a database and
+initialize it with the pdns PostgreSQL schema, install PowerDNS Authoritative
+Server, and set it up using the \fBgpgsql\fP backend. The only mode of operation
+available will be native replication (i.e. pdns relies on the backend doing the
+replication of zone data to other pdns servers).
+.SS Modes of operation
+.sp
+pdns has four modes of operation: native replication, primary operation,
+secondary operation, and autosecondary operation. A brief description of each
+mode follows. For full details, refer to the \fI\%DNS Modes of Operation
+documentation\fP <\fBhttps://doc.powerdns.com/authoritative/modes-of-operation.html\fP>\&.
+.SS Native replication
+.sp
+Native replication does not need to be enabled. It is always available,
+provided that your backend supports it. With native replication, pdns just lets
+the backend figure out how to get the zone data to the backends of your other
+pdns servers.
+.SS Primary operation
+.sp
+Primary operation can be enabled by setting \fI\%pdns__primary\fP to
+\fBTrue\fP\&. Doing so will instruct pdns to send (optionally TSIG\-signed)
+notifications of changes to secondaries, which can then initiate zone
+transfers. Notifications are only sent for domains with type MASTER in your
+backend.
+.SS Secondary operation
+.sp
+Secondary operation can be enabled by setting \fI\%pdns__secondary\fP to
+\fBTrue\fP\&. Doing so will instruct pdns to periodically check for zone changes at
+the primary nameservers, and update the local zones accordingly. These checks
+happen every \(aqrefresh\(aq seconds (as specified by the SOA record) and are only
+performed for domains with type SLAVE in your backend. Additionally, if the
+primary nameserver sends notifications for such domains, pdns will initiate a
+zone transfer immediately.
+.SS Autosecondary operation
+.sp
+Autosecondary operation can be enabled by setting \fI\%pdns__autosecondary\fP
+to \fBTrue\fP\&. Doing so will instruct pdns to automatically provision domains
+that it receives notifications for, if the notifications come from an IP
+address listed in the \(aqsupermasters\(aq table in your backend database. pdns will
+then act as a secondary for those domains.
+.SS Dynamic DNS Update (RFC 2136)
+.sp
+Dynamic DNS Update (\fI\%RFC 2136\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc2136.html\fP>) allows for changing authoritative zone data in
+a standardized way. It works by having a client send a DNS UPDATE message to
+the primary nameserver, which, after optional IP allowlist and/or transaction
+signature (TSIG) checking, updates the zone in whatever way the DNS UPDATE
+message tells it to. One service that supports sending these messages is the
+ISC DHCP Server, represented in the \fI\%debops.dhcpd\fP role.
+.sp
+The \fBdebops.pdns\fP role enables support for the DNS UPDATE mechanism by
+default, but also denies all DNS updates unless an IP allowlist or TSIG key has
+been specified in the domain metadata. If you want to allow all DNS updates
+from a list of IP ranges, see \fI\%pdns__allow_dnsupdate_from\fP\&. For
+per\-domain metadata related to DNS updates, see
+\fI\%https://doc.powerdns.com/authoritative/dnsupdate.html#per\-zone\-settings\fP
+.sp
+Note that not all pdns backends support DNS updates.
+.SS DNSSEC
+.sp
+When operating in primary or native replication mode, pdns can perform online
+signing of zone data, i.e. signed responses are generated on\-the\-fly. These
+responses are cached internally. In much the same fashion, pdns can operate as
+a \(dqbump\-in\-the\-wire\(dq front\-signing server between a legacy (non\-DNSSEC\-capable)
+authoritative server and its clients.
+.sp
+A secondary pdns server can perform a DNSSEC\-capable zone transfer, i.e. it
+stores and serves pre\-signed zone data which it received from the primary.
+.sp
+There is also BIND\-mode operation, which takes a traditional BIND\-style zone
+file and signs it using DNSSEC keys stored in another backend.
+.sp
+The default setup when signing a zone with \fB# pdnsutil secure\-zone\fP is a
+single ECDSAP256SHA256 key that is used as a Combined\-Signing Key (CSK), with
+NSEC as the negative answer strategy. NSEC3 is also supported. If you use pdns,
+a split\-key setup most likely makes little sense, but you can do it if you
+really want to.
+.sp
+\fBImportant caveats\fP regarding DNSSEC support in pdns:
+.INDENT 0.0
+.IP \(bu 2
+When operating in online signing mode, the default pdns configuration will
+not increase the SOA serial when signatures are being rolled. This is not a
+problem in the default native replication mode. For primary operation
+however, you need to pick a SOA\-EDIT value to ensure signature freshness on
+secondaries. Please refer to the \fI\%SOA\-EDIT documentation\fP <\fBhttps://doc.powerdns.com/authoritative/dnssec/operational.html#soa-edit-ensure-signature-freshness-on-slaves\fP> for this.
+.IP \(bu 2
+In online\-signing mode, the ALIAS record type is not supported.
+.UNINDENT
+.sp
+Anyone using pdns to serve DNSSEC\-signed zone data is encouraged to read the
+DNSSEC guide: \fI\%https://doc.powerdns.com/authoritative/dnssec/index.html\fP
+.SS Example inventory
+.sp
+To run the pdns playbook against a host, it needs to be added to the
+\fB[debops_service_pdns]\fP inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_pdns]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you want to use the \fBnginx\fP reverse proxy, useful for remotely
+accessing the pdns API or metrics endpoint over TLS, you can add the host to
+the \fB[debops_service_pdns_nginx]\fP inventory group instead:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_pdns_nginx]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Doing so will install the \fBnginx\fP webserver, configure it for use with
+pdns, and automatically enable the pdns API and metrics endpoint.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.pdns\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage PowerDNS authoritative server
+  hosts: [ \(aqdebops_service_pdns\(aq ]
+  become: True
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ pdns__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ pdns__ferm__dependent_rules }}\(aq
+
+    \- role: postgresql
+      tags: [ \(aqrole::postgresql\(aq, \(aqskip::postgresql\(aq ]
+      postgresql__dependent_roles:
+        \- \(aq{{ pdns__postgresql__dependent_roles }}\(aq
+
+    \- role: pdns
+      tags: [ \(aqrole::pdns\(aq, \(aqskip::pdns\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+There is a separate playbook for pdns with \fBnginx\fP as a reverse proxy:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage PowerDNS authoritative server with Nginx
+  hosts: [ \(aqdebops_service_pdns_nginx\(aq ]
+  become: True
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ pdns__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+        \- \(aq{{ pdns__ferm__dependent_rules }}\(aq
+
+    \- role: postgresql
+      tags: [ \(aqrole::postgresql\(aq, \(aqskip::postgresql\(aq ]
+      postgresql__dependent_roles:
+        \- \(aq{{ pdns__postgresql__dependent_roles }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ pdns__nginx__dependent_servers }}\(aq
+
+    \- role: pdns
+      tags: [ \(aqrole::pdns\(aq, \(aqskip::pdns\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLES: CONFIGURATION
+.sp
+Some of the \fBdebops.pdns\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS pdns__*_configuration
+.sp
+The \fBpdns__configuration\fP, \fBpdns__group_configuration\fP and
+\fBpdns__host_configuration\fP variables allow you to override
+\fB/etc/powerdns/pdns.conf\fP settings on a global, group or host basis. The
+variables are lists of dicts that get merged using the principles of
+\fI\%Universal Configuration\fP\&.
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the setting you want to change.
+.TP
+.B \fBcomment\fP
+Optional. Comment added in the configuration file.
+.TP
+.B \fBvalue\fP
+Required. The value to configure as a string or YAML text block.
+.TP
+.B \fBstate\fP
+Optional. The state of the setting in \fB/etc/powerdns/pdns.conf\fP, either
+\(dqpresent\(dq or \(dqabsent\(dq. Defaults to \(dqpresent\(dq.
+.UNINDENT
+.sp
+Example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pdns__configuration:
+
+  \- name: \(aqalso\-notify\(aq
+    comment: |\-
+      Our secondary DNS provider uses unicast hosts to collect zone transfer
+      data, and then distributes it internally to all their anycast servers.
+    value: \(aq2001:db8:a::1, 2001:db8:b::1, 2001:db8:c::1\(aq
+    state: \(aq{{ \(dqpresent\(dq
+               if ansible_local.machine.deployment
+                  |d(\(dqproduction\(dq) == \(dqproduction\(dq
+               else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Imre Jonk
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

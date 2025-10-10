@@ -1,0 +1,820 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.APT" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.apt \- Manage APT repositories and keys using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/apt\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fBdebops.apt\fP configures and manages APT, the Advanced Package Tool in Debian and
+other derivative distributions.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+Role tries to detect the original APT repositories configured on the system and
+use them in the generated \fB/etc/apt/sources.list\fP configuration file. They
+will be placed before the default repositories, with assumption that the
+original repositories pointed to the closest mirror. The original APT
+repositories can be completely disabled by setting \fBapt__original_sources: []\fP
+in your inventory.
+.sp
+The \fBnon\-free\fP repositories will be enabled automatically on hardware\-based
+hosts in case any non\-free firmware is required. Otherwise, only the \fBmain\fP
+and \fBuniverse\fP (on Ubuntu) repositories are enabled; you can control this
+using the \fBapt__nonfree\fP variable.
+.SS Example inventory
+.sp
+\fBdebops.apt\fP is included by default in the \fBcommon.yml\fP DebOps playbook;
+you don\(aqt need to do anything to have it executed.
+.sp
+If you don’t want to let \fBdebops.apt\fP manage APT, you can do this with the
+following setting in your inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__enabled: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you have a local APT mirror that you want a group of hosts to use
+exclusively, you could compose your inventory like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Don\(aqt use the default mirrors
+apt__default_sources_state: \(aqabsent\(aq
+
+# Don\(aqt use the default security mirrors
+apt__security_sources_state: \(aqabsent\(aq
+
+# Replace the original APT mirror
+apt__original_sources: []
+
+# Define local APT mirror
+apt__group_sources:
+  \- uri:          \(aqhttp://mirrors.domain.fqdn/debian\(aq
+    comment:      \(aq{{ \(dqLocal \(dq + apt__distribution + \(dq repositories\(dq }}\(aq
+    distribution: \(aqDebian\(aq
+
+# Define local APT security mirrors
+apt__group_security_sources:
+  \- uri:          \(aqhttp://mirrors.domain.fqdn/debian\-security\(aq
+    comment:      \(aq{{ \(dqLocal \(dq + apt__distribution + \(dq Security repository\(dq }}\(aq
+    suite:        \(aq{{ apt__distribution_release + \(dq\-security\(dq }}\(aq
+    distribution: \(aqDebian\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.apt\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Advanced Package Manager
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_apt\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: apt
+      tags: [ \(aqrole::apt\(aq, \(aqskip::apt\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::apt\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::apt:keys\fP
+Deploy only keys defined in inventory. Useful, if some keys are expired and
+the apt role refuses to work. Or start using debops on existing hosts with
+expired keys.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.apt\fP default variables have more extensive configuration than
+simple strings or lists, here you can find documentation and examples for them.
+.SS apt__conf
+.sp
+This list, along with \fBapt__group_conf\fP and \fBapt__host_conf\fP can be used
+to manage APT configuration files through Ansible inventory. Each entry is a
+YAML dictionary with keys and values the same as the ones used by the
+\fI\%Ansible ansible.builtin.copy module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/ansible/builtin/copy_module.html\fP>\&. See its documentation for parameter
+advanced usage and syntax.
+.sp
+Here are some more important parameters:
+.INDENT 0.0
+.TP
+.B \fBitem.dest\fP or \fBitem.name\fP or \fBitem.path\fP
+Required. Filename on the remote host. The role will automatically prefix it
+with \fBitem.priority\fP and put it in the right directory.
+.TP
+.B \fBitem.priority\fP
+Optional. Priority that prefix the filename to order the instruction with the
+different configuration files. If not specified, priority \fB60\fP is used by
+default.
+.TP
+.B \fBitem.src\fP
+Path to the source file on the Ansible Controller. Alternatively you can use
+\fBitem.content\fP to provide the file contents directly in the inventory.
+.TP
+.B \fBitem.content\fP
+String or YAML text block with the file contents to put in the destination
+file. Alternatively you can use \fBitem.src\fP to provide the path to the
+source file on Ansible Controller.
+.TP
+.B \fBitem.state\fP
+Optional. If not specified, or if specified and \fBpresent\fP, the file(s) will
+be created. If specified and \fBabsent\fP, file will be removed.
+.UNINDENT
+.SS Examples
+.sp
+Copy file from the Ansible Controller to all remote hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__conf:
+  \- name: personal
+    src: \(aqpath/to/apt.conf.d/02personnal.conf\(aq
+    priority: \(aq99\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a configuration file that calls script before/after DPKG in order to
+set/unset extras options on some mount points :
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__host_conf:
+  \- name: filesystem
+    priority: \(aq02\(aq
+    content: |
+      # This file is managed remotely, all changes will be lost
+      {% if (ansible_virtualization_type != \(aqlxc\(aq) %}
+      Dpkg
+      {
+        Pre\-Invoke { \(dq/usr/local/bin/remountrw\(dq };
+        Post\-Invoke { \(dq/usr/local/bin/remountdefault\(dq };
+      };
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS apt__keys
+.sp
+This list, along with \fBapt__group_keys\fP and \fBapt__host_keys\fP
+and can be used to manage APT repository keys through Ansible inventory.  Each
+entry is a YAML dictionary with parameters that correspond to the \fBapt_key\fP
+module parameters:
+.INDENT 0.0
+.TP
+.B \fBdata\fP
+Optional. GPG key contents provided directly.
+.TP
+.B \fBfile\fP
+Optional. Path to the GPG key file on the remote host.
+.TP
+.B \fBid\fP
+Optional. GPG key identifier.
+.TP
+.B \fBkeyring\fP
+Optional. Path to the keyring file in \fB/etc/apt/trusted.gpg.d/\fP directory.
+.TP
+.B \fBkeyserver\fP
+Optional. IP address or FQDN of the GPG keyserver to download the keys from.
+.TP
+.B \fBstate\fP
+Optional. Either \fBpresent\fP for the key to be present (default), or
+\fBabsent\fP for the key to be removed. The \fBabsent\fP state might be ignored
+due to the issues with not enough information provided about the key to
+remove it. See also \fBarchitecture\fP, \fBdistribution\fP and
+\fBdistribution_release\fP parameters.
+.TP
+.B \fBurl\fP
+Optional. The URL of the GPG key to download and install on the host.
+.UNINDENT
+.sp
+If you don\(aqt specify the \fBstate\fP parameter directly, you can use additional
+parameters that control how the specified key is managed:
+.INDENT 0.0
+.TP
+.B \fBarchitecture\fP
+Optional. Name of the system architecture, for example \fBamd64\fP or \fBi386\fP\&.
+If the current host has the specified architecture, the key will be
+installed. Only one architecture can be specified at a time, use the
+\fBstate\fP parameter for more complex conditions.
+.TP
+.B \fBdistribution\fP
+Optional. Name of the OS distribution. If the current host has the specified
+distribution, the key will be installed. Only one distribution can be
+specified at a time, use the \fBstate\fP parameter for more complex conditions.
+.TP
+.B \fBdistribution_release\fP
+Optional. Name of the OS release. If the current host has the specified
+distribution, the key will be installed. Only one release can be specified at
+a time, use the \fBstate\fP parameter for more complex conditions.
+.UNINDENT
+.sp
+You need to specify either an URL, path to the file or key contents for the
+role to install a given GPG key.
+.SS Examples
+.sp
+Add an APT GPG key on all hosts without any conditions:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__keys:
+  \- url: \(aqhttp://example.com/apt\-key.asc\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add an APT GPG key only on hosts with Debian OS:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__keys:
+  \- url: \(aqhttp://example.com/apt\-key.asc\(aq
+    distribution: \(aqDebian\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add an APT GPG key only on Ubuntu hosts that have been already configured once
+(delayed key configuration):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__keys:
+  \- url: \(aqhttp://example.com/apt\-key.asc\(aq
+    state: \(aq{{ \(dqpresent\(dq
+               if (ansible_local|d() and ansible_local.apt|d() and
+                   ansible_local.apt.configured|bool and
+                   ansible_distribution == \(dqUbuntu\(dq)
+               else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS apt__repositories
+.sp
+This list, along with \fBapt__group_repositories\fP and
+\fBapt__host_repositories\fP can be used to manage APT repositories through
+Ansible inventory. Each entry is a YAML dictionary with parameters that
+correspond to the \fBapt_repository\fP module parameters:
+.INDENT 0.0
+.TP
+.B \fBrepo\fP
+Required. The APT repository to configure, in the \fI\%sources.list(5)\fP <\fBhttps://manpages.debian.org/sources.list(5)\fP> format.
+.TP
+.B \fBfilename\fP
+Optional. Name of the source file in \fB/etc/apt/sources.list.d/\fP directory.
+Ansible automatically adds \fB\&.list\fP suffix, therefore it\(aqs not needed..
+.TP
+.B \fBmode\fP
+Optional. The file mode in octal. Needs to be quoted to be interpreted
+correctly by Ansible.
+.TP
+.B \fBstate\fP
+Optional. Either \fBpresent\fP for the repository to be present (default), or
+\fBabsent\fP for the repository to be removed. See also \fBarchitecture\fP,
+\fBdistribution\fP and \fBdistribution_release\fP parameters.
+.UNINDENT
+.sp
+If you don\(aqt specify the \fBstate\fP parameter directly, you can use additional
+parameters that control how the specified repository is managed:
+.INDENT 0.0
+.TP
+.B \fBarchitecture\fP
+Optional. Name of the system architecture, for example \fBamd64\fP or \fBi386\fP\&.
+If the current host has the specified architecture, the repository will be
+configured. Only one architecture can be specified at a time, use the
+\fBstate\fP parameter for more complex conditions.
+.TP
+.B \fBdistribution\fP
+Optional. Name of the OS distribution. If the current host has the specified
+distribution, the repository will be configured. Only one distribution can be
+specified at a time, use the \fBstate\fP parameter for more complex conditions.
+.TP
+.B \fBdistribution_release\fP
+Optional. Name of the OS release. If the current host has the specified
+distribution, the repository will be configured. Only one release can be
+specified at a time, use the \fBstate\fP parameter for more complex conditions.
+.UNINDENT
+.SS Examples
+.sp
+Add an APT repository on all hosts without any conditions:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__repositories:
+  \- repo: \(aqdeb http://example.com/debian jessie main\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add an APT repository only on hosts with Debian OS:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__repositories:
+  \- repo: \(aqdeb http://example.com/debian jessie main\(aq
+    distribution: \(aqDebian\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add an APT repository only on Ubuntu hosts that have been already configured
+once (delayed repository configuration):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__repositories:
+  \- repo: \(aqdeb http://example.com/ubuntu xenial main\(aq
+    state: \(aq{{ \(dqpresent\(dq
+               if (ansible_local|d() and ansible_local.apt|d() and
+                   ansible_local.apt.configured|bool and
+                   ansible_distribution == \(dqUbuntu\(dq)
+               else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure an Ubuntu PPA on Ubuntu hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__repositories:
+  \- repo: \(aqppa:nginx/stable\(aq
+    distribution: \(aqUbuntu\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS apt__deb822_repositories
+.sp
+This list, along with \fBapt__deb822_group_repositories\fP and
+\fBapt__deb822_host_repositories\fP can be used to manage APT repositories through
+Ansible inventory. Each entry is a YAML dictionary with parameters that
+correspond to the \fI\%Ansible ansible.builtin.deb822_repository module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/ansible/builtin/deb822_repository_module.html\fP>\&. See its
+documentation for parameter advanced usage and syntax.
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the repo. Specifically used for \fBX\-Repolib\-Name\fP and in
+naming the repository and signing key files.
+.TP
+.B \fBuris\fP
+Required. Must specify the base of the Debian distribution archive, from which
+APT finds the information it needs. Multiple URIs can be specified in a list.
+.TP
+.B \fBstate\fP
+Optional. Either \fBpresent\fP for the repository to be present (default), or
+\fBabsent\fP for the repository to be removed.
+.TP
+.B \fBarchitectures\fP
+Optional. Architectures to search within repository, for example \fBamd64\fP
+(default) or \fBi386\fP\&.
+.TP
+.B \fBcomponents\fP
+Optional. Specify different sections of one distribution version present in
+Suite, such as \fBmain\fP (default), \fBcontrib\fP, \fBnon\-free\-firmware\fP…
+.TP
+.B \fBmode\fP
+Optional. The octal mode for newly created files in
+\fB/etc/apt/sources.list.d/\fP directory.
+.TP
+.B \fBsuites\fP
+Optional. Can take the form of a distribution release name (default).
+.TP
+.B \fBsigned_by\fP
+Optional. Either a URL to a GPG key, absolute path to a keyring file, one or
+more fingerprints of keys. Keys will be store in \fB/etc/apt/keyrings/\fP
+directory (automatically created if absent).
+.TP
+.B \fBtypes\fP
+Optional. Which types of packages to look for from a given source; either
+binary \fBdeb\fP (default) or source code \fBdeb\-src\fP\&.
+.UNINDENT
+.SS Examples
+.sp
+Add an APT repository with several components on all hosts without any
+conditions:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__deb822_repositories:
+  \- name: \(aqdebian\(aq
+    types: \(aqdeb\(aq
+    uris: \(aqhttp://deb.debian.org/debian\(aq
+    suites: \(aqbookworm\(aq
+    components:
+      \- \(aqmain\(aq
+      \- \(aqnon\-free\-firmware\(aq
+      \- \(aqcontrib\(aq
+      \- \(aqnon\-free\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add third\-party APT repository with GPG key URL:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__deb822_repositories:
+  \- name: \(aqmy\-repo\(aq
+    uris: \(aqhttp://example.com/debian\(aq
+    signed_by: \(aqhttp://example.com/debian/example.com.asc\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS apt__auth_files
+.sp
+The \fBapt__*_auth_files\fP lists can be used to create and manage
+\fB/etc/apt/auth.conf.d/\fP configuration files which caontain authentication
+credentials required by specific APT repositories. The format and more details
+about these files can be found in \fI\%apt_auth.conf(5)\fP <\fBhttps://manpages.debian.org/apt_auth.conf(5)\fP> manual page. The
+\fI\%debops.reprepro\fP role can be used to create APT repositories that require
+authentication.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Private APT repositories accessible over HTTPS might result in issues
+during host bootstrapping due to lack of trusted Root CA certificates on the
+host. You can avoid that by applying the \fI\%debops.pki\fP role before the
+actual bootstrap playbook, for example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ debops run service/python_raw service/pki \-l <host> \-u root
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This command will prepare the host for use via Ansible and set up PKI
+environment, including custom Root CA certificates.
+.UNINDENT
+.UNINDENT
+.sp
+This functionality is also available in the \fI\%debops.keyring\fP role for use
+by other Ansible roles via dependent role variables.
+See \fI\%keyring__dependent_apt_auth_files\fP for more details.
+.SS Examples
+.sp
+Provide credentials for a private APT repository, with password stored in the
+\fBsecret/\fP directory managed by the \fI\%debops.secret\fP role. The APT
+repository is managed by the \fI\%debops.reprepro\fP role which uses the
+\fI\%debops.nginx\fP role to manage the authentication credentials.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__auth_files:
+
+  \- name: \(aqprivate_repo\(aq
+    machine: \(aqhttps://repo.example.org/debian\(aq
+    login: \(aqusername\(aq
+    password: \(aq{{ lookup(\(dqpassword\(dq, secret + \(dq/credentials/repo\(dq
+                                            + \(dq/nginx/htpasswd\(dq
+                                            + \(dq/apt_access/username\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables are defined as a list of YAML dictionaries .Each configuration
+entry defines a separate file in the \fB/etc/apt/auth.conf.d/\fP directory.
+The state and contents of the file are specified using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the configuration file with authentication credentials, can
+contain \fB\&.conf\fP suffix which will be stripped. Entries with the same
+\fBname\fP parameter are merged together using \fI\%Universal Configuration\fP
+and can affect each other in order of appearance.
+.TP
+.B \fBmachine\fP
+Required. The URL of the APT repository that requires the following
+credentials.
+.TP
+.B \fBlogin\fP
+Required. The username expected by the APT repository during HTTP Basic
+Authentication.
+.TP
+.B \fBpassword\fP
+Required. The password expected by the APT repository during HTTP Basic
+Authentication. It can be stored in the \fBsecret/\fP directory and
+retrieved from there if needed.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given configuration file will
+created on the host. If \fBabsent\fP, a given configuration file will be
+removed from the host. If \fBignore\fP, a given entry will not be evaluated
+during role execution.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with additional comments included in the
+generated configuration file.
+.UNINDENT
+.SS apt__sources
+.sp
+This list as well as other \fBapt__*_sources\fP lists are used to configure what
+APT package sources are configure in the \fB/etc/apt/sources.list\fP file.
+This file defines the primary OS package sources and indirectly defines the OS
+release that\(aqs present on the host. The configuration template will track what
+sources are present and will comment out the duplicates if they show up in more
+than one list.
+.sp
+Apart from the usual inventory lists for all hosts, group of hosts and specific
+hosts, there are additional lists that are included in the finished config
+file:
+.INDENT 0.0
+.TP
+.B \fBapt__original_sources\fP
+This list defines the APT sources that are present in the original, diverted
+\fB/etc/apt/sources.list\fP file. The security sources are automatically
+filtered out based on the contents of the \fBapt__security_sources\fP list.
+.TP
+.B \fBapt__default_sources\fP
+The role provides a set of default package sources for each known OS
+distribution. These sources are usually URLs to mirror redirectors, which
+will try to point to the closest available mirror. They are provided as
+a backup in case the host does not have any recognized package sources
+available.
+.TP
+.B \fBapt__security_sources\fP
+This is a list of APT sources that provide security updates. This list has
+a more specific entries than the normal lists since security repositories
+tend to have different naming scheme than the regular mirrored repositories.
+.TP
+.B \fBapt__combined_sources\fP
+This list combines all of the above list and is used in the configuration
+template. It defines the order in which the APT sources are specified in the
+configuration file.
+.UNINDENT
+.sp
+Each list entry that defines an APT source can have different forms.
+.sp
+The simplest entry is a string. It does not have any conditions and it will be
+added to the \fB/etc/apt/sources.list\fP file unless it is a duplicate. The
+string should only contain the URL of the APT mirror, the rest will be added
+automatically according to detected OS distribution and release. Example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__sources:
+  \- \(aqhttp://ftp.debian.org/debian\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A more advanced alternative is a YAML dictionary, which uses OS distribution
+names as keys and mirror URLs as values. You can specify multiple distributions
+in one entry, they will be filtered according to the current OS. Example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__sources:
+  \- Debian: \(aqhttp://ftp.debian.org/debian\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The third version of an APT sources entry is similar to the \fI\%Ansible
+ansible.builtin.apt_repository module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/ansible/builtin/apt_repository_module.html\fP>, and should be defined as a YAML
+dictionary with \fBrepo\fP as the key and complete APT source specification as the
+value. These entries are not filtered by the role, and they are not checked for
+duplicates. Example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__sources:
+  \- repo: \(aqdeb http://ftp.debian.org/debian jessie main contrib non\-free\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The last version is a YAML dictionary with multiple keys as parameters. These
+parameters allow for fine control over when a particular APT source is present,
+what source types are used, which components are enabled, etc. Known
+parameters:
+.INDENT 0.0
+.TP
+.B \fBuri\fP or \fBuris\fP
+Required. The URI or other method known by APT (see \fI\%sources.list(5)\fP <\fBhttps://manpages.debian.org/sources.list(5)\fP>)
+for a given APT source. It is possible to specify multiple entries as a list,
+they will be treated as one.
+.TP
+.B \fBtype\fP or \fBtypes\fP
+Optional. What type of the packages are used for this source. It can be
+either a string of 1 type, or a list of types. Known source types: \fBdeb\fP,
+\fBdeb\-src\fP\&. If not set, role will use the \fBapt__source_types\fP value.
+.TP
+.B \fBoption\fP or \fBoptions\fP
+Optional. String or list of strings of APT options. Settings are expected in
+the form \fBsetting=value\fP\&.  See \fI\%sources.list(5)\fP <\fBhttps://manpages.debian.org/sources.list(5)\fP> for details.
+.TP
+.B \fBsuite\fP or \fBsuites\fP
+Optional. Name of the \(dqsuite\(dq to use for this source. The suite is usually
+a release name like \fBjessie\fP, \fBxenal\fP, or a \(dqrelease class\(dq like
+\fBstable\fP, \fBoldstable\fP, \fBtesting\fP, or a directory path in case of simple
+repositories (which needs to end with a slash). It can also be a list of
+releases. If not specified, role will use the \fBapt__distribution_suffixes\fP
+value to generate a list of default suites for a given OS release.
+.TP
+.B \fBcomponent\fP or \fBcomponents\fP
+Optional. Name of a repository component or section to enable, for example
+\fBmain\fP, \fBcontrib\fP, \fBnon\-free\fP, \fBuniverse\fP, \fBrestricted\fP,
+\fBmultiverse\fP\&. It can also be a list of components. If not specified, role
+will use the \fBapt__distribution_components\fP value.
+.TP
+.B \fBcomment\fP or \fBcomments\fP
+Optional. A string or a YAML text block with comments about the given APT
+source.
+.TP
+.B \fBstate\fP
+Optional. Either \fBpresent\fP if a given APT source should be present in the
+generated config file, or \fBabsent\fP if not.
+.TP
+.B \fBarchitecture\fP
+Optional. If \fBstate\fP is not specified, you can specify a system
+architecture name on which a given APT source is active. Only one
+architecture can be specified, use the \fBstate\fP parameter for more complex
+conditions.
+.TP
+.B \fBdistribution\fP
+Optional. If \fBstate\fP is not specified, you can specify an OS distribution
+name on which a given APT source is active. Only one distribution can be
+specified, use the \fBstate\fP parameter for more complex conditions.
+.TP
+.B \fBdistribution_release\fP
+Optional. If \fBstate\fP is not specified, you can specify an OS release on
+which a given APT source is active. Only one release can be specified, use
+the \fBstate\fP parameter for more complex conditions.
+.UNINDENT
+.SS Examples
+.sp
+Add an archive repository in \fB/etc/apt/sources.list\fP configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__sources:
+  \- uri: \(aqhttp://archive.debian.org/debian\(aq
+    suite: \(aqsarge\(aq
+    components: [ \(aqmain\(aq, \(aqcontrib\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Enable repository with source packages:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__sources:
+  \- uri: \(aqhttp://ftp.debian.org/debian\(aq
+    types: [ \(aqdeb\(aq, \(aqdeb\-src\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Enable Canonical Partner repositories, only on Ubuntu hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt__sources:
+  \- uri: \(aqhttp://archive.canonical.com/ubuntu\(aq
+    component: \(aqpartner\(aq
+    distribution: \(aqUbuntu\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH SEE ALSO
+.INDENT 0.0
+.TP
+.B \fI\%apt(8)\fP <\fBhttps://manpages.debian.org/apt(8)\fP>
+Advanced Package Tool command line interface
+.TP
+.B \fI\%sources.list(5)\fP <\fBhttps://manpages.debian.org/sources.list(5)\fP>
+\fB/etc/apt/sources.list\fP documentation
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

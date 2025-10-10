@@ -1,0 +1,481 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.LIBVIRT" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.libvirt \- Manage libvirt client configuration
+.SH SYNOPSIS
+.sp
+\fBdebops run service/libvirt\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.libvirt\fP role can be used to manage networks and storage pools
+defined in \fI\%libvirt\fP <\fBhttps://libvirt.org/\fP> virtualization service. It\(aqs designed to be used either
+\(dqlocally\(dq, directly on a given host, or \(dqremotely\(dq from a central host through
+the API.
+.sp
+To configure a host to provide the \fBlibvirtd\fP service you can use the
+\fBdebops.libvirtd\fP role.
+.SH GETTING STARTED
+.sp
+The \fBdebops.libvirt\fP role is designed to use your normal admin account instead of
+a \fBroot\fP account for managing \fBlibvirt\fP via it\(aqs API. That way Ansible can
+access your own SSH keys through \fBssh\-agent\fP if necessary to connect to the
+remote \fBlibvirtd\fP instances.
+.sp
+You should still use \fBdebops.libvirt\fP with the \fBbecome: True\fP option in your
+playbooks, it will automatically run tasks unprivileged when needed.
+.sp
+Because an unprivileged account is used, the role won\(aqt work correctly if that
+account does not belong to the \fBlibvirt\fP group. On the Ansible Controller this
+requires that the user needs to log out and back in before the new group takes
+effect. This role will check if the required group is present and won\(aqt run
+\fBlibvirt\fP tasks otherwise to not stop the playbook unnecessarily.
+.SS Use via local connection
+.sp
+By default \fBdebops.libvirt\fP will try to connect to a \fBlibvirtd\fP system
+instance on \fBlocalhost\fP\&. Your user should be in the \fBlibvirt\fP system group
+to be able to do this. The \fBdebops.libvirtd\fP role configures this automatically.
+.sp
+Network and storage pool configuration without specified \fBitem.uri\fP parameter
+applies to default connection. If your main \fBlibvirtd\fP daemon is on
+a different host, you can change the default connection using the
+\fBlibvirt__default_uri\fP variable.
+.SS Use via remote connections
+.sp
+You can use \fBdebops.libvirt\fP from your Ansible Controller host to centrally
+configure \fBlibvirtd\fP instances on remote hosts.
+.sp
+Use the \fBlibvirt__connections\fP dict variable to specify libvirt URI connections
+with aliases, they will be configured in \fB~/.config/libvirt/libvirt.conf\fP on
+the account you use to run Ansible. After that, in each network or storage pool
+definition add \fBitem.uri\fP parameter with the name of the connection to use for
+that definition.
+.SS Example inventory
+.sp
+To run this role directly on \fBlibvirtd\fP servers, they should be included
+in the \fB[debops_libvirt]\fP Ansible group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_libvirt]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you want to use this role on your Ansible Controller, put it in the same
+group as well:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_libvirt]
+hostname ansible_connection=local
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook which uses the \fBdebops.libvirt\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage libvirt hosts
+  hosts: [ \(aqdebops_service_libvirt\(aq ]
+  become: True
+
+  roles:
+    \- role: debops.libvirt
+      tags: [ \(aqrole::libvirt\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after the host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::libvirt\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::libvirt:networks\fP
+Configure \fBlibvirt\fP networks.
+.TP
+.B \fBrole::libvirt:pools\fP
+Configure \fBlibvirt\fP storage pools.
+.UNINDENT
+.SH DEFAULT VARIABLES: CONFIGURATION
+.sp
+Some of \fBdebops.libvirt\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS libvirt__connections
+.sp
+This is a dictionary variable which defines \fBlibvirt\fP connections and their
+aliases. Each key is an alias of a given connection. Currently only local and
+SSH connections are supported by the role.
+.SS Examples
+.sp
+Define local and remote \fBlibvirt\fP connections:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirt__connections:
+  \(aqlocalhost\(aq:  \(aqqemu:///system\(aq
+  \(aqvm\-host\(aq:    \(aqqemu+ssh://vm.example.org/system\(aq
+  \(aqlocal\-lxc\(aq:  \(aqlxc:///\(aq
+  \(aqlxc\-host\(aq:   \(aqlxc+ssh://lxc.example.org/\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS libvirt__networks
+.sp
+This is a list of network definitions specified as YAML dicts. Each dict
+defines separate network interface which then can be configured and enabled in
+\fBlibvirt\fP\&.
+.sp
+List of parameters supported by all network types:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the network interface used as a handle in \fBvirsh\fP and
+\fBvirt\-manager\fP\&.
+.TP
+.B \fBtype\fP
+Required. Specifies what XML template will be used to configure the interface.
+Different templates might require different parameters.
+.sp
+Currently supported templates are:
+.INDENT 7.0
+.IP \(bu 2
+\fBbridge\fP: Network will be configured as a simple host bridge, all
+configuration is done on the host (outside of \fBlibvirt\fP). You need to
+specify \fBitem.bridge\fP parameter as name of the host bridge to use.
+.IP \(bu 2
+\fBdnsmasq\fP: Network will be configured as a bridge with \fBdnsmasq\fP used
+as internal DNS and DHCP server.
+.UNINDENT
+.TP
+.B \fBbridge\fP
+Required. Name of the network interface to use.
+.TP
+.B \fBstate\fP
+Specify the state the network should be in. If not specified, interface will
+be defined and started automatically. Known states:
+.INDENT 7.0
+.TP
+.B \fBundefined\fP or \fBabsent\fP:
+Network will be destroyed if active and removed from \fBlibvirt\fP
+configuration.
+.TP
+.B \fBpresent\fP:
+Network will be defined in \fBlibvirt\fP but will not actively start at the
+creation time. It might or might not start on boot depending on
+\fBitem.autostart\fP parameter.
+.TP
+.B \fBactive\fP:
+Network will be defined if not present and automatically started at
+creation time, or if it\(aqs inactive.
+.UNINDENT
+.TP
+.B \fBautostart\fP
+Boolean, optional, defaults to \fBTrue\fP\&. Specify if a network should start
+(\fBTrue\fP) or not (\fBFalse\fP) at boot time.
+.TP
+.B \fBuri\fP
+Name of the \fBlibvirt\fP connection configured in
+\fB~/.config/libvirt/libvirt.conf\fP to use to configure this network. If not
+specified, default connection (most likely \fBlocalhost\fP which is an alias
+configured to \fBqemu:///system\fP by default) is used.
+.TP
+.B \fBinterface_present\fP
+Specify a name of a network interface on the host; network will be configured
+only when a specified interface exists. This only works in the \(dqlocal mode\(dq,
+not on remote \fBlibvirt\fP connections.
+.UNINDENT
+.sp
+List of parameters supported by \fBdnsmasq\fP network type:
+.INDENT 0.0
+.TP
+.B \fBaddresses\fP
+List of IPv4 or IPv6 addresses in \fBhost/prefix\fP format. These IP addresses
+will be configured on the create bridge. If DHCP is enabled, it will be
+configured only on first IPv4 and first IPv6 network specified (\fBlibvirt\fP
+limitation).
+.TP
+.B \fBforward\fP
+Boolean. If specified, traffic to external networks will be forwarded to the
+upstream interface.
+.TP
+.B \fBforward_mode\fP
+Name of the forward mode to use. If not specified, \fBnat\fP will be configured
+by default. See \fI\%libvirt network documentation\fP <\fBhttp://wiki.libvirt.org/page/VirtualNetworking\fP> for more details.
+.TP
+.B \fBdhcp\fP
+Boolean. If present and \fBTrue\fP, enable DHCP server for this network. Only
+first subnet of each type (IPv4, IPv6) will have DHCP configured.
+.TP
+.B \fBdhcp_range\fP
+List which specifies start and end of DHCP range offered to hosts in the
+network. If not specified, \fB[ \(aq10\(aq, \(aq250\(aq ]\fP is used by default to fit in
+\fB/24\fP CIDR network.
+.TP
+.B \fBdomain\fP
+DNS domain to sent to hosts by DHCP server.
+.TP
+.B \fBdomain_local\fP
+Boolean. Specify if requests that don\(aqt exist for local domain in \fBdnsmasq\fP
+should be forwarded to upstream DNS servers (they are forwarded by default).
+.TP
+.B \fBbootp\fP
+Boolean. Enable or disable support for BOOTP/PXE options in DHCP server.
+.TP
+.B \fBbootp_file\fP
+File path sent to the host which instructs them to download a given file from
+TFTP server. If none is specified, \fB/undionly.kpxe\fP is used, which is
+default for iPXE.
+.TP
+.B \fBbootp_server\fP
+IP address of the TFTP server to which hosts are redirected by DHCP server.
+If it\(aqs not set, DHCP server points hosts to its own IP address.
+.UNINDENT
+.SS Examples
+.sp
+Create host bridge network, only if a given bridge exists:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirt__networks:
+  \- name: \(aqexternal\(aq
+    type: \(aqbridge\(aq
+    bridge: \(aqbr0\(aq
+    interface_present: \(aqbr0\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a NAT network on remote \fBlibvirt\fP host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirt__networks:
+  \- name: \(aqnat\(aq
+    type: \(aqdnsmasq\(aq
+    bridge: \(aqvirbr0\(aq
+    addresses: [ \(aq192.0.2.1/24\(aq, \(aq2001:db8:ab::1/64\(aq ]
+    forward: True
+    dhcp: True
+    uri: \(aqvm\-host\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS libvirt__pools
+.sp
+This is a list of storage pool definitions specified as YAML dicts. Each dict
+defines separate storage pool which then can be configured and enabled in
+\fBlibvirt\fP\&.
+.sp
+List of parameters supported by all storage pool types:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the storage pool used as a handle in \fBvirsh\fP and
+\fBvirt\-manager\fP\&.
+.TP
+.B \fBtype\fP
+Required. Specifies what XML template will be used to configure the pool.
+Different templates might require different parameters.
+.sp
+Currently supported templates are:
+.INDENT 7.0
+.TP
+.B \fBdir\fP:
+Storage pool will be configured as a directory in existing filesystem. You
+need to specify an absolute path to a directory using \fBitem.path\fP
+parameter.
+.sp
+Directory should already exist before storage pool can be activated,
+otherwise you can create it using the \fBbuild\fP command.
+.TP
+.B \fBnfs\fP:
+Storage pool is a directory exported from a NFS server, which will be
+mounted on a given path. See below for supported parameters.
+.UNINDENT
+.INDENT 7.0
+.IP \(bu 2
+\fBlogical\fP:
+Storage pool is a LVM volume group which can be located on local or remote
+block device(s). See below for supported parameters.
+.UNINDENT
+.TP
+.B \fBstate\fP
+Specify the state the storage pool should be in. If not specified, pool will
+be defined and started automatically. Known states:
+.INDENT 7.0
+.TP
+.B \fBdeleted\fP:
+Storage pool contents will be erased (this is a destructive
+operation), and it will be undefined afterwards.
+.UNINDENT
+.INDENT 7.0
+.IP \(bu 2
+\fBundefined\fP or \fBabsent\fP: storage pool will be destroyed if active and
+removed from \fBlibvirt\fP configuration.
+.IP \(bu 2
+\fBpresent\fP: storage pool will be defined in \fBlibvirt\fP but will not
+actively start at the creation time. It might or might not start on boot
+depending on \fBitem.autostart\fP parameter. Storage pool might need to be
+built before it can be activated, which can be done using \fBbuild\fP
+command.
+.IP \(bu 2
+\fBinactive\fP: storage pool will be stopped if present.
+.IP \(bu 2
+\fBactive\fP: storage pool will be defined if not present and automatically
+started at creation time, or if it\(aqs inactive.
+.UNINDENT
+.TP
+.B \fBautostart\fP
+Boolean, optional, defaults to \fBTrue\fP\&. Specify if a storage pool should
+start (\fBTrue\fP) or not (\fBFalse\fP) at boot time.
+.TP
+.B \fBuri\fP
+Name of the \fBlibvirt\fP connection configured in
+\fB~/.config/libvirt/libvirt.conf\fP to use to configure this storage pool. If
+not specified, default connection (most likely \fBlocalhost\fP which is an
+alias configured to \fBqemu:///system\fP by default) is used.
+.UNINDENT
+.sp
+List of parameters supported by \fBnfs\fP storage pool type:
+.INDENT 0.0
+.TP
+.B \fBhost\fP
+IP address or hostname of NFS server which holds the exported filesystem.
+.TP
+.B \fBsrc\fP
+Path on the NFS server with exported filesystem, for example \fB/srv/nfs\fP\&.
+.TP
+.B \fBpath\fP
+Path in the local filesystem where remote NFS share should be mounted, for
+example \fB/media/nfs/remote\-vm\fP\&. If this directory does not exist, it will
+be created by \fBdebops.libvirt\fP role automatically.
+.UNINDENT
+.sp
+List of parameters supported by \fBlogical\fP storage pool type:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Name of the storage pool will be used as name of the LVM Volume Group.
+.TP
+.B \fBdevices\fP
+List of block devices which should be used to create LVM Volume Group. If
+this list is defined, \fBdebops.libvirt\fP will run the \fBbuild\fP command to
+attempt and create new Volume Group. If it\(aqs not specified, existing Volume
+Group will be configured instead (it can be created beforehand using LVM
+commands).
+.UNINDENT
+.SS Examples
+.sp
+Create a directory storage pool on local machine (default \fBlibvirt\fP storage pool:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirt__pools:
+  \- name: \(aqdefault\(aq
+    type: \(aqdir\(aq
+    path: \(aq/var/lib/libvirt/images\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a NFS\-based storage pool on remote \fBlibvirt\fP host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirt__pools:
+  \- name: \(aqnfs\-pool\(aq
+    type: \(aqnfs\(aq
+    host: \(aqnfs.example.org\(aq
+    src:  \(aq/srv/nfs\(aq
+    path: \(aq/media/nfs/libvirt\(aq
+    uri:  \(aqvm\-host\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a LVM\-based storage pool from existing Volume Group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+libvirt__pools:
+  \- name: \(aqvg_kvm\(aq
+    type: \(aqlogical\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

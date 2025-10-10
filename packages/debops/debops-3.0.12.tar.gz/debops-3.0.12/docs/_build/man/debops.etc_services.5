@@ -1,0 +1,209 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ETC_SERVICES" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.etc_services \- Manage /etc/services database using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/etc_services\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.etc_services\fP role can be used to \(dqreserve\(dq or \(dqregister\(dq a
+service port in the \fB/etc/services\fP file. Service ports configured this way can
+appear as named entries in many command outputs, such as \fBiptables \-\-list\fP
+or \fBnetstat \-\-listening \-\-program\fP\&. You can also have convenient database
+of reserved and free ports on a particular host, and reference ports by
+their names in firewall configuration files.
+.SH GETTING STARTED
+.SS Using debops.etc_services from other roles
+.sp
+One common use case for \fBdebops.etc_services\fP is to use it from other roles
+to configure \fB/etc/services\fP\&.
+.sp
+To do this, you can define the services in your \fBdefaults/main.yml\fP file.
+Example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Configuration for \(ga\(gadebops.etc_services\(ga\(ga role which registers port numbers
+# for Apt\-Cacher NG.
+apt_cacher_ng__etc_services__dependent_list:
+
+  \- name: \(aqacng\(aq
+    port: \(aq3142\(aq
+    comment: \(aqApt\-Cacher NG caching proxy server\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+And then in the playbook for this role, hand the
+\fBapt_cacher_ng__etc_services__dependent_list\fP variable over to the
+\fBdebops.etc_services\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure package proxy server apt\-cacher\-ng
+  hosts: [ \(aqdebops_service_apt_cacher_ng\(aq ]
+  become: True
+
+  roles:
+
+    \- role: debops.etc_services
+      tags: [ \(aqrole::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ apt_cacher_ng__etc_services__dependent_list }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example inventory
+.sp
+To configure \fBdebops.etc_services\fP on a given remote host, it needs to be added to
+\fB[debops_all_hosts]\fP or \fBdebops_service_etc_services\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs a minimal example playbook that can be used to manage the
+\fB/etc/services\fP file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage /etc/services database
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_etc_services\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This playbooks is shipped with this role under
+\fBdocs/playbooks/etc_services.yml\fP from which you can symlink it to your
+playbook directory.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.etc_services\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS etc_services__list
+.sp
+The \fBetc_services__*_list\fP list variables allow you to generate entries for
+local services not included in the officially distributed \fB/etc/services\fP
+file. They will generate separate files for each configured service in
+\fB/etc/services.d/\fP which then will be assembled into the
+\fB/etc/services\fP file.
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+String, required. Name of the service, should be short and unique.
+.TP
+.B \fBport\fP
+String, required. TCP or UDP ort used by the service.
+.TP
+.B \fBprotocols\fP
+List of strings, optional. Transport layer protocols of the service
+corresponding with \fBport\fP\&.
+Common choices: \fBtcp\fP, \fBudp\fP\&.
+.TP
+.B \fBcomment\fP
+String, optional. Comment to add to the service entry.
+.TP
+.B \fBfilename\fP
+String, optional. Use this filename instead of a generated one.
+.TP
+.B \fBcustom\fP
+String, optional. Specify custom file contents instead of templated one. If
+it is used, options like \fBname\fP and \fBport\fP are ignored.
+.TP
+.B \fBstate\fP
+Either \fBpresent\fP or \fBabsent\fP\&. If it\(aqs defined and \fBabsent\fP, the local
+service configuration will be removed.
+.TP
+.B \fBdelete\fP
+Boolean, optional, defaults to False. Delete the given local service.
+.UNINDENT
+.SS Examples
+.sp
+Create an entry for a custom TCP and UDP service:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+etc_services__list:
+
+  \- name: \(aqservicename\(aq
+    port: \(aq12345\(aq
+    protocols: [ \(aqtcp\(aq, \(aqudp\(aq ]
+    comment: \(aqExample service\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

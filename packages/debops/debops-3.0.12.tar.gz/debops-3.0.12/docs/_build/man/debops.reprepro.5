@@ -1,0 +1,795 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.REPREPRO" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.reprepro \- Manage local APT repositories using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/reprepro\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBreprepro\fP Debian package is an \fI\%APT repository manager\fP <\fBhttps://wiki.debian.org/DebianRepository/SetupWithReprepro\fP>\&. It can be
+used to create and maintain APT repositories for Debian or Ubuntu operating
+systems and their derivatives. The repositories managed by \fBreprepro\fP
+can be used to distribute third\-party software packages or create local mirrors
+of official Debian or Ubuntu repositories.
+.sp
+The \fI\%debops.reprepro\fP role uses the \fBreprepro\fP package to
+maintain multiple sets of APT repositories, with optional authentication and
+access restrictions.
+.SH GETTING STARTED
+.SS Overview of APT repository instances
+.sp
+The \fI\%debops.reprepro\fP role sets up and manages APT repositories in one or
+multiple \(dqinstances\(dq. A single GPnuG keyring is used to manage GPG keys of
+uploaders and the key used to sign the repository. Public contents of the APT
+repositories are published using the \fI\%debops.nginx\fP role. Each repository
+is configured with an upload queue using WebDAV which allows package
+maintainers to upload signed \fB\&.deb\fP packages using the \fBdput\fP
+command.
+.sp
+Each instance consists of the repository data files
+located in \fB/var/local/reprepro/repositories/<instance>/\fP directory, an
+incoming queue in \fB/var/spool/reprepro/<instance>/incoming/\fP directory
+and public contents of the APT repository stored in
+\fB/srv/www/reprepro/sites/<instance>/public/\fP directory. The root paths
+for these directories can be changed using default variables, if necessary.
+.sp
+By default APT repositories are accessible publicly. Each instance can be
+configured to disable public access and require HTTP Basic Authentication to
+access the repository contents; this can be utilized to provide controlled
+access to the software packages.
+.SS Important configuration variables
+.INDENT 0.0
+.TP
+.B \fI\%reprepro__gpg_uploaders_keys\fP
+The default configuration sets up a simple APT repository for recent Debian
+releases, including the next Testing release. To allow developers to upload
+packages to it, their GPG keys need to be added to the repository keyring. You
+can specify them using the \fI\%reprepro__gpg_uploaders_keys\fP list. The
+keys are managed using the \fI\%debops.keyring\fP role, and can be stored either
+on a keyserver network, or in the local \fBansible/keyring/\fP directory on
+the Ansible Controller. See the role documentation for more details.
+.TP
+.B \fI\%reprepro__origin\fP
+This variable is used to create the GPG key used to sign the APT
+repositories, and is added to the repository metadata in the \fBOrigin:\fP
+field which can be used by \fI\%apt_preferences(5)\fP <\fBhttps://manpages.debian.org/apt_preferences(5)\fP> to control package
+policy. It\(aqs derived by default from the \fI\%debops.machine\fP role
+configuration, or lacking that, from the DNS domain of the host.
+.UNINDENT
+.SS Reprepro maintenance, SSH access
+.sp
+Some operations on the APT repositories require manual access to them to
+execute \fBreprepro\fP commands. The role configures the UNIX account to
+allow SSH access by administrators. List of the SSH keys added to the account
+is defined in the \fI\%reprepro__admin_sshkeys\fP variable and by default
+will include the SSH keys of the person executing the role.
+.SS Package uploading using \fBdput\fP
+.sp
+You can use the \fI\%dput(1)\fP <\fBhttps://manpages.debian.org/dput(1)\fP> command to upload the build \fB\&.deb\fP packages to
+the repository over HTTPS. An example \fB~/.dput.cf\fP configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[repo]
+fqdn = repo.example.org
+incoming = /upload
+method = https
+allow_unsigned_uploads = 0
+progress_indicator = 2
+allowed_distributions = .*
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example inventory
+.sp
+To install and configure \fBreprepro\fP on a given host, it should be included in
+a specific Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_reprepro]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.reprepro\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage reprepro repositories
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_reprepro\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare reprepro environment
+      import_role:
+        name: \(aqreprepro\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::reprepro\(aq, \(aqrole::nginx\(aq ]
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::nginx\(aq, \(aqrole::reprepro\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+      keyring__dependent_gpg_user: \(aq{{ reprepro__keyring__dependent_gpg_user }}\(aq
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ reprepro__keyring__dependent_gpg_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ reprepro__nginx__dependent_servers }}\(aq
+
+    \- role: reprepro
+      tags: [ \(aqrole::reprepro\(aq, \(aqskip::reprepro\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::reprepro\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.reprepro\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%reprepro(1)\fP <\fBhttps://manpages.debian.org/reprepro(1)\fP>, \fI\%sources.list(5)\fP <\fBhttps://manpages.debian.org/sources.list(5)\fP>,
+\fI\%apt_auth.conf(5)\fP <\fBhttps://manpages.debian.org/apt_auth.conf(5)\fP>, \fI\%dput(1)\fP <\fBhttps://manpages.debian.org/dput(1)\fP>, \fI\%dput.cf(5)\fP <\fBhttps://manpages.debian.org/dput.cf(5)\fP>
+.IP \(bu 2
+\fI\%Creating an APT repository with reprepro\fP <\fBhttps://wiki.debian.org/DebianRepository/SetupWithReprepro\fP> on Debian Wiki
+.IP \(bu 2
+Example of \fI\%creation and maintenance of an APT repository mirror\fP <\fBhttps://www.waveguide.se/?article=create-you-own-customized-debian-repository-mirror\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.reprepro\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS reprepro__instances
+.sp
+The \fBreprepro__*_instances\fP variables define the \(dqinstances\(dq of APT
+repositories managed by \fBreprepro\fP\&. Each \(dqinstance\(dq consists of an APT
+repository and corresponding \fI\%debops.nginx\fP configuration to provide
+HTTP/HTTPS access for package retrieval and upload. The \fI\%debops.nginx\fP
+configuration is optional and will be created only when specific configuration
+parameters are present.
+.SS Examples
+.SS Restrict allowed GPG keys for specific APT repositories
+.sp
+Modify the default configuration by adding a new set of uploaders for specific
+APT repositories. The role configuration will be updated via the
+\fI\%Universal Configuration\fP system, so there\(aqs no need to copy the entire
+contents of default variables to modify them through the inventory.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+reprepro__instances:
+
+  \- name: \(aqmain\(aq
+    uploaders:
+      \- name: \(aqci\-builders\(aq
+        raw: |
+          allow * by key 5833EC7492A6E482D742F7FF729ABA78462947AA+
+    distributions:
+
+      \- name: \(aqbookworm\(aq
+        Uploaders: \(aquploaders/ci\-builders\(aq
+
+      \- name: \(aqbullseye\(aq
+        Uploaders: \(aquploaders/ci\-builders\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Mirrors of Debian and Ubuntu APT repositories
+.sp
+Create two mirrors of APT repositories for stable Debian and Ubuntu releases,
+available under the same FQDN address. The repositories are available publicly
+and new packages can be uploaded to them, but this configuration is only
+provided as an example and more secure configuration should be used instead.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+reprepro__instances:
+
+  # Disable the default instance
+  \- name: \(aqmain\(aq
+    state: \(aqabsent\(aq
+
+  \- name: \(aqmirror\(aq
+    fqdn: \(aq{{ ansible_fqdn }}\(aq
+
+    upload_map:
+      \(aq/upload\(aq: \(aq\(aq
+      \(aq/upload\-ubuntu\(aq: \(aq/var/spool/reprepro/mirror\-ubuntu/incoming\(aq
+
+    incoming:
+
+      \- name: \(aqincoming\(aq
+        Allow:
+          \- \(aqbullseye\(aq
+          \- \(aqstable>bullseye\(aq
+        Options:
+          \- \(aqmultiple_distributions\(aq
+        Cleanup:
+          \- \(aqon_deny\(aq
+          \- \(aqon_error\(aq
+
+    distributions:
+
+      \- name: \(aqbullseye\(aq
+        Origin: \(aq{{ reprepro__origin }}\(aq
+        Codename: \(aqbullseye\(aq
+        Suite: \(aqstable\(aq
+        Architectures: [ \(aqsource\(aq, \(aqamd64\(aq, \(aqi386\(aq, \(aqppc64el\(aq, \(aqs390x\(aq,
+                         \(aqarmel\(aq, \(aqarmhf\(aq, \(aqarm64\(aq, \(aqmipsel\(aq, \(aqmips64el\(aq ]
+        Components: [ \(aqmain\(aq, \(aqcontrib\(aq, \(aqnon\-free\(aq ]
+        Update: \(aqbullseye\(aq
+
+    updates:
+
+      \- name: \(aqbullseye\(aq
+        Method: \(aqhttp://deb.debian.org/debian\(aq
+        Suite: \(aqbullseye\(aq
+        Components: [ \(aqmain\(aq, \(aqcontrib\(aq, \(aqnon\-free\(aq ]
+        Architectures: [ \(aqsource\(aq, \(aqamd64\(aq, \(aqi386\(aq, \(aqppc64el\(aq, \(aqs390x\(aq,
+                         \(aqarmel\(aq, \(aqarmhf\(aq, \(aqarm64\(aq, \(aqmipsel\(aq, \(aqmips64el\(aq ]
+        VerifyRelease: \(aqblindtrust\(aq
+
+    uploaders:
+
+      \- name: \(aqanybody\(aq
+        raw: |
+          allow * by any key
+
+  \- name: \(aqmirror\-ubuntu\(aq
+    outdir: \(aq{{ reprepro__public_root + \(dq/sites/mirror/public/ubuntu\(dq }}\(aq
+    incoming:
+
+      \- name: \(aqincoming\(aq
+        Allow:
+          \- \(aqfocal\(aq
+          \- \(aqlts>focal\(aq
+        Options:
+          \- \(aqmultiple_distributions\(aq
+        Cleanup:
+          \- \(aqon_deny\(aq
+          \- \(aqon_error\(aq
+
+    distributions:
+
+      \- name: \(aqfocal\(aq
+        Origin: \(aq{{ reprepro__origin }}\(aq
+        Suite: \(aqlts\(aq
+        Architectures: [ \(aqsource\(aq, \(aqamd64\(aq, \(aqi386\(aq ]
+        Components: [ \(aqmain\(aq, \(aqrestricted\(aq, \(aquniverse\(aq, \(aqmultiverse\(aq ]
+        Update: \(aqfocal\(aq
+
+    updates:
+
+      \- name: \(aqfocal\(aq
+        Method: \(aqhttp://us.archive.ubuntu.com/ubuntu\(aq
+        Suite: \(aqfocal\(aq
+        Components: [ \(aqmain\(aq, \(aqrestricted\(aq, \(aquniverse\(aq, \(aqmultiverse\(aq ]
+        Architectures: [ \(aqamd64\(aq, \(aqi386\(aq ]
+        VerifyRelease: \(aqblindtrust\(aq
+
+    uploaders:
+
+      \- name: \(aqanybody\(aq
+        raw: |
+          allow * by any key
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After the role has set up repositories, login to the \fBreprepro\fP account,
+\fBcd\fP into the repository directory and run \fBreprepro update\fP
+to download the archive.
+.SS Local APT repositories with restricted access
+.sp
+Create a set of two APT repository instances, each one with its own
+authentication using HTTP Basic Auth passwords, which are stored in the
+\fBsecret/\fP directory on Ansible Controller.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Create access policies with HTTP Basic Auth
+nginx_access_policy_auth_basic_map:
+  \(aqrepo_alpha_access\(aq: \(aqalpha_access\(aq
+  \(aqrepo_beta_access\(aq: \(aqbeta_access\(aq
+
+# Create password files with passwords for specified users
+nginx__htpasswd:
+
+  \- name: \(aqalpha_access\(aq
+    users: [ \(aqclient1\(aq, \(aqclient2\(aq, \(aqclient3\(aq ]
+
+  \- name: \(aqbeta_access\(aq
+    users: [ \(aqclient1\(aq, \(aqclient2\(aq, \(aqclient3\(aq ]
+
+# Custom variable which holds the \(dqconf/incoming\(dq configuration
+incoming_sets:
+
+  \- name: \(aqincoming\(aq
+    Allow:
+      \- \(aqbullseye\(aq
+      \- \(aqstable>bullseye\(aq
+    Options:
+      \- \(aqmultiple_distributions\(aq
+    Cleanup:
+      \- \(aqon_deny\(aq
+      \- \(aqon_error\(aq
+
+# Custom variable which holds the \(dqconf/distributions\(dq configuration
+distributions_sets:
+
+  \- name: \(aqbullseye\(aq
+    Origin: \(aq{{ reprepro__origin }}\(aq
+    Suite: \(aqstable\(aq
+    Architectures: [ \(aqsource\(aq, \(aqamd64\(aq ]
+    Components: [ \(aqmain\(aq ]
+    SignWith: \(aqdefault\(aq
+    DebIndices: [ \(aqPackages\(aq, \(aqRelease\(aq, \(aq.\(aq, \(aq.gz\(aq, \(aq.xz\(aq ]
+    DscIndices: [ \(aqSources\(aq, \(aqRelease\(aq, \(aq.gz\(aq, \(aq.xz\(aq ]
+    Uploaders: \(aquploaders/anybody\(aq
+    Log: |
+      packages.bullseye.log
+      \-\-type=dsc email\-changes.sh
+
+# Custom variable which holds the \(dqconf/uploaders\(dq configuration
+uploaders_sets:
+
+  \- name: \(aqanybody\(aq
+    raw: |
+      allow * by any key
+
+# List of GPG keys which are allowed to upload APT packages
+reprepro__gpg_uploaders_keys:
+
+  # Automatic Signing Key <ci\-builder@example.org>
+  \- \(aq5833EC7492A6E482D742F7FF729ABA78462947AA\(aq
+
+# Configuration of repository instances
+reprepro__instances:
+
+  # Disable the default configuration provided by the role
+  \- name: \(aqmain\(aq
+    state: \(aqabsent\(aq
+
+  \- name: \(aqalpha\(aq
+    fqdn: \(aqalpha.{{ ansible_domain }}\(aq
+    public: False
+    access_policy: \(aqrepo_alpha_access\(aq
+    incoming: \(aq{{ incoming_sets }}\(aq
+    distributions: \(aq{{ distributions_sets }}\(aq
+    uploaders: \(aq{{ uploaders_sets }}\(aq
+
+  \- name: \(aqbeta\(aq
+    fqdn: \(aqbeta.{{ ansible_domain }}\(aq
+    public: False
+    access_policy: \(aqrepo_beta_access\(aq
+    incoming: \(aq{{ incoming_sets }}\(aq
+    distributions: \(aq{{ distributions_sets }}\(aq
+    uploaders: \(aq{{ uploaders_sets }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can see more configuration examples in the
+\fI\%reprepro__default_instances\fP variable in the role defaults.
+.SS Syntax
+.sp
+The variables are defined as a list of YAML dictionaires, each dictionary
+defines an \(dqinstance\(dq using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. An identifier for a particular APT repository instance. The value
+is used in the filesystem paths and should be a simple alphanumeric string.
+Configuration entries with the same \fBname\fP parameters are merged during
+role execution and can affect each other via \fI\%Universal Configuration\fP
+principles.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given APT repository instance
+will be configured on the host. If \fBabsent\fP, the repository will not be
+configured (some configuration like \fBnginx\fP server configuration
+will be automatically removed). If \fBignore\fP, a given configuration entry
+will not be evaluated during role execution.
+.TP
+.B \fBfqdn\fP
+Optional. Fully Qualified Domain Name under which the APT repository will be
+served over HTTP/HTTPS using \fBnginx\fP webserver, via the
+\fI\%debops.nginx\fP Ansible role. Presence of this parameter enables the
+\fBnginx\fP configuration.
+.sp
+This parameter shouldn\(aqt be used when the \fBoutdir\fP parameter is specified,
+to not create a duplicate \fBnginx\fP configuration which can interfere
+with the other APT repository instances.
+.TP
+.B \fBpublic\fP
+Optional, boolean. If not present or \fBTrue\fP, the APT repository will be
+accessible over HTTP and HTTPS without any specific restrictions (subnet
+access can still affect this).
+.sp
+If \fBFalse\fP, HTTP access is disabled entirely. The \fBaccess_policy\fP
+parameter can then specify the \(dqaccess policy\(dq configured in the
+\fI\%debops.nginx\fP role which can enforce password authentication for
+a given APT repository.
+.TP
+.B \fBallow\fP
+Optional. List of IP addresses or CIDR subnets which are allowed to access
+the APT repository over HTTP or HTTPS. If not specified, any host can connect
+to the repository.
+.TP
+.B \fBallow_upload\fP
+Optional. List of IP addresses or CIDR subnets which are allowed to upload
+content to the APT repository using WebDAV. If not specified, any host can
+upload content to the repository.
+.TP
+.B \fBaccess_policy\fP
+Optional. Name of the \(dqaccess policy\(dq defined in the \fI\%debops.nginx\fP role
+which should be used for a given APT repository to control access. This can
+be used to allow or deny access per client using login/password combination
+or X.509 client certificates (planned). See \fI\%apt_auth.conf(5)\fP <\fBhttps://manpages.debian.org/apt_auth.conf(5)\fP> for
+details about configuring password\-based access to the APT repository.
+.TP
+.B \fBauth_realm\fP
+Optional. The string presented to the HTTP clients during authentication. If
+not specified, the value of the \fI\%reprepro__auth_realm\fP variable will
+be used by default.
+.TP
+.B \fBmax_body_size\fP
+Optional. Specify the maximum size of the uploaded content, including the
+suffix. If not specified, the value of the \fI\%reprepro__max_body_size\fP
+variable is used, \fB50M\fP by default.
+.TP
+.B \fBpki_realm\fP
+Optional. Name of the PKI realm managed by the \fI\%debops.pki\fP Ansible role
+to use for the HTTPS configuration in the \fBnginx\fP configuration.
+Normally the \fI\%debops.nginx\fP role detects the PKI realm to use based on
+the FQDN and domain of the server; this parameter can be used to override
+that detection if needed.
+.TP
+.B \fBbasedir\fP
+Optional. Override the base directory of the \fBreprepro\fP repository,
+which contains the internal state database and repository configuration
+files. If not specified, the repository database will be locaed in the
+\fI\%reprepro__data_root\fP variable location (by default
+\fB/var/local/reprepro/repositories/\fP directory).
+.TP
+.B \fBoutdir\fP
+Optional. Override the public directory where \fBreprepro\fP manages the
+APT repository contents. This can be used to combine multiple APT repository
+\(dqinstances\(dq under one FQDN to, for example, provide Debian and Ubuntu
+packages under one FQDN. If the parameter is not specified, the role will
+generate the path automatically based on the instance name and use
+\fB/debian\fP as the suffix to indicate that the repository is for the
+Debian distribution.
+.sp
+Repository instances that use the \fBoutdir\fP parameter don\(aqt need separate
+\fBnginx\fP configuration (no \fBfqdn\fP parameter), since that can
+interfere with the configuration of the \(dqparent\(dq instance.
+.TP
+.B \fBos\fP
+Optional. Specify the suffix of the autogenerated output dir, used if the
+\fBoutdir\fP parameter is not set. If not specified, \fBdebian\fP will be used by
+default.
+.TP
+.B \fBupload_map\fP
+Optional. By default the \fB/upload\fP subdirectory of the APT repository URL
+is used for uploading APT packages to be processed by \fBreprepro\fP\&. In
+case of multiple repositories using the same FQDN with the \fBoutdir\fP
+parameter or if the default path should be different, the \fBupload_map\fP
+parameter can define a YAML dictionary. Each key should be a subdirectory off
+of the APT repository URL, and the value should be an absolute path to the
+filesystem directory monitored for new uploads. An empty value (\fB\(aq\(aq\fP) can
+be used to let the role generate the directory path automatically, based on
+the standardized directory structure maintained by the \fI\%debops.reprepro\fP
+role.
+.TP
+.B \fBmail_name\fP
+Optional. Specify the mail sender name used in e\-mails generated by
+\fBemail\-changes.sh\fP script executed by \fBreprepro\fP on any
+repository modifications. If not specified, a sensible name will be generated
+automatically.
+.TP
+.B \fBmail_from\fP
+Optional. Specify the mail sender address used in e\-mails generated by
+\fBemail\-changes.sh\fP script executed by \fBreprepro\fP on any
+repository modifications. If not specified, the value from the
+\fI\%reprepro__mail_from\fP variable will be used by default.
+.TP
+.B \fBmail_to\fP
+Optional. Specify the mail recipient address used in e\-mails generated by
+\fBemail\-changes.sh\fP script executed by \fBreprepro\fP on any
+repository modifications. If not specified, the value from the
+\fI\%reprepro__mail_to\fP variable will be used by default.
+.TP
+.B \fBoptions\fP
+Optional. This parameter defines the contents of the \fBconf/options\fP
+configuration file in the \fBreprepro\fP repository. The \fBoptions\fP parameters
+from configuration entries with the same \fBname\fP parameter are merged
+together and can affect each other.
+.sp
+The \fBbasedir\fP, \fBoutdir\fP, \fBwaitforlock\fP and \fBverbose\fP options are
+defined by default but can be modified. See the \fI\%reprepro(1)\fP <\fBhttps://manpages.debian.org/reprepro(1)\fP> manual
+page for possible options.
+.sp
+The configuration is defined as a list of YAML dictionaries, each dictionary
+key being the option name and its value being the option value. Alternatively
+you can use specific parameters to control each option:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The name of the option.
+.TP
+.B \fBvalue\fP
+The value of the option, can be a number or a string.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the option is included in the
+configuration file. If \fBabsent\fP, the option will be removed from the
+configuration file.
+.UNINDENT
+.TP
+.B \fBdistributions\fP
+Optional. This parameter defines the contents of the
+\fBconf/distributions\fP configuration file in the \fBreprepro\fP
+repository. The \fBdistributions\fP parameters from configuration entries with
+the same \fBname\fP parameter are merged together and can affect each other.
+See the \fI\%reprepro(1)\fP <\fBhttps://manpages.debian.org/reprepro(1)\fP> manual page for possible options.
+.sp
+The configuration is defined as a list of YAML dictionaries, each dictionary
+can define a single distribution. The \fBname\fP parameter is used to define
+a distribution but can be overridden by the \fBCodename\fP parameter. Other
+options should be specified as defined in the manual page and will be added
+to the configuration as\-is. There are special parameters ignored by the
+configuration template, used to manage the configuration entry itself:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The name of the distribution, can be overridden by the \fBCodename\fP
+parameter.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the distribution is included in the
+configuration file. If \fBabsent\fP, the distribution will be removed from
+the configuration file.
+.TP
+.B \fBcomment\fP
+String or YAML text block with a comment added before the distribution.
+.TP
+.B \fBraw\fP
+YAML text block with configuration which will be included in the
+configuration file as\-is. Other parameters of a given distribution will not
+be processed by the role.
+.UNINDENT
+.TP
+.B \fBincoming\fP
+Optional. This parameter defines the contents of the
+\fBconf/incoming\fP configuration file in the \fBreprepro\fP
+repository. The \fBincoming\fP parameters from configuration entries with
+the same \fBname\fP parameter are merged together and can affect each other.
+See the \fI\%reprepro(1)\fP <\fBhttps://manpages.debian.org/reprepro(1)\fP> manual page for possible options.
+.sp
+The configuration is defined as a list of YAML dictionaries, each dictionary
+can define a single incoming ruleset. The \fBname\fP parameter is used to
+define the ruleset name. Other options should be specified as defined in the
+manual page and will be added to the configuration as\-is. There are special
+parameters ignored by the configuration template, used to manage the
+configuration entry itself:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The name of the ruleset, stored as \fBName\fP in the configuration file.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the ruleset is included in the
+configuration file. If \fBabsent\fP, the ruleset will be removed from the
+configuration file.
+.TP
+.B \fBcomment\fP
+String or YAML text block with a comment added before the ruleset.
+.TP
+.B \fBraw\fP
+YAML text block with configuration which will be included in the
+configuration file as\-is. Other parameters of a given ruleset will not be
+processed by the role.
+.UNINDENT
+.TP
+.B \fBuploaders\fP
+Optional. This parameter defines the contents of the
+\fBconf/uploaders/*\fP configuration file in the \fBreprepro\fP
+repository. The \fBuploaders\fP parameters from configuration entries with
+the same \fBname\fP parameter are merged together and can affect each other.
+See the \fI\%reprepro(1)\fP <\fBhttps://manpages.debian.org/reprepro(1)\fP> manual page for possible options.
+.sp
+The configuration is defined as a list of YAML dictionaries, each dictionary
+can define a single configuration file in the \fBconf/uploaders/\fP
+directory. The \fBname\fP parameter is used to define the file name. Other
+options should be specified as defined in the manual page using the \fBraw\fP
+parameter and will be added to the configuration as\-is. There are special
+parameters ignored by the configuration template, used to manage the
+configuration entry itself:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The name of the ruleset file.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the ruleset file is generated by the role.
+If \fBabsent\fP, the ruleset file won\(aqt be generated, existing files are not
+removed.
+.TP
+.B \fBcomment\fP
+String or YAML text block with a comment added before the ruleset.
+.TP
+.B \fBraw\fP
+YAML text block with configuration which will be included in the
+configuration file as\-is.
+.UNINDENT
+.TP
+.B \fBupdates\fP
+Optional. This parameter defines the contents of the
+\fBconf/updates\fP configuration file in the \fBreprepro\fP
+repository. The \fBupdates\fP parameters from configuration entries with
+the same \fBname\fP parameter are merged together and can affect each other.
+See the \fI\%reprepro(1)\fP <\fBhttps://manpages.debian.org/reprepro(1)\fP> manual page for possible options.
+.sp
+The configuration is defined as a list of YAML dictionaries, each dictionary
+can define a single update ruleset. The \fBname\fP parameter is used to
+define the ruleset name. Other options should be specified as defined in the
+manual page and will be added to the configuration as\-is. There are special
+parameters ignored by the configuration template, used to manage the
+configuration entry itself:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The name of the ruleset, stored as \fBName\fP in the configuration file.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the ruleset is included in the
+configuration file. If \fBabsent\fP, the ruleset will be removed from the
+configuration file.
+.TP
+.B \fBcomment\fP
+String or YAML text block with a comment added before the ruleset.
+.TP
+.B \fBraw\fP
+YAML text block with configuration which will be included in the
+configuration file as\-is. Other parameters of a given ruleset will not be
+processed by the role.
+.UNINDENT
+.TP
+.B \fBpulls\fP
+Optional. This parameter defines the contents of the
+\fBconf/pulls\fP configuration file in the \fBreprepro\fP
+repository. The \fBpulls\fP parameters from configuration entries with
+the same \fBname\fP parameter are merged together and can affect each other.
+See the \fI\%reprepro(1)\fP <\fBhttps://manpages.debian.org/reprepro(1)\fP> manual page for possible options.
+.sp
+The configuration is defined as a list of YAML dictionaries, each dictionary
+can define a single pull ruleset. The \fBname\fP parameter is used to
+define the ruleset name. Other options should be specified as defined in the
+manual page and will be added to the configuration as\-is. There are special
+parameters ignored by the configuration template, used to manage the
+configuration entry itself:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The name of the ruleset, stored as \fBName\fP in the configuration file.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the ruleset is included in the
+configuration file. If \fBabsent\fP, the ruleset will be removed from the
+configuration file.
+.TP
+.B \fBcomment\fP
+String or YAML text block with a comment added before the ruleset.
+.TP
+.B \fBraw\fP
+YAML text block with configuration which will be included in the
+configuration file as\-is. Other parameters of a given ruleset will not be
+processed by the role.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

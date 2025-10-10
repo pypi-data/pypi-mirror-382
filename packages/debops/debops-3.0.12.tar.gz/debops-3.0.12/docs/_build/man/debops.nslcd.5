@@ -1,0 +1,289 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.NSLCD" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.nslcd \- Configure LDAP support for NSS and PAM lookups
+.SH SYNOPSIS
+.sp
+\fBdebops run service/nslcd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBnslcd\fP daemon, part of the \fI\%nss\-pam\-ldapd\fP <\fBhttps://arthurdejong.org/nss-pam-ldapd/\fP> software package, is
+used to look up user, group or other information stored in LDAP that is related
+to UNIX accounts or groups. It is needed if you want to use the
+\fBposixAccount\fP and \fBposixGroup\fP LDAP objects to authenticate to the
+UNIX\-like hosts.
+.sp
+The \fBdebops.nslcd\fP Ansible role can be used to configure the \fBnslcd\fP
+service on a host and, via \fI\%debops.ldap\fP role, create a bind account in
+the LDAP directory used by \fBnslcd\fP to perform LDAP lookups.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To enable the \fBnslcd\fP service on a host, you need to add it to the
+\fB[debops_service_nslcd]\fP Ansible inventory group. The host should also be
+configured with base LDAP support via the \fI\%debops.ldap\fP role (see its
+documentation for more details):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_ldap]
+hostname
+
+[debops_service_nslcd]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A common case is configuration of LDAP authentication in the entire cluster of
+hosts. You can enable \fBdebops.nslcd\fP role on all DebOps hosts in the
+Ansible inventory at once:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname1
+hostname2
+
+[debops_service_nslcd:children]
+debops_all_hosts
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBnslcd\fP service can also be installed and configured by other
+playbooks, for example \fBbootstrap\-ldap.yml\fP\&. In such cases the custom
+playbook will configure the \fBnslcd\fP service on a host, but the role
+playbook will not work on a host automatically; you will have to include that
+host in the \fB[debops_service_nslcd]\fP Ansible inventory group via one of the
+methods above to be able to change the service configuration.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.nslcd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage nslcd service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_nslcd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ nslcd__ldap__dependent_tasks }}\(aq
+
+    \- role: nslcd
+      tags: [ \(aqrole::nslcd\(aq, \(aqskip::nslcd\(aq ]
+
+    \- role: nsswitch
+      tags: [ \(aqrole::nsswitch\(aq, \(aqskip::nsswitch\(aq ]
+      nsswitch__dependent_services:
+        \- \(aq{{ nslcd__nsswitch__dependent_services }}\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::nslcd\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.nslcd\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%nslcd.conf(5)\fP <\fBhttps://manpages.debian.org/nslcd.conf(5)\fP>
+.IP \(bu 2
+LDAP support in DebOps: \fI\%client\-side\fP, \fI\%server\-side\fP
+.IP \(bu 2
+\fI\%LDAP/NSS setup instructions\fP <\fBhttps://wiki.debian.org/LDAP/NSS#NSS_Setup_with_libnss-ldapd\fP> in the Debian Wiki
+.IP \(bu 2
+\fI\%LDAP/PAM setup instructions\fP <\fBhttps://wiki.debian.org/LDAP/PAM\fP> in the Debian Wiki
+.IP \(bu 2
+\fI\%LDAP authentication\fP <\fBhttps://wiki.archlinux.org/index.php/LDAP_authentication\fP> documentation in the Arch Wiki
+.IP \(bu 2
+\fI\%Debian LDAP Portal\fP <\fBhttps://wiki.debian.org/LDAP\fP> page in the Debian Wiki
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.nslcd\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS nslcd__configuration
+.sp
+The \fBnslcd__*_configuration\fP variables define the contents of the
+\fB/etc/nslcd.conf\fP configuration file. The variables are merged in order
+defined by the \fI\%nslcd__combined_configuration\fP variable, which allows
+modification of the default configuration through the Ansible inventory.  See
+\fI\%nslcd.conf(5)\fP <\fBhttps://manpages.debian.org/nslcd.conf(5)\fP> for possible configuration parameters and their values.
+.SS Examples
+.sp
+See \fI\%nslcd__default_configuration\fP variable for an example of
+existing configuration.
+.sp
+Limit UNIX accounts and groups that appear on the server based on the \fBhost\fP
+attribute. The value can be:
+.INDENT 0.0
+.IP \(bu 2
+\fBhost.example.org\fP or \fBhost\fP (specific host)
+.IP \(bu 2
+\fB*.example.org\fP (specific subdomain)
+.IP \(bu 2
+\fB*\fP (all hosts)
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nslcd__configuration:
+
+  \- name: \(aqfilter_passwd_group\(aq
+    comment: \(aqLimit which UNIX accounts and groups are present on a host\(aq
+    raw: |
+      filter passwd (&(objectClass=posixAccount)(|(host={{ ansible_fqdn }})(host=\e2a.{{ ansible_domain }})(host={{ ansible_hostname }})(host=\e2a)))
+      filter group  (&(objectClass=posixGroupId)(|(host={{ ansible_fqdn }})(host=\e2a.{{ ansible_domain }})(host={{ ansible_hostname }})(host=\e2a)))
+      filter shadow (&(objectClass=shadowAccount)(|(host={{ ansible_fqdn }})(host=\e2a.{{ ansible_domain }})(host={{ ansible_hostname }})(host=\e2a)))
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Send debug logs to \fBsyslog\fP to allow easier debugging:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nslcd__configuration:
+
+  \- name: \(aqlog\(aq
+    value: \(aqsyslog debug\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables contain a list of YAML dictionaries, each dictionary can have
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the \fI\%nslcd.conf(5)\fP <\fBhttps://manpages.debian.org/nslcd.conf(5)\fP> configuration option. The
+configuration options with the same \fBname\fP parameter will be merged in
+order of appearance.
+.sp
+If you want to specify multiple configuration options with the same name,
+make sure that the \fBname\fP parameter is unique and use the \fBoption\fP
+parameter to specify the \(dqreal\(dq option name to use.
+.TP
+.B \fBvalue\fP
+Required. The value of a given configuration option. It can be either
+a string, or a YAML list (elements will be joined with spaces).
+.TP
+.B \fBoption\fP
+Optional. When configuration options are specified multiple times, this
+parameter can be used to specify the option name instead of the \fBname\fP
+parameter.
+.TP
+.B \fBmap\fP
+Optional. Name of the \(dqmap\(dq to configure, inserted between the option name,
+and its value. You can find more about map usage in the \fI\%nslcd.conf(5)\fP <\fBhttps://manpages.debian.org/nslcd.conf(5)\fP>
+documentation.
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block which will be included in the
+configuration file \(dqas is\(dq. If this parameter is specified, \fBname\fP,
+\fBoption\fP and \fBmap\fP parameters are ignored \- you need to specify the
+entire line(s) with configuration option names as well.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given configuration option will be
+included in the generated configuration file. If \fBabsent\fP, a given
+configuration option will be removed from the generated file. If \fBcomment\fP,
+the option will be included, but commented out and inactive. If \fBignore\fP,
+the role will not evaluate the configuration entry during template
+generation, this can be used for conditional activation of
+\fI\%nslcd.conf(5)\fP <\fBhttps://manpages.debian.org/nslcd.conf(5)\fP> configuration options.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block that contains comments about a given
+configuration option.
+.TP
+.B \fBseparator\fP
+Optional, boolean. If \fBTrue\fP, and additional empty line will be added
+before a given configuration option to separate it from the other options for
+readability.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

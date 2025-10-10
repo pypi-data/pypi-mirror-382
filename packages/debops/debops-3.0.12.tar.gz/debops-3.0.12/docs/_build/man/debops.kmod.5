@@ -1,0 +1,453 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.KMOD" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.kmod \- Manage kernel modules using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/kmod\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.kmod\fP Ansible role can be used to manage configuration of the
+Linux kernel modules, located in the \fB/etc/modprobe.d/\fP directory, and
+specify what kernel modules should be loaded at boot time using configuration
+in \fB/etc/modules\-load.d/\fP directory.
+.sp
+Kernel module configuration can be specified using Ansible inventory, or other
+Ansible roles can use the \fBdebops.kmod\fP role to configure kernel module
+options on their behalf.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To manage kernel modules on a host, you need to add it to the
+\fB[debops_service_kmod]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_kmod]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.kmod\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage kernel modules
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_kmod\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::kmod\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ kmod__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ kmod__python__dependent_packages2 }}\(aq
+
+    \- role: kmod
+      tags: [ \(aqrole::kmod\(aq, \(aqskip::kmod\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::kmod\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.kmod\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%modprobe.d(5)\fP <\fBhttps://manpages.debian.org/modprobe.d(5)\fP>, \fI\%modules\-load.d(5)\fP <\fBhttps://manpages.debian.org/modules-load.d(5)\fP>
+.IP \(bu 2
+\fI\%Linux Kernel Modules\fP <\fBhttps://wiki.debian.org/Modules\fP> page on Debian Wiki
+.IP \(bu 2
+\fI\%Kernel Modules\fP <\fBhttps://wiki.archlinux.org/index.php/kernel_modules\fP> page on Arch Wiki
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.kmod\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS kmod__modules
+.sp
+The \fBkmod__*_modules\fP variables define what kernel module options should be
+defined on the remote hosts, in the \fB/etc/modprobe.d/\fP directory. Each
+variable is a YAML list, each list entry is a YAML dictionary with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the kernel module to manage. This parameter is used as
+a marker to merge configuration entries of the same modules together.
+If the \fBfilename\fP parameter is not specified, this parameter will be
+included in the generated filename, saved as \fB{{ name }}.conf\fP\&.
+.TP
+.B \fBfilename\fP
+Optional. Specify a custom filename for a given configuration snippet, the
+\fB\&.conf\fP extension needs to be included in the filename.
+.TP
+.B \fBstate\fP
+Optional. Specify the state of the kernel module and its configuration.
+Multiple entries with the same \fBname\fP parameter are merged together in
+order of appearance; the \fBstate\fP parameter can affect how the entries are
+merged.
+.sp
+Supported states:
+.TS
+center;
+|l|l|.
+_
+T{
+Value
+T}	T{
+Description
+T}
+_
+T{
+\fBpresent\fP
+T}	T{
+\fBDefault if not specified.\fP Configuration will be present
+and the role will try to unload and load the kernel module to
+apply any changes. Kernel module unloading is not forced, if
+the module cannot be unloaded, Ansible will error out.
+T}
+_
+T{
+\fBabsent\fP
+T}	T{
+The configuration of a given kernel module will be removed.
+If the configuration state changes, the role will try to
+unload the kernel module if it\(aqs loaded, in case of failure
+Ansible will error out.
+T}
+_
+T{
+\fBconfig\fP
+T}	T{
+Specified kernel module configuration is set in the
+configuration file, but the role will not try to change the
+module state in the kernel.
+T}
+_
+T{
+\fBblacklist\fP
+T}	T{
+The role will write the kernel module configuration and will
+try to unload the kernel module if it\(aqs currently loaded.
+T}
+_
+T{
+\fBinit\fP
+T}	T{
+Define initial configuration for a given kernel module, but
+don\(aqt write it in the configuration files or change the state
+of the kernel modules. Configuration defined with this state
+can be enabled conditionally using another list entry.
+T}
+_
+T{
+\fBappend\fP
+T}	T{
+Merge given configuration entry with other entries of the
+same name only if a given entry is supposed to be enabled
+(has a state other than \fBinit\fP). This state can be used to
+build configuration from multiple entries conditionally.
+T}
+_
+T{
+\fBignore\fP
+T}	T{
+Configuration entries with this state will not be evaluated
+by the role and won\(aqt be merged with other entries with the
+same \fBname\fP parameter.
+T}
+_
+.TE
+.TP
+.B \fBoptions\fP
+Optional. Specify the configuration options of the kernel module. This is
+a list of YAML dictionaries, each dictionary can have an option name as a key
+and an option value as a value. Alternatively, iv \fBname\fP and \fBvalue\fP keys
+are used, the dictionary can have the following parameters:
+.TS
+center;
+|l|l|.
+_
+T{
+Key
+T}	T{
+Value
+T}
+_
+T{
+\fBname\fP
+T}	T{
+Required. The option name.
+T}
+_
+T{
+\fBvalue\fP
+T}	T{
+Required. The option value.
+T}
+_
+T{
+\fBcomment\fP
+T}	T{
+Optional. A custom comment added to a given option.
+T}
+_
+T{
+\fBstate\fP
+T}	T{
+Optional. If not set or \fBpresent\fP, the option is included
+in the configuration file, if \fBabsent\fP, the option is not
+included in the configuration file.
+T}
+_
+.TE
+.sp
+The \fBoptions\fP parameters in multiple configuration entries are merged
+together, just like the main entries. This can be used to conditionally
+enable or disable options as needed.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with a comment explaining the kernel
+module configuration.
+.TP
+.B \fBalias\fP or \fBaliases\fP
+Optional. String or a list of strings which specify aliases for a given
+module. See \fI\%modprobe.d(5)\fP <\fBhttps://manpages.debian.org/modprobe.d(5)\fP> for more details.
+.TP
+.B \fBblacklist\fP
+Optional. String or a list of strings with kernel modules to blacklist. If
+this parameter is specified, the role does not try to unload individual
+modules; this can be useful to blacklist multiple modules at once
+preemptively.
+.TP
+.B \fBinstall\fP
+Optional. A shell command to execute by \fBmodprobe\fP command instead
+of loading a given kernel module. See \fI\%modprobe.d(5)\fP <\fBhttps://manpages.debian.org/modprobe.d(5)\fP> for more details.
+.TP
+.B \fBremove\fP
+Optional. A shell command to execute by \fBmodprobe\fP command instead
+of unloading a given kernel module. See \fI\%modprobe.d(5)\fP <\fBhttps://manpages.debian.org/modprobe.d(5)\fP> for more
+details.
+.TP
+.B \fBsoftdep\fP
+Optional. Define soft dependencies between kernel modules which affect the
+order of them being loaded into the kernel. See \fI\%modprobe.d(5)\fP <\fBhttps://manpages.debian.org/modprobe.d(5)\fP> for more
+details. How to write the definition, based on an example from the manpage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+kmod__modules:
+
+  \- name: \(aqc\(aq
+    softdep: \(aqpre: a b post: d e\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBraw\fP
+Optional. YAML text block which will be added at the end of the kernel module
+configuration file. It can be used to provide configuration not covered by
+other parameters.
+.UNINDENT
+.SS Examples
+.sp
+Disable PC Speaker support in the kernel:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+kmod__modules:
+
+  \- name: \(aqpcspkr\(aq
+    state: \(aqblacklist\(aq
+    comment: \(aqDisable PC Speaker support\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+On ThinkPad laptops, allow \fBthinkfan\fP command to control the fan
+speed:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+kmod__modules:
+
+  \- name: \(aqthinkpad_acpi\(aq
+    comment: \(aqEnable fan speed control for \(dqthinkfan\(dq\(aq
+    options:
+      \- fan_control: 1
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS kmod__load
+.sp
+The \fBkmod__*_load\fP list variables can be used to specify which kernel modules
+should be loaded at boot time. If a single module is specified, the role will
+try to load it if it\(aqs currently not present in the kernel.
+.sp
+The configuration is stored in the \fB/etc/modules\-load.d/\fP directory on
+hosts that use the \fBsystemd\fP service manager. On other hosts, the role
+will modify the \fB/etc/modules\fP file directly.
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the kernel module to manage. This parameter is used as
+a marker to merge configuration entries of the same modules together.
+If the \fBfilename\fP parameter is not specified, this parameter will be
+included in the generated filename, saved as \fB{{ name }}.conf\fP\&.
+.TP
+.B \fBfilename\fP
+Optional. Specify a custom filename for a given configuration snippet, the
+\fB\&.conf\fP extension needs to be included in the filename.
+.TP
+.B \fBstate\fP
+Optional. Specify the state of the kernel module and its configuration.
+Multiple entries with the same \fBname\fP parameter are merged together in
+order of appearance; the \fBstate\fP parameter can affect how the entries are
+merged.
+.sp
+Supported states:
+.TS
+center;
+|l|l|.
+_
+T{
+Value
+T}	T{
+Description
+T}
+_
+T{
+\fBpresent\fP
+T}	T{
+\fBDefault if not specified.\fP Configuration will be present.
+T}
+_
+T{
+\fBabsent\fP
+T}	T{
+The configuration of a given kernel module will be removed.
+T}
+_
+T{
+\fBconfig\fP
+T}	T{
+Specified kernel module configuration is set in the
+configuration file, but the role will not try to load the
+missing module into the kernel.
+T}
+_
+T{
+\fBignore\fP
+T}	T{
+Configuration entries with this state will not be evaluated
+by the role and won\(aqt be merged with other entries with the
+same \fBname\fP parameter.
+T}
+_
+.TE
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with a comment explaining the kernel
+module configuration.
+.TP
+.B \fBmodules\fP
+Optional. List of modules to load on boot time. If specified, the string used
+in the \fBname\fP parameter is ignored. On non\-\fBsystemd\fP hosts this
+parameter is ignored, use the \fBname\fP parameter instead.
+.UNINDENT
+.SS Examples
+.sp
+Load the \fBpcspkr\fP kernel module at boot time:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+kmod__load:
+
+  \- name: \(aqpcspkr\(aq
+    comment: \(aqEnable PC Speaker support\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Robin Schneider, Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

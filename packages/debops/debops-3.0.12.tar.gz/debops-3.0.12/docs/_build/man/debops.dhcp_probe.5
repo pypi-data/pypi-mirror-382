@@ -1,0 +1,167 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DHCP_PROBE" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.dhcp_probe \- Configure DHCP Probe using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/dhcp_probe\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%dhcp_probe\fP <\fBhttps://www.net.princeton.edu/software/dhcp_probe/\fP> tool
+can be used to passively detect rogue DHCP servers on IPv4 networks. Upon
+detection, the service can execute custom commands to, for example, block the
+culprit via RADIUS or notify the system administrator.
+.sp
+The \fBdebops.dhcp_probe\fP role can be used to install and configure
+\fBdhcp_probe\fP on a Debian/Ubuntu host. It will utilize
+\fBsystemd\fP instance templates to run DHCP Probe instances on multiple
+network interfaces at once. By default, an e\-mail message will be sent to the
+system administrator with notification on newly detected rogue DHCP servers.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To install and manage DHCP Probe on a host, it needs to be included in the
+\fB[debops_service_dhcp_probe]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_dhcp_probe]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.dhcp_probe\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage dhcp_probe service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_dhcp_probe\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: dhcp_probe
+      tags: [ \(aqrole::dhcp_probe\(aq, \(aqskip::dhcp_probe\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::dhcp_probe\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.dhcp_probe\fP Ansible
+role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%dhcp_probe(8)\fP <\fBhttps://manpages.debian.org/dhcp_probe(8)\fP>, \fI\%dhcp_probe.cf(5)\fP <\fBhttps://manpages.debian.org/dhcp_probe.cf(5)\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.dhcp_probe\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS dhcp_probe__interfaces
+.sp
+The \fBdhcp_probe__*_interfaces\fP variables contain a list of network interfaces
+on which instances of \fBdhcp_probe\fP will be listening for rogue DHCP
+servers. The lists are merged together, users can modify contents of the
+\fI\%dhcp_probe__default_interfaces\fP by the entries in the
+\fI\%dhcp_probe__interfaces\fP variable.
+.SS Examples
+.sp
+Enable DHCP Probe on custom interfaces:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dhcp_probe__interfaces:
+
+  \- name: \(aqbr0\(aq
+
+  \- name: \(aqbr1\(aq
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each list contains YAML dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the network interface (actually a \fBsystemd\fP
+instance) on which \fBdhcp_probe\fP will be listening for rogue DHCP
+servers. This parameter is used as an anchor to merge multiple lists of
+interfaces together.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP the \fBsystemd\fP instance
+will be enabled. if \fBabsent\fP, the \fBsystemd\fP instance will be
+disabled.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

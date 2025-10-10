@@ -1,0 +1,186 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.CRAN" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.cran \- Manage the Comprehensive R Archive Network packages
+.SH SYNOPSIS
+.sp
+\fBdebops run service/cran\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%The Comprehensive R Archive Network\fP <\fBhttps://cran.r-project.org/\fP> (CRAN) is
+a repository of precompiled packages for the R statistical programming language
+environment. This role can be used to enable the upstream CRAN APT repositories
+and install R packages, both via APT and via R itself.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+Contrary to usual DebOps practice, upstream APT repositories configured by the
+\fBdebops.cran\fP role are enabled by default, due to \fI\%incompatibilities between Debian Stable package versions and packages provided by CRAN\fP <\fBhttps://cran.r-project.org/bin/linux/debian/#debian-stretch-stable\fP>\&.
+The users are still able to disable upstream APT repositories and use the R APT
+packages provided by their OS release if they wish, before configuring the
+R environment.
+.SS Example inventory
+.sp
+To configure the R environment on a host, it needs to be included in the
+\fB[debops_service_cran]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_cran]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The role can automatically enable Java support in R, if Java environment
+installed by the \fBdebops.java\fP Ansible role is detected. To do that, add the
+host to the \fB[debops_service_java]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_java]
+hostname
+
+[debops_service_cran]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you already configured R and you want to enable Java support, remove the
+\fB/etc/ansible/facts.d/cran.fact\fP file from the remote host; this will
+tell the role to configure Java support in the R environment on the next
+Ansible run.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.cran\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage the Comprehensive R Archive Network packages
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_cran\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::cran\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ cran__keyring__dependent_apt_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ cran__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ java__apt_preferences__dependent_list
+              if cran__java_integration|bool else [] }}\(aq
+
+    \- role: java
+      tags: [ \(aqrole::java\(aq, \(aqskip::java\(aq ]
+      java__install_jdk: True
+      when: cran__java_integration|bool
+
+    \- role: cran
+      tags: [ \(aqrole::cran\(aq, \(aqskip::cran\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.cran\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS cran__r_packages
+.sp
+The \fBcran__*_r_packages\fP variables define what R packages will be installed
+by Ansible system\-wide, in the \fB/usr/local/lib/R/site\-library/\fP
+directory. Each variable contains a list of entries, an entry can be a simple
+string with the package name, which will be installed if available.
+Alternatively an entry can be a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the R package to install or remove.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the specific R package will be
+installed. If \fBabsent\fP, the specific R package will be removed.
+.TP
+.B \fBrepo\fP
+Optional. URL of the repository with the R packages to use. If not specified,
+the value of the \fI\%cran__upstream_mirror\fP variable will be used by
+default.
+.UNINDENT
+.SS Examples
+.sp
+Install selected R packages system\-wide:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cran__r_packages:
+
+  \- \(aqRcpp\(aq
+
+  \- \(aqggplot2\(aq
+
+  \- name: \(aqplyr\(aq
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,247 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ENVIRONMENT" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.environment \- Manage system environment variables using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/environment\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.environment\fP role can be used to manage system\-wide environment
+variables, by default located in \fB/etc/environment\fP file. Variables are
+gathered from multiple sources and combined to allow global/group/host tiered
+environment modeled after Ansible inventory.
+.sp
+This role can also be used by other Ansible roles as a dependency to create
+global environment variables in a safe way, that preserves idempotency.
+.SH GETTING STARTED
+.SS Usage with inventory__environment
+.sp
+The DebOps playbooks use a set of Ansible inventory variables to provide custom
+environment during the playbook execution. These are YAML dictionary variables:
+.INDENT 0.0
+.IP \(bu 2
+\fBinventory__environment\fP
+.IP \(bu 2
+\fBinventory__group_environment\fP
+.IP \(bu 2
+\fBinventory__host_environment\fP
+.UNINDENT
+.sp
+The \fBdebops.environment\fP includes contents of these variables in its own
+\fBenvironment__default_variables\fP list, which is then added to the
+\fB/etc/environment\fP file on each host. Other variable lists described below
+can override these environment variables if necessary.
+.sp
+The \fBinventory__*_environment\fP variables are the best place to set variables
+if you want to have the same environment during Ansible playbook execution and
+on the host itself over \fBssh\fP or via \fBcron\fP, etc. See the documentation on
+\fI\%custom environment variables\fP <\fBhttps://docs.debops.org/en/latest/user-guide/custom-environment.html\fP>
+for more details.
+.SS Ansible inventory layout
+.sp
+The role uses multiple lists of variables which can be defined in Ansible
+inventory:
+.INDENT 0.0
+.TP
+.B \fBenvironment__variables\fP
+This list can be defined in \fBinventory/group_vars/all/environment.yml\fP file
+to define variables that should be set on all hosts in the inventory.
+.TP
+.B \fBenvironment__group_variables\fP
+This list can be defined in a specific group, for example
+\fBinventory/group_vars/<group_name>/environment.yml\fP to set variables on
+a group of hosts. Only one \(dqlevel\(dq of such variables is supported.
+.TP
+.B \fBenvironment__host_variables\fP
+This list can be defined for a specific host, for example in
+\fBinventory/host_vars/<hostname>/environment.yml\fP file, to set variables
+only on that host.
+.UNINDENT
+.sp
+The environment variables set in above lists are combined in above order,
+therefore more specific variables will \(dqmask\(dq more general ones, just like
+Ansible inventory variables. If you remove already set variables, they will be
+automatically removed on the corresponding hosts as well on the next Ansible
+playbook run.
+.SS Usage as a role dependency
+.sp
+Other roles can use \fBdebops.environment\fP role in their own playbooks to
+idempotently set environment variables in \fB/etc/environment\fP file. Variables
+set in this way (using \fBenvironment__dependent_variables\fP list) will be
+stored in Ansible local facts on the affected hosts so that they will be
+preserved on subsequent Ansble runs. They will not be removed automatically.
+.sp
+The variables defined by roles override variables defined through Ansible
+inventory.
+.SS Example inventory
+.sp
+The \fBdebops.environment\fP role is included in the \fBcommon.yml\fP DebOps
+playbook, therefore you don\(aqt need to add a host to specific group to use it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.environment\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage system environment variables
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_environment\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: environment
+      tags: [ \(aqrole::environment\(aq, \(aqskip::environment\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.environment\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS environment__variables
+.sp
+The environment variable lists can use different formats of list entries.
+.sp
+Strings:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+environment__variables:
+
+  \- \(aqvariable1=value1\(aq
+
+  \- \(aqvariable2=value2\(aq
+
+  \- \(aqvariable3=value3\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+YAML dictionaries of variables:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+environment__variables:
+
+  \- variable1: \(aqvalue1\(aq
+    variable2: \(aqvalue2\(aq
+    variable3: \(aqvalue3\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+YAML dictionaries of conditional variables \- they are detected when \fBname\fP
+and \fBvalue\fP keys are used in the same YAML dictionary:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+environment__variables:
+
+  \- name: \(aqvariable1\(aq
+    value: \(aqvalue1\(aq
+
+  \- name: \(aqvariable2\(aq
+    value: \(aqvalue2\(aq
+    state: \(aqabsent\(aq
+
+  \- name: \(aqvariable3\(aq
+    value: \(aqvalue3\(aq
+    upper: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When the conditional variables are detected, you can specify these parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the environment variable.
+.TP
+.B \fBvalue\fP
+Required. Value of the environment variable.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, variable will be set in the
+\fB/etc/environment\fP file. If \fBabsent\fP, variable will not be included. The
+role does not remove already set variables in the \fB/etc/environment\fP file
+outside of the Ansible block.
+.TP
+.B \fBcase\fP
+Optional. Change the case of the variable name, either \fBupper\fP or
+\fBlower\fP\&. If not set, the current case will be preserved.
+.UNINDENT
+.sp
+To set the \fBname\fP and \fBvalue\fP variables in the environment, you need to
+specify them separately:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+environment__variables:
+
+  \- name: \(aqvalue1\(aq
+
+  \- value: \(aqvalue2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

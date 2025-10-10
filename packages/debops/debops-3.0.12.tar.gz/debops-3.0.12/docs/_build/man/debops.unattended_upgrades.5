@@ -1,0 +1,316 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.UNATTENDED_UPGRADES" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.unattended_upgrades \- Configure unattended upgrades on Debian-based hosts
+.SH SYNOPSIS
+.sp
+\fBdebops run service/unattended_upgrades\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBunattended\-upgrades\fP package manages \fI\%automatic, unattended upgrades\fP <\fBhttps://wiki.debian.org/UnattendedUpgrades\fP> of the Debian\-based hosts. You
+can specify what package origins are included in the unattended upgrades, as
+well as specify what packages should be exempt from the upgrades, among other
+things.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+The \fBunattended\-upgrades\fP package will be configured differently depending on
+whether or not a DNS domain is configured on the host:
+.INDENT 0.0
+.IP \(bu 2
+if the \fBansible_domain\fP variable is not empty (domain is present), only
+packages released through the security repository of a given OS distribution
+will be upgraded automatically. E\-mail messages with the information about
+the unattended upgrades will be sent to the \fBroot@{{ ansible_domain }}\fP
+mail account.
+.IP \(bu 2
+if the \fBansible_domain\fP variable is empty, role assumes that the host is
+a workstation or a laptop (end\-user device) and will configure the
+\fBunattended\-upgrades\fP package to upgrade packages from all official
+repositories of the given OS distribution (main, updates, backports,
+security). The e\-mail messages about the upgrades won\(aqt be generated.
+.UNINDENT
+.sp
+You can control the above behaviour using \fI\%unattended_upgrades__release\fP and
+\fI\%unattended_upgrades__mail_to\fP default variables.
+.SS Example inventory
+.sp
+\fBdebops.unattended_upgrades\fP is included by default in the \fBcommon.yml\fP
+DebOps playbook; you don\(aqt need to do anything to have it installed.
+.sp
+If you want to disable the \fBunattended\-upgrades\fP service on a host or
+set of hosts, you can do this by the setting variable:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unattended_upgrades__enabled: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+in Ansible\(aqs inventory. The \fBunattended\-upgrades\fP package won\(aqt be installed.
+If it is already present on the host, it won\(aqt be removed, but its
+configuration will be reset to the distribution defaults.
+.SS Example playbook
+.sp
+Here\(aqs an example playbook that can be used to enable and manage the
+\fBunattended\-upgrades\fP service on a set of hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage unattended APT upgrades
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_unattended_upgrades\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: unattended_upgrades
+      tags: [ \(aqrole::unattended_upgrades\(aq, \(aqskip::unattended_upgrades\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Use as a role dependency
+.sp
+The \fBdebops.unattended_upgrades\fP Ansible role can be used by other Ansible
+roles as a dependency, to allow unattended upgrades of packages from other
+repositories than the official ones, or allow automatic blacklisting of
+important packages by a given Ansible role. To do this, you can specify
+\fBdebops.unattended_upgrades\fP role as a dependency and use two custom
+variables:
+.INDENT 0.0
+.TP
+.B \fI\%unattended_upgrades__dependent_origins\fP
+This is a list of package origins which should be considered for unattended
+upgrades of packages.
+.TP
+.B \fI\%unattended_upgrades__dependent_blacklist\fP
+This is a list of APT packages which should be exempt from unattended
+upgrades.
+.UNINDENT
+.sp
+Configuration passed to the role through above variables will be stored on the
+remote host in Ansible local facts. This prevents idempotency loops and allows
+users to use \fBdebops.unattended_upgrades\fP in different playbooks without
+issues. This method works on the host with unattended upgrades disabled through
+Ansible inventory.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.unattended_upgrades\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS unattended_upgrades__blacklist
+.sp
+The \fI\%unattended_upgrades__blacklist\fP and similar lists allow you to specify
+packages which shouldn\(aqt be upgraded automatically. The lists can be nested. You
+can specify them as simple package names or dictionaries with specific keys:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required, string or list specifying a package name to include in the
+blacklist.
+.TP
+.B \fBstate\fP
+Required. Choices:
+.INDENT 7.0
+.TP
+.B \fBpresent\fP
+The specified package(s) will be added in the blacklist.
+.TP
+.B \fBabsent\fP
+The specified package(s) will be removed in the blacklist.
+.UNINDENT
+.UNINDENT
+.SS Examples
+.sp
+Include specified packages in the upgrade blacklist on all hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unattended_upgrades__blacklist:
+
+  \- \(aqzsh\(aq
+
+  \- name: \(aqpostgresql\(aq
+    state: \(aq{{ \(dqpresent\(dq if (ansible_hostname in [ \(dqdatabase\(dq, \(dqdb\(dq ]) else \(dqabsent\(dq }}\(aq
+
+  \- name: [ \(aq^linux\-.*\(aq, \(aqvim\(aq ]
+    state: \(aq{{ \(dqpresent\(dq
+              if (ansible_local|d() and ansible_local.tags|d()
+                  and \(dqproduction\(dq in ansible_local.tags)
+              else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS unattended_upgrades__origins
+.sp
+The \fI\%unattended_upgrades__origins\fP and
+\fI\%unattended_upgrades__dependent_origins\fP lists define origin patterns of
+repositories that will be considered for unattended package upgrades.
+The lists can be nested.
+You can specify them as simple origin patterns or dictionaries with specific
+keys:
+.INDENT 0.0
+.TP
+.B \fBorigin\fP
+Required, string or list of origin patterns.
+.sp
+Alternatively, \fBorigins\fP also works.
+.TP
+.B \fBstate\fP
+Required. Choices:
+.INDENT 7.0
+.TP
+.B \fBpresent\fP
+The specified origin patterns will be considered for unattended package upgrades.
+.TP
+.B \fBabsent\fP
+The specified origin patterns will be not considered for unattended package upgrades.
+.UNINDENT
+.UNINDENT
+.SS Origins syntax
+.sp
+Lines below have the format format is \fBkeyword=value,...\fP\&.  A
+package will be upgraded only if the values in its metadata match
+all the supplied keywords in a line.  (In other words, omitted
+keywords are wild cards.) The keywords originate from the Release
+file, but several aliases are accepted.  The accepted keywords are:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+a,archive,suite (eg, \(dqstable\(dq)
+c,component     (eg, \(dqmain\(dq, \(dqcrontrib\(dq, \(dqnon\-free\(dq)
+l,label         (eg, \(dqDebian\(dq, \(dqDebian\-Security\(dq)
+o,origin        (eg, \(dqDebian\(dq, \(dqUnofficial Multimedia Packages\(dq)
+n,codename      (eg, \(dqjessie\(dq, \(dqjessie\-updates\(dq)
+  site          (eg, \(dqhttp.debian.net\(dq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The available values on the system are printed by the command
+\(dqapt\-cache policy\(dq, and can be debugged by running
+\(dqunattended\-upgrades \-d\(dq and looking at the log file.
+.sp
+Within lines unattended\-upgrades allows 2 macros whose values are
+derived from \fB/etc/debian_version\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+${distro_id}            Installed origin.
+${distro_codename}      Installed codename (eg, \(dqjessie\(dq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Codename based matching:
+This will follow the migration of a release through different
+archives (e. g. from testing to stable and later oldstable):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\(dqo=Debian,n=jessie\(dq;
+\(dqo=Debian,n=jessie\-updates\(dq;
+\(dqo=Debian,n=jessie\-proposed\-updates\(dq;
+\(dqo=Debian,n=jessie,l=Debian\-Security\(dq;
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Archive or Suite based matching:
+Note that this will silently match a different release after
+migration to the specified archive (e. g. testing becomes the
+new stable):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\(dqo=Debian,a=stable\(dq;
+\(dqo=Debian,a=stable\-updates\(dq;
+\(dqo=Debian,a=proposed\-updates\(dq;
+\(dqorigin=Debian,codename=${distro_codename},label=Debian\-Security\(dq;
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Examples
+.sp
+Include specified origin patterns for all hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unattended_upgrades__origins:
+
+  \- \(aqo=packages.gitlab.com/gitlab/gitlab\-ce,n=${distro_codename},l=gitlab\-ce\(aq
+
+  \- origin: \(aqsite=download.owncloud.org\(aq
+
+  \- origin: [ \(aqsite=download.example.org\(aq, \(aqo=Example Testing Packages\(aq ]
+    state: \(aq{{ \(dqpresent\(dq if (ansible_hostname in [ \(dqtesting\(dq, \(dqstaging\(dq ]) else \(dqabsent\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,397 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.PAM_ACCESS" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.pam_access \- Manage pam_access(8) ACL rules using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/pam_access\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%Linux Pluggable Authentication Modules\fP <\fBhttps://en.wikipedia.org/wiki/Linux_PAM\fP> provide dynamic authentication
+support to services on Linux hosts. The \fBdebops.pam_access\fP role can be used
+to manage one aspect of PAM \- access control rules that can be used to grant or
+revoke access to services based on users, groups and origins.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+By default, the role does not configure any access rules in the
+\fB/etc/security/access.conf\fP file. Control over this file is initialized
+using a configuration entry named \fBglobal\fP\&. See the examples in the
+\fI\%pam_access__rules\fP for an explanation how to use it in the Ansible
+inventory to set the access rules.
+.sp
+Role is designed to be used by other Ansible roles to manage their own access
+lists, with a custom file per service. However, the rules defined via dependent
+variables are not tracked outside of the context of a given role (ie. in
+different playbooks), and roles cannot affect each other\(aqs access rules using
+this method. Similarly, in Ansible inventory users should set the state of the
+defined rules as \fBappend\fP, so that they don\(aqt clobber the existing rule files
+when the \fI\%debops.pam_access\fP role is executed on its own, or via
+a different playbook.
+.sp
+The activation of the \fBpam_access.so\fP PAM module for each service is not
+managed by the \fI\%debops.pam_access\fP role itself, and should be managed by
+the Ansible roles designed to configure the services.
+.SS Example inventory
+.sp
+The \fI\%debops.pam_access\fP role is included in the DebOps common playbook,
+therefore you don\(aqt need to do anything special to enable it on a host.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.pam_access\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage PAM Access Control Lists
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_pam_access\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: pam_access
+      tags: [ \(aqrole::pam_access\(aq, \(aqskip::pam_access\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::pam_access\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.pam_access\fP Ansible
+role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%pam_access(8)\fP <\fBhttps://manpages.debian.org/pam_access(8)\fP>, \fI\%access.conf(5)\fP <\fBhttps://manpages.debian.org/access.conf(5)\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.pam_access\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS pam_access__rules
+.sp
+The \fBpam_access__*_rules\fP variables define the state of the
+\fB/etc/security/access*.conf\fP configuration files and their contents.
+The variables are merged in order defined by the
+\fI\%pam_access__combined_rules\fP variable, which allows modification of the
+default configuration through the Ansible inventory.
+.SS Examples
+.sp
+Include some of the examples from the \fI\%access.conf(5)\fP <\fBhttps://manpages.debian.org/access.conf(5)\fP> manual page in the
+global \fB/etc/security/access.conf\fP configuration file. Note that the
+configuration is explicitly enabled because the role does not configure the
+global access list by default:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pam_access__rules:
+
+  \- name: \(aqglobal\(aq
+    state: \(aqpresent\(aq
+    options:
+
+      \- name: \(aqallow\-root\-locally\(aq
+        comment: |
+          User root should be allowed to get access via cron, X11 terminal :0, tty1\-6
+        permission: \(aqallow\(aq
+        users: \(aqroot\(aq
+        origins: [ \(aqcrond\(aq, \(aq:0\(aq, \(aqtty1\(aq, \(aqtty2\(aq, \(aqtty3\(aq, \(aqtty4\(aq, \(aqtty5\(aq, \(aqtty6\(aq ]
+
+      \- name: \(aqallow\-root\-loopback\(aq
+        permission: \(aq+\(aq
+        users: \(aqroot\(aq
+        origins: \(aq127.0.0.1\(aq
+
+      \- name: \(aqallow\-root\-subnet\(aq
+        comment: |
+          User root should get access from network 192.0.2. which can also be
+          specified using a CIDR prefix, 192.0.2.0/24
+        permission: \(aqallow\(aq
+        users: \(aqroot\(aq
+        origins: [ \(aq192.0.2.\(aq, \(aq192.0.2.0/24\(aq ]
+
+      \- name: \(aqallow\-root\-domain\(aq
+        comment: |
+          User root should be able to have access from a specific domain
+        permission: \(aq+\(aq
+        users: \(aqroot\(aq
+        origins: \(aq.example.org\(aq
+
+      \- name: \(aqdeny\-root\(aq
+        comment: |
+          Deny access to the root account from any other sources
+        permission: \(aqdeny\(aq
+        users: \(aqroot\(aq
+        origins: \(aqALL\(aq
+
+      \- name: \(aqallow\-foo\-admins\(aq
+        comment: |
+          User \(aqfoo\(aq and members of netgroup \(aqadmins\(aq should be allowed to get
+          access from all sources. This will only work if netgroup service is
+          available.
+        permission: \(aq+\(aq
+        users: [ \(aq@admins\(aq, \(aqfoo\(aq ]
+        origins: \(aqALL\(aq
+
+      \- name: \(aqallow\-john\-ipv6subnet\(aq
+        comment: |
+          User \(aqjohn\(aq should get access from IPv6 net/mask.
+        permission: \(aqallow\(aq
+        users: \(aqjohn\(aq
+        origins: \(aq2001:db8:0:101::/64\(aq
+
+      \- name: \(aqallow\-local\-wheel\(aq
+        comment: |
+          Disallow console logins to all but the \(aqshutdown\(aq, \(aqsync\(aq and all
+          other accounts, which are a member of the \(aqwheel\(aq group.
+        permission: \(aq\-\(aq
+        groups_except: \(aqwheel\(aq
+        users_except: [ \(aqshutdown\(aq, \(aqsync\(aq ]
+        origins: \(aqLOCAL\(aq
+
+      \- name: \(aqdeny\-all\(aq
+        comment: |
+          All other users should be denied access from all sources. This rule
+          will be placed at the end of the configuration, to allow easy
+          addition of more rules before it.
+        permission: \(aqdeny\(aq
+        users: \(aqALL\(aq
+        origins: \(aqALL\(aq
+        weight: 99999
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add some of the examples from the default \fB/etc/security/access.conf\fP
+file installed by Debian to the \fB/etc/security/access\-sshd.conf\fP
+configuration file used by the \fBsshd\fP service.
+.sp
+Note that the configuration has state \fBappend\fP which means that even though
+the values are defined in the Ansible inventory, they will only be applied when
+the \fI\%debops.pam_access\fP role is used in the context of the
+\fI\%debops.sshd\fP role, via the \fBsshd.yml\fP playbook (the configuration entry
+was defined elsewhere and inventory entry is appended to it). Otherwise the
+custom access file used by the \fBsshd\fP service would be overwritten during
+normal usage of the \fI\%debops.pam_access\fP role.
+.sp
+The examples are nonsensical in the context of the OpenSSH service, but are
+provided here to show how to implement specific ACL rules.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pam_access__rules:
+
+  \- name: \(aqsshd\(aq
+    state: \(aqappend\(aq
+    options:
+
+      \- name: \(aqdeny\-non\-root\(aq
+        comment: \(aqDisallow non\-root logins on tty1\(aq
+        permission: \(aqdeny\(aq
+        users_except: \(aqroot\(aq
+        origins: \(aqtty1\(aq
+
+      \- name: \(aqdeny\-non\-privileged\(aq
+        comment: \(aqDisallow non\-local logins to privileged accounts\(aq
+        permission: \(aq\-\(aq
+        groups: \(aqwheel\(aq
+        origins_except: [ \(aqLOCAL\(aq, \(aq.sub.example.org\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables contain a list of YAML dictionaries, each dictionary can have
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of an access control configuration file managed by the
+\fI\%debops.pam_access\fP role. The role will create the file in:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/security/access\-<name>.conf
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configuration entries with the same \fBname\fP parameter will be merged
+together in order of appearance; this can be used to modify existing entries
+via the Ansible inventory.
+.TP
+.B \fBfilename\fP
+Optional. Override the autogenerated file name. You should only specify the
+filename itself, files are stored in the \fB/etc/security/\fP directory.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration file will be
+generated. If \fBabsent\fP, the specified configuration file will be removed.
+If \fBinit\fP, the configuration entry will be initialized, but not active
+\- this can be used to prepare an entry and activate it conditionally later.
+If \fBignore\fP, a given configuration entry will not be evaluated by the role.
+.sp
+If \fBappend\fP, the configuration entry will be processed only if a given
+entry was defined earlier. This should be a preferred method to modify access
+rules defined by other Ansible roles through the Ansible inventory, otherwise
+the user roles will override the role rules.
+.TP
+.B \fBdivert\fP
+Optional, boolean. If \fBTrue\fP, the role will automatically divert or revert
+the original access control rule file depending on its state, to preserve it
+for APT upgrades. This parameter shouldn\(aqt be changed if a diverted file is
+present, otherwise the role will not track the diversion.
+.TP
+.B \fBfieldsep\fP
+Optional. Specify the character that will be used as the field separator in
+the generated rule files. If not specified, colon (\fB:\fP) is used by default.
+See \fI\%pam_access(8)\fP <\fBhttps://manpages.debian.org/pam_access(8)\fP> for information about the usage of this parameter.
+.TP
+.B \fBlistsep\fP
+Optional. Specify the character that will be used as the list element
+separator in the generated rule files. If not specified, space is used by
+default. See \fI\%pam_access(8)\fP <\fBhttps://manpages.debian.org/pam_access(8)\fP> for information about the usage of this
+parameter.
+.TP
+.B \fBoptions\fP
+Required. List of YAML dictionaries which describe PAM access rules. The
+lists in the entries with the same \fBname\fP parameter are merged together,
+with the rules that use the same \fBname\fP affecting each other in order of
+appearance. Rules can be defined using specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. Name of a given access rule, not used directly. Entries with the
+same \fBname\fP parameter will be merged together in order of appearance;
+this allows modification of existing entries via Ansible inventory.
+.TP
+.B \fBpermission\fP
+Required. Specify the permission of a given access rule. Possible values:
+.INDENT 7.0
+.IP \(bu 2
+\fBallow\fP / \fB+\fP / \fBaccept\fP
+.IP \(bu 2
+\fBdeny\fP / \fB\-\fP / \fBdecline\fP
+.UNINDENT
+.TP
+.B \fBusers\fP
+String or YAML list of usernames, netgroups or \fBALL\fP that matches
+everyone. If \fBusers_except\fP parameter is specified, this parameter is
+ignored.
+.TP
+.B \fBusers_except\fP
+String or YAML list of usernames, netgroups or \fBALL\fP that matches
+everyone. If this parameter is specified, the list of users or groups will
+be prefixed with \fBALL EXCEPT\fP which allows for negation.
+.TP
+.B \fBgroups\fP
+String or YAML list of UNIX group names, which will be automatically
+wrapped in parentheses (\fB( )\fP) to mark them as groups. If
+\fBgroups_except\fP parameter is specified, this parameter is ignored.
+.TP
+.B \fBgroups_except\fP
+String or YAML list of UNIX group names, which will be automatically
+wrapped in parentheses (\fB( )\fP) to mark them as groups. If this parameter
+is specified, the list of users or groups will be prefixed with \fBALL
+EXCEPT\fP which allows for negation.
+.TP
+.B \fBorigins\fP
+String or YAML list of \(dqorigins\(dq \- TTY names, hostnames, domain names
+(specified with the \fB\&.\fP prefix), IP addresses, network addresses
+(specified with the \fB\&.\fP suffix or with CIDR netmask), netgroup names,
+\fBALL\fP which matches everything, or \fBLOCAL\fP which matches only local
+TTYs and services. If \fBorigins_except\fP parameter is specified, this
+parameter is ignored.
+.TP
+.B \fBorigins_except\fP
+String or YAML list of \(dqorigins\(dq \- TTY names, hostnames, domain names
+(specified with the \fB\&.\fP prefix), IP addresses, network addresses
+(specified with the \fB\&.\fP suffix or with CIDR netmask), netgroup names,
+\fBALL\fP which matches everything, or \fBLOCAL\fP which matches only local
+TTYs and services. If this parameter is specified, the list of origins will
+be prefixed with \fBALL EXCEPT\fP which allows for negation.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block that contains comments about a given
+access rule.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given access rule will be
+included in the generated rule file. If \fBabsent\fP, the rule will be
+removed from the generated rule file.
+.TP
+.B \fBweight\fP
+Optional. Positive or negative number, which can be used to affect the
+position of the rule within the rule file. Positive numbers will force the
+rule to be lower than normal (adding weight), negative numbers will move
+the role higher on the list (subtracting weight).
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

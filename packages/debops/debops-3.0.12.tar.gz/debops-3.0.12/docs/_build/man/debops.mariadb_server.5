@@ -1,0 +1,277 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.MARIADB_SERVER" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.mariadb_server \- Manage MariaDB database server
+.SH SYNOPSIS
+.sp
+\fBdebops run service/mariadb_server\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%MariaDB\fP <\fBhttps://en.wikipedia.org/wiki/Mariadb\fP> is a popular relational SQL database that was forked from MySQL
+server. Ansible roles \fI\%debops.mariadb\fP and \fBdebops.mariadb_server\fP allow
+you to manage a MariaDB server and / or access it remotely from other hosts.
+.sp
+\fBdebops.mariadb_server\fP role is the \(dqserver\(dq part \- it installs
+\fBmariadb\-server\fP Debian package, and configures access to the database from
+local \fBroot\fP account. After that, you can use \fI\%debops.mariadb\fP role to
+manage databases and user accounts on the server.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To install MariaDB on a host, you need to add it to
+\fB[debops_service_mariadb_server]\fP Ansible group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_mariadb_server]
+database\-host
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will install \fBmariadb\-server\fP package, configure the server to listen on
+\fBlocalhost\fP for new connections, and install \fBautomysqlbackup\fP script to
+automatically create daily, weekly and monthly backups of the database.
+.SS Example playbook
+.sp
+Here\(aqs an example Ansible playbook that uses the \fBdebops.mariadb_server\fP
+role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage MariaDB server
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_mariadb_server\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::mariadb_server\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ mariadb_server__keyring__dependent_apt_keys }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ mariadb_server__etc_services__dependent_rules }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ mariadb_server__ferm__dependent_rules }}\(aq
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+      tcpwrappers__dependent_allow:
+        \- \(aq{{ mariadb_server__tcpwrappers__dependent_allow }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::mariadb_server\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ mariadb_server__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ mariadb_server__python__dependent_packages2 }}\(aq
+
+    \- role: mariadb_server
+      tags: [ \(aqrole::mariadb_server\(aq, \(aqskip::mariadb_server\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Remote access to the database
+.sp
+If you want to allow connections from remote hosts to the MariaDB server, you
+need to change the bind address to listen on all network interfaces, and
+specify the list of IP addresses or CIDR networks which can connect to the
+daemon:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb_server__bind_address: \(aq::\(aq
+mariadb_server__allow: [ \(aq192.0.2.0/24\(aq, \(aq2001:db8:3232::/64\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Changing the bind address will require the MariaDB daemon to be restarted,
+however \fBdebops.mariadb_server\fP does not do that automatically to avoid
+disrupting the normal server operations. To restart the service, you can run
+this Ansible command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@host:~$ ansible database\-host \-b \-m service \-a \(aqname=mysql state=restarted\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note the \fBmysql\fP service name \- MariaDB still uses the old MySQL init files,
+configuration and data paths to allow easy compatibility with old MySQL
+installations.
+.SS Database and user management
+.sp
+\fBdebops.mariadb_server\fP is not meant to be used to manage databases and user
+accounts. You should use \fI\%debops.mariadb\fP role instead, which was designed
+specifically for this purpose.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.mariadb_server\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS mariadb_server__options
+.sp
+The role uses \fB/etc/mysql/conf.d/mysqld.cnf\fP configuration file to manage the
+MariaDB/MySQL server configuration. This configuration file is generated by
+a template that uses the \fI\%mariadb_server__mysqld_options\fP variable to get
+the configuration data. The configuration itself is split among several
+variables located in \fBdefaults/main.yml\fP file.
+.sp
+A minimal configuration is stored as a YAML dictionary. Keys of the dictionary
+as MariaDB configuration option names, and values of the dictionary are the
+configuration values. All values are automatically quoted in the generated
+configuration file.
+.sp
+Example configuration section:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb_server__options:
+  \(aqquery_cache_type\(aq: \(aq0\(aq
+  \(aqkey_buffer\(aq: \(aq16M\(aq
+  \(aqskip_name_resolve\(aq:
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The dictionary keys without values will be written in the configuration file
+with correct notation.
+.sp
+Alternative configuration notation is to use a YAML list, each element of
+a list being a YAML dictionary in the above format. An example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb_server__options:
+
+  \- \(aqquery_cache_type\(aq: \(aq0\(aq
+    \(aqkey_buffer\(aq: \(aq16M\(aq
+
+  \- \(aqskip_name_resolve\(aq:
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Yet another alternative format can be used if you use certain keys in the YAML
+dictionary. The template checks for presence of the \fBname\fP or \fBsection\fP
+keys, and if found, changes to a different format that uses YAML dictionary
+keys:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required for the main options. Name of the option to add.
+.TP
+.B \fBsection\fP
+Required for the definition of a configuration section. Create new section of
+the configuration file, written in square brackets.
+.TP
+.B \fBstate\fP
+Optional. Either \fBpresent\fP or \fBabsent\fP\&. If not specified or \fBpresent\fP,
+a given section or option will be added in the configuration file; if
+\fBabsent\fP, option or section won\(aqt be added.
+.TP
+.B \fBcomment\fP
+Optional. Add a comment to a given option or section.
+.TP
+.B \fBvalue\fP
+Optional for main options. If specified, set a value of a given option.
+.TP
+.B \fBoptions\fP
+Optional. A YAML dictionary or list of YAML dictionaries with options to
+include in a given section, or multiple options specified together as
+a group. If it\(aqs specified, values of \fBname\fP and \fBvalue\fP are ignored.
+.UNINDENT
+.sp
+Examples:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb_server__options:
+
+  \- section: \(aqmysqld\(aq
+    comment: \(aqGlobal MariaDB server options\(aq
+    options:
+
+      \- name: \(aqskip_name_resolve\(aq
+
+      \- name: \(aqkey_buffer\(aq
+        value: \(aq16M\(aq
+
+      \- name: \(aqquery_cache_type\(aq
+        value: \(aq0\(aq
+        state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

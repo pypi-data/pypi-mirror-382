@@ -1,0 +1,484 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.RSPAMD" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.rspamd \- Manage rspamd with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/rspamd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBrspamd\fP daemon, maintained by the \fI\%Rspamd Project\fP <\fBhttps://rspamd.com/\fP>, is a
+modern spam filtering daemon which can be integrated with any MTA which
+supports \fBmilters\fP\&. It provides an advanced spam filtering system that
+allows evaluation of messages by a number of rules including regular
+expressions, statistical analysis and custom services such as URL black
+lists. A web\-based user interface is also provided.
+.sp
+The \fBdebops.rspamd\fP Ansible role can be used to configure the
+\fBrspamd\fP service on a host and automatically setup the
+\fI\%debops.postfix\fP role to use it for spam filtering.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To enable the \fBrspamd\fP service on a host, you need to add it to the
+\fB[debops_service_rspamd]\fP Ansible inventory group. The host should also be
+configured with a Redis server via the \fI\%debops.redis_server\fP role (see its
+documentation for more details), unless a Redis server already exists
+somewhere in the network:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_redis_server]
+hostname
+
+[debops_service_rspamd]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.rspamd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# SPDX\-License\-Identifier: GPL\-3.0\-only
+
+\- name: Manage rspamd service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_rspamd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare postfix environment
+      import_role:
+        name: \(aqpostfix\(aq
+        tasks_from: \(aqmain_env\(aq
+      vars:
+        postfix__dependent_maincf:
+          \- role: \(aqrspamd\(aq
+            config: \(aq{{ rspamd__postfix__dependent_maincf }}\(aq
+      tags: [ \(aqrole::postfix\(aq ]
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::nginx\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ rspamd__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+        \- \(aq{{ rspamd__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ rspamd__logrotate__dependent_config }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ rspamd__nginx__dependent_servers }}\(aq
+      when: rspamd__nginx_enabled | d(False) | bool
+
+    \- role: rspamd
+      tags: [ \(aqrole::rspamd\(aq, \(aqskip::rspamd\(aq ]
+
+    \- role: postfix
+      tags: [ \(aqrole::postfix\(aq, \(aqskip::postfix\(aq ]
+      postfix__dependent_maincf:
+        \- role: \(aqrspamd\(aq
+          config: \(aq{{ rspamd__postfix__dependent_maincf }}\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::rspamd\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.rspamd\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%rspamd(8)\fP <\fBhttps://manpages.debian.org/rspamd(8)\fP>, \fI\%rspamc(1)\fP <\fBhttps://manpages.debian.org/rspamc(1)\fP>, \fI\%rspamadm(1)\fP <\fBhttps://manpages.debian.org/rspamadm(1)\fP> and
+\fIrspamd_stats(8)\fP
+.IP \(bu 2
+The website of the \fI\%Rspamd Project\fP <\fBhttps://rspamd.com/\fP>, in particular the
+\fI\%configuration documentation\fP <\fBhttps://rspamd.com/doc/configuration/index.html\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.rspamd\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS rspamd__configuration
+.sp
+The \fBrspamd__*_configuration\fP variables define the contents of the
+\fB/etc/rspamd/local.d\fP and \fB/etc/rspamd/override.d\fP configuration
+directories. The variables are merged in the order defined by the
+\fI\%rspamd__combined_local_configuration\fP and
+\fI\%rspamd__combined_override_configuration\fP variables, which allows
+modification of the default configuration through the Ansible inventory.
+.sp
+Note that files which are \fInot\fP configured via the \fBrspamd__*_configuration\fP
+variables will be deleted from the \fB/etc/rspamd/local.d\fP and
+\fB/etc/rspamd/override.d\fP directories, to ensure that the \fBRspamd\fP
+configuration is predictable.
+.sp
+See the \fBRspamd\fP \fI\%configuration documentation\fP <\fBhttps://rspamd.com/doc/configuration/index.html\fP> and, in particular, the
+\fI\%modules documentation\fP <\fBhttps://rspamd.com/doc/modules/\fP> for details on the possible configuration files
+and the relevant parameters for each file.
+.SS Examples
+.sp
+See the \fI\%rspamd__default_local_configuration\fP and
+\fI\%rspamd__default_override_configuration\fP variables for examples of
+existing configuration.
+.sp
+Configure another RBL (\fI\%Runtime Black List\fP <\fBhttps://rspamd.com/doc/modules/rbl.html\fP>) check:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rspamd__local_configuration:
+
+  \- file: \(aqrbl.conf\(aq
+    comment: |
+      RBL configuration
+      https://rspamd.com/doc/modules/rbl.html
+    options:
+
+      \- name: \(aqrules\(aq
+        options:
+
+          \- name: \(aqSIMPLE_RBL\(aq
+            options:
+
+              \- name: \(aqrbl\(aq
+                value: \(aqrbl.example.net\(aq
+
+              \- name: \(aqchecks\(aq
+                value: [ \(aqfrom\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will result in \fB/etc/rspamd/local.d/rbl.conf\fP being created with
+the following content:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\&...
+rules {
+    SIMPLE_RBL {
+        rbl = \(dqrbl.example.net\(dq;
+        checks = [\(dqfrom\(dq];
+    }
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables contain a list of YAML dictionaries, each dictionary can have
+the following parameters:
+.INDENT 0.0
+.TP
+.B \fBfile\fP
+Required. Name of the file to create in the \fB/etc/rspamd/local.d\fP
+or \fB/etc/rspamd/override.d\fP directory. This parameter is used as an
+\(dqanchor\(dq, configuration entries with the same \fBfile\fP are combined together
+and affect each other in order of appearance.
+.TP
+.B \fBcomment\fP
+Optional. This parameter can be used to provide a short description
+which will be included in the generated configuration file.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration file will be
+generated. If \fBabsent\fP or \fBinit\fP, the configuration file will not be
+generated and if any old configuration file with the same name exists
+on the target host, it will be removed. If \fBignore\fP, the configuration
+file will not be generated and old configuration files, if any, will not
+be removed.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which can be used to affect the order
+of files to be generated. Positive numbers add more \(dqweight\(dq to the section
+making it appear \(dqlower\(dq in the list; negative numbers subtract the \(dqweight\(dq
+and therefore move the file up in the list.
+.TP
+.B \fBoptions\fP
+Required. A list of \fBrspamd\fP configuration options for a given
+file. The \fBoptions\fP parameters from configuration entries with the same
+\fBfile\fP parameter are merged together in order of appearance and can
+affect each other.
+.sp
+Note that the \fBoptions\fP parameters can be used recursively to generate
+configuration blocks of arbitrary depth (as illustrated in the example
+above).
+.sp
+The options can be specified in a simple form as key/value pairs, where the
+key is the option name and value is the option value. Alternatively, if the
+\fBname\fP and \fBvalue\fP parameters are used, the entries can use an extended
+format with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. The name of a given \fBrspamd\fP configuration option
+for a given \fBfile\fP\&. Options with the same \fBfile\fP and \fBname\fP
+will be merged in order of appearance.
+.TP
+.B \fBvalue\fP
+Either \fBvalue\fP or \fBoptions\fP is required. This defines the value of a
+given configuration option. It can be either a string, a boolean, a number,
+or a YAML list.
+.TP
+.B \fBoptions\fP
+Either \fBvalue\fP or \fBoptions\fP is required. This parameters takes a list
+of configuration sub\-options, thus allowing \fBoptions\fP to be used
+recursively to generate configuration blocks of arbitrary depth (as
+illustrated in the example above).
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block which will be included in the
+configuration file \(dqas is\(dq. If this parameter is specified, the \fBname\fP
+and \fBvalue\fP parameters are ignored \- you need to specify the
+entire line(s) with configuration option names as well.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given configuration option or
+section will be included in the generated configuration file. If \fBabsent\fP,
+\fBignore\fP or \fBinit\fP, a given configuration option or section will not be
+included in the generated file. If \fBcomment\fP, the option will be included
+but commented out and inactive.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block that contains comments about a given
+configuration option.
+.UNINDENT
+.UNINDENT
+.SS DKIM
+.sp
+\fI\%DomainKeys Identified Mail (DKIM)\fP <\fBhttps://en.wikipedia.org/wiki/DomainKeys_Identified_Mail\fP> is an email authentication method
+designed to sign outgoing messages using keys which are published in the
+DNS zone of the sending domain. This allows the recipient to check that
+a received email was indeed sent from the given domain.
+.sp
+\fBrspamd\fP includes support for both checking DKIM signatures and
+for generating DKIM signatures for outgoing email messages. In order to do
+the signing, suitable keys have to be generated and published in the right
+DNS zone(s). In addition, the keys used for signing the emails should be
+replaced on a regular basis (as explained e.g. \fI\%in this document\fP <\fBhttp://www.m3aawg.org/DKIMKeyRotation\fP>), a
+process which is often referred to as \fIkey rollover\fP\&.
+.sp
+Unfortunately, the step of publishing/removing DNS records cannot be fully
+automated as there is no universal means for doing so, neither in the generic
+case, nor in DebOps. The support for DKIM signing therefore defaults to
+being disabled in the \fI\%debops.rspamd\fP role, but the recommendation is
+to go through the steps of manually enabling and configuring it.
+.sp
+In order to simplify this task, the \fI\%debops.rspamd\fP role includes two
+tools, \fBrspamd\-dkim\-keygen\fP and \fBrspamd\-dkim\-update\fP which,
+after some initial configuration, can automate the key rollover process.
+.sp
+To enable DKIM signing, first check that \fI\%rspamd__dkim_domains\fP lists
+all the domains that will be used to send email and then override the
+\fI\%rspamd__dkim_enabled\fP parameter:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rspamd__dkim_enabled: True
+
+rspamd__dkim_domains: [ \(dqexample.com\(dq, \(dqexample.net\(dq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS rspamd\-dkim\-keygen
+.sp
+The \fBrspamd\-dkim\-keygen\fP script takes care of generating keys for the
+domains listed in \fI\%rspamd__dkim_domains\fP and will be executed on a
+monthly basis via a \fBcron\fP job. The configuration for
+\fBrspamd\-dkim\-keygen\fP is stored in \fB/etc/rspamd/dkim\-keygen.json\fP,
+which is controlled via the \fBrspamd__dkim_keygen_*_configuration\fP variables.
+These variables are merged in the order defined by the
+\fI\%rspamd__dkim_keygen_combined_configuration\fP variable, which allows
+modification of the default configuration through the Ansible inventory in a
+manner similar to the \fI\%rspamd__configuration\fP and with a simplified
+version of the \fI\%Syntax\fP, since \fBoptions\fP are
+not supported.
+.sp
+In the default configuration, \fBRSA\fP and \fBed25519\fP keys will be generated in
+\fB/var/lib/rspamd/dkim/\fP\&. Three time periods are defined by the
+\fBfuture_period\fP, \fBactive_period\fP and \fBexpired_period\fP (in months). These
+are the stages of the key rollover that keys go through. Keys are generated
+\fBfuture_period\fP number of months before they are made active (in order to
+allow for the keys to be published in the DNS). Then they are in active use
+(i.e. used to sign outgoing emails) during the \fBactive_period\fP\&. Finally, keys
+enter the \fBexpired_period\fP where they are no longer used to sign emails (but
+the records are still published in the DNS to make sure that in\-flight emails
+are still valid). Finally, upon expiry of the \fBexpired_period\fP, when no
+emails should be in\-flight any more, the keys can be archived (to
+\fB/var/lib/rspamd/dkim\-archive/\fP and removed from the DNS.
+.sp
+The one exception is when \fBrspamd\-dkim\-keygen\fP is first executed
+(usually the first time the \fI\%debops.rspamd\fP role is run for a given host),
+in which case the initial keys will immediately go live.
+.sp
+Whenever \fBrspamd\-dkim\-keygen\fP detects that a new key should be
+published in the DNS, or that a stale key needs to be removed, it will call out
+to the complimentary tool \fBrspamd\-dkim\-update\fP\&.
+.SS rspamd\-dkim\-update
+.sp
+The \fBrspamd\-dkim\-update\fP script takes care of publishing/removing DNS
+resource records for DKIM keys generated/expired by the \fBrspamd\-dkim\-keygen\fP
+script.
+.sp
+The most important variable for \fBrspamd\-dkim\-update\fP is the
+\fI\%rspamd__dkim_update_method\fP, which defaults to sending emails to
+the administrator for manual handling of DNS updates.
+.sp
+In the alternative, the process can be automated using the \fBnsupdate\fP
+tool. This requires configuration changes to the DNS server (e.g.
+\fBbind\fP), either to trust the IP address of the \fBrspamd\fP host
+(not recommended), or to generate suitable keys (for example, \fI\%TSIG keys\fP <\fBhttps://bind9.readthedocs.io/en/latest/advanced.html#tsig\fP>)
+and to configure these keys to have the appropriate permissions to add/remove
+DNS resource records (for example, using \fBbind\fP\(aqs fine\-grained
+\fI\%update\-policy options\fP <\fBhttps://bind9.readthedocs.io/en/latest/reference.html#dynamic-update-policies\fP>). Alternatively, the server can be configured to allow
+a given \fI\%Kerberos principal\fP <\fBhttps://bind9.readthedocs.io/en/latest/advanced.html#dynamic-update\fP> to perform updates (in which case a \fBkeytab\fP
+needs to be generated instead of a \fBTSIG\fP key file and the references to the
+key file below should then be read as referring to the \fBkeytab\fP file).
+.sp
+The key file needs to be stored on the \fBrspamd\fP host, by default at
+\fB/etc/rspamd/dkim_dns_key\fP (preferably with \fB0640\fP permissions and
+\fBroot:_rspamd\fP ownership). This can be automated by transferring the key
+file to the Ansible controller and putting it in the appropriate override
+directory (e.g. \fBproject\-dir/ansible/overrides/files/etc/rspamd/dkim_dns_key\fP as
+explained below in the \fI\%Overriding rspamd\-dkim\-keygen/update\fP section).
+.sp
+Once the keyfile has been prepared, check the values of \fBnsupdate_*\fP in the
+configuration for \fBrspamd\-dkim\-update\fP, stored in
+\fB/etc/rspamd/dkim\-update.json\fP, which is controlled via the
+\fBrspamd__dkim_update_*_configuration\fP variables.  These variables are merged
+in the order defined by the
+\fI\%rspamd__dkim_update_combined_configuration\fP variable, which allows
+modification of the default configuration through the Ansible inventory in a
+manner similar to the \fI\%rspamd__configuration\fP and with a simplified
+version of the \fI\%Syntax\fP, since \fBoptions\fP are
+not supported.
+.SS Overriding rspamd\-dkim\-keygen/update
+.sp
+The reason why there are two separate scripts for key generation and DNS
+updates is that it allows the administrator to override the default scripts by
+providing their alternative script in the \fBfiles_path\fP override directory
+defined in the \fB\&.debops.cfg\fP file (see \fI\%Configuration\fP).
+.sp
+For example, if \fB\&.debops.cfg\fP reads:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\&...
+[override_paths]
+files_path = ansible/overrides/files
+\&...
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Then the custom script(s) should be placed in
+\fBproject\-dir/ansible/overrides/files/usr/local/sbin/rspamd\-dkim\-update\fP
+and/or
+\fBproject\-dir/ansible/overrides/files/usr/local/sbin/rspamd\-dkim\-keygen\fP\&.
+.SH AUTHOR
+David Härdeman
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,564 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.CRON" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.cron \- Manage cron jobs using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/cron\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.cron\fP Ansible role can be used to manage \fBcron\fP jobs
+through Ansible inventory. You can define \fBcron\fP jobs at different
+levels of Ansible inventory (all hosts, a group of hosts, specific hosts) and
+manage custom files or scripts required by the jobs.
+.SH GETTING STARTED
+.SS Randomized system jobs
+.sp
+The role modifies the \fB/etc/crontab\fP configuration file to randomize
+execution times of \fBhourly\fP, \fBdaily\fP, \fBweekly\fP and \fBmonthly\fP
+\fBcron\fP jobs. This is done to avoid huge spikes of job execution every
+day around 06:25 which is the default execution time defined in the Debian and
+Ubuntu \fBcron\fP package. The randomization is defined with the following rules:
+.INDENT 0.0
+.IP \(bu 2
+Each type of \fBcron\fP job will have randomized minute at which the
+jobs will be executed.
+.IP \(bu 2
+On each host, the role will choose a specific hour for each of the \fBdaily\fP,
+\fBweekly\fP and \fBmonthly\fP jobs. The list of allowed hours is defined in the
+\fI\%cron__crontab_hours\fP variable.
+.IP \(bu 2
+The \fBweekly\fP \fBcron\fP jobs will be executed on either Saturday or
+Sunday, chosen randomly. you can specify what days to choose from using the
+\fI\%cron__crontab_weekday_days\fP variable.
+.IP \(bu 2
+The \fBmonthly\fP \fBcron\fP jobs will be executed on a randomized day of
+the first week of a month. This is controlled by the
+\fI\%cron__crontab_day_ranges\fP variable.
+.UNINDENT
+.sp
+The randomization is based on the \fI\%cron__crontab_seed\fP variable (by
+default uses the value of the \fBinventory_hostname\fP Ansible fact), as well as
+some additional pseudo\-random strings hashed in the
+\fI\%cron__crontab_offset_seeds\fP list. The hashes are stored in the
+\fI\%debops.cron\fP Ansible local fact script for idempotency; the script can be
+removed to regenerate a new set of hashes if the resulting execution times are
+not the desired ones.
+.SS Example inventory
+.sp
+\fBdebops.cron\fP is included by default in the \fBcommon.yml\fP DebOps playbook;
+you don\(aqt need to do anything to have it executed.
+.sp
+If you don’t want to let \fBdebops.cron\fP manage the \fBcron\fP jobs, you
+can do this with the following setting in your inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__enabled: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.cron\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage cron jobs
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_cron\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.cron\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS cron__crontab_jobs
+.sp
+The \fBcron__crontab_*_jobs\fP variables define what \fBcron\fP jobs will be
+present in the \fB/etc/crontab\fP configuration file. You can read more about
+the contents of this file in the \fI\%crontab(5)\fP <\fBhttps://manpages.debian.org/crontab(5)\fP> manual page.
+.sp
+This configuration is meant for the system\-wide \fBcron\fP configuration,
+application\-specific \fBcron\fP jobs should be configured via the
+\fI\%cron__jobs\fP variables.
+.SS Examples
+.sp
+The syntax is similar to that used by the
+\fI\%Ansible ansible.builtin.cron module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/ansible/builtin/cron_module.html\fP>\&.
+.sp
+Define a \fBcron\fP job which will be executed every minute:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__crontab_jobs:
+  \- name: \(aqrun\-each\-minute\(aq
+    job: \(aq/bin/true\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Run a job each day at midnight:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__crontab_jobs:
+  \- name: \(aqrun\-each\-day\(aq
+    minute: \(aq0\(aq
+    hour: \(aq0\(aq
+    job: \(aq/bin/true\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Alternative way to run a job each day at midnight:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__crontab_jobs:
+  \- name: \(aqrun\-each\-day\(aq
+    special_time: \(aqdaily\(aq
+    job: \(aq/bin/true\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Run a job as the \fBnobody\fP user, 23 minutes every two hours, every day:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__crontab_jobs:
+  \- name: \(aqcustom\-job\-schedule\(aq
+    user: \(aqnobody\(aq
+    special_time: \(aq23 0\-23/2 * * *\(aq
+    job: \(aq/bin/true\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can also check the \fI\%cron__crontab_default_jobs\fP variable to see the
+configuration of the \fBhourly\fP, \fBdaily\fP, \fBweekly\fP and \fBmonthly\fP
+\fBcron\fP job schedules.
+.sp
+Override daily \fBcron\fP job schedule to execute on a specific hour
+instead of the randomized one:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__crontab_jobs:
+  \- name: \(aqcrontab\-daily\(aq
+    hour: \(aq5\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each list entry is a YAML dictionary that describes a \fBcron\fP job using
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. A string that defines a configuration entry, not used otherwise.
+Configuration entries with the same \fBname\fP parameter are merged together in
+the order of appearance and can affect each other.
+.TP
+.B \fBjob\fP
+Required. The command to execute by \fBcron\fP for a given job.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given job will be included in
+the generated \fB/etc/crontab\fP file. If \fBabsent\fP, a given job will be
+removed from the generated file. If \fBignore\fP, the configuration entry will
+not be evaluated by role during execution.
+.TP
+.B \fBminute\fP
+Optional. Execute a \fBcron\fP job on a specific minute. If not
+specified, \fB*\fP will be used which executes a job every minute.
+.TP
+.B \fBhour\fP
+Optional. Execute a \fBcron\fP job on a specific hour. If not specified,
+\fB*\fP will be used which executes a job every hour.
+.TP
+.B \fBday\fP
+Optional. Execute a \fBcron\fP job on a specific day of the month. If
+not specified, \fB*\fP will be used which executes a job every day of the
+month.
+.TP
+.B \fBweekday\fP
+Optional. Execute a \fBcron\fP job ona specific day of the week. If not
+specified, \fB*\fP will be used which executes a job every day of the week.
+.TP
+.B \fBspecial_time\fP
+Optional. Specify the job execution time using one of the built\-in
+\fBcron\fP aliases:
+.INDENT 7.0
+.IP \(bu 2
+\fBreboot\fP: execute a job at system boot
+.IP \(bu 2
+\fByearly\fP or \fBannually\fP: execute a job once a year, at midnight of
+January 1st
+.IP \(bu 2
+\fBmonthly\fP: execute a job once a month, at midnight of the first day of
+the month
+.IP \(bu 2
+\fBweekly\fP: execute a job once a week, at midnight each Sunday
+.IP \(bu 2
+\fBdaily\fP or \fBmidnight\fP: execute a job once a day, at midnight
+.IP \(bu 2
+\fBhourly\fP: execute a job once an hour, on the hour
+.UNINDENT
+.sp
+Alternatively, you can specify a custom execution time as a string using this
+parameter, for example every March 23rd if it\(aqs a Sunday. See the
+\fI\%crontab(5)\fP <\fBhttps://manpages.debian.org/crontab(5)\fP> manual page for details.
+.TP
+.B \fBuser\fP
+Optional. Specify the UNIX account which should be used to execute a given
+\fBcron\fP job. If not specified, \fBroot\fP will be used by default.
+.UNINDENT
+.SS cron__jobs
+.sp
+The \fBcron__*_jobs\fP variables can be used to define what \fBcron\fP jobs
+should be present on the remote hosts.
+.sp
+The variables are YAML dictionaries or YAML lists (the data type can\(aqt be mixed
+in the same variable). YAML dictionary keys define the name of the
+\fBcron\fP configuration file in \fB/etc/cron.d/\fP directory.
+.sp
+Each entry is a YAML dictionary that defines a set of one or more
+\fBcron\fP jobs using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBfile\fP or \fBcron_file\fP
+Name of the configuration file in the \fB/etc/cron.d/\fP directory. Required
+when the YAML list format is used. If not specified, the dictionary key will
+be used as the name.
+Notice in order for a \fBcron\fP job to actually be executed, the file
+name must be entirely made up of letters, digits and can only contain the
+special signs underscore (\(aq_\(aq) and hyphen (\(aq\-\(aq).
+.TP
+.B \fBuser\fP
+Optional. Specify the UNIX user account which will execute the job. If not
+specified, the job will be executed as the \fBroot\fP account.
+.TP
+.B \fBenvironment\fP
+Optional. A YAML dictionary which defines what variables should be present in
+a given \fBcron\fP job environment. Each dictionary key is the variable
+name, and its value will be set as that variable value.
+.TP
+.B \fBbackup\fP
+Optional, boolean. If \fBTrue\fP, the \fBcron\fP Ansible module will create
+a backup of an existing configuration file before modifying it.
+.TP
+.B \fBjob\fP
+A string that specifies the command that should be executed by
+\fBcron\fP to perform a given task.
+.TP
+.B \fBjobs\fP
+List of \fBcron\fP jobs which should be defined on the remote host. Each
+list entry is either a string which specifies the command, or a YAML
+dictionary with more specific parameters. Missing parameters that are
+required to define a complete entry will be copied from the main YAML
+dictionary of a given \fBcron__*_jobs\fP entry.
+.TP
+.B \fBcustom_files\fP
+Optional. List of custom files which should be present on the remote host;
+this list can be used to install bigger scripts executed by \fBcron\fP
+jobs. Each list entry is a YAML dictionary with specific parameters.
+See below for the description of the parameters.
+.UNINDENT
+.sp
+The parameters below can be specified both in main YAML dictionary, as well as
+in a dictionary entry on the \fBjobs\fP list:
+.INDENT 0.0
+.TP
+.B \fBdisabled\fP
+Optional, boolean. If \fBTrue\fP, the \fBcron\fP entry in the
+configuration file will be commented out, rendering it disabled.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the \fBcron\fP entry will be
+created. If \fBabsent\fP, the \fBcron\fP entry will be removed. If
+\fBignore\fP, the existing entries won\(aqt be changed and missing entries will
+not be created. If the \fBstate\fP parameter is defined in the main YAML
+dictionary, when it\(aqs \fBabsent\fP the entire configuration file will be
+removed.
+.TP
+.B \fBname\fP
+Optional. Description of a given \fBcron\fP job, used as a marker by
+Ansible to correctly manipulate the \fBcron\fP entries. if not
+specified, it will be generated automatically to ensure that the
+\fBcron\fP jobs are idempotent.
+.UNINDENT
+.sp
+The next set of parameters define when a given \fBcron\fP job should be
+executed, in the \fBcron\fP Ansible module specification format. See its
+documentation for more details:
+.INDENT 0.0
+.TP
+.B \fBspecial_time\fP
+Specify the special time when the job should be run, in the \fBcron\fP format:
+\fBhourly\fP, \fBdaily\fP, \fBweekly\fP, \fBmonthly\fP, \fBannually\fP, \fByearly\fP, or
+at the \fBreboot\fP\&. This parameter cannot be used with other parameters that
+define the execution time.
+.TP
+.B \fBminute\fP
+Specify the minute when the job should be run, in the \fBcron\fP format.
+.TP
+.B \fBhour\fP
+Specify the hour when the job should be run, in the \fBcron\fP format.
+.TP
+.B \fBday\fP
+Specify the day when the job should be run, in the \fBcron\fP format.
+.TP
+.B \fBmonth\fP
+Specify the month when the job should be run, in the \fBcron\fP format.
+.TP
+.B \fBweekday\fP
+Specify what weekdays the job should be run, in the \fBcron\fP format.
+.UNINDENT
+.sp
+The parameters below are used in the \fBcustom_files\fP list as the dictionary
+keys:
+.INDENT 0.0
+.TP
+.B \fBdest\fP
+Required. Absolute path to the destination file on the remote host.
+.TP
+.B \fBsrc\fP
+Absolute path of the source file on the Ansible Controller which will be
+copied to the remote host. Shouldn\(aqt be used with the \fBcontent\fP parameter.
+.TP
+.B \fBcontent\fP
+The contents of the specified destination file generated on the remote host.
+Shouldn\(aqt be used with the \fBsrc\fP parameter.
+.TP
+.B \fBowner\fP
+Optional. Specify the UNIX account of the file owner. If not specified,
+\fBroot\fP will own the file.
+.TP
+.B \fBgroup\fP
+Optional. Specify the UNIX group the file belongs to. If not specified, it
+will belong to the \fBroot\fP group.
+.TP
+.B \fBmode\fP
+Optional. Specify the file permissions in octal. If not specified, they will
+be set as \fB0755\fP\&.
+.TP
+.B \fBforce\fP
+Optional, boolean. If not specified or \fBTrue\fP, the role will overwrite any
+existing files. If \fBFalse\fP, an existing file won\(aqt be changed.
+.UNINDENT
+.SS Examples
+.sp
+Create two tasks that execute a command every minute, in separate configuration
+files.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__jobs:
+
+  \(aqsimple_job_1\(aq:
+    job: \(aqtouch /tmp/file1\(aq
+
+  \(aqsimple_job_2\(aq:
+    job: \(aqtouch /tmp/file2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create two tasks that execute a command every minute, in separate configuration
+files, as a list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__jobs:
+
+  \- file: \(aqsimple_job_1\(aq
+    job: \(aqtouch /tmp/file1\(aq
+
+  \- file: \(aqsimple_job_2\(aq
+    job: \(aqtouch /tmp/file2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create two tasks that execute a command every minute, in one configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__jobs:
+  \(aqtwo_tasks\(aq:
+    jobs:
+
+      \- \(aqtouch /tmp/file1\(aq
+
+      \- \(aqtouch /tmp/file2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a task that executes a command every minute, in the crontab of the user
+\fBjessie\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__jobs:
+  \(aquser_cron\(aq:
+    cron_file: \(aq{{ omit }}\(aq
+    user: \(aqjessie\(aq
+    jobs:
+
+      \- \(aqtouch /tmp/file1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create two tasks in the same file with custom descriptions:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__jobs:
+  \(aqtwo_tasks_one_disabled\(aq:
+    jobs:
+
+      \- name: \(aqThis task is done first\(aq
+        job: \(aqtouch /tmp/file1\(aq
+
+      \- name: \(aqThis task is disabled\(aq
+        job: \(aqtouch /tmp/file2\(aq
+        disabled: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Execute a custom script every week, as the \fBbackup\fP user:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__jobs:
+
+  \(aqexecute\-script\(aq:
+    user: \(aqbackup\(aq
+    special_time: \(aqweekly\(aq
+    job: \(aq/usr/local/lib/weekly\-job\(aq
+
+    custom_files:
+
+      \- dest: \(aq/usr/local/lib/weekly\-job\(aq
+        content: |
+          #!/bin/bash
+          touch /tmp/weekly\-result
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Set environment variables for one job only:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cron__jobs:
+
+  \(aqscript\-without\-mail\(aq:
+    special_time: \(aqhourly\(aq
+    job: \(aq/usr/local/lib/hourly\-job\(aq
+    environment:
+      MAILTO: \(aq\(aq
+      ENVIRONMENT: \(aqproduction\(aq
+      PATH: \(aq/usr/local/sbin:$PATH\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

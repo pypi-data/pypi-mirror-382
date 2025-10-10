@@ -1,0 +1,580 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.GOLANG" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.golang \- Manage Go environment and applications using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/golang\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Go\fP <\fBhttps://en.wikipedia.org/wiki/Go_(programming_language)\fP> is a compiled programming language similar to \fI\%C\fP <\fBhttps://en.wikipedia.org/wiki/C_(programming_language)\fP>\&. Applications
+written in Go are compiled to static binaries, with an aim to simplify
+deployment. Many popular data center applications and tools are written in Go.
+.sp
+The \fBdebops.golang\fP role was designed to support multiple ways of deploying
+Go applications using Ansible:
+.INDENT 0.0
+.IP \(bu 2
+installation from an APT package, when available;
+.IP \(bu 2
+installation from source by cloning the application repositories and building
+the binaries in situ;
+.IP \(bu 2
+installation of a precompiled binary downloaded from a remote source;
+.UNINDENT
+.sp
+Installation via APT packages is a preferred method, since this saves compile
+time and does not require access to third\-party services. The other
+installation methods can be used when a given Go application is not available
+in a given OS release, or the upstream does not provide APT repositories.
+.sp
+The \fBdebops.golang\fP role should be used as a dependent Ansible role in other
+role playbooks, to simplify installation of the Go applications. Further
+service configuration should be done in a given application role. Usage via the
+Ansible inventory is, of course, still possible but might not be optimal.
+.SH GETTING STARTED
+.SS Ansible local facts
+.sp
+The \fI\%debops.golang\fP role provides a set of Ansible local facts at the
+\fBansible_local.golang.*\fP namespace. The facts can be used to determine the
+location of the Go application binaries \- installation from APT package or from
+source can result in different binary location (\fB/usr/bin/\fP vs
+\fB/usr/local/bin/\fP) which might require different path specification in
+\fBsystemd\fP unit files, for example.
+.SS Example inventory
+.sp
+To configure a Go environment on a given host or set of hosts, they need to
+be added to \fB[debops_service_golang]\fP Ansible group in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_golang]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The role will install Go development environment by default if no other Go
+packages are defined via \fI\%golang__dependent_packages\fP variable, by
+other Ansible roles.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, or you want to use it as
+a dependency for another Ansible role, here\(aqs an example Ansible playbook that
+uses the \fBdebops.golang\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Go environment
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_golang\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::golang\(aq ]
+      keyring__dependent_gpg_user: \(aq{{ golang__keyring__dependent_gpg_user }}\(aq
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ golang__keyring__dependent_gpg_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ golang__apt_preferences__dependent_list }}\(aq
+
+    \- role: golang
+      tags: [ \(aqrole::golang\(aq, \(aqskip::golang\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH USAGE EXAMPLES
+.sp
+These example configurations show how \fI\%debops.golang\fP role can be used
+either via the Ansible inventory, or by other Ansible roles using role
+dependent variables.
+.SS The \fBdocker\-gen\fP package
+.sp
+The \fI\%docker\-gen\fP <\fBhttps://github.com/jwilder/docker-gen\fP> application can be used to generate configuration files or
+scripts based on templates with \fI\%Docker\fP <\fBhttps://docker.com/\fP> metadata as a configuration source.
+The \fI\%debops.docker_gen\fP role can be used to install and configure it as
+a system service.
+.sp
+To build the \fBdocker\-gen\fP Go binary, \fBgocolorize\fP and \fBglock\fP Go
+packages are required as build dependencies (they don\(aqt need to be installed
+system\-wide, only in the build environment). The \fBgocolorize\fP Go package is
+packaged in Debian, but \fBglock\fP is not. All three source repositories do not
+provide GPG\-signed tags or commits, \fBglock\fP does not even have a tagged
+release (old software tends to be like that).
+.sp
+This is an example install configuration for the \fI\%debops.golang\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+golang__packages:
+
+  \- name: \(aqgocolorize\(aq
+    apt_packages: \(aqgolang\-github\-agtorre\-gocolorize\-dev\(aq
+    git:
+      \- repo: \(aqhttps://github.com/agtorre/gocolorize\(aq
+        version: \(aqv1.0.0\(aq
+
+  \- name: \(aqglock\(aq
+    git:
+      \- repo: \(aqhttps://github.com/robfig/glock\(aq
+        #version: \(aqmaster\(aq
+        build_script: |
+          go get \-u golang.org/x/tools/go/buildutil
+          go build && go install
+
+  \- name: \(aqdocker\-gen\(aq
+    apt_dev_packages: [ \(aqgcc\(aq, \(aqlibc6\-dev\(aq ]
+    git:
+      \- repo: \(aqhttps://github.com/jwilder/docker\-gen\(aq
+        version: \(aq0.7.4\(aq
+        build_script: |
+          glock sync \-n < GLOCKFILE
+          make docker\-gen
+    git_binaries:
+      \- \(aqgithub.com/jwilder/docker\-gen/docker\-gen\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fI\%debops.golang\fP role will install the \fBgocolorize\fP dev package from
+Debian if it\(aqs available, otherwise it will be built and installed in the Go
+build environment from its source repository.
+.sp
+The \fBglock\fP Go package is not included in Debian, therefore it will be built
+and installed from its source repository. Note that the repository does not
+have a release, therefore the \fBmaster\fP branch is checked out by default; an
+additional \fBgo\-buildutil\fP Go package is also installed using the \fBgo
+get\fP command. \fBglock\fP is only a build dependency, and is not installed
+system\-wide.
+.sp
+The \fBdocker\-gen\fP Go package is cloned from its source repository on
+a specific \fBgit\fP tag. Additional APT packages required for building
+the binary are installed from the Debian repository. The built binary is
+installed to \fB/usr/local/bin/\fP directory and registered in the Go package
+database maintained by the role.
+.SS The \fBetcd\fP package
+.sp
+The \fI\%etcd\fP <\fBhttps://etcd.io/\fP> application is a distributed key\-value store written in Go, with
+a server and client binaries. \fBetcd\fP is included in Debian Buster, but
+can also be installed from upstream.
+.sp
+This is an example install configuration for the \fI\%debops.golang\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+golang__packages:
+
+  \- name: \(aqetcd\(aq
+    apt_packages: [ \(aqetcd\-server\(aq, \(aqetcd\-client\(aq ]
+    gpg: \(aqB48D 29DE 85DD 570F 8873  8A0E B1C2 6A6D 6FF2 2270\(aq
+    git:
+      \- repo: \(aqhttps://github.com/etcd\-io/etcd\(aq
+        version: \(aqv3.3.13\(aq
+        build_script: |
+          make clean build
+    git_binaries:
+      \- \(aqgithub.com/etcd\-io/etcd/bin/etcd\(aq
+      \- \(aqgithub.com/etcd\-io/etcd/bin/etcdctl\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fI\%debops.golang\fP Ansible role will check if the specified APT packages
+are available; if not, the specified version will be cloned from the sources
+repository and the \fBgit\fP tag will be verified using the specified GPG
+key. When the build is finished, the specified binaries will be installed in the
+\fB/usr/local/bin/\fP directory.
+.SS The \fBnomad\fP package
+.sp
+\fI\%Hashicorp Nomad\fP <\fBhttps://www.nomadproject.io/\fP> is a job orchestrator which, combined with Consul and Vault
+services, can be used to manage containerized and non\-containerized
+applications in a cluster.
+.sp
+Nomad is currently (as of 2019) not packaged in Debian Stable. Hashicorp
+provides its own download server for their applications, we can use that to
+download the Nomad binary directly.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+golang__packages:
+
+  \- name: \(aqnomad\(aq
+    apt_packages: \(aqnomad\(aq
+    apt_required_packages: \(aqunzip\(aq
+    upstream_type: \(aqurl\(aq
+    url:
+      \- src: \(aqhttps://releases.hashicorp.com/nomad/0.9.5/nomad_0.9.5_linux_amd64.zip\(aq
+        dest: \(aqreleases/linux\-amd64/hashicorp/nomad/0.9.5/nomad_0.9.5_linux_amd64.zip\(aq
+        checksum: \(aqsha256:9a137abad26959b6c5f8169121f1c7082dff7b11b11c7fe5a728deac7d4bd33f\(aq
+        unarchive: True
+        unarchive_creates: \(aqreleases/linux\-amd64/hashicorp/nomad/0.9.5/nomad\(aq
+    url_binaries:
+      \- src: \(aqreleases/linux\-amd64/hashicorp/nomad/0.9.5/nomad\(aq
+        dest: \(aqnomad\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fI\%debops.golang\fP role will check if the \fBnomad\fP APT package is
+available. If not, it will make sure that the \fBunzip\fP APT package is present
+on the host, download the specified tarball from the Hashicorp release server,
+extract its contents and copy the specified \fBnomad\fP binary to the
+\fB/usr/local/bin/\fP directory.
+.SS The \fBminio\fP package
+.sp
+\fI\%MinIO\fP <\fBhttps://minio.io/\fP> is an Amazon Simple Storage Service (S3) compatible object storage
+server written in Go. It\(aqs currently not included in Debian, but upstream
+provides GPG\-signed binary releases regularly, and it\(aqs also possible to build
+one locally.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+golang__packages:
+
+  \- name: \(aqminio\(aq
+    upstream_type: \(aqurl\(aq
+    gpg: \(aq4405 F3F0 DDBA 1B9E 68A3  1D25 12C7 4390 F9AA C728\(aq
+    url:
+
+      \- src: \(aqhttps://dl.min.io/server/minio/release/linux\-amd64/archive/minio.RELEASE.2019\-08\-21T19\-40\-07Z\(aq
+        dest: \(aqreleases/linux\-amd64/minio/minio.RELEASE.2019\-08\-21T19\-40\-07Z\(aq
+        checksum: \(aqsha256:89b313a892455f7cdeae1c9d037d9d88d60032913c530b0f5968211264e667b7\(aq
+
+      \- src: \(aqhttps://dl.min.io/server/minio/release/linux\-amd64/archive/minio.RELEASE.2019\-08\-21T19\-40\-07Z.asc\(aq
+        dest: \(aqreleases/linux\-amd64/minio/minio.RELEASE.2019\-08\-21T19\-40\-07Z.asc\(aq
+        checksum: \(aqsha256:16f492ef21d26874360f7423c221e57c73a93f682e6737f7590eb94313e23615\(aq
+        gpg_verify: True
+
+    url_binaries:
+      \- src: \(aqreleases/linux\-amd64/minio/minio.RELEASE.2019\-08\-21T19\-40\-07Z\(aq
+        dest: \(aqminio\(aq
+        notify: [ \(aqRestart minio\(aq ]
+    git:
+      \- repo: \(aqhttps://github.com/minio/minio\(aq
+        version: \(aqRELEASE.2019\-08\-21T19\-40\-07Z\(aq
+        build_script: |
+          make clean build
+    git_binaries:
+      \- src: \(aqgithub.com/minio/minio/minio\(aq
+        dest: \(aqminio\(aq
+        notify: [ \(aqRestart minio\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Because there\(aqs no \fBapt_packages\fP parameter, the role will install the
+upstream version by default. The \fBupstream_type\fP parameter is sed to \fBurl\fP,
+which means that \fI\%debops.golang\fP will download the specified binary and
+its \fB\&.asc\fP GPG signature, verify the GPG signature against the GPG key
+installed by the role and install the specified binary in the
+\fB/usr/local/bin/\fP directory.
+.sp
+Alternatively, the user can request installation using the \fBgit\fP
+sources, which can be done by adding in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+golang__packages:
+
+  \- name: \(aqminio\(aq
+    state: \(aqappend\(aq
+    upstream_type: \(aqgit\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will tell the \fI\%debops.golang\fP role to download the \fBminio\fP
+source code and compile it locally. The compiled binary will be installed in
+the \fB/usr/local/bin/\fP directory.
+.sp
+In both cases, if the \fBminio\fP binary is changed, the \fB\(dqRestart
+minio\(dq\fP Ansible handler will be notified. This is useful in cases where Go
+packages are installed for other Ansible roles via role dependent variables,
+where the handler can be defined in the application role. Usage of the
+\fBhandler\fP parameter should be avoided in Go packages defined via the Ansible
+inventory.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.golang\fP default variables have more extensive configuration than
+simple strings or lists, here you can find documentation and examples for them.
+.SS golang__packages
+.sp
+Each \fBgolang__*_packages\fP variable contains a list of YAML dictionaries, each
+dictionary defines a Go package installation using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. A name of the Go package definition. Multiple configuration entries
+with the same \fBname\fP parameter are merged together in order of appearance.
+This parameter is not used for anything else.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, the Go application will be
+installed. When the parameter is set to \fBabsent\fP or \fBignore\fP, the Go
+application will not be processed by Ansible; there\(aqs currently no support
+for uninstalling already installed Go applications.
+.sp
+If the parameter is set to \fBappend\fP, a given configuration entry will be
+evaluated only if the entry with the same \fBname\fP was already defined
+earlier. This can be useful to modify role dependent configuration through
+the Ansible inventory.
+.TP
+.B \fBapt_packages\fP
+Optional. A string or a list of APT packages with the Go application to
+install. If the APT packages are not available, the role will automatically
+switch to an installation from upstream.
+.TP
+.B \fBapt_required_packages\fP
+Optional. List of APT packages which should be present on a host when Go
+application is downloaded directly from upstream. Some of the Go applications
+are distributed as tarballs; installing \fBunzip\fP APT packages might be
+requires to uncompress the \fB\&.zip\fP archives.
+.TP
+.B \fBapt_dev_packages\fP
+Optional. List of APT packages which should be present on a host when Go
+application is built from source. You can specify here additional packages
+that are required for building the binary; the
+\fI\%golang__apt_dev_packages\fP variable contains the default set of APT
+packages which will be installed when a Go application is to be built from
+source.
+.TP
+.B \fBupstream\fP
+Optional, boolean. If defined and \fBTrue\fP, install the Go application from
+upstream, even if APT packages are available. The \fBFalse\fP value will result
+in not installing the Go application at all if the APT packages are not
+available.
+.TP
+.B \fBupstream_type\fP
+Optional. Specify the type of upstream installation to perform, either
+\fBgit\fP (default) to install the Go application from source, or \fBurl\fP to
+download the Go application binaries directly. Either option needs to be
+configured as well for the preferred installation method to work.
+.TP
+.B \fBgpg\fP
+Optional. A string or a list of GPG key fingerprints to add to the
+\fI\%golang__user\fP GPG keyring. The key management is performed by the
+\fI\%debops.keyring\fP Ansible role; you can use the
+\fI\%keyring__dependent_gpg_keys\fP syntax to define the GPG keys to
+install or remove.
+.TP
+.B \fBurl\fP
+Optional. A list of YAML dictionaries, each dictionary defines a remote
+resource which can be downloaded to the UNIX account defined in the
+\fI\%golang__user\fP variable, optionally unpacked from an archive by the
+\fBunarchive\fP Ansible module and verified using GPG keys. With this
+parameter, Go applications can be downloaded directly from upstream.
+.sp
+Each entry in the list is defined with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBsrc\fP
+Required. The URL of the file to download.
+.TP
+.B \fBdest\fP
+Required. Directory where the downloaded file will be stored, relative to
+the \fI\%golang__gosrc\fP directory.
+.TP
+.B \fBchecksum\fP
+Optional. Checksum (usually \fBsha256\fP) of the downloaded file. This
+parameter is not strictly required, but should be used with bigger files
+because without the checksum available Ansible will download the specified
+file on each run to compare it with the downloaded file.
+.TP
+.B \fBunarchive\fP
+Optional, boolean. If defined and \fBTrue\fP, a given file is presumed to be
+a tarball and its contents will be extracted with the \fBunarchive\fP Ansible
+module.
+.TP
+.B \fBunarchive_dest\fP
+Optional. Path where the contents of the specified file will be unarchived
+to, relative to the \fI\%golang__gosrc\fP directory. If not specified,
+files will be extracted in the same directory where the archive was
+downloaded to.
+.TP
+.B \fBunarchive_creates\fP
+Optional. Specify a path relative to the \fI\%golang__gosrc\fP directory.
+If that path is present on the host, the \fBunarchive\fP Ansible module will
+not try to extract the archive contents again on the next Ansible run,
+ensuring idempotency.
+.TP
+.B \fBgpg_verify\fP
+Optional, boolean. If defined and \fBTrue\fP, the role will use the
+\fBgpg \-\-verify\fP command to check the valid signature of a file.
+.sp
+it\(aqs best to first download the intended file, and then its detached GPG
+signature (usually with the \fB\&.asc\fP extension) which should have this
+parameter enabled; the \fBgpg\fP command will automatically assume
+that the signed file is named after the signature file, without the
+\fB\&.asc\fP extension. The GPG keys need to be defined using the \fBgpg\fP
+parameter to be correctly imported beforehand by the \fI\%debops.keyring\fP
+role.
+.UNINDENT
+.TP
+.B \fBurl_binaries\fP
+Optional. List of downloaded binaries which should be installed system\-wide,
+by default in the \fB/usr/local/bin/\fP directory.
+.sp
+Each list entry can define a path to the binary, relative to the
+\fI\%golang__gosrc\fP path. The specified binary will be copied to the
+default installation directory without renaming the binary.
+.sp
+Alternatively, a given binary can be described using a YAML dictionary with
+specific parameters:
+.INDENT 7.0
+.TP
+.B \fBsrc\fP
+Path to a given binary, relative to the \fI\%golang__gosrc\fP directory.
+.TP
+.B \fBdest\fP
+Path where a given binary should be installed. You can specify just the
+name of the binary, in which case it will be installed in
+\fB/usr/local/bin/\fP directory by default.
+.TP
+.B \fBmode\fP
+Specify the default file mode to use. If not specified, \fB0755\fP will be
+used by default.
+.TP
+.B \fBnotify\fP
+A string or a YAML list of Ansible handlers to notify when a binary is
+first installed or updated. This parameter only makes sense when the
+\fI\%debops.golang\fP role is ued in a playbook as a dependent role, and the
+subsequent application role(s) define a handler to use. In such case, this
+functionality can be used to restart a service after the binary is
+upgraded.
+.UNINDENT
+.TP
+.B \fBgit\fP
+Optional. List of YAML dictionaries, each dictionary defines a \fBgit\fP
+repository which can be cloned to the UNIX account defined in the
+\fI\%golang__user\fP variable and subsequently can be used to build the Go
+application binaries from source. The \fBgit\fP tag or commit signatures
+will be verified if the GPG keys are configured using the \fBgpg\fP parameter.
+.sp
+Each \fBgit\fP repository is defined using specific parameters:
+.INDENT 7.0
+.TP
+.B \fBrepo\fP
+The URL of the \fBgit\fP repository to clone. Currently only
+\fBhttps://\fP scheme is supported.
+.TP
+.B \fBdest\fP
+The path to which the specified repository will be cloned, relative to the
+\fI\%golang__gosrc\fP directory. If not specified, the \fBdest\fP directory
+will be based on the URL specified in the \fBrepo\fP parameter.
+.TP
+.B \fBversion\fP / \fBbranch\fP
+The \fBgit\fP branch or tag to check out after cloning the repository.
+.TP
+.B \fBdepth\fP
+If specified, only the specified number of revisions will be cloned instead
+of the whole repository. If not specified, the value of the
+\fI\%golang__git_depth\fP variable will be used by default.
+.TP
+.B \fBbuild_script\fP
+A string or YAML text block with a shell script that specifies how the Go
+application should be built. It will be executed as a Bash script, with the
+\fI\%golang__user\fP privileges, in the directory where the repository
+has been cloned.
+.UNINDENT
+.TP
+.B \fBgit_binaries\fP
+Optional. List of built binaries which should be installed system\-wide, by
+default in the \fB/usr/local/bin/\fP directory.
+.sp
+Each list entry can define a path to the binary, relative to the
+\fI\%golang__gosrc\fP path. The specified binary will be copied to the
+default installation directory without renaming the binary.
+.sp
+Alternatively, a given binary can be described using a YAML dictionary with
+specific parameters:
+.INDENT 7.0
+.TP
+.B \fBsrc\fP
+Path to a given binary, relative to the \fI\%golang__gosrc\fP directory.
+.TP
+.B \fBdest\fP
+Path where a given binary should be installed. You can specify just the
+name of the binary, in which case it will be installed in
+\fB/usr/local/bin/\fP directory by default.
+.TP
+.B \fBmode\fP
+Specify the default file mode to use. If not specified, \fB0755\fP will be
+used by default.
+.TP
+.B \fBnotify\fP
+A string or a YAML list of Ansible handlers to notify when a binary is
+first installed or updated. This parameter only makes sense when the
+\fI\%debops.golang\fP role is ued in a playbook as a dependent role, and the
+subsequent application role(s) define a handler to use. In such case, this
+functionality can be used to restart a service after the binary is
+upgraded.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Nick Janetakis, Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

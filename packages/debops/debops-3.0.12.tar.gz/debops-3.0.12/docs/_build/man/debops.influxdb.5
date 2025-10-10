@@ -1,0 +1,343 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.INFLUXDB" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.influxdb \- Manage InfluxDB service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/influxdb\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%InfluxDB\fP <\fBhttps://en.wikipedia.org/wiki/InfluxDB\fP> is an open\-source time series database (TSDB) developed by
+InfluxData.  It is written in Go and optimized for fast, high\-availability
+storage and retrieval of time series data in fields such as operations
+monitoring, application metrics, Internet of Things sensor data, and real\-time
+analytics.  Ansible roles \fBdebops.influxdb\fP and \fBdebops.influxdb_server\fP
+allow you to manage a InfluxDB server and / or access it remotely from other
+hosts.
+.sp
+The \fBdebops.influxdb\fP role is the \(dqclient\(dq part \- it uses Ansible delegation
+to configure users and databases in local or remote InfluxDB servers. You can
+use \fBdebops.influxdb_server\fP role to manage the InfluxDB server itself.
+.SH GETTING STARTED
+.sp
+\fBdebops.influxdb\fP role is only the \(dqclient\(dq part. To have a working
+InfluxDB installation, you also need to setup the \fBdebops.influxdb_server\fP
+role somewhere. It can be either on the same host, or on a separate host.
+See the \fBdebops.influxdb_server\fP documentation to learn how to install the
+database server itself.
+.SS Local database server
+.sp
+If the database server is installed locally, it will be automatically detected
+and used by the \fBdebops.influxdb\fP role without any additional configuration. Also,
+if a remote server was used previously, and a local one was installed, it will
+automatically override the remote configuration. You might need to recreate the
+databases and user accounts in that case.
+.SS Remote database server
+.sp
+If your InfluxDB server is configured on a remote host and you don\(aqt have
+a local installation, \fBdebops.influxdb\fP will detect that and won\(aqt manage the
+databases/user accounts without a server specified. To point it to a server,
+you need to set a variable in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+influxdb__server: \(aqinfluxdb.example.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This needs to be a FQDN address of a host with InfluxDB server installed. DNS
+name is required because this access is via a HTTP(S) API. Currently only 1
+server at a time is supported by the role.
+.sp
+If \fI\%debops.pki\fP role is used to configure a PKI environment, with default
+\fBdomain\fP PKI realm enabled, \fBdebops.influxdb_server\fP role will configure
+the provided private keys and X.509 certificates to enable TLS connections to
+the database by default.
+.sp
+If the PKI environment is not configured or disabled, connections to the
+database server will be performed in cleartext, so you might want to consider
+securing them by configuring server on a separate internal network, or
+accessing it over a VPN connection. You can use \fBdebops.subnetwork\fP,
+\fI\%debops.tinc\fP and \fI\%debops.dnsmasq\fP Ansible roles to set up a VPN internal
+network to secure communication between hosts.
+.SS Example inventory
+.sp
+To enable InfluxDB client support on a host, you need to add that host to
+\fB[debops_service_influxdb]\fP Ansible group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_influxdb]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When InfluxDB server is properly configured, or installed locally, you can
+create user accounts and databases using inventory variables:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+influxdb__databases:
+
+  \- name: \(aqapplication_production\(aq
+
+influxdb__users:
+
+  \- name: \(aqapplication\(aq
+    grants:
+       \- database: \(aqapplication_production\(aq
+         privilege: \(aqALL\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.influxdb\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage InfluxDB client
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_influxdb\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::influxdb\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ influxdb__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ influxdb__python__dependent_packages2 }}\(aq
+
+    \- role: influxdb
+      tags: [ \(aqrole::influxdb\(aq, \(aqskip::influxdb\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::influxdb\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.influxdb\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS influxdb__databases
+.sp
+List of databases that should be present or absent on a given InfluxDB server.
+Each database is defined as a YAML dict with the following keys:
+.INDENT 0.0
+.TP
+.B \fBdatabase\fP or \fBname\fP
+Required. Name of the database. Names of databases can contain any
+unicode character
+.TP
+.B \fBstate\fP
+Optional. If value is \fBpresent\fP, the database will be created; if \fBabsent\fP,
+the database will be removed. It is defaulted to \fBpresent\fP\&.
+.TP
+.B \fBproxies\fP
+Optional. Defaults to \fB{{ omit }}\fP\&. Dict of HTTP(S) proxy to use for Requests
+to connect to InfluxDB server. Overrides \fBinfluxdb__proxies\fP\&.
+.TP
+.B \fBvalidate_certs\fP
+Optional, boolean. Defaults to \fBTrue\fP\&. If set to \fBFalse\fP, the SSL certificates
+will not be validated. This should only set to no used on personally controlled
+sites using self\-signed certificates. Overrides \fBinfluxdb__validate_certs\fP\&.
+.UNINDENT
+.SS Examples
+.sp
+Create databases, remove some of the existing ones:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+influxdb__databases:
+
+  \- name: \(aqdbname\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS influxdb__retention_policies
+.sp
+List of retention policies that should be present on a given InfluxDB server database.
+Each retention policy is defined as a YAML dict with the following keys:
+.INDENT 0.0
+.TP
+.B \fBpolicy\fP or \fBname\fP
+Required. Name of the retention policy.
+.TP
+.B \fBdatabase\fP
+Required. Name of the database. Names of databases can contain any
+unicode character
+.TP
+.B \fBduration\fP
+Required. Determines how long InfluxDB keeps the data. The \fBduration\fP is a
+duration literal or \fBINF\fP (infinite). The minimum duration for a retention
+policy is one hour and the maximum duration is INF.
+.TP
+.B \fBreplication\fP
+Required. Determines how many independent copies of each point are stored in
+the cluster. If the replication factor is set to 2, each series is stored on
+2 separate nodes. If the replication factor is equal to the number of data
+nodes, data is replicated on each node in the cluster.
+.TP
+.B \fBdefault\fP
+Optional. Defaults to \fBFalse\fP\&. Sets the new retention policy as the default
+retention policy for the database.
+.TP
+.B \fBproxies\fP
+Optional. Defaults to \fB{{ omit }}\fP\&. Dict of HTTP(S) proxy to use for Requests
+to connect to InfluxDB server. Overrides \fBinfluxdb__proxies\fP\&.
+.TP
+.B \fBvalidate_certs\fP
+Optional, boolean. Defaults to \fBTrue\fP\&. If set to \fBFalse\fP, the SSL certificates
+will not be validated. This should only set to no used on personally controlled
+sites using self\-signed certificates. Overrides \fBinfluxdb__validate_certs\fP\&.
+.UNINDENT
+.SS Examples
+.sp
+Create retention policies:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+influxdb__retention_policies:
+
+  \- name: \(aqfourweeks\(aq
+    database: \(aqdbname\(aq
+    duration: \(aq4w\(aq
+    replication: 1
+    default: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS influxdb__users
+.sp
+List of user accounts that should be present or absent on a given InfluxdDB
+server. Each user account is defined as a dict with a set of keys and values.
+.SS User account parameters
+.INDENT 0.0
+.TP
+.B \fBuser\fP or \fBname\fP
+Required. Name of the user.
+.TP
+.B \fBpassword\fP
+Optional. If specified, the role will set it as the password for the InfluxDB
+account. If not present, a random password will be generated automatically
+and stored in the \fBsecret/\fP directory on the Ansible Controller. Refer to the
+\fI\%debops.secret\fP role for more details.
+.TP
+.B \fBgrants\fP
+Optional. Privileges to grant to this user. Takes a list of dicts containing the
+\fBdatabase\fP and \fBprivilege\fP keys. If this argument is not provided, the current
+grants will be left alone. If an empty list is provided, all grants for the user
+will be removed. It is added in Ansible 2.8.
+.TP
+.B \fBadmin\fP
+Optional. Whether the user should be in the admin role or not. Since Ansible 2.8,
+the role will also be updated. It is defaulted to \fBno\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If value is \fBpresent\fP, the database will be created; if \fBabsent\fP,
+the database will be removed. It is defaulted to \fBpresent\fP\&.
+.TP
+.B \fBproxies\fP
+Optional. Defaults to \fB{{ omit }}\fP\&. Dict of HTTP(S) proxy to use for Requests
+to connect to InfluxDB server. Overrides \fBinfluxdb__proxies\fP\&.
+.TP
+.B \fBvalidate_certs\fP
+Optional, boolean. Defaults to \fBTrue\fP\&. If set to \fBFalse\fP, the SSL certificates
+will not be validated. This should only set to no used on personally controlled
+sites using self\-signed certificates. Overrides \fBinfluxdb__validate_certs\fP\&.
+.UNINDENT
+.SS Examples
+.sp
+Create an user
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+influxdb__users:
+  \- name: \(aqsomeuser\(aq
+    grants:
+      \- database: \(aqdbname\(aq
+        privilege: \(aqREAD\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Pedro Luis Lopez
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

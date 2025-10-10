@@ -1,0 +1,212 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.LOGROTATE" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.logrotate \- Manage log rotation configuration
+.SH SYNOPSIS
+.sp
+\fBdebops run service/logrotate\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-tags\fP \fBrole::logrotate\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-skip\-tags\fP \fBskip::logrotate\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBlogrotate\fP package is used to periodically rotate logs, so that they
+don\(aqt fill up the disk space on the filesystem. Rotated logs can be moved to
+a different host or emailed before removal for archival purposes.
+.sp
+The \fBdebops.logrotate\fP Ansible role allows you to manage log rotation
+configuration for system packages, or create custom log configuration. The role
+can be used by other roles as a dependency to make automatic \fBlogrotate\fP
+configuration easier.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The \fBdebops.logrotate\fP role is included in the \fBcommon.yml\fP DebOps
+playbook, so you don\(aqt need to enable it separately.
+.SS Example playbook
+.sp
+Here\(aqs an example playbook which uses \fBdebops.logrotate\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure log rotation
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_logrotate\(aq ]
+  become: True
+
+  roles:
+
+    \- role: debops.logrotate
+      tags: [ \(aqrole::logrotate\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.logrotate\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS logrotate__config
+.sp
+This is a list of YAML dictionaries, each dictionary defines a file with one or
+more sections that configure the \fBlogrotate\fP service. The same syntax can be
+used to configure log files in \fB/etc/logrotate.conf\fP as well as separate
+configuration files in \fB/etc/logrotate.d/\fP\&. The configuration uses the
+following keys:
+.INDENT 0.0
+.TP
+.B \fBfilename\fP
+Name of the configuration file located in \fB/etc/logrotate.d/\fP\&. This
+parameter is ignored in the main configuration file.
+.TP
+.B \fBdivert\fP
+Boolean, optional. When specified and \fBTrue\fP, the original configuration
+file will be diverted using \fI\%dpkg\-divert(1)\fP <\fBhttps://manpages.debian.org/dpkg-divert(1)\fP>\&. If a configuration file is
+due to be removed, the original file will be reverted back into place.
+.TP
+.B \fBsections\fP
+Optional. List of YAML dictionaries that define the multiple log
+configuration sections in a single configuration file.
+.UNINDENT
+.sp
+The following configuration parameters can be specified either in the main YAML
+dictionary or in separate sections.
+.INDENT 0.0
+.TP
+.B \fBstate\fP
+Optional. If specified and \fBabsent\fP, role will remove the specified
+configuration file, and if diversion is enabled with above boolean, the
+original configuration file will be reverted back into place.
+.sp
+This parameter can also be used to disable or enable individual configuration
+sections when multiple sections are used in one configuration file.
+.TP
+.B \fBlog\fP or \fBlogs\fP
+Optional. String or a list of strings that define log filenames or shell glob
+patterns which specify what logs should be rotated. If it\(aqs not specified,
+options will be added as common options for all subsequent entries.
+.TP
+.B \fBoptions\fP
+YAML text block with \fBlogrotate\fP options to include in a particular
+configuration section which override default log rotation options.
+.TP
+.B \fBfirstaction\fP, \fBprerotate\fP, \fBpostrotate\fP, \fBlastaction\fP, \fBpreremove\fP
+Optional. A set of YAML text blocks which allow you to specify the respective
+scripts separately from the \fBitem.options\fP configuration. You don\(aqt need to
+add the \fBendscript\fP command at the end of the scripts, the role will do
+that automatically.
+.UNINDENT
+.SS Examples
+.sp
+Add custom common options for all logs:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+logrotate__config:
+
+  \- filename: \(aq00archive\-by\-mail\(aq
+    comment: \(aqSend deleted logs to archive\(aq
+    options: |
+      mail log\-archive@example.org
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure log rotation for a custom log file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+logrotate__config:
+
+  \- filename: \(aqcustom\-log\(aq
+    log: \(aq/var/log/custom.log\(aq
+    state: \(aqpresent\(aq
+    options: |
+      rotate 12
+      monthly
+      compress
+      missingok
+      notifempty
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Change options of stock \fBapt\fP log rotation configuration, with original
+configuration diverted to a different file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+logrotate__config:
+
+  \- filename: \(aqapt\(aq
+    divert: True
+    sections:
+
+      \- logs: [ \(aq/var/log/apt/term.log\(aq ]
+        options: |
+          rotate 24
+          monthly
+          compress
+          missingok
+          notifempty
+        postrotate: |
+          apt\-get update
+
+      \- logs: [ \(aq/var/log/apt/history.log\(aq ]
+        options: |
+          rotate 24
+          monthly
+          compress
+          missingok
+          notifempty
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

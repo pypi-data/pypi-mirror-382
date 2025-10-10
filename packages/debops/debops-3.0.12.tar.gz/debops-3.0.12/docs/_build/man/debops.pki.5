@@ -1,0 +1,2665 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.PKI" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.pki \- PKI management using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/pki\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.pki\fP role provides a standardized management of the X.509
+certificates on hosts controlled by Ansible. Other Ansible roles can utilize
+the environment created by \fBdebops.pki\fP to automatically enable TLS/SSL
+encrypted connections.
+.sp
+Using this role, you can bootstrap a Public Key Infrastructure in your
+environment using an internal Certificate Authority, easily switch the active
+set of certificates between internal and external Certificate Authorities, or
+use the ACME protocol to automatically obtain certificates from CA that
+support it (for example \fI\%Let\(aqs Encrypt\fP <\fBhttps://en.wikipedia.org/wiki/Let's_Encrypt\fP>).
+.SH GETTING STARTED
+.SS Ansible Controller requirements
+.sp
+Some operations performed by the \fBdebops.pki\fP role are done on the Ansible
+Controller. However, DebOps roles are not designed to manage the Ansible Controller
+host directly, so they cannot automatically install the required software.
+.sp
+Software packages required by the role on the Ansible Controller:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+bash >= 4.3.0
+openssl >= 1.0.1
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Initial configuration
+.sp
+The default configuration of the \fBdebops.pki\fP role and the environment it creates
+is designed to automatically provide valid X.509 certificates within the DebOps
+cluster – a central Certificate Authority located on the Ansible Controller
+automatically signs certificate requests from remote hosts, which are uploaded
+by Ansible to the \fBsecret/\fP directory. Signed certificates are downloaded to
+the remote hosts and automatically enabled, when necessary.
+.sp
+All of the remote hosts managed by DebOps will have the internal Root
+Certificate Authority certificate installed in the system CA store. This will
+ensure that the hosts within the cluster will automatically trust each other
+and encrypted communication within the cluster should be possible without
+further intervention.
+.sp
+Because of the nature of how X.509 certificates are created and maintained
+(they cannot be \(dqupdated\(dq, per se, only new ones can be issued by the CA), it\(aqs
+a good practice to create a test deployment of the PKI, and check if the
+generated certificates are acceptable (correct Distinguished Name, certificate
+validity times, etc.). There are some important role variables which might need
+to be set in the inventory for best results.
+.sp
+Maintaining a secure Certificate Authority is a complicated process and to
+ensure secure operation additional steps might be needed. You should read the
+rest of the \fBdebops.pki\fP documentation to find out which parts of the created
+environment are sensitive and require additional steps to ensure secure
+operation.
+.SS Useful global parameters
+.sp
+The environment managed by the \fBdebops.pki\fP role is distributed between the
+Ansible Controller and remote hosts. Due to how task delegation in Ansible is
+designed, some of the variables that are important for the operation of the
+Ansible Controller are \(dqsourced\(dq on remote hosts. Therefore it\(aqs a good
+practice to define them in the Ansible inventory \fBall\fP group (usually
+\fBansible/inventory/group_vars/all/pki.yml\fP) for consistency between different
+remote hosts.
+.sp
+Most of these variables are related to Certificate Authority operation, the
+ones you will likely want to change are:
+.INDENT 0.0
+.TP
+.B \fI\%pki_ca_domain\fP
+This is the DNS domain used as a base for the internal Certificate Authority
+Distinguished Names. If you use more than one domain in your environment, you
+should set this variable to your preferred domain on all hosts, through
+Ansible\(aqs inventory.
+.sp
+If you use VPS hosts provided by an external organization, they might be
+configured with no default domain, or the provider domain might be set up by
+default. Make sure that you check what domain is used by your remote hosts.
+.TP
+.B \fI\%pki_ca_organization\fP
+This is the organizations name used as a base for the internal
+Certificate Authority Distinguished Names.
+.TP
+.B \fI\%pki_ca_root_dn\fP, \fI\%pki_ca_domain_dn\fP, \fI\%pki_ca_service_dn\fP
+These variables define the Distinguished Name or Subject of the Root
+Certificate Authority and Domain Certificate Authority. The value is a list
+of DN entries which define the subject.
+.TP
+.B \fI\%pki_authorities\fP
+This is the list of internal Certificate Authorities managed on an Ansible
+Controller.
+.sp
+\fBdebops.pki\fP now supports the X.509 Name Constraints certificate extension by
+default. This may break software using old version of OpenSSL and multi\-domain
+environments. Please see \fBname_constraints\fP and \fBname_constraints_critical\fP
+under \fI\%pki_authorities\fP for more information.
+.UNINDENT
+.SS Example inventory
+.sp
+In DebOps, the \fBdebops.pki\fP role is included in the \fBcommon.yml\fP playbook
+and is run automatically on all of the managed hosts. You don\(aqt need to
+specifically enable it in Ansible\(aqs inventory.
+.SS Example playbook
+.sp
+The \fBdebops.pki\fP role requires a specialized Ansible playbook for correct
+operation. Additional directories required by the role are created in the
+\fBsecret/\fP directory on Ansible Controller, and this requires use of the
+special \fBdebops.pki/env\fP role provided within the main role.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Public Key Infrastructure
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_pki\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare pki environment
+      import_role:
+        name: \(aqpki\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::pki\(aq, \(aqrole::pki:secret\(aq, \(aqrole::secret\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::pki\(aq, \(aqrole::pki:secret\(aq ]
+      secret_directories:
+        \- \(aq{{ pki_env_secret_directories }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: pki
+      tags: [ \(aqrole::pki\(aq, \(aqskip::pki\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Renewing Certificates
+.sp
+For renewing certificates, just
+.INDENT 0.0
+.IP 1. 3
+remove \fB/etc/pki/realms/<realm>/\fP from the remote host and
+.IP 2. 3
+re\-run debops.pki against it, e.g. this:
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run service/pki  \-\-limit=$REMOTE_HOST
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+This will create a new key for the remote host.
+If you use external keys, they will be preserved
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+You can use \fBansible\-console\fP to delete the file on multiple
+hosts at once.
+.UNINDENT
+.UNINDENT
+.SH PKI REALMS STRUCTURE
+.sp
+The concept of PKI realms is designed to provide a standardized way for various
+applications to access X.509 certificates and private keys. The management of
+the keys and certificates is moved outside of the application into a fixed
+directory and file structure, which other applications can access.
+.SS PKI realm overview
+.sp
+A \(dqPKI realm\(dq is a placeholder name for a bundle of the private key, X.509
+certificate and Root CA certificate. This bundle has a certain directory
+structure, rules for naming files and what symlinks are present. It is designed
+so that from the outside of the \fI\%debops.pki\fP role other Ansible roles, or
+services they manage, have a standardized, uniform location where they can find
+X.509 certificates and private keys.
+.sp
+In different guides that describe setting up TLS for different services like
+webservers, mail servers, databases, etc.  the private keys and X.509
+certificates are usually put in different directories \- for example
+\fB/etc/nginx/ssl/\fP, \fB/etc/postfix/certs/\fP, \fB/etc/ssl/certs/\fP,
+and so on. The \fI\%debops.pki\fP role turns this around by setting up an
+uniform set of directories split into \(dqPKI realms\(dq, so that a host can have
+multiple sets of certificates, each for different purposes. Then, various
+services can be configured to get the private key and certificate files from
+those specific directories, including privileged access to the private keys
+when needed.
+.sp
+PKI realms have a concept of multiple certificate authorities \- there\(aqs one set
+of private keys which can be signed by different CAs \- internal CA, external
+CA, ACME CA and self\-signed when everything else is disabled. There can be an
+\(dqexample.org\(dq PKI realm which has certificates signed by both internal CA and
+the Let\(aqs Encrypt CA (via ACME), and the \fBpki\-realm\fP script used to
+manage the realms on the remote hosts will automatically switch between them
+after checking the validity of their X.509 certificates.
+.SS The application view
+.sp
+Different applications have different requirements for X.509 certificates and
+private keys. Some of them support keys and certificates in separate files,
+others require them combined in a single file. The PKI realm is designed to
+support both schemes at once.
+.sp
+The realms are located in the \fB/etc/pki/realms/\fP directory. Each realm is
+contained in it\(aqs own subdirectory. By default a \fBdomain\fP realm is configured
+by the role, and it\(aqs simplified directory structure looks like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/pki/realms/
+└── domain/
+    ├── CA.crt
+    ├── default.crt
+    ├── default.key
+    ├── default.pem
+    └── trusted.crt
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Each of these symlinks point to a file contained in another subdirectory (see
+the next section). The contents of these files are:
+.INDENT 0.0
+.TP
+.B \fBCA.crt\fP
+This is the \(dqtrust anchor\(dq or Root Certificate Authority certificate used by
+the application to check the validity of client certificates. This file is
+publicly readable.
+.sp
+\fBCA.crt\fP may contain a CA certificate different than the one that issued
+the server certificate. In this case, this can be used to have separate
+client and server Certificate Authorities.
+.TP
+.B \fBdefault.crt\fP
+This is the server certificate with optionally bundled Intermediate
+Certificate Authorities and Diffie\-Hellman parameters. It is sent to the
+clients during connection establishment by the application. This file is
+publicly readable. Note that not all software appreciates embedded DH
+parameters in this file. Some Java\-based applications, or at least \fI\%Graylog\fP <\fBhttps://www.graylog.org/\fP>
+4.1 and other software using recent versions of the Bouncy Castle library,
+throw exceptions when trying to parse this file. Consider using
+\fBpublic/cert_intermediate.pem\fP when that happens.
+.TP
+.B \fBdefault.key\fP
+This is the server private key. It\(aqs readable only by the \fBroot\fP account
+and by \fI\%pki_private_group\fP – this can be used to limit access to
+different private keys by different UNIX accounts.
+.TP
+.B \fBdefault.pem\fP
+This file contains the private key, server certificate and Intermediate
+CA certificate(s). It has the same restrictions as the private key – can be
+read only by the \fBroot\fP account and by \fI\%pki_private_group\fP\&.
+.TP
+.B \fBtrusted.crt\fP
+This is the complete trust chain of intermediate and root CA certificates,
+without the server certificate, similar to \fBCA.crt\fP\&. It is used for
+automatic OCSP stapling verification by the server, and works with the
+primary CA in case the alternative Certificate Authority is used for client
+certificates.
+.UNINDENT
+.sp
+All of the above filenames are static, which means that the only thing you need
+to change to select a different PKI realm is the realm directory name.
+.SS Example nginx configuration
+.sp
+To use the \fBdomain\fP realm in your \fBnginx\fP configuration, you can add
+something similar to this example in your configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+server {
+    listen [::]:443 ssl;
+
+    # HTTPS support
+    ssl_certificate         /etc/pki/realms/domain/default.crt;
+    ssl_certificate_key     /etc/pki/realms/domain/default.key;
+
+    # OCSP Stapling support
+    ssl_stapling            on;
+    ssl_stapling_verify     on;
+    ssl_trusted_certificate /etc/pki/realms/domain/trusted.crt;
+
+    # X.509 Client certificate support
+    ssl_verify_client       optional;
+    ssl_verify_depth        2;
+    ssl_trusted_certificate /etc/pki/realms/domain/CA.crt;
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This configuration explains where each certificate is used, but this is not
+sufficient to enable HTTPS for the webserver. Refer to the \fBnginx\fP
+documentation for the rest of the required configuration options.
+.sp
+If you use the \fBdebops.nginx\fP Ansible role provided with the project, it has
+extensive integration with the \fBdebops.pki\fP role and can configure the
+webserver automatically. Usually all you need to do is to make sure the default
+realm matches the one you would like to use for each server configuration.
+.SS The PKI realm directory structure
+.sp
+This is an example \fBdomain\fP realm directory, created on each remote host
+managed by \fBdebops.pki\fP\&. The current set of certificates active in this realm
+is provided by the internal \fBdebops.pki\fP Certificate Authority:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/pki/realms/
+└── domain/
+    ├── acme/
+    ├── config/
+    │\ \  ├── environment
+    │\ \  └── realm.conf
+    ├── external/
+    ├── internal/
+    │\ \  ├── alt_intermediate.pem
+    │\ \  ├── alt_root.pem
+    │\ \  ├── cert.pem
+    │\ \  ├── gnutls.conf
+    │\ \  ├── intermediate.pem
+    │\ \  ├── request.pem
+    │\ \  └── root.pem
+    ├── private/
+    │\ \  ├── key_chain_dhparam.pem
+    │\ \  ├── key_chain.pem
+    │\ \  ├── key.pem
+    │\ \  └── realm_key.pem
+    ├── public/
+    │\ \  ├── alt_intermediate.pem \-> ../internal/alt_intermediate.pem
+    │\ \  ├── alt_intermediate_root.pem
+    │\ \  ├── alt_root.pem \-> ../internal/alt_root.pem
+    │\ \  ├── alt_trusted.pem \-> alt_intermediate_root.pem
+    │\ \  ├── cert_intermediate_dhparam.pem
+    │\ \  ├── cert_intermediate.pem
+    │\ \  ├── cert.pem \-> ../internal/cert.pem
+    │\ \  ├── cert.pem.sig
+    │\ \  ├── chain.pem \-> cert_intermediate_dhparam.pem
+    │\ \  ├── full.pem
+    │\ \  ├── intermediate_root.pem
+    │\ \  ├── root.pem \-> ../internal/root.pem
+    │\ \  └── trusted.pem \-> intermediate_root.pem
+    ├── selfsigned/ (optional)
+    │\ \  ├── cert.pem
+    │\ \  ├── gnutls.conf
+    │\ \  ├── request.pem
+    │\ \  └── root.pem \-> cert.pem
+    ├── CA.crt \-> public/alt_trusted.pem
+    ├── default.crt \-> public/chain.pem
+    ├── default.key \-> private/key.pem
+    ├── default.pem \-> private/key_chain_dhparam.pem
+    └── trusted.crt \-> public/trusted.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+On the Ansible Controller, there\(aqs a corresponding directory structure located
+in the \fBsecret/\fP directory maintained by the \fI\%debops.secret\fP Ansible role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+secret/pki/
+├── realms/
+│\ \  ├── by\-group/
+│\ \  │\ \  └── all/
+│\ \  │\ \      └── domain/
+│\ \  │\ \          ├── external/
+│\ \  │\ \          └── private/
+│\ \  └── by\-host/
+│\ \      └── hostname.example.com/
+│\ \          └── domain/
+│\ \              ├── external/
+│\ \              ├── internal/
+│\ \              │\ \  ├── alt_intermediate.pem
+│\ \              │\ \  ├── alt_root.pem
+│\ \              │\ \  ├── cert.pem
+│\ \              │\ \  ├── intermediate.pem
+│\ \              │\ \  └── root.pem
+│\ \              └── private/
+└── requests/
+    └── domain/
+        └── hostname.example.com/
+            └── domain/
+                └── request.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Your version might not contain all of the shown files and symlinks, for example
+the \fBalt_*.pem\fP versions of intermediate and root CA certificates are only
+present if an alternative CA is configured.
+.sp
+Both directories are maintained and kept in sync using two Bash scripts
+provided by the role, \fBpki\-realm\fP and \fBpki\-authority\fP\&. Ansible tasks are
+used to copy files to and from Ansible Controller to remote hosts.
+.SS How a PKI realm is created
+.sp
+Each PKI realm starts with a simple directory structure created on the Ansible
+Controller in the \fBsecret/\fP directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+secret/pki/
+└── realms/
+ \ \  ├── by\-group/
+ \ \  │\ \  └── all/
+ \ \  │\ \      └── domain/
+ \ \  │\ \          ├── external/
+ \ \  │\ \          └── private/
+ \ \  └── by\-host/
+ \ \      └── hostname.example.com/
+ \ \          └── domain/
+ \ \              ├── external/
+ \ \              ├── internal/
+ \ \              └── private/
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+These directories are created at the beginning, so that Ansible can copy
+private files before the actual PKI realm creation on remote hosts. This can be
+used to provide a set of identical private RSA keys to multiple hosts at once
+(using the directories in \fBprivate/\fP subdirectories), custom scripts that
+access external Certificate Authorities (using \fBexternal/\fP subdirectories),
+or DNS challenge API keys.
+.sp
+Next, PKI realm directories are created on the remote host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/pki/realms/
+└── domain/
+    ├── acme/
+    ├── config/
+    │\ \  ├── environment
+    │\ \  └── realm.conf
+    ├── external/
+    ├── internal/
+    ├── private/
+    └── public/
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBconfig/realm.conf\fP file contains a set of Bash variables that define
+different parameters of the PKI realm, for example the default DNS domain used
+to generate the certificates, owner and group of various directories and files,
+permissions applied to various directory and file types, and so on.
+.sp
+The \fBconfig/environment\fP file contains per\-realm environment variable
+definitions which will be imported by the \fBpki\-realm\fP script during
+execution. These variables can be used to affect operation of external
+commands, for example by specifying HTTP proxy to use on internal networks.
+.sp
+The \fBacme/\fP, \fBexternal/\fP and \fBinternal/\fP subdirectories hold
+data files for different Certificate Authorities. Each CA is described in more
+detail in a separate document, here is a brief overview:
+.INDENT 0.0
+.TP
+.B \fBacme/\fP
+This directory is for certificates issued using \fI\%ACME\fP <\fBhttps://en.wikipedia.org/wiki/Automated_Certificate_Management_Environment\fP> (for example \fI\%Let\(aqs Encrypt\fP <\fBhttps://en.wikipedia.org/wiki/Let's_Encrypt\fP>).
+It will be activated and used automatically when a host has a public IP address
+and the \fBnginx\fP webserver is installed and configured to support ACME
+Challenges (see the \fI\%debops.nginx\fP <\fBhttps://github.com/debops/ansible-nginx\fP> role for more details).
+.TP
+.B \fBexternal/\fP
+This directory is used to manage certificates signed by an external
+Certificate Authority. To do this, you need to provide a special \fBscript\fP
+file, which will be executed with a set of environment variables. This can be
+used to request a certificate from an external CA, like Active Directory or
+FreeIPA, or download a certificate from an external location.
+.sp
+An alternative is to provide an already signed \fBcert.pem\fP file and
+optionally the \fBintermediate.pem\fP and \fBroot.pem\fP files.
+.TP
+.B \fBinternal/\fP
+This directory is used by the internal \fBdebops.pki\fP Certificate Authority
+to transfer certificate requests as well as certificates.
+.UNINDENT
+.sp
+If the internal CA is disabled either globally for a host, or for a particular
+PKI realm, an alternative directory, \fBselfsigned/\fP will be created. It
+will hold a self\-signed certificate, not trusted by anything else (not even the
+host that has created it). This is done, so that services depending on the
+existence of the private keys and certificates can function correctly at all
+times.
+.sp
+The \fBpki\-realm\fP script, located in \fB/usr/local/lib/pki\fP on
+remote hosts, checks which of these directories have valid
+certificates in order of \fI\%pki_authority_preference\fP, and the first
+valid one is used as the \(dqactive\(dq directory.  Files from the active directory
+are symlinked to the \fBpublic/\fP directory.
+.sp
+The \fBpublic/\fP directory holds the currently active certificates which are
+symlinks to the real certificate files in one of the active directories mentioned above.
+Some additional files are also created here by the \fBpki\-realm\fP script, namely
+the certificate chain (server certificate + intermediate certificates) and the
+trusted chain (intermediate certificates + root certificate). The full
+certificate contains server certificate + intermediate certificates + root
+certificate, which might be required by some applications.
+.sp
+The \fBprivate/\fP directory holds the private key of a given realm. Access to
+this directory and files inside is restricted by UNIX permissions and only
+a specific system group (usually \fBssl\-cert\fP, but it can be configured) is
+allowed to access the files inside.
+.sp
+The next step is the creation of all necessary files, like private/public keys,
+certificate requests, etc. At this point, if Ansible was provided with a
+private RSA key to use, it will copy it to the \fBprivate/\fP directory.
+After that, all necessary files are created by the \fBpki\-realm\fP script
+on the remote host. The directory structure changes a bit:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/pki/realms/
+└── domain/
+    ├── acme/
+    ├── config/
+    │\ \  ├── environment
+    │\ \  └── realm.conf
+    ├── external/
+    ├── internal/
+    │\ \  ├── gnutls.conf
+    │\ \  └── request.pem
+    ├── private/
+    │\ \  ├── key.pem
+    │\ \  └── realm_key.pem
+    ├── public/
+    ├── CA.crt \-> /etc/ssl/certs/ca\-certificates.crt
+    └── default.key \-> private/key.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+As you can see, the configuration of a Certificate Request for an internal CA
+has been created, and the \fBinternal/request.pem\fP file has been generated,
+using the \fBprivate/key.pem\fP RSA key. By default, if no \fBroot.pem\fP
+certificate is provided, the system CA certificate store is symlinked as
+\fBCA.crt\fP\&.
+.sp
+Afterwards, Ansible uploads the generated \fI\%Certificate Signing Request\fP <\fBhttps://en.wikipedia.org/wiki/Certificate_signing_request\fP> (\fI\%CSR\fP <\fBhttps://en.wikipedia.org/wiki/Certificate_signing_request\fP>) to
+the Ansible Controller for the internal CA to sign (if it\(aqs enabled). The CSR is
+uploaded to the \fBsecret/\fP directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+secret/pki/
+├── realms/
+│\ \  ├── by\-group/
+│\ \  │\ \  └── all/
+│\ \  │\ \      └── domain/
+│\ \  │\ \          ├── external/
+│\ \  │\ \          └── private/
+│\ \  └── by\-host/
+│\ \      └── hostname.example.com/
+│\ \          └── domain/
+│\ \              ├── external/
+│\ \              ├── internal/
+│\ \              └── private/
+└── requests/
+    └── domain/
+        └── hostname.example.com/
+            └── domain/
+                └── request.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To avoid possible confusion, the \fBsecret/pki/requests/domain/\fP directory
+points to the \(dqdomain\(dq internal CA which is an intermediate CA located under
+the \(dqroot\(dq CA. The \fBhostname.example.com/domain/\fP directory inside the
+\fBdomain/\fP directory points to the \(dqdomain\(dq realm on the
+\fBhostname.example.com\fP host.
+.sp
+When all of the requests from the remote hosts are uploaded to the Ansible
+Controller, the \fBpki\-authority\fP script inside the \fBsecret/lib\fP directory takes
+over and performs certificate signing for all of the currently managed hosts.
+The certificate named \fBcert.pem\fP is placed in the \fBinternal/\fP
+directory of each host according to the realm the request came from.
+.sp
+In addition to the certificates, the CA intermediate and root certificates are
+also symlinked to the \fBinternal/\fP directory, so that Ansible can
+automatically copy their contents to the remote hosts. If a particular
+Certificate Authority indicates that an alternative CA should be present, the
+\fBalt_*.pem\fP versions of intermediate and root certificates are also symlinked
+there:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+secret/pki/
+├── realms/
+│\ \  ├── by\-group/
+│\ \  │\ \  └── all/
+│\ \  │\ \      └── domain/
+│\ \  │\ \          ├── external/
+│\ \  │\ \          └── private/
+│\ \  └── by\-host/
+│\ \      └── hostname.example.com/
+│\ \          └── domain/
+│\ \              ├── external/
+│\ \              ├── internal/
+│\ \              │\ \  ├── alt_intermediate.pem
+│\ \              │\ \  ├── alt_root.pem
+│\ \              │\ \  ├── cert.pem
+│\ \              │\ \  ├── intermediate.pem
+│\ \              │\ \  └── root.pem
+│\ \              └── private/
+└── requests/
+    └── domain/
+        └── hostname.example.com/
+            └── domain/
+                └── request.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When all of the requests have been processed, Ansible copies the content of the
+directories to remote hosts. The content of the \fBby\-host/\fP directory is copied
+first and overwrites all files that are present on remote hosts, the
+\fBby\-group/\fP directory content is copied only when the corresponding files
+are not present. This allows the administrator to provide the shared scripts or
+private keys/certificates as needed, per host, per group or for all managed
+hosts.
+.sp
+After certificates signed by the internal CA are downloaded to remote hosts,
+the directory structure might look similar to:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/pki/realms/
+└── domain/
+    ├── acme/
+    ├── config/
+    │\ \  ├── environment
+    │\ \  └── realm.conf
+    ├── external/
+    ├── internal/
+    │\ \  ├── alt_intermediate.pem
+    │\ \  ├── alt_root.pem
+    │\ \  ├── cert.pem
+    │\ \  ├── gnutls.conf
+    │\ \  ├── intermediate.pem
+    │\ \  ├── request.pem
+    │\ \  └── root.pem
+    ├── private/
+    │\ \  ├── key.pem
+    │\ \  └── realm_key.pem
+    ├── public/
+    ├── CA.crt \-> /etc/ssl/certs/ca\-certificates.crt
+    └── default.key \-> private/key.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Other authority directories (\fBacme/\fP and \fBexternal/\fP) might also
+contain various files.
+.sp
+After certificates are copied from the Ansible Controller, the
+\fBpki\-realm\fP script is executed again for each PKI realm configured on
+a given host. It checks which authority directories have valid
+certificates, picks the first viable one according to
+\fI\%pki_authority_preference\fP and activates them.
+.sp
+Certificate activation entails symlinking the certificate, intermediate and
+root files to the \fBpublic/\fP directory and generation of various chain files:
+certificate + intermediate, intermediate + root and key + certificate
++ intermediate (which is stored securely in the \fBprivate/\fP directory).
+.sp
+Some applications do not support a separate \fBdhparam\fP file, and instead expect
+that the DHE parameters are present after the X.509 certificate chain. If the
+\fI\%debops.dhparam\fP <\fBhttps://github.com/debops/ansible-dhparam\fP> role has been configured on a host and Diffie\-Hellman
+parameter support is enabled in a given PKI realm, DHE parameters will be
+appended to the final certificate chains (both public and private). When
+\fI\%debops.dhparam\fP <\fBhttps://github.com/debops/ansible-dhparam\fP> regenerates the parameters, the \fBpki\-realm\fP script will
+automatically detect the new ones and update the certificate chains.
+.sp
+The end result is a fully configured PKI realm with a set of valid certificates
+available for other applications and services:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/pki/realms/
+└── domain/
+    ├── acme/
+    ├── config/
+    │\ \  ├── environment
+    │\ \  └── realm.conf
+    ├── external/
+    ├── internal/
+    │\ \  ├── alt_intermediate.pem
+    │\ \  ├── alt_root.pem
+    │\ \  ├── cert.pem
+    │\ \  ├── gnutls.conf
+    │\ \  ├── intermediate.pem
+    │\ \  ├── request.pem
+    │\ \  └── root.pem
+    ├── private/
+    │\ \  ├── key_chain_dhparam.pem
+    │\ \  ├── key_chain.pem
+    │\ \  ├── key.pem
+    │\ \  └── realm_key.pem
+    ├── public/
+    │\ \  ├── alt_intermediate.pem \-> ../internal/alt_intermediate.pem
+    │\ \  ├── alt_intermediate_root.pem
+    │\ \  ├── alt_root.pem \-> ../internal/alt_root.pem
+    │\ \  ├── alt_trusted.pem \-> alt_intermediate_root.pem
+    │\ \  ├── cert_intermediate_dhparam.pem
+    │\ \  ├── cert_intermediate.pem
+    │\ \  ├── cert.pem \-> ../internal/cert.pem
+    │\ \  ├── cert.pem.sig
+    │\ \  ├── chain.pem \-> cert_intermediate_dhparam.pem
+    │\ \  ├── full.pem
+    │\ \  ├── intermediate_root.pem
+    │\ \  ├── root.pem \-> ../internal/root.pem
+    │\ \  └── trusted.pem \-> intermediate_root.pem
+    ├── CA.crt \-> public/alt_trusted.pem
+    ├── default.crt \-> public/chain.pem
+    ├── default.key \-> private/key.pem
+    ├── default.pem \-> private/key_chain_dhparam.pem
+    └── trusted.crt \-> public/trusted.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+During this process, at various stages special \(dqhook\(dq scripts might be run,
+which can react to events like realm creation, activation of new certificates
+and so on.
+.SH INTERNAL CERTIFICATE AUTHORITIES
+.sp
+One of the problems in the deployment of a Public Key Infrastructure is the need
+for the certificates to be signed by a third party, called a Certificate
+Authority. By using a trusted CA, different entities that communicate with each
+other can ensure that certificates in use are valid and genuine. A common
+solution to that problem is the creation of a \(dqself\-signed certificate\(dq which can
+be used by various applications as any other certificate. Unfortunately, this
+is not a sufficient way to ensure validity of a given certificate in
+a distributed environment, where various services need to ensure trust without
+a human intervention because other nodes in the cluster don’t trust the
+self\-signed certificate.
+.sp
+There are various solutions that let you set up a Certificate Authority which
+then can use an automated API to receive Certificate Signing Requests and issue
+certificates, however there always is an issue of bootstrapping such
+a solution. To ensure that the communication between requesting host and the CA
+is confidential, you need to provide the service over HTTPS, which requires
+a set of certificates, which require a CA, and so on, and so forth. An
+alternative is to request a certificate in an already existing Certificate
+Authority and configure them manually on your own CA server, however this
+requires human interaction. A proposed solution to this problem is ACME, used
+for example by the \fILet\(aqs Encrypt\fP, however this solution cannot be used
+with internal hosts, which still need to be protected.
+.sp
+The \fBdebops.pki\fP role solves this problem by creating it\(aqs own set of internal
+Certificate Authorities, located on the Ansible Controller in the \fBsecret/\fP
+directory (see \fI\%debops.secret\fP for more details). These Certificate
+Authorities can be used to bootstrap a new PKI environment, which can then be
+passed over to a stand\-alone CA server located on the network. Alternatively,
+certificates signed by the internal CA can be used for internal communication
+between hosts in the cluster, and external certificates can be enabled for
+public services like websites or mail servers.
+.SS Layout of Certificate Authorities
+.sp
+By default, the \fBdebops.pki\fP role creates two Certificate Authorities:
+.INDENT 0.0
+.IP \(bu 2
+a Root Certificate Authority which is used as the \(dqtrust anchor\(dq by
+intermediate Certificate Authorities;
+.IP \(bu 2
+a Domain Certificate Authority which issues certificates based on incoming
+CSRs from remote hosts;
+.UNINDENT
+.sp
+The directory structure of the Certificate Authorities stored in the
+\fBsecret/\fP directory on the Ansible Controller:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+secret/pki/
+├── authorities/
+│\ \  ├── domain/
+│\ \  │\ \  ├── certs/
+│\ \  │\ \  │\ \  └── BDD39DBA82436F2685A67FABD01519B8.pem
+│\ \  │\ \  ├── config/
+│\ \  │\ \  │\ \  ├── authority.conf
+│\ \  │\ \  │\ \  ├── openssl\-request.conf
+│\ \  │\ \  │\ \  └── openssl\-sign.conf
+│\ \  │\ \  ├── database/
+│\ \  │\ \  │\ \  ├── index
+│\ \  │\ \  │\ \  ├── index.attr
+│\ \  │\ \  │\ \  ├── index.attr.old
+│\ \  │\ \  │\ \  ├── index.old
+│\ \  │\ \  │\ \  ├── serial
+│\ \  │\ \  │\ \  └── serial.old
+│\ \  │\ \  ├── issuer \-> ../root/
+│\ \  │\ \  ├── private/
+│\ \  │\ \  │\ \  └── key.pem
+│\ \  │\ \  ├── requests/
+│\ \  │\ \  ├── signed/
+│\ \  │\ \  └── subject/
+│\ \  │\ \      ├── cert.pem
+│\ \  │\ \      └── request.pem
+│\ \  └── root/
+│\ \      ├── certs/
+│\ \      │\ \  ├── F6F915290E08AB1A804E4092A9FEA4C9.pem
+│\ \      │\ \  └── F6F915290E08AB1A804E4092A9FEA4CA.pem
+│\ \      ├── config/
+│\ \      │\ \  ├── authority.conf
+│\ \      │\ \  ├── openssl\-request.conf
+│\ \      │\ \  ├── openssl\-selfsign.conf
+│\ \      │\ \  └── openssl\-sign.conf
+│\ \      ├── database/
+│\ \      │\ \  ├── index
+│\ \      │\ \  ├── index.attr
+│\ \      │\ \  ├── index.attr.old
+│\ \      │\ \  ├── index.old
+│\ \      │\ \  ├── serial
+│\ \      │\ \  └── serial.old
+│\ \      ├── private/
+│\ \      │\ \  └── key.pem
+│\ \      ├── requests/
+│\ \      ├── signed/
+│\ \      └── subject/
+│\ \          ├── cert.pem
+│\ \          └── request.pem
+├── ca\-certificates/
+│\ \  └── by\-group/
+│\ \      └── all
+│\ \          └── root\-ca.example.com.crt \-> ../../../authorities/root/subject/cert.pem
+├── realms/
+│\ \  └── by\-host/
+│\ \      └── hostname.example.com/
+│\ \          └── domain/
+│\ \              ├── external/
+│\ \              ├── internal/
+│\ \              │\ \  ├── cert.pem
+│\ \              │\ \  ├── intermediate.pem \-> ../../../../../authorities/domain/subject/cert.pem
+│\ \              │\ \  └── root.pem \-> ../../../../../authorities/domain/issuer/subject/cert.pem
+│\ \              └── private/
+└── requests/
+    └── domain/
+        └── hostname.example.com/
+            └── domain/
+                └── request.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The incoming certificate requests are placed in subdirectories of the
+\fBsecret/pki/requests/\fP directory. Each subdirectory is related to
+a Certificate Authority, on above directory tree you can see that a request has
+been uploaded from \fBhostname.example.com\fP host for the \fBdomain\fP Certificate
+Authority.
+.sp
+The certificates are placed in subdirectories of the \fBsecret/pki/realms/\fP
+directory. The intermediate CA certificate and root CA certificate files are
+symlinked in the same subdirectory as the leaf certificate, so that Ansible can copy
+their contents as regular files to remote host and correct certificate chains
+can be created in the PKI realm.
+.SS Security of an internal CA
+.sp
+The Certificate Authority is a very vulnerable element of the Private Key
+Infrastructure. Hosts that have a Root CA certificate in their system
+certificate store will trust any certificates signed by that CA and it\(aqs
+intermediate Certificate Authorities, therefore protection of the Root CA
+private key should be taken care of as soon as possible.
+.sp
+The default Root Certificate Authority private key can be found in:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+secret/pki/authorities/root/private/key.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This key allows you to create new Intermediate Certificate Authorities as well
+as revoke existing ones (although enforcement of the revocation in the form or
+distribution of Certificate Revocation Lists or an OCSP service is not
+currently implemented). You should protect access to it by moving the file to
+a secure location (preferably an encrypted, offline filesystem) and replacing
+it with an empty \fBkey.pem\fP file (otherwise the \fBdebops.pki\fP role will
+replace the private key and regenerate all of the CA certificates).
+.sp
+Unfortunately, private keys of the Domain Certificate Authority and any other
+Intermediate Certificate Authority or \(dqService CA\(dq, which is a Root CA used
+to sign service certificates cannot be protected by taking them offline \- the
+private keys are required to sign certificates. Therefore, it is strongly
+recommended to store the \fBsecret/\fP directory encrypted, and use it on an
+encrypted filesystem during use. In DebOps, you can use the EncFS filesystem
+together with the \fBdebops\-padlock\fP script to keep the \fBsecret/\fP directory
+encrypted at rest. You should make sure that access to the plaintext files in
+\fBsecret/\fP is only possible when it is really needed by unmounting the
+encrypted filesystem as soon as possible after usage and that only programs
+which need access can read the files by setting up restrictions like \fI\%Mandatory
+Access Control\fP <\fBhttps://en.wikipedia.org/wiki/Mandatory_access_control\fP> and compartmentalization/sandboxing, to avoid leakage of
+private keys.
+.sp
+The Certificate Signing Requests created by \fBdebops.pki\fP Ansible role contain
+a random challenge password (different on each run) which is then checked on
+the Ansible Controller, and only the CSR with correct passwords are signed by the
+Certificate Authorities. This should prevent signing of Certificate Signing
+Requests modified by a third party, unless the challenge password can be
+intercepted (it\(aqs currently passed using environment variables).
+.sp
+If for any reason CSR signing cannot be completed, you will need to remove the
+\fBinternal/gnutls.conf\fP and \fBinternal/request.pem\fP files on remote
+hosts to re\-initialize the certificate signing.
+.SH ACME INTEGRATION
+.sp
+\fIAutomated Certificate Management Environment\fP (\fI\%ACME\fP <\fBhttps://en.wikipedia.org/wiki/Automated_Certificate_Management_Environment\fP>) is a protocol that
+allows automated certificate requests, retrieval of certificates and
+certificate renewal. It was designed to enable easy deployment of X.509
+certificates from \fI\%Let\(aqs Encrypt\fP <\fBhttps://en.wikipedia.org/wiki/Let's_Encrypt\fP>\&.
+.sp
+The \fBdebops.pki\fP Ansible role provides support for the ACMEv2 protocol which
+is used by default with the Let\(aqs Encrypt (there is a possibility to integrate
+other similar services in the future). Interaction with the ACME Certificate
+Authority is performed using the \fI\%acme\-tiny\fP <\fBhttps://github.com/diafygi/acme-tiny\fP> alternative client written in
+Python.
+.SS Let\(aqs Encrypt rate limits
+.sp
+The Let\(aqs Encrypt ACME Certificate Authority has
+\fI\%different rate limits\fP <\fBhttps://letsencrypt.org/docs/rate-limits/\fP>
+related to the number of certificate requests and the number of domains permitted per
+certificate.
+.SS Certificate renewal
+.sp
+The \fBdebops.pki\fP role creates a \fBcron\fP entry for the \fBpki\-realm\fP script
+to be executed periodically for all realms. When a realm has the ACME
+configuration active, it will check for validity of the certificate, and
+about a month before the expiration date it will try to renew the certificate
+automatically.
+.SS Example: Certificate for apex domain and subdomains
+.sp
+The \fIapex domain\fP is the \(dqroot\(dq level of your domain.
+In this example a X.509 certificate for the apex domain \fBexample.com\fP is
+going to be issued. \fBexample.com\fP will be listed in the certificate
+\fBSubject\fP DN.
+The certificate will also be valid for the subdomains \fBwww.example.com\fP,
+\fBblog.example.com\fP and \fBmail.example.com\fP which are included in the
+certificate as \fI\%Subject Alternative Names\fP <\fBhttps://en.wikipedia.org/wiki/SubjectAltName\fP>\&.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_realms:
+  \- name: \(aqexample.com\(aq
+    acme: True
+    acme_subdomains: [ \(aqwww\(aq, \(aqblog\(aq, \(aqmail\(aq ]
+    # acme_ca: \(aqle\-staging\-v2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For testing it\(aqs strongly advised to uncomment \fBacme_ca\fP with
+\fBle\-staging\-v2\fP to use the staging environment of Let\(aqs Encrypt. It does not
+create a trusted certificate and allows you to avoid problems with the rate
+limits in the production environment. When you are sure that everything works
+correctly, comment the staging environment out again to get yourself a valid
+and trusted X.509 certificate.
+.SS Example: Certificate for subdomains excluding the apex domain
+.sp
+In the example we create a certificate for \fBlogs.example.com\fP (certificate
+\fBSubject\fP) and for \fBmon.example.com\fP (certificate \fI\%Subject Alternative
+Names\fP <\fBhttps://en.wikipedia.org/wiki/SubjectAltName\fP>), which does not include the \fBexample.com\fP apex (root) domain.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_realms:
+  \- name: \(aqlogs.example.com\(aq
+    acme: True
+    acme_default_subdomains: []
+    # Can also include different domains like \(aqmail.example.org\(aq
+    # in the same realm.
+    acme_domains: [ \(aqmon.example.com\(aq ]
+    # acme_ca: \(aqle\-staging\-v2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Again, for testing it\(aqs strongly advised to uncomment
+\fBacme_ca: le\-staging\-v2\fP\&. See above for details.
+.SS ACME configuration variables
+.sp
+The \fBdebops.pki\fP role has several default variables which can be used to
+control ACME support. The most important are:
+.INDENT 0.0
+.TP
+.B \fI\%pki_acme\fP
+Boolean. When \fBTrue\fP, support for ACME Certificate Authority will be
+configured for all PKI realms unless disabled on the realm level. By default
+the role checks if a public IP address is available and a default domain is
+configured, otherwise the support is disabled automatically.
+.TP
+.B \fI\%pki_acme_install\fP
+Boolean. Enable or disable installation of \fBacme\-tiny\fP and configuration of
+ACME support without enabling it for all realms. When this variable is set to
+\fBTrue\fP and \fI\%pki_acme\fP is set to \fBFalse\fP, ACME support can be enabled
+independently in each PKI realm. By default, it is set to the same value as
+\fI\%pki_acme\fP\&.
+.TP
+.B \fI\%pki_acme_ca\fP
+Name of the ACME Certificate Authority API endpoint to use. Dictionary with
+endpoints is defined in the \fI\%pki_acme_ca_api_map\fP variable. By
+default, \fBle\-live\-v2\fP is used which points to the Let\(aqs Encrypt Live CA.
+For testing you can switch the default CA to \fBle\-staging\-v2\fP which points
+to Let\(aqs Encrypt Staging CA.
+.TP
+.B \fI\%pki_acme_default_subdomains\fP
+List of subdomains which will be added to the default ACME domain and all
+other domains configured for ACME certificate by default, can be overridden by
+\fBitem.acme_subdomains\fP parameter. By default, the \fBwww.\fP subdomain will be
+added to each domain configured in the realm. Remember that all subdomains
+need to be correctly configured in the DNS for the Certificate Authority to
+sign the request.
+.UNINDENT
+.sp
+Each PKI realm configured in the \fI\%pki_realms\fP or \fBpki_*_realms\fP variables
+can have several parameters related to the ACME certificates:
+.INDENT 0.0
+.TP
+.B \fBitem.name\fP
+Name of the PKI realm. If it has at least one dot, the realm name will be
+treated as the apex (root) domain to configure for this realm.
+.TP
+.B \fBitem.acme\fP
+Boolean. Enable or disable ACME support per realm.
+.TP
+.B \fBitem.acme_domains\fP
+List of additional apex (root) domains to add in ACME Certificate Signing
+Request. Each domain will have the default or custom subdomains added to it.
+.TP
+.B \fBitem.acme_default_subdomains\fP
+List of subdomains that should be added to all of the ACME apex (root) domains.
+If you want to create an ACME certificate only with the apex domain, you
+might need to set this parameter to an empty list using \fB[]\fP to override
+\fI\%pki_acme_default_subdomains\fP\&.
+.TP
+.B \fBitem.acme_subdomains\fP
+List of subdomains added to each apex (root) domain configured in the ACME
+certificate. Overrides list of default ACME subdomains.
+.TP
+.B \fBitem.acme_subject\fP
+List of Distinguished Name entries which define the ACME certificate Subject.
+.UNINDENT
+.SH ACME TINY INTEGRATION
+.SS Prerequisites
+.sp
+To request and renew ACME certificates with \fI\%acme\-tiny\fP <\fBhttps://github.com/diafygi/acme-tiny\fP>, a host needs to meet
+several requirements enforced by this Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+A webserver configured to handle ACME challenges needs to be installed on the
+host (currently this role supports only \fBhttp\-01\fP challenges). The
+\fI\%debops.nginx\fP <\fBhttps://github.com/debops/ansible-nginx\fP> role configures ACME support for all servers by default when
+other conditions are met.
+.IP \(bu 2
+A publicly routable IPv4 or IPv6 address is required, so that the Certificate
+Authority can contact the webserver and check the challenge responses. The
+\fBdebops.pki\fP role detects if a suitable IP address is present, and disables
+the ACME support otherwise. This can be overridden if necessary for example to
+allow ACME on an internal server which can handle challenges forwarded
+through the gateway.
+.IP \(bu 2
+Each domain or subdomain requested in a particular certificate needs to be
+correctly configured in the DNS to point to the host that requests the
+certificate. This is currently not done automatically and requires
+intervention by the administrator. If any domain specified in the request is
+not authorized by the correct ACME challenge, the certificate request won\(aqt be
+successful.
+.UNINDENT
+.sp
+To request and renew ACME certificates with \fBcertbot\fP and a DNS challenge,
+a host needs to meet several requirements enforced by this Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+A registered domain name.
+.IP \(bu 2
+API credentials that enable the DNS challenge to succeed.
+.UNINDENT
+.sp
+Due to above requirements, the default \fBdomain\fP PKI realm configured by the
+role does not request ACME certificates automatically. Other realms created by
+the \fBdebops.pki\fP role might have ACME support enabled, depending on presence
+of a public IP address and a configured \fBnginx\fP server.
+.SS Let\(aqs Encrypt rate limits
+.sp
+When a certificate request fails, useful error output will be written to
+\fBacme/error.log\fP\&. This file will also prevent the \fBpki\-realm\fP
+script from quickly retrying the request and potentially hitting a rate limit.
+If this file exists and it was modified less than two days ago, the
+\fBpki\-realm\fP script will not perform the request. If the file is older
+than two days, it will move the file out of the way and perform the request as
+usual. If you want to retry the request straight away, you can just move
+\fBacme/error.log\fP out of the way yourself.
+.SS How ACME certificates are managed
+.sp
+When a new PKI realm is created and support for ACME Certificate Authority is
+enabled, a separate configuration for a Certificate Request will be created in
+the \fBacme/\fP directory. The \fIacme\-tiny\fP request does not use a wildcard
+certificate, instead the default domain and a set of subdomains will be
+requested (see below for configuration variables). The directory structure at
+this time looks like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/pki/realms/
+└── example.com/
+    ├── acme/
+    │\ \  ├── account_key.pem
+    │\ \  ├── openssl.conf
+    │\ \  └── request.pem
+    ├── config/
+    │\ \  └── realm.conf
+    ├── external/
+    ├── internal/
+    │\ \  ├── gnutls.conf
+    │\ \  └── request.pem
+    ├── private/
+    │\ \  ├── key.pem
+    │\ \  └── realm_key.pem
+    ├── public/
+    ├── CA.crt \-> /etc/ssl/certs/ca\-certificates.crt
+    └── default.key \-> private/key.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When the \fBpki\-realm\fP detects the \fBacme/request.pem\fP file, it
+automatically calls the \fBacme\-tiny\fP script using the \fBpki\-acme\fP
+unprivileged account to request the certificate. When the request has completed
+successfully and an \fBexternal/cert.pem\fP certificate is found, the
+certificate will be activated in the \fBpublic/\fP directory. The script
+automatically downloads Let\(aqs Encrypt intermediate certificate as well as links
+the Root CA certificate from the system certificate store provided by the
+\fBca\-certificates\fP package.
+.sp
+The realm directory after the process is complete:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/pki/realms/
+└── example.com/
+    ├── acme/
+    │\ \  ├── account_key.pem
+    │\ \  ├── cert.pem
+    │\ \  ├── openssl.conf
+    │\ \  ├── intermediate.pem
+    │\ \  ├── request.pem
+    │\ \  └── root.pem \-> /usr/share/ca\-certificates/mozilla/DST_Root_CA_X3.crt
+    ├── config/
+    │\ \  └── realm.conf
+    ├── external/
+    ├── internal/
+    │\ \  ├── cert.pem
+    │\ \  ├── gnutls.conf
+    │\ \  ├── intermediate.pem
+    │\ \  ├── request.pem
+    │\ \  └── root.pem
+    ├── private/
+    │\ \  ├── key_chain_dhparam.pem
+    │\ \  ├── key_chain.pem
+    │\ \  ├── key.pem
+    │\ \  └── realm_key.pem
+    ├── public/
+    │\ \  ├── cert_intermediate_dhparam.pem
+    │\ \  ├── cert_intermediate.pem
+    │\ \  ├── cert.pem \-> ../acme/cert.pem
+    │\ \  ├── cert.pem.sig
+    │\ \  ├── chain.pem \-> cert_intermediate_dhparam.pem
+    │\ \  ├── intermediate_root.pem
+    │\ \  ├── root.pem \-> ../acme/root.pem
+    │\ \  └── trusted.pem \-> intermediate_root.pem
+    ├── CA.crt \-> public/trusted.pem
+    ├── default.crt \-> public/chain.pem
+    ├── default.key \-> private/key.pem
+    ├── default.pem \-> private/key_chain_dhparam.pem
+    └── trusted.crt \-> public/trusted.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If the request is not successful, you will find a \fBacme/error.log\fP file with
+log of the \fBacme\-tiny\fP session. Check and fix the issue, and remove the log
+file to re\-enable the process again. Otherwise, \fBpki\-realm\fP will not request
+the certificates to avoid rate limit issues explained above.
+.SH ACME CERTBOT INTEGRATION
+.sp
+The \fI\%Certbot\fP <\fBhttps://certbot.eff.org/about/\fP> application, developed by \fI\%Electronic Frontier Foundation\fP <\fBhttps://www.eff.org/\fP> is
+an ACME client that gives users the ability to request and renew X.509
+certificates from \fI\%Let\(aqs Encrypt\fP <\fBhttps://letsencrypt.org/\fP> or another provider that supports the ACME
+protocol. The \fI\%debops.pki\fP role includes support for \fBcertbot\fP to
+allow the X.509 certificates obtained via the service to be used by Ansible
+roles and other applications integrated with DebOps PKI infrastructure.
+.sp
+The \fBcertbot\fP integration with the role is focused specifically on
+supporting the \fI\%DNS\-01\fP <\fBhttps://letsencrypt.org/docs/challenge-types/#dns-01-challenge\fP> ACME challenge, which allows users to request
+wildcard X.509 certificates and doesn\(aqt require a standalone webserver to
+operate. If you plan to use the HTTP\-01 challenge instead, you should refer to
+the \fI\%ACME Tiny Integration\fP documentation.
+.SS Prerequisites
+.sp
+To request and renew ACME certificates with \fBcertbot\fP, certain
+requirements must be met. You need to have a registered DNS domain which is
+served by one of supported \fI\%DNS providers\fP <\fBhttps://certbot.eff.org/docs/using.html#dns-plugins\fP>\&. Each DNS plugin requires a set of
+API credentials, either a token or an user/password combination \- refer to the
+specific plugin documentation for details about obtaining them.
+.sp
+Due to the requirements above, the default \fBdomain\fP PKI realm does not
+include support for ACME certificates. You will have create a separate
+\fI\%PKI realm\fP with name based either on the domain
+you plan to use or the host\(aqs FQDN, which will then hold the private key and
+X.509 certificate. Other DebOps roles can then use such PKI realm, either
+automatically or when configured.
+.SS Example ACME certificates with CloudFlare
+.sp
+This is an example \fI\%debops.pki\fP configuration which enables the
+\fBcertbot\fP integration and uses \fI\%CloudFlare\fP <\fBhttps://www.cloudflare.com/\fP> to manage the DNS
+domain. We will be using the \fI\%CloudFlare DNS plugin\fP <\fBhttps://certbot-dns-cloudflare.readthedocs.io/en/stable/\fP> to manage the DNS
+entries.
+.sp
+The role will request a X.509 certificate for the \fBexample.org\fP DNS domain as
+well as the \fB*.example.org\fP wildcard to cover any potential subdomains. The
+configuration will be applied only on specific hosts in the cluster, included
+in the \fB[pki_acme_cloudflare]\fP Ansible inventory group, that way DebOps can
+configure multiple hosts with the X.509 certificates later on. There\(aqs no need
+to get ACME certificates on backend hosts, the cluster can use the DebOps
+Internal CA for encrypted communication between nodes. The PKI realm will be
+named \fBexample.org\fP, based on the DNS domain.
+.sp
+The example Ansible inventory looks like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[pki_acme_cloudflare]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You will need to obtain the API access token from CloudFlare web interface. The
+role expects the credentials in specific files, named after the
+\fBcertbot\fP DNS plugins. On the remote hosts the files should be located
+in the \fB/etc/pki/realms/<realm>/private/dns\-*\-credentials.key\fP file. To
+ensure that the credentials file will be put there by the role, you should
+place it on the Ansible Controller host in the path (relative to the project
+directory):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ansible/secret/pki/realms/by\-group/<inventory_group>/<realm_name>/private/dns\-<dns_plugin>\-credentials.key
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+So, in our case, that would be:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ansible/secret/pki/realms/by\-group/pki_acme_cloudflare/example.org/private/dns\-cloudflare\-credentials.key
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In the CloudFlare\(aqs case, the actual credentials file will look like:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dns_cloudflare_api_token = <token>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+On older OS releases where the \fBcertbot\fP version is not recent enough,
+you might need to use the CloudFlare global API key instead. In such case, the
+credentials file will look like:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dns_cloudflare_email = <cloudflare account email>
+dns_cloudflare_api_key = <secret key>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The last bit is the inventory configuration. The variables will be set on the
+group level, in the
+\fBansible/inventory/group_vars/pki_acme_cloudflare/pki.yml\fP file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# ansible/inventory/group_vars/pki_acme_cloudflare/pki.yml
+
+# Use CloudFlare as the DNS provider for ACME. Changing this variable
+# implicitly enables \(aqcertbot\(aq support.
+pki_acme_type: \(aqdns\-cloudflare\(aq
+
+# Certbot requires a working e\-mail account (it will be validated), you
+# might need to specify it if the role uses a non\-existent e\-mail address.
+pki_acme_contacts: [ \(aqadmin@example.org\(aq ]
+
+# If you want to try the staging Let\(aqs Encrypt CA to test if the
+# certificates are obtained correctly, uncomment this variable.
+#pki_acme_ca: \(aqle\-staging\-v2\(aq
+
+# Tell the \(aqpki\(aq role to manage X.509 certificates for these Ansible
+# inventory groups.
+pki_inventory_groups: [ \(aqdebops_service_pki\(aq, \(aqpki_acme_cloudflare\(aq ]
+
+# Here we define the actual PKI realm, which will be created on each host in
+# this inventory group.
+pki_group_realms:
+
+  \- name: \(aqexample.org\(aq
+    acme: True
+
+    # You can define your preferred certificate subject here, the \(aqCN=\(aq
+    # attribute is ignored in certificate verification, only SANs are
+    # important.
+    subject: [ \(aqCN=example.org\(aq ]
+
+    # This is a list of domains which should be signed by Let\(aqs Encrypt CA.
+    # Here we get the base domain as well as the wildcard for subdomains.
+    domains: [ \(aqexample.org\(aq, \(aq*.example.org\(aq ]
+
+    # These parameters are required right now to override the defaults used
+    # by the \(aqpki\(aq role, otherwise you might get a wrong set of domains in the
+    # certificate request.
+    subdomains: [ \(aq\(aq ]
+    default_subdomains: [ \(aq\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After the inventory is set up, you can apply the configuration on the host
+using the \fI\%debops.pki\fP role, by executing the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run service/pki \-l hostname \-\-diff
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After it finishes, the \fBcertbot\fP application should be installed, and symlinks to the \fB/etc/letsencrypt/\fP directory should be present in the configured PKI realm. You can see an example realm directory structure below:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/pki/realms/
+└── example.org
+    ├── acme
+    │\ \  ├── account_key.pem
+    │\ \  ├── cert.pem \-> /etc/letsencrypt/live/example.org/cert.pem
+    │\ \  ├── intermediate.pem \-> /etc/letsencrypt/live/example.org/chain.pem
+    │\ \  ├── openssl.conf
+    │\ \  └── request.pem
+    ├── CA.crt \-> /etc/ssl/certs/ca\-certificates.crt
+    ├── config
+    │\ \  └── realm.conf
+    ├── default.crt \-> public/chain.pem
+    ├── default.key \-> private/key.pem
+    ├── default.pem \-> private/key_chain_dhparam.pem
+    ├── external
+    ├── internal
+    │\ \  ├── cert.pem
+    │\ \  ├── gnutls.conf
+    │\ \  ├── intermediate.pem
+    │\ \  ├── request.pem
+    │\ \  └── root.pem
+    ├── private
+    │\ \  ├── dns\-cloudflare\-credentials.key
+    │\ \  ├── key_chain_dhparam.pem
+    │\ \  ├── key_chain.pem
+    │\ \  ├── key.pem \-> /etc/letsencrypt/live/example.org/privkey.pem
+    │\ \  └── realm_key.pem
+    └── public
+        ├── cert_intermediate_dhparam.pem
+        ├── cert_intermediate.pem
+        ├── cert.pem \-> ../acme/cert.pem
+        ├── cert.pem.sig
+        ├── chain.pem \-> cert_intermediate_dhparam.pem
+        └── intermediate.pem \-> ../acme/intermediate.pem
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If there are any issues, \fBcertbot\fP command will log everything in the
+\fB/var/log/letsencrypt/letsencrypt.log\fP log file. you should review it to
+find what caused the problem and fix it. After that you need to re\-initialize
+the PKI realm by removing its directory (\fB/etc/pki/realms/example.org/\fP)
+from the remote host and re\-running the \fI\%debops.pki\fP role again. The
+certificates will be safely stored in the \fB/etc/letsencrypt/\fP directory
+so this shouldn\(aqt case issues with \fI\%Let\(aqs Encrypt rate limits\fP <\fBhttps://letsencrypt.org/docs/rate-limits/\fP> if the
+certificates themselves were registered successfully, but take care otherwise.
+To avoid rate limiting, you might want to consider enabling the staging CA for
+testing purposes.
+.SH EXTERNAL CERTIFICATES
+.sp
+The PKI realms managed by the \fBdebops.pki\fP role support management of private
+keys and certificates from external Certificate Authorities. You can either
+provide a set of valid certificates with corresponding private keys,
+or use a script with a custom environment to request a certificate remotely from
+an external Certificate Authority.
+.SS Required files
+.sp
+For the \fBpki\-realm\fP script to correctly recognize and enable external
+certificates, you need to provide a set of specific files, either statically
+through the \fBsecret/\fP directory or by creating them using a script (see
+below). All paths are relative to the main PKI realm directory, for example
+\fB/etc/pki/realms/example.com/\fP:
+.INDENT 0.0
+.TP
+.B \fBprivate/key.pem\fP
+Private key used by a specific PKI realm. If not present, the \fBpki\-realm\fP
+script will generate one automatically before executing the external script.
+.TP
+.B \fBexternal/cert.pem\fP
+Required. The certificate signed by an external Certificate Authority, in PEM
+format.
+.TP
+.B \fBexternal/intermediate.pem\fP
+Set of intermediate CA certificates which signed the realm certificate. They
+will be chained together with the realm certificate automatically.
+.TP
+.B \fBexternal/root.pem\fP
+The certificate of the Root Certificate Authority. It will be chained with
+the intermediate CA certificates for OCSP stapling purposes.
+.TP
+.B \fBexternal/script\fP
+A custom script (any language should work, however you need to take care of
+additional dependencies) which will be executed on the remote host if found,
+with a set of environment variables. The script will be executed inside the
+\fBexternal/\fP directory of a given realm.
+.UNINDENT
+.SS Static private keys and certificates
+.sp
+When the \fBdebops.pki\fP Ansible role is run, it creates a set of directories on
+the Ansible Controller in the \fBsecret/\fP directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+secret/pki/
+└── realms/
+    ├── by\-group/
+    │\ \  ├── all/
+    │\ \  │\ \  └── domain/
+    │\ \  │\ \      ├── external/
+    │\ \  │\ \      └── private/
+    │\ \  └── inventory_group/
+    │\ \      └── domain/
+    │\ \          ├── external/
+    │\ \          └── private/
+    └── by\-host/
+        └── hostname.example.com/
+            └── domain/
+                ├── external/
+                ├── internal/
+                └── private/
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+As you can see, the directory structure reflects the Ansible inventory model:
+.INDENT 0.0
+.IP \(bu 2
+\fBrealms/by\-group/all/\fP \-> \fBinventory/group_vars/all/\fP
+.IP \(bu 2
+\fBrealms/by\-group/inventory_group/\fP \-> \fBinventory/group_vars/inventory_group/\fP
+.IP \(bu 2
+\fBrealms/by\-host/hostname.example.com/\fP \-> \fBinventory/host_vars/hostname.example.com/\fP
+.UNINDENT
+.sp
+Each of those directories has a set of subdirectories for configured PKI
+realms, with the \fBexternal/\fP, \fBinternal/\fP and \fBprivate/\fP directories
+corresponding to the same ones on the remote hosts. Ansible at different stages
+of the \fBdebops.pki\fP role run will copy contents of these directories to
+remote hosts, in a specific order:
+.INDENT 0.0
+.IP \(bu 2
+contents of the \fBrealms/by\-host/<hostname>\fP directories for each host
+will be copied and overwrite already present files;
+.IP \(bu 2
+contents of the \fBrealms/by\-group/<group_name>/\fP directories will be
+copied next, but will not overwrite already existing files. Only hosts that
+are in a given inventory group will receive the corresponding files;
+.IP \(bu 2
+and finally, contents of the \fBrealms/by\-group/all/\fP directory will be
+copied to all currently managed remote hosts, but won\(aqt overwrite already
+present files;
+.UNINDENT
+.sp
+You can use this to distribute already issued certificates with their private
+keys. Putting them in \fBrealms/by\-group/all/\fP directory will ensure that all
+hosts will have the same set of keys and certificates. If you put them in
+a specific group directory, only hosts in that group will receive the files.
+Files put in a specific host directory will only be copied to that host.
+.sp
+The private keys will be copied to remote hosts before the PKI realm is
+created, which means that any potential ACME or internal certificates will use
+them instead of automatically generated ones. This might be useful if you need
+to have several hosts which use the same set of private keys.
+.sp
+The above mechanism is used to distribute certificates from internal
+Certificate Authorities, using the \fBinternal/\fP directory.
+.sp
+Because files copied from \fBby\-group/all/\fP and \fBby\-group/inventory_group/\fP
+directories are not overwritten automatically, you will need to remove the
+corresponding files on remote hosts yourself if you want to update them.
+.sp
+The \fI\%pki_inventory_groups\fP default variable is a list of Ansible inventory
+groups that will have their corresponding directories. You need to specify your
+custom inventory groups in order to have them \(dqactive\(dq.
+.SS Certificates managed by a custom script
+.sp
+You can create a custom script and store it in above directories as
+\fBexternal/script\fP (permissions are not important). It will be copied to
+the remote host, made executable and run by the \fBpki\-realm\fP script with the
+\fBexternal/\fP directory as the current working directory. You can use this
+to provide additional files needed by the Certificate Authority. The expected
+output of the script is a set of files mentioned above.
+.sp
+The script will be executed under the \fBroot\fP account, with a set of
+\fB$PKI_SCRIPT_*\fP environment variables:
+.INDENT 0.0
+.TP
+.B \fB$PKI_SCRIPT_REALM\fP
+Contains the name of the current PKI realm, set in \fBitem.name\fP parameter.
+.TP
+.B \fB$PKI_SCRIPT_FQDN\fP
+Contains Fully Qualified Domain Name used as the default domain if the realm
+does not specify one in it\(aqs name.
+.TP
+.B \fB$PKI_SCRIPT_SUBJECT\fP
+Contains the Distinguished Name, or subject of the certificate, each element
+separated by the \fB/\fP character, similar to the format of the \fBopenssl req
+\-subj\fP option.
+.TP
+.B \fB$PKI_SCRIPT_DOMAINS\fP
+List of apex (root) domains configured for the realm, separated by the \fB/\fP
+character.
+.TP
+.B \fB$PKI_SCRIPT_SUBDOMAINS\fP
+List of subdomains which should be added to each apex domain, each one
+separated by the \fB/\fP character. The special \fB_wildcard_\fP name means
+a wildcard subdomain (\fB*.example.com\fP).
+.TP
+.B \fB$PKI_SCRIPT_PRIVATE_KEY\fP
+Absolute path to the private key of the current PKI realm.
+.TP
+.B \fB$PKI_SCRIPT_DEFAULT_CRT\fP
+Absolute path to the current PKI realm certificate chain, expected to be used
+in the application configuration files.
+.TP
+.B \fB$PKI_SCRIPT_DEFAULT_KEY\fP
+Absolute path to the current PKI realm private key, expected to be used in
+the application configuration files.
+.TP
+.B \fB$PKI_SCRIPT_DEFAULT_PEM\fP
+Absolute path to the current PKI realm combined private key and certificate
+chain, expected to be used in the application configuration files.
+.TP
+.B \fB$PKI_SCRIPT_STATE\fP
+A list of PKI realm states separated by the \fB,\fP character. You can inspect
+this variable to determine the current state of the current realm
+(initialization, activation of new certificates, changed files) and react to
+it in the script.
+.UNINDENT
+.sp
+Because the operation of the PKI realm is stateless, the external script will be
+executed multiple times during \fBdebops.pki\fP run. The state in which the realm
+is in will be present in the \fB$PKI_SCRIPT_STATE\fP variable and using that you can
+perform various operations, like issuing a new certificate request when the
+realm is created.
+.SH SYSTEM CA CERTIFICATES
+.sp
+On Debian GNU/Linux and it\(aqs derivative distributions, management of Root
+Certificate Authority certificates is performed by the \fBca\-certificates\fP
+package. This package maintains a list of active Root CA certificates in the
+\fB/etc/ca\-certificates.conf\fP configuration file, and stores the certificates
+themselves in the \fB/etc/ssl/certs/\fP directory.
+.sp
+The \fBdebops.pki\fP role has several variables which can be used to control what
+Root Certificate Authorities are trusted by the system, as well as supports
+easy installation of local or custom Root Certificate Authorities.
+.SS Configuration of system CA certificates
+.sp
+The \fB/etc/ca\-certificates.conf\fP configuration file specifies which
+certificates will be trusted by the system. This is done by specifying names of
+certificate files located in the \fB/usr/share/ca\-certificates/\fP directory.
+The specified certificate files will be included in the system CA store. If a
+given filename is prefixed with \fB!\fP, a given certificate will be excluded
+from the system CA store.
+.sp
+By default, Debian hosts automatically trust new Root Certificate Authorities
+added in the \fBca\-certificates\fP package. To control this, you can use
+\fI\%pki_system_ca_certificates_trust_new\fP boolean variable. Setting this
+variable to \fBTrue\fP will ensure that new Root CA certificates are trusted.
+Setting it to \fBFalse\fP will not enable new CA certificates automatically.
+.sp
+You can use \fI\%pki_system_ca_certificates_blacklist\fP and
+\fI\%pki_system_ca_certificates_whitelist\fP list variables to define which
+certificates will be excluded/included in the CA store. Each list element is
+a regexp of the certificate file name. If a given file is found in both lists,
+it will be excluded from the certificate store.
+.sp
+To find out the names of the certificate files you can use, check the contents
+of the \fB/etc/ca\-certificates.conf\fP configuration file.
+.SS Examples
+.sp
+Blacklist all certificates:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_system_ca_certificates_blacklist:
+  \- \(aq.*\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Blacklist all certificates provided in the Mozilla CA list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_system_ca_certificates_blacklist:
+  \- \(aqmozilla/.*\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Blacklist all VeriSign certificates:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_system_ca_certificates_blacklist:
+  \- \(aq.*VeriSign.*\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Local Root CA certificates
+.sp
+Contents of the \fBsecret/pki/ca\-certificates/\fP directory located on the
+Ansible Controller will be copied to all of the remote hosts by the
+\fBdebops.pki\fP role, to the \fB/usr/local/share/ca\-certificates/pki/\fP
+directory. After that, they will be automatically added to the system Root CA
+store using the \fBupdate\-ca\-certificates\fP script.
+.sp
+Note that already present CA certificates on remote hosts with the same name
+are not updated after the first download unless the CA certificates are by
+host.
+.sp
+The internal Root Certificate Authorities created by the \fBdebops.pki\fP role
+will have their certificates automatically symlinked in the
+\fBsecret/pki/ca\-certificates/\fP directory. You can prevent that by adding an
+\fBitem.system_ca: False\fP parameter in the CA configuration variable.
+.SH CUSTOM FILE MANAGEMENT
+.sp
+If you need to, you can copy custom files or even create files with content in
+YAML templates using a set of list variables. You can use this feature to
+install private keys and certificates stored as YAML text blocks in a file
+encrypted with \fBansible\-vault\fP which is unlocked during Ansible run.
+.sp
+Each element of the file list is a dict with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBsrc\fP
+Required, unless \fBcontent\fP is specified. Path to a file on the Ansible
+Controller, which will be copied to the remote host.
+.TP
+.B \fBcontent\fP
+Required, unless \fBsrc\fP is specified. A YAML text block or a Jinja variable,
+contents of which will be copied to the specified file on the remote host.
+.TP
+.B \fBdest\fP
+Required. Path to the destination file on the remote host.
+.TP
+.B \fBowner\fP
+Owner of the created file, by default \fBroot\fP\&.
+.TP
+.B \fBgroup\fP
+File group, depending on the file type it will be \fBroot\fP (for public files)
+or a group specified by the \fI\%pki_private_group\fP variable, usually
+\fBssl\-cert\fP (for private files).
+.TP
+.B \fBmode\fP
+File permissions, by default public files are copied with permissions \fB644\fP
+and private files will have \fB640\fP permissions.
+.TP
+.B \fBforce\fP
+Boolean. If \fBTrue\fP (default), an existing file will be replaced with the
+specified file or contents.
+.UNINDENT
+.sp
+There are multiple list variables which can be used on multiple inventory
+levels:
+.INDENT 0.0
+.IP \(bu 2
+all hosts in the inventory:
+\- \fI\%pki_private_files\fP
+\- \fI\%pki_public_files\fP
+.IP \(bu 2
+hosts in specific inventory group:
+\- \fI\%pki_group_private_files\fP
+\- \fI\%pki_group_public_files\fP
+.IP \(bu 2
+specific hosts:
+\- \fI\%pki_host_private_files\fP
+\- \fI\%pki_host_public_files\fP
+.UNINDENT
+.sp
+The private files will be copied before PKI realms are created, so that you can
+provide private keys if you want to. Public files will be copied after PKI
+realms are created, and internal certificates are signed.
+.SS Examples
+.sp
+Install a custom private key from a Jinja variable on all hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_private_files:
+  \- content: \(aq{{ custom_variable }}\(aq
+    dest: \(aq/etc/pki/realms/domain/private/key.pem\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH CUSTOM HOOK SCRIPTS
+.sp
+The \fBpki\-realm\fP script supports usage of a custom hook scripts located in
+the \fB/etc/pki/hooks/\fP directory. These scripts will be executed in alphabetical
+order (see \fI\%run\-parts(8)\fP <\fBhttps://manpages.debian.org/run-parts(8)\fP> for more details) within a special environment. You
+can use that to perform operations after certain actions like creation of a new
+PKI realm, or activation of a new certificate.
+.SS Execution environment
+.sp
+The hook scripts will be executed by the \fBroot\fP account inside the PKI hook
+directory (\fB/etc/pki/hooks/\fP), with a set of \fB$PKI_SCRIPT_*\fP environment
+variables:
+.INDENT 0.0
+.TP
+.B \fB$PKI_SCRIPT_REALM\fP
+Contains the name of the current PKI realm.
+.TP
+.B \fB$PKI_SCRIPT_FQDN\fP
+Contains Fully Qualified Domain Name used as the default domain if the realm
+does not specify one in it\(aqs name.
+.TP
+.B \fB$PKI_SCRIPT_SUBJECT\fP
+Contains the Distinguished Name, or subject of the certificate, each element
+separated by the \fB/\fP character, similar to the format of the \fBopenssl req
+\-subj\fP option.
+.TP
+.B \fB$PKI_SCRIPT_DOMAINS\fP
+List of apex (root) domains configured for the realm, separated by the \fB/\fP
+character.
+.TP
+.B \fB$PKI_SCRIPT_SUBDOMAINS\fP
+List of subdomains which should be added to each apex domain, each one
+separated by the \fB/\fP character. The special \fB_wildcard_\fP name means
+a wildcard subdomain (\fB*.example.com\fP).
+.TP
+.B \fB$PKI_SCRIPT_PRIVATE_KEY\fP
+Absolute path to the private key of the current PKI realm.
+.TP
+.B \fB$PKI_SCRIPT_DEFAULT_CRT\fP
+Absolute path to the current PKI realm certificate chain, expected to be used
+in the application configuration files.
+.TP
+.B \fB$PKI_SCRIPT_DEFAULT_KEY\fP
+Absolute path to the current PKI realm private key, expected to be used in
+the application configuration files.
+.TP
+.B \fB$PKI_SCRIPT_DEFAULT_PEM\fP
+Absolute path to the current PKI realm combined private key and certificate
+chain, expected to be used in the application configuration files.
+.TP
+.B \fB$PKI_SCRIPT_STATE\fP
+A list of PKI realm states separated by the \fB,\fP character. You can inspect
+this variable to determine the current state of the realm (initialization,
+activation of new certificates, changed files) and react to it in the script.
+.UNINDENT
+.SS Known script states
+.sp
+You can use the \fB$PKI_SCRIPT_STATE\fP variable to check current state of the
+PKI realm. This variable should always be non\-empty, otherwise hook scripts are
+not executed. Each state can repeat multiple times on the list, but you should
+avoid multiple execution due to a particular state.
+.sp
+List of known states:
+.INDENT 0.0
+.TP
+.B \fBnew\-realm\fP
+A new PKI realm has been initialized, there are no private keys or
+certificates present.
+.TP
+.B \fBnew\-private\-key\fP
+A private key has been generated.
+.TP
+.B \fBnew\-internal\-request\fP
+A new internal CA certificate signing request has been generated.
+.TP
+.B \fBnew\-acme\-request\fP
+A new ACME certificate signing request has been generated.
+.TP
+.B \fBchanged\-certificate\fP
+A new certificate has been activated, or there has been change of the active
+Certificate Authority (internal, external, acme).
+.TP
+.B \fBchanged\-dhparam\fP
+Diffie\-Hellman parameters in the certificate chain have been added/updated.
+.TP
+.B \fBfile\-change\fP
+A generic file change notification.
+.TP
+.B \fBfile\-deletion\fP
+A file has been deleted.
+.TP
+.B \fBchanged\-public\-file\fP
+Some of the files in \fBpublic/\fP directory have been changed/replaced.
+.TP
+.B \fBchanged\-private\-file\fP
+Some of the files in \fBprivate/\fP directory have been changed/replaced.
+.UNINDENT
+.SS Example nginx hook
+.sp
+This is an example hook script which detects if a given PKI realm is currently
+used by the \fBnginx\fP server and if so, when a certificate change is detected
+it reloads the \fBnginx\fP daemon so that new certificate can be activated.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#!/bin/bash
+
+# Reload or restart nginx on a certificate state change
+
+set \-o nounset \-o pipefail \-o errexit
+
+nginx_config=\(dq/etc/nginx/nginx.conf\(dq
+nginx_sites=\(dq/etc/nginx/sites\-enabled\(dq
+nginx_action=\(dqreload\(dq
+
+# Check if current PKI realm is used by the \(aqnginx\(aq webserver
+certificate=$(grep \-r \(dq${PKI_SCRIPT_DEFAULT_CRT:\-}\(dq ${nginx_sites}/* || true)
+
+# Get list of current realm states
+states=( $(echo \(dq${PKI_SCRIPT_STATE:\-}\(dq | tr \(dq,\(dq \(dq \(dq) )
+
+if [ \-n \(dq${certificate}\(dq \-a \(dq${#states[@]}\(dq \-gt 0 ] ; then
+
+    for state in \(dq${states[@]}\(dq ; do
+
+        if [ \(dq${state}\(dq = \(dqchanged\-certificate\(dq \-o \(dq${state}\(dq = \(dqchanged\-dhparam\(dq ] ; then
+
+            # Check if current init is systemd
+            if $(pidof systemd > /dev/null 2>&1) ; then
+
+                nginx_state=\(dq$(systemctl is\-active nginx.service)\(dq
+                if [ ${nginx_state} = \(dqactive\(dq ] ; then
+                    if $(/usr/sbin/nginx \-c ${nginx_config} \-t > /dev/null 2>&1) ; then
+                        systemctl ${nginx_action} nginx.service
+                    fi
+                fi
+
+            else
+
+                nginx_pidfile=\(dq$(grep \-E \(aq^pid\es+\(aq ${nginx_config} | awk \(aq{print $2}\(aq | cut \-d\e; \-f1)\(dq
+                if $(kill \-0 $(<${nginx_pidfile}) > /dev/null 2>&1) ; then
+                    if $(/usr/sbin/nginx \-c ${nginx_config} \-t > /dev/null 2>&1) ; then
+                        service nginx ${nginx_action}
+                    fi
+                fi
+
+            fi
+
+            break
+        fi
+
+    done
+
+fi
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH ANSIBLE INTEGRATION
+.sp
+The \fBdebops.pki\fP role creates Ansible local facts on each managed remote
+host. These local facts can be used by other Ansible roles as an idempotent
+source of PKI\-related configuration – they should be accessible from any
+playbook executed on that host without the requirement of the \fBdebops.pki\fP
+role being a part of it or a role dependency.
+.sp
+The local facts are saved in \fBansible_local.pki.*\fP namespace. List of
+available facts:
+.INDENT 0.0
+.TP
+.B \fBansible_local.pki.enabled\fP
+Boolean. Can be used to determine if PKI is enabled on a given host. This
+doesn\(aqt mean that a particular PKI realm has a correctly configured set of
+private keys and certificates.
+.TP
+.B \fBansible_local.pki.acme\fP
+Boolean. Specifies if an ACME environment is enabled on a given host, which
+means that the \fBacme\-tiny\fP script is installed and any PKI realm
+that is not configured otherwise will try to register an ACME certificate.
+.TP
+.B \fBansible_local.pki.internal\fP
+Boolean. Specifies that PKI realms configured on a given host will request
+certificates in internal Certificate Authority.
+.TP
+.B \fBansible_local.pki.path\fP
+Directory where PKI realms are located, by default \fB/etc/pki/realms/\fP\&.
+.TP
+.B \fBansible_local.pki.hooks\fP
+Directory where PKI hooks are located, by default \fB/etc/pki/hooks/\fP\&.
+.TP
+.B \fBansible_local.pki.realm\fP
+Default server realm name configured for this system, should be used as the
+provider of private key and certificate for a given service.
+.TP
+.B \fBansible_local.pki.ca_realm\fP
+Default client realm name configured for this system, should be used as the
+provider of the CA certificate for a given service.
+.TP
+.B \fBansible_local.pki.known_realms\fP
+List which contains names of all PKI realms that might be present on a given
+remote host. Contents of the list are never removed, only appended. This list
+can be used to check on the Ansible playbook/role level if a given PKI realm
+is available to be used.
+.UNINDENT
+.sp
+The facts listed below are currently static, but are planned to be used in the
+future for better control over PKI realm directory structure:
+.INDENT 0.0
+.TP
+.B \fBansible_local.pki.crt\fP
+Name of the default certificate symlink located in the PKI realm main
+directory.
+.TP
+.B \fBansible_local.pki.key\fP
+Name of the default private key symlink located in the PKI realm main
+directory.
+.TP
+.B \fBansible_local.pki.pem\fP
+Name of the default private key and certificate bundle symlink located in the
+PKI realm main directory.
+.TP
+.B \fBansible_local.pki.ca\fP
+Name of the default CA certificate symlink located in the PKI realm main
+directory.
+.TP
+.B \fBansible_local.pki.trusted\fP
+Name of the trusted CA chain symlink located in the PKI realm main directory.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.pki\fP default variables have more extensive configuration than
+simple strings or lists, here you can find documentation and examples for them.
+.SS pki_private_groups_present
+.sp
+This list can be used to create system groups that otherwise could be not
+present when the PKI realm is managed. For example another role creates custom
+user/group that maintains its own service certificates, but in order to do
+that, \fBdebops.pki\fP is used to manage the PKI realm but at the moment that
+the \fBdebops.pki\fP role is run by Ansible, custom group does not exist, so the
+Ansible run stops. Therefore, you can create system groups beforehand using
+this list.
+.sp
+You can define the system groups as simple items, or dictionary values with
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+The name of the group to create.
+.TP
+.B \fBsystem\fP
+Boolean, by default \fBTrue\fP\&. Specify if a given group is a system group.
+.TP
+.B \fBwhen\fP
+The value of this variable is checked as a boolean (\fBTrue\fP/\fBFalse\fP) to
+determine if a given system group should be created or not. You can use this
+as a condition to, for example, create groups only on specific hosts.
+.UNINDENT
+.SS Examples
+.sp
+Ensure two system groups exist, one with a condition:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_private_groups_present:
+
+  \- \(aqgroup1\(aq
+
+  \- name: \(aqgroup2\(aq
+    when: \(aq{{ inventory_hostname in specific_inventory_group }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS pki_realms
+.sp
+The set of \fI\%pki_realms\fP lists can be used to define the configuration of PKI
+realms located on remote hosts. Each realm keeps a set of private keys and
+certificates which are signed by the various Certificate Authorities.
+.sp
+Each entry is a dictionary variable with specific parameters. Most of the
+parameters are optional, and if they are not specified, the \fBpki\-realm\fP
+script that manages the PKI realms should pick the correct options by itself.
+.sp
+List of parameters related to the entire PKI realm:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. This is the name of the PKI realm, used as the name of the
+directory which contains the realm subdirectories, by default stored in
+the \fB/etc/pki/realms/\fP directory. The \fBname\fP parameter is interpreted
+by the role in various ways:
+.INDENT 7.0
+.INDENT 3.5
+.INDENT 0.0
+.IP \(bu 2
+the single string name, like \(dqdomain\(dq, \(dqxxxxaaaayyyy\(dq or similar strings.
+These PKI realm names can be thought of as \(dqhandles\(dq and they don\(aqt have any
+impact on the domains stored in the X.509 certificates. The role will
+by default use the host\(aqs FQDN and DNS domain name to generate such realms,
+but it can be overridden. Users can create multiple such PKI realms for
+various purposes.
+.IP \(bu 2
+the DNS\-based name, which contains dots, like \(dqexample.com\(dq,
+\(dqhost.example.com\(dq and the like. These PKI realms base their X.509 certificates
+after the realm name by default. This is also the reason the default PKI realm
+is named \(dqdomain\(dq and not \(dq{{ ansible_domain }}\(dq \- users can create a new PKI
+realm for their default DNS domain on hosts that are reachable publicly and
+they will automatically get the Let\(aqs Encrypt certificates when possible, or
+can easily use external certificates grabbed from some other CA.
+.sp
+Some DebOps roles like \fI\%debops.nginx\fP can check the list of available
+PKI realms via the local facts and use some other PKI realm rather than the
+default one automatically. For example, if an user creates an \(dqexample.com\(dq PKI
+realm and then uses the \(dqexample.com\(dq DNS domain, standalone or with a
+subdomain like \(dqsub.example.com\(dq, the \fI\%debops.nginx\fP role will check if a
+PKI realm named after a given FQDN or DNS domain exists and will use it instead
+of the \(dqdomain\(dq PKI realm used by default. It can be thought of as a shortcut
+to easily manage X.509 certificates for multiple websites, each one with its
+own FQDN domain name.
+.IP \(bu 2
+the mail\-based name, like \(dq\fI\%user@example.org\fP <\fBuser@example.org\fP>\(dq \- any PKI realm name which
+contains the \(aq@\(aq character qualifies as one. These PKI realms were meant to
+keep the client certificates used to authenticate to services, but this idea
+was not developed further, so far.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+If the \fBsubject\fP parameter is not specified, \fBname\fP parameter is checked
+to see if it might be a DNS domain (at least 1 dot present in the value). If
+yes, it will be used as a default domain for a given PKI realm.
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_realms:
+
+  # Default PKI realm
+  \- name: \(aqdomain\(aq
+
+  # Custom PKI realm
+  \- name: \(aqexample.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBauthority\fP
+Specify name of the internal Certificate Authority to send the internal
+certificate requests to instead of the default one configured in
+\fI\%pki_default_authority\fP variable. This should be the \(dqnormal\(dq name of the
+authority, not its subdomain name.
+.TP
+.B \fBacme\fP
+Optional, boolean. Enable or disable support for ACME Certificate Authority.
+Can be used to invert the global \fI\%pki_acme\fP setting per PKI realm if
+needed, but support for ACME needs to be present on the remote host for it to
+work (see \fI\%pki_acme_install\fP variable).
+.TP
+.B \fBacme_ca\fP
+Optional, name of the ACME API endpoint used by the ACME client. Defaults to
+\fI\%pki_acme_ca\fP\&.
+.TP
+.B \fBacme_ca_api\fP
+Optional, the URL of the ACME API endpoint. Defaults to the value in
+\fI\%pki_acme_ca_api_map\fP (whose key defaults to \fBitem.acme_ca\fP).
+.TP
+.B \fBacme_challenge_dir\fP
+Optional, directory where the ACME client should store responses to ACME CA
+challenges. Defaults to \fI\%pki_acme_challenge_dir\fP\&.
+.TP
+.B \fBacme_contacts\fP
+Optional, list of (mailto:) URLs that the ACME server can use to contact you
+for issues related to your account. For example, the server may wish to
+notify you about server\-initiated revocation or certificate expiration. If
+not specified, the list defined in \fI\%pki_acme_contacts\fP will be used.
+.TP
+.B \fBinternal\fP
+Optional, boolean. Enable or disable support for internal CA certificates in
+a given realm. If you disable internal CA support, an alternative,
+self\-signed certificate will be created and enabled automatically.
+.TP
+.B \fBauthority_preference\fP
+Optional. List of directory names (\fBexternal\fP, \fBacme\fP, \fBinternal\fP,
+\fBselfsigned\fP) which determines the order in which the PKI realm looks for
+valid certificates. The first found valid certificate is enabled. If not
+specified, the order configured in \fI\%pki_authority_preference\fP will be used.
+.TP
+.B \fBenvironment\fP
+Optional. YAML dictionary which defines environment variables for a given PKI
+realm. Dictionary keys are used as variable names and dictionary values
+define the variable values.
+.TP
+.B \fBlibrary\fP
+Optional. Specify name of the crypto library used to generate private key and
+internal certificate requests in a given PKI realm. Either \fBgnutls\fP
+(default) or \fBopenssl\fP\&.
+.TP
+.B \fBacme_library\fP
+Optional. Specify name of the crypto library used to generate ACME
+certificate requests in a given PKI realm. Either \fBopenssl\fP (default) or
+\fBgnutls\fP\&.
+.TP
+.B \fBprivate_dir_group\fP
+Optional. System group which will be set as the group of the \fBprivate/\fP
+directory of a given PKI realm. By default, \fBssl\-cert\fP\&. It needs to exist,
+and can be created using \fI\%pki_private_groups_present\fP list.
+.TP
+.B \fBprivate_file_group\fP
+Optional. System group which will be set as the group of the private keys
+inside of the \fBprivate/\fP directory. It needs to exist, and can be created
+using \fI\%pki_private_groups_present\fP list.
+.TP
+.B \fBprivate_dir_acl_groups\fP
+Optional. List of groups which should be allowed execute (\fBX\fP) permission to
+the \fBprivate/\fP realm directory. The access will be granted using filesystem
+ACL table. If not specified, the list defined in
+\fI\%pki_private_dir_acl_groups\fP will be applied.
+.TP
+.B \fBprivate_file_acl_groups\fP
+Optional. List of groups which should be allowed read (\fBr\fP) permission to
+the files in the \fBprivate/\fP realm directory. The access will be granted
+using filesystem ACL table. If not specified, the list defined in
+\fI\%pki_private_file_acl_groups\fP will be applied.
+.TP
+.B \fBrealm_key_size\fP
+Optional. The size of the private key that is to be generated. Defaults to
+\fI\%pki_realm_key_size\fP\&.
+.TP
+.B \fBdhparam\fP
+Optional, boolean. Enable or disable support for adding the Diffie\-Hellman
+parameters at the end of the certificate chain.
+.TP
+.B \fBdhparam_file\fP
+Optional. Path to the Diffie\-Hellman parameters to include in the certificate
+chain. If not specified, DHE parameters managed by the \fI\%debops.dhparam\fP
+role will be used automatically, if they\(aqre available.
+.TP
+.B \fBselfsigned_sign_days\fP
+Optional. Number of days a selfsigned certificate will be valid for.
+The default is \fB365\fP days.
+.TP
+.B \fBenabled\fP, \fBwhen\fP
+Optional, boolean. Enable or disable management of a given realm. If
+disabled, Ansible will not execute commands related to that realm. The
+\fBwhen\fP parameter is meant for automated processing, and \fBenabled\fP should
+be used as an user option, exposed through the inventory.
+.UNINDENT
+.sp
+These parameters are related to internal certificates and ACME certificates,
+respectively:
+.INDENT 0.0
+.TP
+.B \fBdefault_domain\fP
+Optional. Change the default domain used by a given PKI realm. If not
+specified, the default domain is based on the \fBname\fP parameter if it has at
+least 1 dot, or it will be taken from \fI\%pki_default_domain\fP variable
+which is populated by the \fBansible_domain\fP variable.
+.TP
+.B \fBdefault_subdomains\fP, \fBacme_default_subdomains\fP
+Optional. List of subdomains added to each domain configured in a given PKI
+realm. A special value \fB_wildcard_\fP can be used to indicate that a wildcard
+domain should be present in the certificate.
+.sp
+If not specified, \fI\%pki_default_subdomains\fP (for internal CA) and
+\fI\%pki_acme_default_subdomains\fP (for ACME CA) will be used. The PKI
+parameters can be set to empty to override the default variables.
+.TP
+.B \fBsubject\fP, \fBacme_subject\fP
+Optional. The Distinguished Name of the certificate, specified as a list of
+DN elements. If not specified, a CommonName based on the default domain of
+the given PKI realm will be used.
+Empty string elements of the list will be ignored.
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_realms:
+
+  \- name: \(aqdomain\(aq
+    subject: [ \(aqo=Organization Name\(aq, \(aqou=IT\(aq, \(aqcn=example.org\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBdomains\fP, \fBacme_domains\fP
+Optional. List of domains which should be included in a given certificate.
+Each domain will include a set of subdomains specified by the other
+parameters. This can be used to easily create certificates that use multiple
+domains with similar set of subdomains.
+.TP
+.B \fBsubdomains\fP, \fBacme_subdomains\fP
+Optional. List of subdomains which will be added to each domain specified by
+the above parameters. The special value \fB_wildcard_\fP indicates that
+a wildcard domain should be included in the certificate.
+.TP
+.B \fBsubject_alt_names\fP, \fBacme_alt_names\fP
+Optional. Specify a custom set of SubjectAltNames included in a certificate,
+as a list. Each element of a list needs to indicate its type in a special
+format. Currently supported types:
+.INDENT 7.0
+.IP \(bu 2
+a DNS record: \fB[ \(aqdns:example.org\(aq, \(aqDNS:example.com\(aq ]\fP
+.IP \(bu 2
+an IP address: \fB[ \(aqip:192.0.2.1\(aq, \(aqIP:2001:db8::dead:beef\(aq ]\fP
+.IP \(bu 2
+an URI path: \fB[ \(aquri:http://example.org/\(aq, \(aqURI:https://example.com/\(aq ]\fP
+.IP \(bu 2
+an email address: \fB[ \(aqemail:root@example.org\(aq, \(aqEMAIL:staff@example.com\(aq ]\fP
+.UNINDENT
+.sp
+If an element of the list does not specify its type, it will not be included
+in the certificate request. Different element types can be used in the same
+list.
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_realms:
+
+  \- name: \(aqdomain\(aq
+    subject_alt_names:
+      \- \(aqip:{{ ansible_default_ipv4.address }}\(aq
+      \- \(aquri:https://{{ ansible_domain }}/\(aq
+      \- \(aqdns:*.{{ ansible_domain }}\(aq
+      \- \(aqdns:{{ ansible_domain }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS pki_authorities
+.sp
+The set of \fI\%pki_authorities\fP lists can be used to define internal
+Certificate Authorities managed on an Ansible Controller.
+.sp
+List of supported parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required, a short name of the CA (used for role internals).
+.TP
+.B \fBsubdomain\fP
+Required, the subdomain to be prepended to \fBitem.domain\fP\&.
+.TP
+.B \fBsubject\fP
+Required, list of the X.509 subject elements of the CA certificate.
+.TP
+.B \fBalt_authority\fP
+Optional, \fBitem.name\fP of a cross\-signed CA. Only use this if the alternative
+CA certificate can also be used to form a trust chain. The alternative CA
+certificates will be stored in the PKI realm directory with the \fBalt_*.pem\fP
+filename.
+.TP
+.B \fBca_sign_days\fP
+Optional, the number of days that the intermediate CA certificate will be
+valid. If left empty, this value will be calculated by multiplying
+\fI\%pki_default_sign_base\fP with \fI\%pki_default_ca_sign_multiplier\fP\&.
+.TP
+.B \fBcert_sign_days\fP
+Optional, the number of days that the client/server certificates will be
+valid. If left empty, this value will be calculated by multiplying
+\fI\%pki_default_sign_base\fP with \fI\%pki_default_cert_sign_multiplier\fP\&.
+.TP
+.B \fBcrl\fP
+Optional, the CRL URL to include in certificates which can be used for
+certificate status checking. The default is \fBTrue\fP which will result in
+\fBhttp://\e$name.\e$domain_suffix/crl/\fP\&. It can be set to \fBFalse\fP to not
+include a CRL URL in certificates. Any other value (not matching
+\fB^(?:[Tt]rue|[Ff]alse)$\fP) will be included as is as CRL URL.
+.TP
+.B \fBdomain\fP
+Optional, the DNS domain used for the CA. Defaults to \fI\%pki_ca_domain\fP\&.
+.TP
+.B \fBissuer_name\fP
+Optional, name of the higher\-authority CA (\fBitem.name\fP) that signs this CA.
+Defaults to an empty string, meaning that this CA is self\-signed (and can thus
+become the root CA).
+.TP
+.B \fBkey_size\fP
+Optional, size of the CA private key in bits. Defaults to \fB4096\fP\&.
+.TP
+.B \fBocsp\fP
+Optional, the OCSP URL to include in certificates which can be used for
+certificate status checking. The default is \fBTrue\fP which will result in
+\fBhttp://\e$name.\e$domain_suffix/ocsp/\fP\&. It can be set to \fBFalse\fP to not
+include a OCSP URL in certificates. Any other value (not matching
+\fB^(?:[Tt]rue|[Ff]alse)$\fP) will be included as is as OCSP URL.
+.TP
+.B \fBname_constraints\fP
+Optional, the X.509 Name Constraints certificate extension to include in
+certificates which will be used during certificate verification to ensure that
+the CA is authorized to issue a certificate for the name in question.
+The default is \fBTrue\fP which will result in \fBcritical, permitted;DNS:${config_domain}\fP
+(the \(aqcritical, \(aq part is omitted when \fBitem.name_constraints_critical\fP is
+set to \fBFalse\fP). It can be set to \fBFalse\fP to not include X.509 Name
+Constraints in certificates. Any other value (not matching \fB^(?:[Tt]rue|[Ff]alse)$\fP)
+will be included as is as X.509 Name Constraint.
+.TP
+.B \fBname_constraints_critical\fP
+Optional, boolean for specifying whether to mark the default Name Constraints
+extension as critical or not. The default is \fBTrue\fP\&. The CA/Browser forum
+recommends this to be enabled (REQUIRING X.509 libraries to support it or to
+return an error), but mentions that the extension may be disabled for
+compatibility reasons
+(ref: \fI\%Baseline Requirements for the Issuance and Management of Publicly\-Trusted Certificates (v1.6.4)\fP <\fBhttps://cabforum.org/wp-content/uploads/CA-Browser-Forum-BR-1.6.4.pdf\fP>).
+.TP
+.B \fBroot_sign_days\fP
+Optional, the number of days that the root CA certificate will be valid. If
+left empty, this value will be calculated by multiplying
+\fI\%pki_default_sign_base\fP with \fI\%pki_default_root_sign_multiplier\fP\&.
+.TP
+.B \fBsystem_ca\fP
+Optional, boolean that specifies whether the root CA certificate will be added
+to the system CA certificates. This happens by creating a symlink in the
+\fBansible/secret/pki/ca\-certificates\fP directory tree. Defaults to
+\fBTrue\fP\&.
+.TP
+.B \fBtype\fP
+Optional, the CA type. Either \fBroot\fP, \fBservice\fP, \fBserver\fP or an empty
+string. Sets various CA type specific options when running the pki\-authority
+script. These options are not documented, you will have to read the
+pki\-authority script to find out what exactly they do.
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_authorities:
+
+  \- name: \(aqroot\(aq
+    subdomain: \(aqroot\-ca\(aq
+    subject: [ \(aqc={{ pki_ca_country }}\(aq, \(aqo={{ pki_ca_organization }}\(aq,
+               \(aqcn={{ pki_ca_organization }} Internal Root CA\(aq ]
+    key_size: \(aq4096\(aq
+    crl: False
+    ocsp: False
+    name_constraints: \(aq{{ \(dqpermitted;DNS:example.net,\(dq
+                          + \(dqpermitted;DNS:.example.net,\(dq
+                          + \(dqpermitted;DNS:example.com,\(dq
+                          + \(dqpermitted;DNS:.example.com\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS pki_certbot_configuration
+.sp
+The \fBpki_certbot_*_configuration\fP variables can be used to define the
+contents of the \fB/etc/letsencrypt/cli.ini\fP configuration file, which
+contains \fI\%global certbot configuration\fP <\fBhttps://certbot.eff.org/docs/using.html#configuration-file\fP>\&.
+.SS Examples
+.sp
+Recreate the official example configuration file using DebOps:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pki_certbot_configuration:
+
+  \- name: \(aqkey\-type\(aq
+    comment: \(aqUse ECC for the private key\(aq
+    value: \(aqecdsa\(aq
+
+  \- \(aqelliptic\-curve\(aq: \(aqsecp384r1\(aq
+
+  \- name: \(aqrsa\-key\-size\(aq
+    comment: \(aqUse a 4096 bit RSA key instead of 2048\(aq
+    value: 4096
+
+  \- name: \(aqemail\(aq
+    comment: \(aqUncomment and update to register with the specified e\-mail address\(aq
+    value: \(aqfoo@example.com\(aq
+    state: \(aqcomment\(aq
+
+  \- name: \(aqauthenticator\-standalone\(aq
+    option: \(aqauthenticator\(aq
+    comment: \(aqUncomment to use the standalone authenticator on port 443\(aq
+    value: \(aqstandalone\(aq
+    state: \(aqcomment\(aq
+
+  \- name: \(aqauthenticator\-webroot\(aq
+    option: \(aqauthenticator\(aq
+    comment: |
+      Uncomment to use the webroot authenticator. Replace webroot\-path with the
+      path to the public_html / webroot folder being served by your web server.
+    value: \(aqwebroot\(aq
+    state: \(aqcomment\(aq
+
+  \- name: \(aqwebroot\-path\(aq
+    value: \(aq/usr/share/nginx/html\(aq
+    state: \(aqcomment\(aq
+
+  \- name: \(aqagree\-tos\(aq
+    comment: \(aqUncomment to automatically agree to the terms of service of the ACME server\(aq
+    value: True
+    state: \(aqcomment\(aq
+
+  \- name: \(aqserver\(aq
+    comment: \(aqAn example of using an alternate ACME server that uses EAB credentials\(aq
+    value: \(aqhttps://acme.sectigo.com/v2/InCommonRSAOV\(aq
+    state: \(aqcomment\(aq
+
+  \- name: \(aqeab\-kid\(aq
+    value: \(aqsomestringofstuffwithoutquotes\(aq
+    state: \(aqcomment\(aq
+
+  \- name: \(aqeab\-hmac\-key\(aq
+    value: \(aqyaddayaddahexhexnotquoted\(aq
+    state: \(aqcomment\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define manual hook scripts used for certificate renewal and cleanup:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Use \(dqcertbot\(dq in manual mode, with custom authentication and cleanup
+# scripts
+pki_acme_type: \(aqmanual\(aq
+
+pki_certbot_configuration:
+
+  \- \(aqauthenticator\(aq: \(aqmanual\(aq
+  \- \(aqmanual\-auth\-hook\(aq: \(aq/etc/letsencrypt/scripts/authenticator.php\(aq
+  \- \(aqmanual\-cleanup\-hook\(aq: \(aq/etc/letsencrypt/scripts/cleanup.php\(aq
+  \- \(aqmanual\-public\-ip\-logging\-ok\(aq: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The contents of the configuration file are defined using the
+\fI\%Universal Configuration\fP system. The variables are list of YAML
+dictionaries. You can use a dictionary key to define a parameter name, and
+a dictionary value as the value.
+.sp
+If you use \fBname\fP as the key, the configuration options can be defined in
+a more extended format using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the configuration option. Entries with the same \fBname\fP
+are merged together and can affect each other; this can be used to activate
+configuration options conditionally.
+.TP
+.B \fBoption\fP
+Optional. If you need to specify the same configuration option multiple
+times, you need to use unique \fBname\fP parameters. In that case you can add
+the \fBoption\fP parameter to define the actual option name which will be used
+in the configuration file.
+.TP
+.B \fBvalue\fP
+The value of a configuration option, added in the configuration file as\-is.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration option will
+be included in the generated configuration file. If \fBabsent\fP, a given
+option will not be included in the configuration file. If \fBcomment\fP, the
+option will be included but commented out. if \fBignore\fP, a given entry will
+not be processed by the role during execution.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with a comment about a given
+configuration option added in the generated file.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,149 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.POSTWHITE" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.postwhite \- Manage Postscreen SPF Whitelist using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/postwhite\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%Postwhite\fP <\fBhttps://github.com/stevejenkins/postwhite\fP> script can be used
+to generate whitelists and/or blacklists of IP addresses and CIDR subnets based
+on the SPF records of selected domains. These whitelists/blacklists can then be
+used by the \fI\%Postscreen\fP <\fBhttp://www.postfix.org/POSTSCREEN_README.html\fP>
+Postfix service to automatically allow or deny connections to specific SMTP
+clients. This is useful for accepting messages from big mail providers like
+Google and Outlook which may resend mail messages from different IP addresses,
+which in turn interferes with Postscreen SMTP client greylisting.
+.sp
+The \fBdebops.postwhite\fP Ansible role will install Postwhite script and
+configure Postfix automatically using the \fI\%debops.postfix\fP Ansible role, as long
+as the Postscreen configuration is enabled by the \fI\%debops.postscreen\fP role.
+See the documentation of the mentioned roles for more details.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The Postwhite script will be installed on its own UNIX system account and
+executed as an unprivileged user. By default the script will be executed daily
+by a wrapper to update the SPF whitelists; list of Yahoo! SMTP clients will be
+updated weekly.
+.sp
+On the first run of the role, the Postwhite whitelist will be updated in the
+background, since it takes ~5 minutes to do so. The wrapper script configured
+by the role will automatically reload Postfix when the new whitelist is
+generated.
+.SS Example inventory
+.sp
+To install and configure Postwhite on a host, it needs to be present in the
+\fB[debops_service_postwhite]\fP Ansible inventory group. The Postfix server
+should also be configured beforehand, with Postscreen enabled.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_postfix]
+hostname
+
+[debops_service_postscreen]
+hostname
+
+[debops_service_postwhite]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.postwhite\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Postwhite service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_postwhite\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare postfix environment
+      import_role:
+        name: \(aqpostfix\(aq
+        tasks_from: \(aqmain_env\(aq
+      vars:
+        postfix__dependent_maincf:
+          \- role: \(aqpostwhite\(aq
+            config: \(aq{{ postwhite__postfix__dependent_maincf }}\(aq
+      when: (ansible_local|d() and ansible_local.postfix|d() and
+             (ansible_local.postfix.installed|d())|bool)
+      tags: [ \(aqrole::postfix\(aq, \(aqrole::secret\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::postfix\(aq ]
+      secret__directories:
+        \- \(aq{{ postfix__secret__directories }}\(aq
+      when: (ansible_local|d() and ansible_local.postfix|d() and
+             (ansible_local.postfix.installed|d())|bool)
+
+    \- role: postfix
+      tags: [ \(aqrole::postfix\(aq, \(aqskip::postfix\(aq ]
+      postfix__dependent_maincf:
+        \- role: \(aqpostwhite\(aq
+          config: \(aq{{ postwhite__postfix__dependent_maincf }}\(aq
+      when: (ansible_local|d() and ansible_local.postfix|d() and
+             (ansible_local.postfix.installed|d())|bool)
+
+    \- role: postwhite
+      tags: [ \(aqrole::postwhite\(aq, \(aqskip::postwhite\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.
