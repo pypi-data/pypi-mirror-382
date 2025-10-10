@@ -1,0 +1,210 @@
+# Simple Site Search
+
+A simple Django app for site search functionality with Django CMS integration. This package provides a clean, easy-to-use search interface that can be integrated into Django CMS projects.
+
+
+## Features
+
+- **Django CMS Integration**: Seamlessly integrates with Django CMS as an apphook
+- **Pagination Support**: Built-in pagination for search results
+- **Multi-language Support**: Supports internationalization with Django's i18n framework
+- **Customizable Templates**: Easy to customize search result templates
+- **API Integration**: Connects to external search APIs (like AddSearch)
+- **Responsive Design**: Bootstrap-compatible templates
+
+## Installation
+
+Install the package using pip:
+
+```bash
+pip install simplesitesearch
+```
+
+## Configuration
+
+### 1. Add to INSTALLED_APPS
+
+Add `simplesitesearch` to your Django project's `INSTALLED_APPS`:
+
+```python
+INSTALLED_APPS = [
+    # ... other apps
+    'simplesitesearch',
+    # ... other apps
+]
+```
+
+### 2. Required Settings
+
+Add the following settings to your Django settings file:
+
+```python
+# Search API Configuration
+SITE_SEARCH_API_BASE_URL = "https://search.rt5.ca/reptile_search/api/search/"
+SITE_SEARCH_SITE_KEY = "your-site-key-here"
+SITE_SEARCH_API_KEY = "your-api-key-here"  # Optional, if required by your API
+```
+
+### 3. URL Configuration
+
+Include the app's URLs in your main `urls.py`:
+
+```python
+from django.urls import path, include
+
+urlpatterns = [
+    # ... other URL patterns
+    path('search/', include('simplesitesearch.urls')),
+    # ... other URL patterns
+]
+```
+
+## Django CMS Integration
+
+### 1. Create a Search Page
+
+1. Log into your Django CMS admin
+2. Go to **Django CMS** > **Pages**
+3. Create a new page named "Search"
+4. Translate the title and slug in all languages
+5. Save and continue editing
+
+### 2. Configure the Page
+
+1. Go to **Advanced settings** of the search page
+2. Set **APPLICATION** to "Site Search"
+3. Set the **Application ID** to `'site_search'` (this is the default value)
+4. Save the page
+5. Remove the page from the menu (uncheck "menu" in the table)
+6. Publish the page in all languages
+
+### 3. Access the Search
+
+Your search functionality will be available at the URL you configured for the search page.
+
+## Usage
+
+### Basic Search
+
+The search form accepts a `q` parameter for the search term:
+
+```
+/search/?q=your+search+term
+```
+
+### Pagination
+
+The search results support pagination with a `page` parameter:
+
+```
+/search/?q=your+search+term&page=2
+```
+
+### Honeypot Protection
+
+The search includes basic honeypot protection. If a `message` parameter is present, the search will not execute.
+
+## Customization
+
+### Templates
+
+The package includes two main templates:
+
+- `simplesitesearch/search_results.html` - Main search results template
+- `simplesitesearch/pagination.html` - Pagination template
+
+#### Template Customization
+
+You can override these templates in your project by creating templates with the same names in your template directory. The templates are designed to be easily customizable:
+
+**Template Include Paths:**
+- `simplesitesearch/search_results.html` - Main search results page
+- `simplesitesearch/pagination.html` - Pagination component (included in search_results.html)
+
+**To customize templates:**
+1. Create a `templates/simplesitesearch/` directory in your Django project
+2. Copy the template files from the package and modify them as needed
+3. Your custom templates will override the package defaults
+
+**Example template structure:**
+```
+your_project/
+├── templates/
+│   └── simplesitesearch/
+│       ├── search_results.html  # Your custom search results template
+│       └── pagination.html      # Your custom pagination template
+```
+
+### Styling
+
+The templates use Bootstrap classes and can be easily customized with CSS. The main CSS classes used are:
+
+- `.pagination` - Pagination container
+- `.search_query` - Search query display
+- `.search_results` - Results count display
+- `.wrapper_single_result` - Individual result container
+
+## API Response Format
+
+The search expects the API to return JSON in the following format:
+
+```json
+{
+    "total_hits": 42,
+    "hits": [
+        {
+            "title": "Page Title",
+            "url": "https://example.com/page/",
+            "highlight": "Search term highlighted content..."
+        }
+    ]
+}
+```
+
+## Requirements
+
+- Python 3.6+
+- Django 2.2+
+- django-cms 3.2+
+- requests 2.22.0+
+
+## Development
+
+### Local Development
+
+1. Clone the repository
+2. Install in development mode:
+   ```bash
+   pip install -e .
+   ```
+
+### Testing
+
+Run the tests with:
+
+```bash
+python manage.py test simplesitesearch
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For support and questions, please open an issue on the [GitHub repository](https://github.com/yourusername/simplesitesearch/issues).
+
+## Changelog
+
+### 0.0.1
+- **First stable release**
+- Django CMS integration with apphook support
+- Pagination support for search results
+- Multi-language support with Django i18n
+- Basic search functionality with API integration
+- Template customization support
+- Support for Python 3.6+ and Django 2.2+
+- Reptile Search API integration
+- Comprehensive documentation and setup instructions
+
+
