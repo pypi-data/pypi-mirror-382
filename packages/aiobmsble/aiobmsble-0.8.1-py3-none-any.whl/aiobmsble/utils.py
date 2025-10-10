@@ -1,0 +1,182 @@
+"""Utilitiy/Support functions for aiobmsble.
+
+Project: aiobmsble, https://pypi.org/p/aiobmsble/
+License: Apache-2.0, http://www.apache.org/licenses/
+"""
+
+import asyncio
+from fnmatch import translate
+from functools import lru_cache
+import importlib
+import pkgutil
+import re
+from types import ModuleType
+from typing import Final
+
+from bleak.backends.device import BLEDevice
+from bleak.backends.scanner import AdvertisementData
+
+from aiobmsble import MatcherPattern
+from aiobmsble.basebms import BaseBMS
+import aiobmsble.bms
+
+_MODULE_POSTFIX: Final[str] = "_bms"
+
+
+def _advertisement_matches(
+    matcher: MatcherPattern, ble_device: BLEDevice, adv_data: AdvertisementData
+) -> bool:
+    """Determine whether the given advertisement data matches the specified pattern.
+
+    Args:
+        matcher (MatcherPattern): A dictionary containing the matching criteria.
+            Possible keys include:
+            - "local_name" (str): A pattern supporting Unix shell-style wildcards to match
+            - "manufacturer_data_start" (bytes): A byte sequence that the data should start with.
+            - "manufacturer_id" (int): A manufacturer ID to match.
+            - "oui" (str): Organizationally Unique Identifier of BD_ADDR (not supported on MAC OS)
+            - "service_data_uuid" (str): A specific service data UUID to match.
+            - "service_uuid" (str): A specific service 128-bit UUID to match.
+        ble_device (BLEDevice): Bleak BLE device to check OUI against
+        adv_data (AdvertisementData): An object containing the advertisement data to be checked.
+
+    Returns:
+        bool: True if the advertisement data matches the specified pattern, False otherwise.
+
+    """
+    if (
+        service_uuid := matcher.get("service_uuid")
+    ) and service_uuid not in adv_data.service_uuids:
+        return False
+
+    if (
+        service_data_uuid := matcher.get("service_data_uuid")
+    ) and service_data_uuid not in adv_data.service_data:
+        return False
+
+    if (oui := matcher.get("oui")) and not ble_device.address.startswith(oui[:8]):
+        return False
+
+    if (manufacturer_id := matcher.get("manufacturer_id")) is not None:
+        if manufacturer_id not in adv_data.manufacturer_data:
+            return False
+
+        if manufacturer_data_start := matcher.get("manufacturer_data_start"):
+            if not adv_data.manufacturer_data[manufacturer_id].startswith(
+                bytes(manufacturer_data_start)
+            ):
+                return False
+
+    return not (
+        (local_name := matcher.get("local_name"))
+        and not re.compile(translate(local_name)).match(adv_data.local_name or "")
+    )
+
+
+@lru_cache
+def load_bms_plugins() -> set[ModuleType]:
+    """Discover and load all available Battery Management System (BMS) plugin modules.
+
+    This function scans the 'aiobmsble/bms' directory for all Python modules,
+    dynamically imports each discovered module, and returns a set containing
+    the imported module objects required to end with "_bms".
+
+    Returns:
+        set[ModuleType]: A set of imported BMS plugin modules.
+
+    Raises:
+        ImportError: If a module cannot be imported.
+        OSError: If the plugin directory cannot be accessed.
+
+    """
+    return {
+        importlib.import_module(f"aiobmsble.bms.{module_name}")
+        for _, module_name, _ in pkgutil.iter_modules(aiobmsble.bms.__path__)
+        if module_name.endswith(_MODULE_POSTFIX)
+    }
+
+
+async def bms_cls(name: str) -> type[BaseBMS] | None:
+    """Return the BMS class that is defined by the name argument.
+
+    Args:
+        name (str): The name of the BMS type (filename of the module)
+
+    Returns:
+        type[BaseBMS] | None: If the BMS class defined by name is found, None otherwise.
+
+    """
+    if not name.endswith(_MODULE_POSTFIX):
+        return None
+    loop = asyncio.get_running_loop()
+    try:
+        bms_module: ModuleType = await loop.run_in_executor(
+            None, importlib.import_module, f"aiobmsble.bms.{name}"
+        )
+    except ModuleNotFoundError:
+        return None
+    return bms_module.BMS
+
+
+async def bms_matching(
+    ble_device: BLEDevice, adv_data: AdvertisementData
+) -> list[type[BaseBMS]]:
+    """Return the BMS classes that match the given advertisement data.
+
+    Currently the function returns at most one match, but this behaviour might change
+    in the future to multiple entries, if BMSs cannot be distinguished uniquely using
+    their Bluetooth advertisement / OUI (Organizationally Unique Identifier)
+
+    Args:
+        ble_device (BLEDevice): Bleak BLE device to check OUI against
+        adv_data (AdvertisementData): The advertisement data to match against available BMS plugins.
+
+    Returns:
+        list[type[BaseBMS]]: A list of matching BMS class(es) if found, an empty list otherwhise.
+
+    """
+    loop = asyncio.get_running_loop()
+    bms_plugins = await loop.run_in_executor(None, load_bms_plugins)
+
+    for bms_module in bms_plugins:
+        if bms_supported(bms_module.BMS, ble_device, adv_data):
+            return [bms_module.BMS]
+    return []
+
+
+async def bms_identify(
+    ble_device: BLEDevice, adv_data: AdvertisementData
+) -> type[BaseBMS] | None:
+    """Return the BMS classes that best matches the given advertisement data.
+
+    Args:
+        ble_device (BLEDevice): Bleak BLE device to check OUI against
+        adv_data (AdvertisementData): The advertisement data to match against available BMS plugins.
+
+    Returns:
+        type[BaseBMS] | None: The identified BMS class if a match is found, None otherwhise
+
+    """
+
+    matching_bms: list[type[BaseBMS]] = await bms_matching(ble_device, adv_data)
+    return matching_bms[0] if matching_bms else None
+
+
+def bms_supported(
+    bms: BaseBMS, ble_device: BLEDevice, adv_data: AdvertisementData
+) -> bool:
+    """Determine if the given BMS is supported based on advertisement data.
+
+    Args:
+        bms (BaseBMS): The BMS class to check.
+        ble_device (BLEDevice): Bleak BLE device to check OUI against
+        adv_data (AdvertisementData): The advertisement data to match against.
+
+    Returns:
+        bool: True if the BMS is supported, False otherwise.
+
+    """
+    for matcher in bms.matcher_dict_list():
+        if _advertisement_matches(matcher, ble_device, adv_data):
+            return True
+    return False
