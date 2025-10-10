@@ -1,0 +1,320 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.IMAPPROXY" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.imapproxy \- Manage imapproxy with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/imapproxy\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.imapproxy\fP Ansible role manages \fI\%imapproxy\fP <\fBhttp://www.imapproxy.org/\fP>, an IMAP proxy
+server which is used primarily to improve webmail performance.
+.SH GETTING STARTED
+.SS Default setup
+.sp
+If you don\(aqt specify any configuration values, the role will attempt
+to automatically detect which IMAP server to connect to
+and listen for incoming connections on \fBlocalhost\fP, port \fB1143\fP\&.
+.sp
+The defaults are based on the assumption that imapproxy will be installed
+on the same host as the service using imapproxy. If you want to proxy
+incoming connections from an external host, this can be controlled via the
+\fI\%imapproxy__listen_address\fP and \fI\%imapproxy__listen_port\fP
+variables. Note that external access also needs to be allowed using
+the firewall variables (\fI\%imapproxy__allow\fP,
+\fI\%imapproxy__host_allow\fP and \fI\%imapproxy__group_allow\fP)
+if you are using the \fI\%Ferm\fP firewall.
+.sp
+If you want to manually define the server to proxy connections to,
+use the \fI\%imapproxy__imap_fqdn\fP and \fI\%imapproxy__imap_port\fP
+variables.
+.SS SSL support
+.sp
+While imapproxy supports TLS out of the box (using values from the
+\fI\%debops.pki\fP role, if enabled), it does \fBnot\fP have native
+support for SSL.
+.sp
+The recommended setup is either to run imapproxy on the same host
+as the IMAP server (meaning that TLS/SSL is not necessary as no
+proxy <\-> IMAP traffic is sent over the network) or to setup the
+IMAP server to allow TLS traffic using explicit TLS.
+.sp
+If you are trying to proxy to an IMAP server that is only available using
+IMAPS (usually port \fB993\fP), manual configuration will be necessary.
+The authors of imapproxy suggest setting up a SSL tunnel (e.g. using
+\fI\%stunnel\fP).
+.sp
+See \fB/usr/share/doc/imapproxy/README.ssl\fP in the imapproxy
+package for more details.
+.SS IMAP server detection
+.sp
+The role first checks if \fI\%debops.dovecot\fP is installed on the same host
+by using local Ansible facts. If so, the local IMAP server will be used.
+.sp
+In the alternative, the role detects the preferred IMAP server by using
+\fI\%DNS SRV Records\fP for the following services:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+_imap._tcp.{{ imapproxy__domain }} (default port 143)
+_imaps._tcp.{{ imapproxy__domain }} (default port 993)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+At the moment only a single SRV resource record is supported by the role.
+.sp
+Finally, the role will fall back to using static domain names for the
+respective services, based on the host domain (\fI\%imapproxy__domain\fP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+IMAP:  imap.example.org:143
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This allows for deployment of the proxy on a separate host or VM.
+.SS Example inventory
+.sp
+To install and configure imapproxy on a host, it needs to be present in the
+\fB[debops_service_imapproxy]\fP Ansible inventory group. You may want to
+use the role on the same host that is also providing the
+\fI\%Dovecot\fP and webmail (e.g.
+\fI\%Roundcube\fP) services.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+webmail
+
+[debops_service_dovecot]
+webmail
+
+[debops_service_imapproxy]
+webmail
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+The following playbook can be used with DebOps. If you are using these role
+without DebOps you might need to adapt them to make them work in your setup.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install and manage imapproxy
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_imapproxy\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ imapproxy__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ imapproxy__ferm__dependent_rules }}\(aq
+
+    \- role: imapproxy
+      tags: [ \(aqrole::imapproxy\(aq, \(aqskip::imapproxy\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This playbook is also shipped with DebOps at
+\fBansible/playbooks/service/imapproxy.yml\fP\&.
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::imapproxy\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::imapproxy:pkg\fP
+Run tasks related to system package installation.
+.TP
+.B \fBrole::imapproxy:config\fP
+Run tasks related to the imapproxy configuration.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.imapproxy\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS imapproxy__configuration
+.sp
+The \fBimapproxy__*_configuration\fP variables define the contents of the
+\fB/etc/imapproxy.conf\fP configuration file. The contents are defined
+using YAML data structures and converted to a valid configuration file via
+the role template.
+.sp
+The \fBimapproxy__*_configuration\fP variables are implemented using the
+\fI\%universal configuration\fP syntax.
+.sp
+\fB/etc/imapproxy.conf\fP is a simple configuration file which contains
+configuration parameters in a \fIkey value\fP syntax (note: \fInot\fP \fIkey = value\fP),
+meaning that the universal configuration variables are also a simple list of
+\fIname\fP and \fIvalue\fP parameters which end up as \fIkey value\fP in
+\fB/etc/imapproxy.conf\fP\&.
+.sp
+\fI\%imapproxy__default_configuration\fP already contains a list of all the
+configuration parameters which are supported by imapproxy and may appear in
+\fB/etc/imapproxy.conf\fP together with comments documenting the parameters.
+.sp
+If you need to override any parameter, you can do so by changing
+\fI\%imapproxy__configuration\fP, \fI\%imapproxy__group_configuration\fP or
+\fI\%imapproxy__host_configuration\fP according to your needs.
+.SS Examples
+.sp
+Changing a couple of configuration options:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+imapproxy__configuration:
+
+  \- name: \(aqdns_rr\(aq
+    value: \(aqyes\(aq
+    state: \(aqpresent\(aq
+
+  \- name: \(aqchroot_directory\(aq
+    state: \(aqcomment\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can see more examples in the \fI\%imapproxy__default_configuration\fP
+variable.
+.SS Syntax
+.sp
+The imapproxy configuration options can be configured using a number of
+configuration entries, each containing a \fBname\fP parameter and a number
+of additional parameters (see the example above).
+.sp
+Supported parameters are:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. imapproxy configuration option name. Configuration entries with the
+same \fBname\fP parameter are merged in order of appearance; this can be used
+to change configuration options conditionally.
+.sp
+If the \fBoption\fP parameter is specified, it is used instead of the \fBname\fP
+parameter as the key value in the generated configuration file.
+.TP
+.B \fBvalue\fP
+Optional. The value of the imapproxy configuration option. It can be
+specified as a string, a YAML list, \fBTrue\fP or \fBFalse\fP boolean, a \fBnull\fP
+value, a positive or negative number. if the \fBvalue\fP parameter is not
+specified, the result will be empty.
+.sp
+The \fBvalue\fP parameters from multiple configuration entries override each
+other.
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block with text which will be included in
+the generated configuration file \(dqas is\(dq. If the \fBraw\fP parameter is
+defined, it takes precedence over \fBvalue\fP parameter.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given imapproxy option will be
+present in the configuration file. If \fBabsent\fP, a given option will be
+removed from the configuration file (or not included if not present).
+If \fBinit\fP, the configuration option will be prepared, but will not be
+active and won\(aqt show up on the generated configuration file \- this can be
+used to prepare configuration that will be activated conditionally in another
+configuration entry. If \fBignore\fP, a given configuration entry will not be
+evaluated during role execution. If \fBcomment\fP, a given imapproxy
+configuration option will be present in the generated file, but commented
+out.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with comments about a given configuration
+option.
+.TP
+.B \fBcopy_id_from\fP
+Optional. Copy the internal \(dqid\(dq of a configuration option specified by the
+\fBname\fP parameter to the current configuration option. This parameter can be
+used to reorder configuration options relative to a specific option.
+.TP
+.B \fBweight\fP
+Optional. Positive or negative number which defines the additional \(dqweight\(dq
+of an option. Smaller or negative weight will move the option higher in the
+configuration file, Bigger weight will move the configuration option lower in
+the configuration file.
+.TP
+.B \fBvalue_cast\fP
+Optional. Specify the type of a given value to use in the configuration file.
+Supported types: \fBint\fP/\fBinteger\fP, \fBstr\fP/\fBstring\fP, \fBfloat\fP,
+\fBnull\fP/\fBnone\fP, \fBbool\fP/\fBboolean\fP\&. This parameter is onlu useful when
+the value is defined using another variable, in which case the type
+information is not preserved by Jinja templating.
+.UNINDENT
+.SH AUTHOR
+David Härdeman, Reto Gantenbein
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,170 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.SNMPD" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.snmpd \- Manage SNMP service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/snmpd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%SNMP\fP <\fBhttps://en.wikipedia.org/wiki/Simple_Network_Management_Protocol\fP> is an universal protocol which can be used to monitor and manage
+networked devices. \fBdebops.snmpd\fP role can be used to configure \fBsnmpd\fP
+service on a Debian or Ubuntu host, which in turn can be used to monitor that
+host resources like CPU utilization, memory and storage capacity, network usage
+and more.
+.SH GETTING STARTED
+.sp
+\fBdebops.snmpd\fP role will install \fBsnmpd\fP package on Debian/Ubuntu hosts and
+secure access to SNMP using random SNMPv3 username / password combination, as
+well as firewall and TCP wrappers rules.
+.SS Example inventory
+.sp
+To enable SNMP service on a DebOps\-managed host, you need to add that host to
+\fB[debops_snmpd]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_snmpd]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you use separate host groups, better idea might be to create a parent group
+and add your own host groups to it:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[servers]
+host1
+host2
+
+[debops_snmpd:children]
+servers
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook which uses \fBdebops.snmpd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage SNMP service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_snmpd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ snmpd_ferm_dependent_rules }}\(aq
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+      tcpwrappers_dependent_allow:
+        \- \(aq{{ snmpd_tcpwrappers_dependent_allow }}\(aq
+
+    \- role: snmpd
+      tags: [ \(aqrole::snmpd\(aq, \(aqskip::snmpd\(aq ]
+
+    \- role: lldpd
+      tags: [ \(aqrole::lldpd\(aq, \(aqskip::lldpd\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Firewall, TCP wrappers access
+.sp
+SNMP is primarily used over the network, but for security reasons access from
+remote hosts is filtered by a firewall and TCP wrappers. To allow access to
+SNMP from other hosts using \fBdebops.ferm\fP and \fBdebops.tcpwrappers\fP Ansible
+roles, you need to add IP addresses or CIDR subnets which can access the
+service to \fBsnmpd_*_allow\fP lists:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+snmpd_allow: [ \(aq192.0.2.0/24\(aq, \(aq2001:db8::/48\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS SNMPv3 authentication
+.sp
+\fBdebops.snmpd\fP role will create three SNMPv3 user accounts with random
+usernames and passwords, which will be stored on Ansible Controller in the
+\fBsecret/\fP directory (see \fBdebops.secret\fP role for more details).
+.sp
+Authentication uses SHA encryption, privacy mode uses AES encryption. The
+generated accounts are:
+.INDENT 0.0
+.IP \(bu 2
+a global \(dqadmin\(dq account, stored in \fBsecret/snmp/credentials/admin/\fP
+directory on Ansible Controller. Read\-write, disabled after \fBsnmpd\fP is
+configured. Will be the same on all servers in the cluster.
+.IP \(bu 2
+a global \(dqagent\(dq account, stored in \fBsecret/snmp/credentials/agent/\fP
+directory on Ansible Controller. Read\-only, meant to be used to access the
+SNMP service using network management software. Will be the same on all
+servers in the cluster.
+.IP \(bu 2
+a \(dqlocal\(dq account, stored in \fB/etc/snmp/snmp.local.conf\fP and
+\fB/etc/ansible/facts.d/snmpd.fact\fP files on remote hosts. Unique to
+a particular host, read only. Allows access from the host to itself from the
+\fBroot\fP account, can be used to grant access to a particular host data to
+other users or services.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

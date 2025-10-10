@@ -1,0 +1,1744 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.LDAP" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.ldap \- Manage system-wide LDAP configuration and directory objects
+.SH SYNOPSIS
+.sp
+\fBdebops run service/ldap\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-tags\fP \fBrole::ldap\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-tags\fP \fBrole::ldap:tasks\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-skip\-tags\fP \fBskip::ldap\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Lightweight Directory Access Protocol\fP <\fBhttps://en.wikipedia.org/wiki/Lightweight_Directory_Access_Protocol\fP> is a popular and standardized
+protocol that permits applications to access structured data. It can be used to
+build and manage clustered environments with central authentication and access
+control based on directory services that allow efficient searching and
+retrieval of data.
+.sp
+The \fBdebops.ldap\fP Ansible role can set up system\-wide LDAP configuration on
+a Debian/Ubuntu host, and provide LDAP\-based applications, as well as other
+Ansible roles, information necessary to connect them to a LDAP directory
+service. In addition to that, \fBdebops.ldap\fP role can be used via Ansible
+inventory, or as a dependent role by other Ansible roles, to perform tasks in
+the LDAP directory itself, on behalf of the Ansible user.
+.sp
+If you are looking for a LDAP server management solution, check out the
+\fI\%debops.slapd\fP Ansible role that can manage OpenLDAP servers.
+.SH GETTING STARTED
+.SS Ansible Controller requirements
+.sp
+If you plan to use this role to perform LDAP tasks in the default
+configuration, you need to install the \fBpython\-ldap\fP Python package in the
+Ansible environment on the Controller host.
+.sp
+By default the role uses \fBpass\fP (\fI\%Password Store\fP <\fBhttps://www.passwordstore.org/\fP>) as a password
+manager to store LDAP user credentials securely using GnuPG. As a fallback, you
+can also provide the required password using an environment variable on the
+Ansible Controller, or configure your own password lookup method.
+.SS LDAP directory initialization
+.sp
+The base directory structure used by DebOps roles is defined and managed by the
+\fI\%debops.slapd\fP Ansible role. The \fI\%slapd__structure_tasks\fP variable
+contains a list of LDAP objects which will be created during the server
+installation, which conform to the \fI\%LDAP Access Control List\fP configuration.
+.sp
+The \fBansible/playbooks/ldap/init\-directory.yml\fP Ansible playbook can be
+used to create an admin account in the LDAP directory and to assign it to the
+\(dqLDAP Administrator\(dq and \(dqUNIX Administrator\(dq roles. To use it with a newly
+configured OpenLDAP server, run the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run ldap/init\-directory \-l <slapd\-server>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The playbook will use the current UNIX account information on the Ansible
+Controller (username, etc, from the \fBpasswd\fP database and SSH public keys
+from \fBssh\-agent\fP) to create a new user account with administrative
+privileges in the LDAP directory.
+.sp
+The user will first be asked for a new password for the admin account which
+will be used in the future to bind to the directory. If no password is provided
+or Ansible is run in non\-interactive mode, a random password will be generated.
+.sp
+Next, the user will be asked whether the password should be stored on the
+Ansible Controller using the Password Store utility. If not, and the password
+is randomly generated, it will be stored under the \fBsecret/\fP hierarchy.
+If the password was not randomly generated \fIand\fP the Password Store is not
+being used, the password will not be stored (under the assumption that it is
+memorized) and will have to be provided manually, e.g. using the
+\fBDEBOPS_LDAP_ADMIN_BINDPW\fP environment variable, in future playbook runs. See
+\fI\%LDAP tasks and administrative operations\fP for further details.
+.sp
+The various defaults used in the playbook can also be overridden on the command
+line using the \fB\-\-extra\-vars\fP argument:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run ldap/init\-directory \-l <slapd\-server> \-\-extra\-vars=\(dqadmin_user=ansible admin_use_password_store=False\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The playbook will not make any changes to any existing LDAP entries other than
+the administrative user.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+For the LDAP access to work, the Ansible Controller needs to trust the
+Certificate Authority which is used by the OpenLDAP service. If you rely on
+the \fI\%debops.pki\fP internal CA, you will have to add the Root CA
+certificate managed by the role to the operating system certificate store.
+.UNINDENT
+.UNINDENT
+.SS Example inventory
+.sp
+The \fI\%debops.ldap\fP role is included in the DebOps common playbook,
+therefore you don\(aqt need to do anything special to enable it on a host. However
+it is deactivated by default.
+.sp
+To enable the role, define in the Ansible inventory, for example in the
+\fBansible/inventory/group_vars/debops_all_hosts/ldap.yml\fP file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldap__enabled: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fI\%debops.ldap\fP role is used by many other DebOps roles, and enabling it
+will affect the environment and configuration of multiple services, including
+basic things like UNIX system groups used to manage the host. It\(aqs best to
+either not enable LDAP support in a given environment, or enable it at the
+beginning of a new deployment (but after administrative access has been
+configured, as described above).
+.sp
+The POSIX integration with the LDAP directory can be controlled using the
+\fI\%ldap__posix_enabled\fP variable. If it\(aqs set to \fBFalse\fP, services that
+are specific to a POSIX environment (\fBnslcd\fP, \fBsshd\fP,
+\fBsudo\fP and others) will not be configured with LDAP support. In such
+case only higher\-level applications like \fBnullmailer\fP, Postfix,
+GitLab, etc. will be configured for use with LDAP.
+.sp
+You can of course enable LDAP support in an existing environment, but you
+should first learn about changes required by other Ansible roles for successful
+migration. Check the documentation of other DebOps roles for more details.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.ldap\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage LDAP basic configuration
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_ldap\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::ldap\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::ldap:tasks\fP
+Run the LDAP tasks generated by the role in the LDAP directory.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.ldap\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%ldap.conf(5)\fP <\fBhttps://manpages.debian.org/ldap.conf(5)\fP>, \fI\%ldif(5)\fP <\fBhttps://manpages.debian.org/ldif(5)\fP>
+.IP \(bu 2
+\fI\%LDAP for Rocket Scientists\fP <\fBhttp://www.zytrax.com/books/ldap/\fP>, an excellent book about LDAP and OpenLDAP
+.IP \(bu 2
+\fI\%Debian LDAP Portal\fP <\fBhttps://wiki.debian.org/LDAP\fP> page in the Debian Wiki
+.IP \(bu 2
+\fI\%Ansible community.general.ldap_entry module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/community/general/ldap_entry_module.html\fP>, used to manage LDAP entries.
+.IP \(bu 2
+The role does not rely on the Ansible \fBldap_attr\fP module, instead it uses
+the \fBldap_attrs\fP module included in the \fBdebops.ansible_plugins\fP role to
+manage LDAP attributes of an entry.
+.UNINDENT
+.SH LDAP - POSIX ENVIRONMENT INTEGRATION
+.sp
+The LDAP directory uses a hierarchical structure to store its objects and their
+attributes, this structure can be thought of as a N\-dimesional object. In
+contrast to this, POSIX or UNIX environments use a flat UID and GID namespace
+of entities (users, groups, services, etc.) which can be thought of as
+a two\-dimesional surface.  There are different ways of representing
+a N\-dimesional objects on two\-dimesional surfaces, unfortunately this cannot be
+done without compromise.
+.SS LDAP\-POSIX support in DebOps
+.sp
+The \fI\%ldap__posix_enabled\fP default variable controls if the LDAP\-POSIX
+integration should be done on a given host. By default the integration will be
+enabled, based on the value of the \fI\%ldap__enabled\fP variable. This
+choice will also be recorded in the Ansible local facts as
+\fBansible_local.ldap.posix_enabled\fP variable, which will preserve the current
+state of the integration on subsequent Ansible runs.
+.sp
+If the POSIX support is disabled by setting the \fI\%ldap__posix_enabled\fP
+variable to \fBFalse\fP, DebOps roles which manage services in the POSIX
+environment will not configure LDAP support automatically \- the required LDAP
+accounts will not be created and the service configuration will not rely on
+LDAP directory. Other, higher level services will be integrated with the
+directory as usual.
+.SS POSIX attributes
+.sp
+This is a list of the LDAP object attributes that are significant in a POSIX
+environment, managed via the \fBpasswd\fP database:
+.INDENT 0.0
+.IP \(bu 2
+\fBuid\fP
+.IP \(bu 2
+\fBuidNumber\fP
+.IP \(bu 2
+\fBgidNumber\fP
+.IP \(bu 2
+\fBgecos\fP
+.IP \(bu 2
+\fBhomeDirectory\fP
+.IP \(bu 2
+\fBloginShell\fP
+.UNINDENT
+.sp
+And a similar list, for the \fBgroup\fP database:
+.INDENT 0.0
+.IP \(bu 2
+\fBgid\fP [1]
+.IP \(bu 2
+\fBgidNumber\fP
+.UNINDENT
+.sp
+These attributes are defined by the \fBposixAccount\fP, \fBposixGroup\fP and
+\fBposixGroupId\fP LDAP object types. All of them are auxiliary [2], and can
+be added to any LDAP objects in the directory.
+.sp
+Group membership should be defined by creating a \fBgroupOfNames\fP LDAP object
+with \fBposixGroup\fP and \fBposixGroupId\fP types and using the \fBmember\fP
+attribute to specify the Distinguished Names of the group members.
+.sp
+\fI\%User Private Groups\fP <\fBhttps://wiki.debian.org/UserPrivateGroups\fP> can be defined by adding the \fBposixAccount\fP,
+\fBposixGroup\fP and \fBposixGroupId\fP to a LDAP object, for example
+\fBinetOrgPerson\fP\&. In this case the \fBuid\fP and \fBgid\fP attributes should
+define the same name. Check the \fI\%The posixgroupid schema\fP documentation
+for more details.
+.SS Reserved UID/GID ranges
+.sp
+LDAP directory is commonly used in large, distributed environments as a global
+account and group database. Because of the long operational lifetime of these
+environments, counting in dozens of years or more, and issues with modification
+of UID and GID values in large environments, good selection of the UID/GID
+ranges reserved for use in the LDAP directory is a priority.
+.sp
+The \fI\%systemd\fP <\fBhttps://www.freedesktop.org/wiki/Software/systemd/\fP> project has an excellent rundown of the UIDs and GIDs used on
+typical Linux systems \fI\%in their documentation\fP <\fBhttps://systemd.io/UIDS-GIDS/\fP>\&. You can also read the Debian
+FAQ answer that \fI\%describes the default UNIX accounts and groups\fP <\fBhttps://www.debian.org/doc/manuals/securing-debian-manual/ch12.en.html#faq-os-users\fP> present on a
+Debian system. As an example of production UID/GID range allocation, you can
+check the \fI\%UID/GID allocation page\fP <\fBhttps://wiki.cam.ac.uk/cl-sys-admin/UID/GID_allocation\fP> in the documentation published by the
+University of Cambridge Computer Laboratory.
+.sp
+For convenience, here\(aqs a summary of the UID/GID ranges typically used on Linux
+hosts, copied from the \fBsystemd\fP documentation page:
+.TS
+center;
+|l|l|l|l|.
+_
+T{
+UID/GID
+T}	T{
+Purpose
+T}	T{
+Defined By
+T}	T{
+Listed in
+T}
+_
+T{
+0
+T}	T{
+\fBroot\fP user
+T}	T{
+Linux
+T}	T{
+\fB/etc/passwd\fP + \fBnss\-systemd\fP
+T}
+_
+T{
+1…4
+T}	T{
+System users
+T}	T{
+Distributions
+T}	T{
+\fB/etc/passwd\fP
+T}
+_
+T{
+5
+T}	T{
+\fBtty\fP group
+T}	T{
+\fBsystemd\fP
+T}	T{
+\fB/etc/passwd\fP
+T}
+_
+T{
+6…999
+T}	T{
+System users
+T}	T{
+Distributions
+T}	T{
+\fB/etc/passwd\fP
+T}
+_
+T{
+1000…60000
+T}	T{
+Regular users
+T}	T{
+Distributions
+T}	T{
+\fB/etc/passwd\fP + LDAP/NIS/…
+T}
+_
+T{
+60001…60513
+T}	T{
+Human Users (\fI\%homed\fP <\fBhttps://www.freedesktop.org/software/systemd/man/systemd-homed.service.html\fP>)
+T}	T{
+\fBsystemd\fP
+T}	T{
+\fBnss\-systemd\fP
+T}
+_
+T{
+60514…61183
+T}	T{
+Unused
+T}	T{
+T}	T{
+T}
+_
+T{
+61184…65519
+T}	T{
+\fI\%Dynamic service users\fP <\fBhttp://0pointer.net/blog/dynamic-users-with-systemd.html\fP>
+T}	T{
+\fBsystemd\fP
+T}	T{
+\fBnss\-systemd\fP
+T}
+_
+T{
+65520…65533
+T}	T{
+Unused
+T}	T{
+T}	T{
+T}
+_
+T{
+65534
+T}	T{
+\fBnobody\fP user
+T}	T{
+Linux
+T}	T{
+\fB/etc/passwd\fP + \fBnss\-systemd\fP
+T}
+_
+T{
+65535
+T}	T{
+16bit \fB(uid_t) \-1\fP
+T}	T{
+Linux
+T}	T{
+T}
+_
+T{
+65536…524287
+T}	T{
+Unused
+T}	T{
+T}	T{
+T}
+_
+T{
+524288…1879048191
+T}	T{
+\fI\%Container UID ranges\fP <\fBhttps://manpages.debian.org/unstable/libnss-mymachines/nss-mymachines.8.en.html\fP>
+T}	T{
+\fBsystemd\fP
+T}	T{
+\fBnss\-mymachines\fP
+T}
+_
+T{
+\fB1879048192…2147483647\fP
+T}	T{
+\fBUnused\fP
+T}	T{
+T}	T{
+T}
+_
+T{
+2147483648…4294967294
+T}	T{
+HIC SVNT LEONES
+T}	T{
+T}	T{
+T}
+_
+T{
+4294967295
+T}	T{
+32bit \fB(uid_t) \-1\fP
+T}	T{
+Linux
+T}	T{
+T}
+_
+.TE
+.sp
+The factors taken into account during the default UID/GID range selection for
+the \fI\%debops.ldap\fP role are:
+.INDENT 0.0
+.IP \(bu 2
+Large number of UNIX accounts, both for normal users and applications,
+starting with 50 000+ entries, with UID/GID of a given account reserved for
+a lifetime. Yearly increase in the number of accounts being 1000\-5000, for
+example in a typical university.
+.IP \(bu 2
+Support for unprivileged LXC containers, which use their own separate
+subUID/subGID ranges in the same namespace as the LXC host. This implies that
+the selected UID/GID range needs to be half of maximum size supported by the
+operatimg system, or less, to allow for unprivileged UID/GID mapping on the
+LXC host.
+.IP \(bu 2
+Support for \fI\%User Private Groups\fP <\fBhttps://wiki.debian.org/UserPrivateGroups\fP> defined in the LDAP directory, which
+allows easier collaboration between users. This means that each UNIX account
+requires its own private UNIX group, ideally with the same name as the
+account, and the same UID/GID number.
+.IP \(bu 2
+Avoid collisions with existing UID/GID ranges used on Linux systems for local
+UNIX accounts and groups, or those reserved by common applications like
+\fBsystemd\fP\&. This implies that the UID/GID numbers <1100 should be off\-limits
+for LDAP directory to not collide with common desktop PC installations.
+Ideally the 0\-65535 UID/GID range should be avoided altogether to allow for
+a continuous UID/GID range which makes randomized allocation easier.
+.UNINDENT
+.sp
+With these parameters in mind, the 1879048192…2147483647 UID/GID range,
+highlighted in the table above, seems to be the best candidate to contain
+a reserved LDAP UID/GID range.
+.SS Suggested LDAP UID/GID ranges
+.sp
+The \fI\%debops.ldap\fP role defines a set of Ansible local facts that specify
+the UID/GID range reserved for use in the LDAP directory. The range is somewhat
+arbitrary and users are free to change it or not conform to the selected
+UID/GID range in their environments, however the selected range affects other
+applications configured by DebOps roles, for example:
+.INDENT 0.0
+.IP \(bu 2
+the range of subUIDs/subGIDs used for unprivileged containers
+.IP \(bu 2
+the minimum and maximum UID/GID from the LDAP directory included in the
+\fBpasswd\fP and \fBgroup\fP databases
+.IP \(bu 2
+the range of UIDs/GIDs allocated randomly by account management applications
+that support this functionality
+.UNINDENT
+.sp
+and so on. The Ansible roles that want to conform to the selected UID/GID
+ranges can access them via Ansible local facts:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%ldap__uid_gid_min\fP \-> \fBansible_local.ldap.uid_gid_min\fP
+.IP \(bu 2
+\fI\%ldap__uid_gid_max\fP \-> \fBansible_local.ldap.uid_gid_max\fP
+.UNINDENT
+.sp
+To allow for consistent UID/GID allocation in \fI\%User Private Groups\fP <\fBhttps://wiki.debian.org/UserPrivateGroups\fP>,
+a separate UID/GID range at the start of the allocated namespace has been
+reserved to contain only groups. The UIDs/GIDs above this range should be used
+only for personal or service accounts with correspodning private groups of the
+same name and GID as the account. The group range is defined in Ansible local
+facts as well:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%ldap__groupid_min\fP \-> \fBansible_local.ldap.groupid_min\fP
+.IP \(bu 2
+\fI\%ldap__groupid_max\fP \-> \fBansible_local.ldap.groupid_max\fP
+.UNINDENT
+.sp
+The selected LDAP UID/GID range (\fB2000000000\-2099999999\fP) allows for 100 000
+000 unique POSIX accounts. The range reserved for groups
+(\fB2000000000\-2001999999\fP) supports 2 000 000 unique groups. Users can
+increase or decrease the group range inside of the maximum UID/GID range, but
+going beyond that comes with a risk of exceeding the maximum UID/GID supported
+by the operating system and Unforeseen Consequences. The UID/GID ranges can be
+divided further between different purposes, but that\(aqs beyond the scope of this
+role.
+.sp
+With the selected ranges, a set of subUIDs/subGIDs (\fB210000000\-420000000\fP) is
+also possible, therefore this range should be safe to use inside of the LXC
+containers. Note however, that the UID/GID range above \fB2147483648\fP is
+considered risky due to issues in some of the kernel subsystems and userspace
+tools that don\(aqt work well with UIDs outside of the signed 32bit range. This
+puts an upper limit on the normal set of UID/GID numbers to \fB2047483647\fP if
+you want to stay away from that region.
+.sp
+This unfortunately limits the ability to completely separate containers using
+private subUID/subGID ranges for each of them, but since the UID/GID numbers
+inside of the containers will belong to the same \(dqentity\(dq be it a person or
+a service, the risk in the case of breach between LXC containers should be
+minimized.
+.SS Next available UID/GID tracking
+.sp
+An important part of the POSIX environment is ensuring that UID and GID values
+are unique across the entire infrastructure. This is problematic with an LDAP
+directory due to a lack of the \(dqauto\-increment\(dq feature which would allow for
+easy creation of new accounts with unique \fBuidNumber\fP and \fBgidNumber\fP
+values. Another risk is the possibility of a collision when two or more
+entities in a distributed environment are trying to create a new account at the
+same time.
+.sp
+A solution to this is to track the next available \fBuidNumber\fP and
+\fBgidNumber\fP values inside of the directory itself, using \fI\%special objects
+defined by a separate schema\fP and use an atomic
+LDAP delete+add operation to ensure that the next available UID or GID is
+reserved for our purposes. This solution was inspired by the \fI\%UIDNumber
+Attribute Auto\-Incrementing Method\fP <\fBhttps://www.rexconsulting.net/ldap-protocol-uidnumber.html/\fP> article.
+.SS Design overview
+.sp
+When initializing a LDAP directory, DebOps creates two LDAP objects to track
+the next available UID and GID separately:
+.INDENT 0.0
+.IP \(bu 2
+\fBcn=Next POSIX UID,ou=System,dc=example,dc=org\fP
+.IP \(bu 2
+\fBcn=Next POSIX GID,ou=System,dc=example,dc=org\fP
+.UNINDENT
+.sp
+The \fBNext POSIX UID\fP object is meant to track user accounts with their
+corresponding User Private Groups; it will be initialized by the
+\fI\%debops.slapd\fP Ansible role with the next available UID after the admin
+account is created. The \fBNext POSIX UID\fP object is similarly initialized by
+the same role after all required groups are created. Users can create
+additional sets of UID/GID tracking objects for various purposes using the
+\fBuidNext\fP or \fBgidNext\fP LDAP object classes.
+.sp
+The \fBuidNumber\fP and \fBgidNumber\fP values can be modified by the members of
+the \fBcn=UNIX Administrators\fP group. The \fBunique\fP overlay ensures that these
+values are not repeated anywhere in the LDAP directory, and when they are
+incremented the specified values will be available for use.
+.SS How to acquire a new UID/GID
+.sp
+The mechanism of acquiring a new UID or GID needs to be implemented in the
+client applications that manage user accounts. Here you can find an explanation
+of how to get a new UID; getting a new GID is the same, just involves
+a different LDAP object.
+.INDENT 0.0
+.IP 1. 3
+Search for the next available \fBuidNumber\fP value by checking the contents
+of the \fBcn=Next POSIX UID,ou=System,dc=example,dc=org\fP LDAP entry. An
+example CLI command:
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-LLL \(aq(& (objectClass=uidNext) (cn=Next POSIX UID) )\(aq uidNumber
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Store the \fBuidNumber\fP value you found in the application memory for now.
+.IP 2. 3
+Create a \(dqdelete + add\(dq LDAP operation (not \(dqreplace\(dq, which is not atomic).
+The operation should tell the LDAP directory to remove the specific
+\fBuidNumber\fP value we found using the search query and add a new one,
+incremented by 1. An example LDIF with the operation:
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dn: cn=Next POSIX UID,ou=System,dc=example,dc=org
+changetype: modify
+delete: uidNumber
+uidNumber: 2002000001
+\-
+add: uidNumber
+uidNumber: 2002000002
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP 3. 3
+Execute the operation on the LDAP directory. If it fails, the existing value
+won\(aqt be changed, so the operation is safe to use. An example CLI command
+with the above file:
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapmodify \-Z \-f nextuid.ldif
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP 4. 3
+Check the operation status returned by the server. If the operation
+succeeded, you can use the UID value you got at the first step and be sure
+that it is unique and available. If the operation failed, it means that
+somebody else has got the UID you currently keep in memory and it is
+reserved. In that case go back to step 1, search for the current available
+UID and try again.
+.UNINDENT
+.SS Collisions with local UNIX accounts/groups
+.sp
+The POSIX environments permit duplicate entries in the \fBpasswd\fP and \fBgroup\fP
+databases, that is entries with the same user or group names, or duplicate
+UID/GID numbers. However, most of the time, only the first entry found in the
+database is returned. This might cause confusion and hard to debug issues in
+the environment, or even security breaches if not handled properly.
+.sp
+The various DebOps roles that automatically manage custom UNIX groups or
+accounts, for example \fI\%debops.system_groups\fP, will check if the LDAP
+support is enabled on a given host. If it\(aqs enabled, they will automatically
+prepend \fB_\fP character to any custom UNIX accounts or UNIX groups created by
+them, which will affect the user or group names, home directory names,
+\fBsudo\fP rules, group membership, etc. The names of UNIX groups or
+accounts present by default on Debian or Ubuntu systems (\fBadm\fP, \fBstaff\fP, or
+other such cases) that are managed by these Ansible roles will not be changed.
+For example, the local equivalent of the LDAP \fBadmins\fP group will be changed
+to \fB_admins\fP\&. Local UNIX accounts of the administrators (\fBuser\fP) will be
+renamed to \fB_user\fP, and so on.
+.sp
+These changes will not be performed on already configured hosts if the LDAP
+support is enabled later on, to not create duplicate entries in the local user
+and group databases. In these cases, administrators are advised to either apply
+the desired modifications by themselves, or rebuild the hosts with LDAP support
+enabled from scratch.
+.sp
+Other DebOps or Ansible roles can also implement similar modifications to UNIX
+user or group names of the applications they manage, but that\(aqs not strictly
+required. LDAP administrators and editors should take care that the user
+(\fBuid\fP) and group (\fBgid\fP) names don\(aqt clash with the UNIX user and group
+names of different applications installed locally, to not cause collisions.
+.SH FOOTNOTES
+.IP [1] 5
+The \fBgid\fP attribute is defined by the custom \fI\%posixgroupid LDAP
+schema\fP, included in the \fI\%debops.slapd\fP
+Ansible role.
+.IP [2] 5
+The \fBposixGroup\fP class is changed from \fBSTRUCTURAL\fP to
+\fBAUXILIARY\fP via the \fI\%rfc2307bis LDAP schema\fP,
+installed by the \fI\%debops.slapd\fP Ansible role.
+.SH LDAP TASKS AND ADMINISTRATIVE OPERATIONS
+.sp
+In addition to maintaining the system\-wide LDAP client configuration on a host,
+the \fI\%debops.ldap\fP role can be used to perform tasks in the LDAP directory
+itself, using \fBldap_entry\fP or \fBldap_attrs\fP [1] Ansible modules. The LDAP
+tasks are performed via Ansible task delegation functionality, on the Ansible
+Controller. This behaviour can be controlled using the \fBldap__admin_*\fP
+default variables. Check the \fI\%ldap__tasks\fP documentation for syntax
+and examples of usage.
+.SS Authentication to the LDAP directory
+.sp
+The role will use the username of the current Ansible user (from the Ansible
+Controller host) as the value of the \fBuid=\fP attribute to bind to the LDAP
+directory. This is done to avoid sharing passwords between users of a single
+administrator account in the LDAP directory.
+.sp
+By default LDAP connection will be bound as a Distinguished Name:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+uid=<user>,ou=People,dc=example,dc=org
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The DN can be overridden in the \fI\%ldap__admin_binddn\fP variable, either
+via the Ansible inventory (this should be avoided if the inventory is shared
+between multiple administrators), on the command line (using the
+\fB\-\-extra\-vars\fP argument), or using an environment variable on the Ansible
+Controller:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+export DEBOPS_LDAP_ADMIN_BINDDN=\(dqcn=ansible,ou=Services,dc=example,dc=org\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+How the bind password is obtained is described in the next section. If the bind
+password is not provided (the \fI\%ldap__admin_bindpw\fP variable is empty),
+the LDAP tasks will be skipped. This allows the \fI\%debops.ldap\fP role to be
+used in a playbook with other roles without the fear that lack of LDAP
+credentials will break execution of said playbook.
+.SS Secure handling of LDAP admin credentials
+.sp
+The LDAP password of the current Ansible user is defined in the
+\fI\%ldap__admin_bindpw\fP inventory variable.
+.SS Environment variable
+.sp
+By default, the role first checks if the \fBDEBOPS_LDAP_ADMIN_BINDPW\fP
+environment variable is defined on the Ansible Controller and uses its value as
+the password during connections to the LDAP directory.
+.SS Plaintext file
+.sp
+Next, the role will look for credentials in the \fBsecret/ldap/credentials/\fP
+directory. The files in this directory are named based on the UUID of the
+current user\(aqs Distinguished Name (see the previous section).
+.sp
+The UUID conversion is done because LDAP Distinguished Names can contain
+spaces, and the Ansible lookups don\(aqt work too well with filenames that contain
+spaces.  You can use the \fBldap/get\-uuid.yml\fP playbook to convert user
+account DNs or arbitrary LDAP Distinguished Names to an UUID value you can use
+to look up the passwords manually, if needed.
+.SS Password Store
+.sp
+Finally, the role will try and lookup the password using the \fI\%passwordstore\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/community/general/passwordstore_lookup.html\fP>
+Ansible lookup plugin. The plugin uses the \fBpass\fP \fI\%password manager\fP <\fBhttps://www.passwordstore.org/\fP>
+as a backend to store credentials encrypted using the GPG key of the user.
+.sp
+The path in the \fBpass\fP storage directory where the \fI\%debops.ldap\fP
+will look for credentials is defined by the
+\fI\%ldap__admin_passwordstore_path\fP, by default it\(aqs
+\fBdebops/ldap/credentials/\fP\&. The actual encrypted files with the password
+are named based on the UUID, like for the plaintext password.
+.sp
+You can store new credentials in the \fBpass\fP password manager using the
+\fBansible/playbooks/ldap/save\-credential.yml\fP Ansible playbook included
+in the DebOps monorepo. All you need to do is run this playbook against one of
+the LDAP servers by following this steps:
+.INDENT 0.0
+.IP 1. 3
+Make sure you have \fIGPGv2\fP and \fIpass\fP installed, ie. \fBapt\-get install gpgv2 pass\fP
+.IP 2. 3
+Make sure you have a \fI\%GPG key pair\fP <\fBhttps://alexcabal.com/creating-the-perfect-gpg-keypair/\fP>
+.IP 3. 3
+Initialize the password store: \fBpass init <your\-gpg\-id>\fP\&. Example: \fBpass init admin@example.com\fP
+.IP 4. 3
+Run the playbook \fBdebops run ldap/save\-credential \-l <host>\fP
+.IP 5. 3
+Re\-run the playbook for each user you want to store a password for
+.UNINDENT
+.sp
+The playbook will ask interactively for the \fBuid=\fP username, and if not
+provided, for the full LDAP Distinguished Name, and after that, for a password
+to store encrypted using your GPG key. If you don\(aqt specify one, a random
+password will be automatically generated, saved in the password store, and
+displayed for you to use in the LDAP directory. The encrypted passwords will be stored
+by default under \fB~/.password\-store\fP\&.
+.SS Different modes of operation
+.sp
+The role acts differently depending on the current configuration of the remote
+host and its own environment:
+.INDENT 0.0
+.IP \(bu 2
+If the \fI\%debops.ldap\fP role configuration was not applied on the host, the
+role will set up system\-wide LDAP configuration file, and perform the default
+LDAP tasks, tasks defined in the Ansible inventory, and any tasks provided
+via role dependent variables which are usually defined by other roles (see
+\fI\%Use as a dependent role\fP for more details).
+.IP \(bu 2
+If the \fI\%debops.ldap\fP role configuration was already applied on the host,
+and there are no LDAP tasks defined by other Ansible roles, the
+\fI\%debops.ldap\fP role will apply the default LDAP tasks and the tasks from
+Ansible inventory (standalone mode).
+.IP \(bu 2
+If the \fI\%debops.ldap\fP role configuration was already applied on the host,
+and the role is used as a dependency for another role, the default LDAP tasks
+and the tasks from Ansible inventory will be ignored, and only those provided
+via the \fI\%ldap__dependent_tasks\fP variable by other Ansible roles will
+be executed in the LDAP directory (dependent mode).
+.UNINDENT
+.sp
+This ensures that the list of LDAP tasks is short, and tasks defined by default
+in the role, and those defined in the Ansible inventory, which are presumed to
+be done previously, are not unnecessarily repeated when dependent role LDAP
+tasks are performed.
+.sp
+Because the \fI\%debops.ldap\fP role relies on the LDAP credentials of the
+current Ansible user, the person that executes Ansible does not require full
+access to the entire LDAP directory. The role can perform tasks only on
+specific parts of the directory depending on the Access Control List of the
+LDAP directory server and permissions of the current user.
+.SH FOOTNOTES
+.IP [1] 5
+Currently a custom \fBldap_attrs\fP module, included in the
+\fI\%debops.ansible_plugins\fP role is used instead of the
+\fBldap_attr\fP plugin included in Ansible.
+.SH LDAP ACCESS CONTROL
+.sp
+The Lightweight Directory Access Protocol is commonly used to implement access
+control policies in organizations. Various methods are available, from
+\fI\%Mandatory Access Control (MAC)\fP <\fBhttps://en.wikipedia.org/wiki/Mandatory_access_control\fP> policy which can define directly what
+entities have access to which services, through the \fI\%Role\-Based Access Control
+(RBAC)\fP <\fBhttps://en.wikipedia.org/wiki/Role-based_access_control\fP> scheme which can be used to grant different levels of access to
+different entities.
+.sp
+This document describes various mechanisms which are available in the DebOps
+LDAP environment supported by the \fI\%debops.ldap\fP and \fI\%debops.slapd\fP
+Ansible roles. These mechanisms can be used in different services to implement
+access control to a varying degree, based on the application.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Not all rules defined here are implemented in various DebOps roles at
+the moment.
+.UNINDENT
+.UNINDENT
+.SS Controlling access to LDAP objects in the directory
+.sp
+The \fI\%debops.slapd\fP role implements a default \fI\%LDAP Access Control List\fP which
+can be used to define which LDAP objects have access to data and at what level.
+By default, read access is granted to almost entire LDAP directory by
+authorized users; role\-based and group\-based access control is used to limit
+read and/or write access to specific LDAP attributes.
+.SS Account\-based access control
+.sp
+Applications can use the LDAP bind operation to check if a given username and
+password combination is valid. To accomplish that, applications can utilize
+either a Distinguished Name provided by the user, match the username to
+a personal LDAP entry with the \fBuid\fP attribute stored in
+\fBou=People,dc=example,dc=org\fP directory subtree, or use a search query to
+find the LDAP entry of a person or a service account in the LDAP directory
+using their username (in the \fBuid\fP attribute) or the provided e\-mail address
+(in the \fBmail\fP attribute). After finding the correct Distinguished Name,
+applications need to provide the plaintext password over the TLS connection to
+the LDAP directory which will then verify it and confirm the validity.
+Successful bind operations should grant access to the application.
+.sp
+This access method is good for services and applications which should be
+available to all legitimate users in an organization. Anonymous and external
+users will not be granted access without authenticating first.
+.sp
+Various applications also require their own account objects in the LDAP
+directory to access its contents. These accounts are usually stored under the
+host objects in the \fBou=Hosts,dc=example,dc=org\fP LDAP subtree, or if the
+applications are external to the organization or are implemented as a cluster,
+under the \fBou=Services,dc=example,dc=org\fP LDAP subtree. Application accounts
+are subject to the LDAP Access Control List rules defined by the OpenLDAP
+service and may not have access to all of the LDAP entries and/or attributes.
+.sp
+This authorization type is global \- any LDAP entry with \fBuserPassword\fP
+attribute can be used to authorize access to a resource.
+.SS Examples of LDAP search queries
+.sp
+Directly check existence of a LDAP entry:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-b \(dquid=$value,ou=People,dc=example,dc=org\(dq uid
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Search for personal Distinguished Name based on username or e\-mail address.
+Esure that only one LDAP entry is returned, more entries result in an error
+code from LDAP which needs to be handled by the application:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-z 1 \-b ou=People,dc=example,dc=org \e
+           \(dq(& (objectClass=inetOrgPerson) (| (uid=$value) (mail=$value) ) )\(dq dn
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Search for service account Distinguished Name based on username and FQDN of the
+host. Only one LDAP entry is allowed, more entries should result in an error:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-z 1 \-b dc=example,dc=org \e
+           \(dq(& (objectClass=account) (uid=$username) (host=$fqdn) )\(dq dn
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Access control based on group membership
+.sp
+The group LDAP objects, defined under the \fBou=Groups,dc=example,dc=org\fP LDAP
+subtree, can be used to control access to resources. These objects usually use
+the \fBgroupOfNames\fP object class with the \fBmember\fP attribute which defines
+the group members. Optionally, these objects can define a corresponding POSIX
+group using the \fBposixGroup\fP and \fBposixGroupId\fP object classes which can
+then be used to define access control in an UNIX environment.
+.sp
+The \fBgroupOfNames\fP object class enforces at least one group member at all
+times. Groups can also have defined owners or managers using the \fBowner\fP
+attribute; in the default \fI\%LDAP Access Control List\fP configuration group owners have
+the ability to add or remove group members from the groups they own.
+.sp
+Applications can check the \fBmember\fP attribute of one or more groups to
+determine if a given user or application account belongs to a group and with
+that information grant or revoke access to resources. Alternatively, the
+\fBmemberOf\fP attribute of the user or account LDAP object can be used to
+determine group membership and control resource access based on that
+information.
+.sp
+This authorization type can be either global, or scoped to a particular
+application with group entries located under the \fBou=Groups\fP subtree under
+the application LDAP entry.
+.SS Examples of LDAP search queries
+.sp
+Get the Distinguished Names of LDAP entries which are members of the
+\fI\%UNIX Administrators\fP group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-b \(dqcn=UNIX Administrators,ou=Groups,dc=example,dc=org\(dq member
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Get the list of group Distinguished Names a given user belongs to:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-b \(dquid=$username,ou=People,dc=example,dc=org\(dq memberOf
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Find all members of the \fI\%UNIX Administrators\fP group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \(dq(memberOf=cn=UNIX Administrators,ou=Groups,dc=example,dc=org)\(dq dn
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Role\-based access control
+.sp
+The role LDAP objects, defined under the \fBou=Roles,dc=example,dc=org\fP LDAP
+subtree, are similar to the group objects described above. They are usually
+defined using the \fBorganizationalRole\fP object class, and use the
+\fBroleOccupant\fP attribute to determine the people and accounts which are
+granted a given role.
+.sp
+The \fBorganizationalRole\fP object class does not require any particular members
+to be present, unlike the \fBgroupOfNames\fP object class. This is a good choice
+to create various roles which don\(aqt have existing role occupants \- different
+roles can then be granted to different people or accounts at a later date.
+.sp
+This authorization type can be either global, or scoped to a particular
+application with role entries located under the \fBou=Roles\fP subtree under the
+application LDAP entry.
+.SS Examples of LDAP search queries
+.sp
+Get the Distinguished Names of LDAP entries which are included in the
+\fI\%LDAP Administrator\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-b \(dqcn=LDAP Administrator,ou=Roles,dc=example,dc=org\(dq roleOccupant
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Attribute\-based access control
+.sp
+LDAP entries can include the \fBauthorizedServiceObject\fP object class which
+provides the \fBauthorizedService\fP attribute. This attribute is a multi\-valued
+string which can be used to define the access permissions to a particular
+resource. Only \(dqequal\(dq match for this attribute is defined in the LDAP schema,
+which limits its capabilities to a degree \- searching for partial string
+matches is not supported.
+.sp
+This authorization type is scoped to an LDAP entry, which results in less LDAP
+queries needed to find out particular access permissions. It can be used to
+implement \fI\%Attribute\-Based Access Control (ABAC)\fP <\fBhttps://en.wikipedia.org/wiki/Attribute-based_access_control\fP> authorization scheme.
+.sp
+In DebOps, applications should standardize on a structured format of the
+attribute values, either \fBall\fP, \fB<service>\fP, \fB<system>\fP, or
+\fB<system>:<type>\fP\&.
+.SS Global permissions
+.sp
+The \fBall\fP value grants access to all services and systems and if present,
+should be the only value of the \fBauthorizedService\fP attribute. Any additional
+values present are nullified by it, therefore if more fine\-grained access
+control is desired, the \fBall\fP value should be removed from the LDAP entry
+entirely. Client applications are free to implement the meaning  of the \fBall\fP
+value as they choose, however usually the usage in the LDAP search filter will
+most likely be either \fBall\fP or some specific set of values.
+.SS Service permissions
+.sp
+The \fB<service>\fP value usually means a specific network service daemon, for
+example \fBsshd\fP, \fBslapd\fP, \fBvsftpd\fP and so on. Since web applications are
+accessed via a web server, they should use their own separate service or system
+names to allow more fine\-grained access control to each web application. The
+value grants blanket access to a particular service without fine\-grained
+control over capabilities of the user.
+.SS System permissions
+.sp
+The \fB<system>\fP value is an agnostic name for a set of various services that
+work together as a whole to accomplish a task. For example, \fBmail\fP would
+define an access control parameter for the SMTP server, IMAP server, mail
+filtering software, and the \fBshell\fP string would define access control
+parameter for the SSH service, \fBsudo\fP access, NSS database service,
+etc.
+.sp
+Similarly to the \fB<service>\fP value, this value grants blanket access to
+a particular system as a whole. It means that the system cannot define \(dqglobal\(dq
+access and \(dqpartial\(dq access at the same time (see below). It might be hard to
+convert a \(dqglobal\(dq access permissions to \(dqpartial\(dq access permissions,
+therefore the choice of how to define the access should be selected early on
+during development.
+.SS Partial system permissions
+.sp
+The \fB<system>:<type>\fP value is a definition of a system access permissions
+which are split into \(dqparts\(dq of the whole, each part defined by the permission
+\fB<type>\fP\&. The partial permissions shouldn\(aqt overlap (two or more permissions
+controlling the same resource access) or be additive (a permission type
+implying presence of another permission type). There shouldn\(aqt be
+a \fB<system>:all\fP permission as well, since it would nullify partial
+permissions for a given system.
+.sp
+Each system can define its own set of permission types, however the type names
+should be as precise and descriptive as possible. A good example is the \(dqmail\(dq
+system, with the \fBmail:receive\fP permission allowing incoming messages to be
+received by the e\-mail account, the \fBmail:send\fP permission allowing outgoing
+messages to be sent by the e\-mail account, and the \fBmail:access\fP permission
+granting read\-write access to the e\-mail account by its user.
+.sp
+It\(aqs easy to create additional permission types once the system is implemented,
+therefore in larger systems this should be a preferred method of access
+control. The partial permissions shouldn\(aqt be mixed with the \(dqglobal\(dq
+permission for a given system because that would nullify the partial
+permissions.
+.SS Examples of LDAP search queries
+.sp
+Get list of access control values of a given user account:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-b \(aquid=$username,ou=People,dc=example,dc=org\(aq authorizedService
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Find all personal accounts which have shell access or global access:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-b \(dqou=People,dc=example,dc=org\(dq \e
+           \(dq(& (objectClass=inetOrgPerson) (| (authorizedService=all) (authorizedService=shell) ) )\(dq dn
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Find all LDAP entries which can send e\-mail messages or have global access:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-b \(dqdc=example,dc=org\(dq \e
+           \(dq(| (authorizedService=all) (authorizedService=mail:send) )\(dq dn
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Known access controls
+.sp
+This paragraph lists various \fBauthorizedService\fP values which are used by
+different DebOps roles to grant access to services. You can check the
+\fI\%LDAP directory structure organized by DebOps\fP to find what DebOps roles use which access control.
+.TS
+center;
+|l|l|.
+_
+T{
+Access control
+T}	T{
+Description
+T}
+_
+T{
+\fBall\fP
+T}	T{
+Grants access to all services supported by DebOps. Mutually
+exclusive with other access controls.
+T}
+_
+T{
+\fBmail:access\fP
+T}	T{
+Grants read/write access to mail account contents through
+a service, for example IMAP or POP3.
+T}
+_
+T{
+\fBmail:receive\fP
+T}	T{
+Allows a given mail account to receive e\-mail messages via
+a service, for example SMTP \- the mail account is present in
+alias and mailbox lookup tables.
+T}
+_
+T{
+\fBmail:send\fP
+T}	T{
+Allows a given mail account to send e\-mail messages via
+a service, for example SMTP \- the mail account is allowed to
+authenticate to the MTA.
+T}
+_
+T{
+\fBshell\fP
+T}	T{
+Grants access to the UNIX environment through a service, for
+example SSH. To be fully effective, a given LDAP entry also
+needs to have a corresponding \fBhost\fP attribute with the
+\fBposix:\fP value which specifies the hosts on which the
+accounts and groups are present, as well as required object
+classes (\fBposixAccount\fP, \fBposixGroup\fP, \fBposixGroupId\fP).
+See \(dqHost\-based access control\(dq below for more details.
+T}
+_
+T{
+\fBweb:public\fP
+T}	T{
+Grants access to various web services which are reachable over
+public Internet. Different services can also limit access
+using the \fBhost\fP attribute, consult the specific services
+for details.
+T}
+_
+.TE
+.sp
+Apart from these access controls, different services implement their own access
+controls based usually on the daemon name (\fBslapd\fP, \fBsshd\fP, etc.). See the
+corresponding LDAP DIT documentation pages of these roles for more details.
+.SS Host\-based access control
+.sp
+The \fBhostObject\fP LDAP object class gives LDAP entries access to the \fBhost\fP
+attribute which is used to store hostnames and Fully Qualified Domain Names of
+the LDAP entries. The attribute type supports substring (wildcard) matches and
+can be used to create host\-based access rules.
+.sp
+Various services and systems can check for the presence of the \fBhost\fP
+attribute with specific value patterns. The preferred value format in this case
+should be: \fB<service|system>:<host>\fP, where the \fB<host>\fP can be a FQDN
+hostname, or a woldcard domain (\fB*.example.org\fP), or the value \fBall\fP for
+all hosts in the cluster.
+.sp
+A separate URN\-like (\fI\%RFC 8141\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc8141.html\fP>) scheme is also available to allow for
+definition of POSIX accounts or groups that is independent from the DNS
+database, for example to distinguish hosts by their role like \(dqproduction\(dq,
+\(dqdevelopment\(dq, etc. This can be defined using the format:
+\fB<service|system>:urn:<pattern>\fP\&. Ansible roles are free to match any number
+of URN\-like patterns in LDAP filters defined in the services they manage.
+.sp
+For example, POSIX accounts and groups can be split into \(dqdevelopment\(dq and
+\(dqproduction\(dq servers using separate URN\-like names:
+.INDENT 0.0
+.IP \(bu 2
+\fBposix:urn:dev:app1\fP
+.IP \(bu 2
+\fBposix:urn:dev:app2\fP
+.IP \(bu 2
+\fBposix:urn:prod:app1\fP
+.IP \(bu 2
+\fBposix:urn:prod:app2\fP
+.UNINDENT
+.sp
+Then, hosts that should support \fBapp1\fP for both development and production,
+can look for the URN: \fBposix:urn:*:app1\fP\&. hosts which are meant only for
+development, can look for URN: \fBposix:urn:dev:*\fP, and so on.
+.sp
+The glob patterns used by DebOps are defined in the \fBldap__*_urn_patterns\fP
+variables and can be accessed by other Ansible roles via
+\fBansible_local.ldap.urn_patterns\fP local fact. The default URN pattern defined
+by the \fI\%debops.ldap\fP role is:
+.INDENT 0.0
+.IP \(bu 2
+\fBdeploy:<deployment>\fP
+.UNINDENT
+.sp
+The \fB<deployment>\fP is set using \fI\%debops.machine\fP role Ansible local
+facts and can be set as \fBdevelopment\fP, \fBintegration\fP, \fBstaging\fP or
+\fBproduction\fP\&. POSIX accounts or groups which define a specific URN\-like
+string will be present on a specific set of hosts. For example, to ensure that
+a given UNIX account is present on production hosts, add the \fBhost\fP attribute
+with value:
+.INDENT 0.0
+.IP \(bu 2
+\fBposix:urn:deploy:production\fP
+.UNINDENT
+.sp
+By default any URN\-like pattern that matches a given LDAP entry will be
+included in search result. To change that and, for example, match both URN
+pattern and specific host/domain, you need to edit the LDAP search filters in
+the roles that use them.
+.SS Examples of LDAP search queries
+.sp
+Get list of POSIX accounts which should be present on a given host and have
+access to shell services:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-b \(dqdc=example,dc=org\(dq \e
+           \(dq(& (objectClass=posixAccount) (| (host=posix:host.example.org) (host=posix:all) ) )\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Get list of POSIX accounts which should be present on any host in a specific
+domain. This uses the substring match to get all entries with a specific
+domain:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-b \(dqdc=example,dc=org\(dq \e
+           \(dq(& (objectClass=posixAccount) (| (host=posix:*.example.org) (host=posix:all) ) )\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Get list of POSIX accounts which should be present on all hosts in a specific
+domain. This query looks for all entries with a wildcard (\fB*.example.org\fP)
+domain defined as the value:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldapsearch \-Z \-b \(dqdc=example,dc=org\(dq \e
+           \(dq(& (objectClass=posixAccount) (| (host=posix:\e2a.example.org) (host=posix:all) ) )\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Known access controls
+.sp
+This paragraph lists various \fBhost\fP values which are used by different DebOps
+roles to grant access on a per\-host basis. You can check the
+\fI\%LDAP directory structure organized by DebOps\fP to find what DebOps roles use which access control.
+.TS
+center;
+|l|l|.
+_
+T{
+Access control
+T}	T{
+Description
+T}
+_
+T{
+\fBposix:all\fP
+T}	T{
+A given POSIX account or POSIX group will be present on all
+hosts in the cluster.
+T}
+_
+T{
+\fBposix:<fqdn>\fP
+T}	T{
+A given POSIX account or POSIX group will be present on
+a specific host defined by its FQDN name.
+T}
+_
+T{
+\fBposix:*.<domain>\fP
+T}	T{
+A given POSIX account or POSIX group will be present on
+a specific host defined by its domain name (\fB*.\fP prefix is
+required).
+T}
+_
+T{
+\fBposix:urn:<pattern>\fP
+T}	T{
+A given POSIX account or POSIX group will be present on
+hosts which look for a defined Uniform Resource Name
+pattern.
+T}
+_
+.TE
+.SH USE AS A DEPENDENT ROLE
+.sp
+The \fI\%debops.ldap\fP role is designed to be used as an API between Ansible
+roles and the LDAP directory. Roles can define a list of \fI\%LDAP tasks\fP
+which are passed to the \fI\%debops.ldap\fP role using role dependent variables
+on the playbook level. These LDAP tasks will be executed using the
+\fI\%LDAP tasks and administrative operations\fP interface in the LDAP directory.
+.sp
+This API allows the LDAP integration to be focused in a single, specific role
+(\fI\%debops.ldap\fP), so that other Ansible roles don\(aqt have to implement
+different ways of accessing and manipulating the LDAP directory by themselves.
+The LDAP data like passwords, names of objects and attribute values can be
+defined by the \(dqparent\(dq role in its own variables, and passed to the
+\fI\%debops.ldap\fP role to create or change LDAP objects as needed.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Examples of usage and integration between roles will be provided in the
+future using existing DebOps roles.
+.UNINDENT
+.UNINDENT
+.SS LDAP directory structure organized by DebOps
+.sp
+LDAP directory has a hierarchical structure defined by objects and their
+attributes. Various Ansible roles included in DebOps can interface with the
+LDAP directory to create or maintain their own set of objects and attributes.
+The hierarchy of these objects is called the \fI\%Directory Information Tree\fP <\fBhttps://en.wikipedia.org/wiki/Directory_information_tree\fP>\&.
+.sp
+Each DebOps role that is integrated with the \fI\%debops.ldap\fP role defines
+a special page in its documentation section, \fBldap\-dit.rst\fP\&. In this
+file, users can find a human\-readable description of the LDAP objects and their
+attributes, which are linked to their corresponding role default variables and
+Ansible local facts. This can be used to quickly locate the relevant source of
+a particular LDAP object or attribute.
+.sp
+The objects and attributes have example values and Distinguished Names, real
+objects in the LDAP directory will be named differently depending on the
+configuration, but the general structure of the LDAP directory should be
+accurately reflected in the documentation.
+.sp
+The DIT documentation of different roles is cross\-referenced between the roles
+that interact with each other at the LDAP directory level. This allows
+travelsal between the documentation pages of different roles to quickly find
+parent and child nodes, and see the relation between them.
+.sp
+The \fI\%root of the DebOps DIT\fP is defined by the
+\fI\%debops.ldap\fP Ansible role. Other roles will rely on it as a dependency,
+and will use the Ansible local facts defined by this role to create their own
+LDAP objects. Some of these roles will have their own \(dqchild\(dq roles that depend
+on them, and so on.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.ldap\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS ldap__configuration
+.sp
+The \fBldap__*_configuration\fP variables define the contents of the
+\fB/etc/ldap/ldap.conf\fP configuration file. The variables are merged in
+order defined by the \fI\%ldap__combined_configuration\fP variable, which
+allows modification of the default configuration through the Ansible inventory.
+See \fI\%ldap.conf(5)\fP <\fBhttps://manpages.debian.org/ldap.conf(5)\fP> for possible configuration parameters and their values.
+.SS Examples
+.sp
+See \fI\%ldap__default_configuration\fP variable for an example of existing
+configuration.
+.SS Syntax
+.sp
+The variables contain a list of YAML dictionaries, each dictionary can have
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the \fI\%ldap.conf(5)\fP <\fBhttps://manpages.debian.org/ldap.conf(5)\fP> configuration option. The
+configuration options with the same \fBname\fP parameter will be merged in
+order of appearance.
+.sp
+In the generated configuration file, the option name will be automatically
+converted to uppercase.
+.TP
+.B \fBvalue\fP
+Required. The value of a given configuration option. It can be either
+a string, a YAML list (elements will be joined with spaces).
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given configuration option will be
+included in the generated configuration file. If \fBabsent\fP, a given
+configuration option will be removed from the generated file. If \fBcomment\fP,
+the option will be included, but commented out and inactive. If \fBignore\fP,
+the role will not evaluate the configuration entry during template
+generation, this can be used for conditional activation of
+\fI\%ldap.conf(5)\fP <\fBhttps://manpages.debian.org/ldap.conf(5)\fP> configuration options.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block that contains comments about a given
+configuration option.
+.TP
+.B \fBseparator\fP
+Optional, boolean. If \fBTrue\fP, and additional empty line will be added
+before a given configuration option to separate it from the other options for
+readability.
+.UNINDENT
+.SS ldap__tasks
+.sp
+The \fBldap__*_tasks\fP variables define a custom set of \fBldap_entry\fP and
+\fBldap_attrs\fP Ansible module tasks that will be executed against the
+LDAP directory, in the specified order. This also requires that the role can
+access the LDAP credentials of the Ansible user, on the Ansible Controller. See
+the \fI\%LDAP tasks and administrative operations\fP for more details; this section describes the syntax
+of the LDAP tasks themselves.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Remember, these are not \(dqAnsible tasks\(dq, they are \(dqLDAP tasks\(dq
+performed in the LDAP directory itself, via Ansible Controller.
+.UNINDENT
+.UNINDENT
+.SS Examples
+.sp
+See the \fI\%ldap__default_tasks\fP for an example of the default LDAP tasks
+used by the role.
+.sp
+Create the \fBou=People\fP branch of the LDAP directory, add a new user account,
+and set its password, and some other attributes. This example assumes that LDAP
+directory will hash the provided password after checking its quality. The
+\fBldap__*\fP variables are defined as the \fI\%debops.ldap\fP default variables,
+but can be overridden via the inventory.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldap__tasks:
+
+  \- name: \(aqCreate the ou=People object\(aq
+    dn: \(aq{{ [ ldap__people_rdn ] + ldap__base_dn }}\(aq
+    objectClass: [ \(aqorganizationalUnit\(aq ]
+    attributes:
+      ou: \(aq{{ ldap__people_rdn.split(\(dq=\(dq)[1] }}\(aq
+
+  \- name: \(aqCreate the uid={{ ansible_user }} object\(aq
+    dn: \(aq{{ [ \(aquid=\(aq + ansible_user, ldap__people_rdn ] + ldap__base_dn }}\(aq
+    objectClass: [ \(aqinetOrgPerson\(aq ]
+    attributes:
+      cn: \(aqAnsible User\(aq
+      sn: \(aqUser\(aq
+      uid: \(aq{{ ansible_user }}\(aq
+      userPassword: \(aqsecret\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remove the default \fBcn=admin,dc=example,dc=org\fP LDAP object created in the
+directory by the Debian \fBslapd\fP APT package. It\(aqs not needed after an admin
+account has been created.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ldap__tasks:
+
+  \- name: \(aqRemove the default admin account\(aq
+    dn: \(aqcn=admin,{{ ldap__basedn }}\(aq
+    state: \(aqabsent\(aq
+    entry_state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The \fI\%ldap__default_tasks\fP, \fI\%ldap__tasks\fP,
+\fI\%ldap__group_tasks\fP and \fI\%slapd__host_tasks\fP define a list of
+YAML dictionaries, each list entry defines a \fBldap_entry\fP or \fBldap_attrs\fP
+task to perform in the LDAP directory. The variables are
+merged together in the order specified by the \fI\%ldap__combined_tasks\fP
+variable.
+.sp
+When the \fI\%debops.ldap\fP role is used as a dependency, only the
+\fI\%ldap__dependent_tasks\fP variable will be included in the
+\fI\%ldap__combined_tasks\fP list, the default tasks or the ones specified in
+the Ansible inventory will not be evaluated. See \fI\%Use as a dependent role\fP
+for more details.
+.sp
+The entries with the same \fBname\fP parameter will affect each other, replacing
+the previously defined \(dqinstance\(dq of a given task \- this can be used to change
+previously defined tasks conditionally.
+.sp
+The list of task parameters supported by the role:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a given task, displayed during Ansible execution. It\(aqs
+an equivalent of the \fBname\fP keyword in Ansible tasks lists. Its value does
+not affect the actions performed in the LDAP directory. Entries with the same
+name are merged together.
+.TP
+.B \fBdn\fP
+Required. The Distinguished Name of the LDAP directory object which will be
+configured by a given entry. The value can be specified as a string or a YAML
+list, which will be joined by commas.
+.sp
+This parameter is case\-sensitive, if you use a wrong case here, the LDAP
+directory will still most likely accept the configuration, but the task list
+will not be idempotent. When that happens, check the case of the DN value.
+.sp
+This parameter can contain LDAP object names that use the \fBX\-ORDERED\fP type
+syntax. The LDAP directory will accept new objects that omit the
+\fBX\-ORDERED\fP syntax prefix, but subsequent executions of the role can cause
+errors due to incorrect DN name. It\(aqs best to specify the object prefix
+number directly from the start. Remember that the LDAP directory can modify
+the \fBX\-ORDERED\fP prefix number on any modification of the list of objects;
+you should verify the current prefix numbering before applying any changes.
+.TP
+.B \fBobjectClass\fP
+Optional. Specify a name or a YAML list of the LDAP Object Classes which
+should be used to define a new LDAP directory object.
+.sp
+If this parameter is specified, the \fBldap_entry\fP module will be used to
+perform the operation instead of \fBldap_attrs\fP module. The \fBldap_entry\fP
+Ansible module will not modify the attributes of any existing LDAP directory
+objects, you need to use a separate configuration entry to do that, which
+does not specify this parameter.
+.sp
+This parameter is case\-sensitive, if you use a wrong case here, the LDAP
+directory will still most likely accept the configuration, but the task list
+will not be idempotent. When that happens, check the case of the objectClass
+value(s). The parameter name is case\-sensitive as well.
+.TP
+.B \fBattributes\fP
+Required. YAML dictionary which defines the attributes and their values of
+a given LDAP object. Each dictionary key is a case\-sensitive name of an
+attribute, and the value is either a string, or a list of strings, or a list
+of YAML text blocks. If list is used for the values, multiple attribute
+entries will be created automatically.
+.sp
+If you create configuration entries with the same \fBname\fP parameter, the
+\fBattributes\fP parameter will replace entirely the same parameter defined in
+previous entries on the list. This is not the case in the LDAP directory
+itself, where multiple separate configuration entries can define the same
+objects and their attributes multiple times, as long as the state is not
+specified or is set as \fBpresent\fP\&. To ensure that a given set of attributes
+is specified only once in the LDAP directory, you MUST define the \fBstate\fP
+parameter with the \fBexact\fP value.
+.sp
+The attribute names are case\-sensitive, if you use a wrong case here, the
+LDAP directory will still most likely accept the configuration, but the task
+list will not be idempotent. When that happens, check the case of the
+attribute names.
+.sp
+The attributes can contain lists that use the \fBX\-ORDERED\fP type syntax. The
+LDAP directory will accept new attribute values that omit the \fBX\-ORDERED\fP
+syntax prefix and a new prefix number will be assigned to them automatically
+by the LDAP directory. Subsequent executions of the role can create duplicate
+attribute values, if the prefix number is not specified. It\(aqs best to specify
+the attribute prefix number directly from the start. Remember that the LDAP
+directory can modify the \fBX\-ORDERED\fP prefix number on any modification of
+the list of attributes; you should verify the current prefix numbering before
+applying any changes.
+.TP
+.B \fBordered\fP
+Optional, boolean. If defined and \fBTrue\fP, the \fBldap_attrs\fP Ansible module
+will automatically add the \fBX\-ORDERED\fP index numbers to lists of values in
+all attributes of a current task. This extension is used in the OpenLDAP
+\fBcn=config\fP configuration database to define order of object attributes
+which are normally unordered.
+.sp
+The most prominent use of the \fBX\-ORDERED\fP extension is in the \fBolcAccess\fP
+attribute, which defines the LDAP Access Control List. This attribute should
+be defined in a separate LDAP task, so that only its values will have the
+\fBX\-ORDERED\fP index numbers inserted. Existing index values will be removed
+and replaced with the correct ordering defined by the YAML list.
+.TP
+.B \fBstate\fP
+Optional. Possible values:
+.TS
+center;
+|l|l|.
+_
+T{
+State
+T}	T{
+Description
+T}
+_
+T{
+\fBpresent\fP
+T}	T{
+Default. The role will ensure that a given configuration entry
+is present in the LDAP directory.  There might be more more than
+one copy of a given entry present at the same time. To avoid
+creating duplicate entries, use \fBexact\fP instead of
+\fBpresent\fP\&.
+T}
+_
+T{
+\fBexact\fP
+T}	T{
+The role will ensure that only the specified set of attributes
+of a given LDAP object is defined in the LDAP directory. You
+MUST use this parameter when \fBX\-ORDERED\fP type attributes are
+configured, otherwise the role cannot guarantee that only the
+specified set of attribute values, as well as their specified
+order, is defined in a given LDAP object.
+T}
+_
+T{
+\fBabsent\fP
+T}	T{
+The specified attributes of a given LDAP object will be removed.
+T}
+_
+T{
+\fBinit\fP
+T}	T{
+The role will prepare a task entry configuration but it will not
+be active \- this can be used to activate prepared entries
+conditionally.
+T}
+_
+T{
+\fBignore\fP
+T}	T{
+A given configuration entry will not be evaluated by the role.
+This can be used to conditionally enable or disable entries.
+T}
+_
+.TE
+.TP
+.B \fBentry_state\fP
+Optional. This parameter should be present only if the entire LDAP object
+entry is to be removed. Set the entry state to \fBabsent\fP to remove it.
+.TP
+.B \fBno_log\fP
+Optional, boolean. If \fBTrue\fP, a given task output will not be recorded to
+avoid emitting sensitive information like passwords. If not specified or
+\fBFalse\fP, the task will be recorded and logged.
+.TP
+.B \fBrun_once\fP
+Optional, boolean. If defined and \fBTrue\fP, a given LDAP task will be
+executed only one time when the role is applied on multiple remote hosts at
+once. This might be important in cases where the LDAP directory is
+replicated, or values from different remote hosts can result in the same LDAP
+objects, e.g. objects with \fBX\-ORDERED\fP index numbers, like LDAP schemas.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

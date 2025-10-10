@@ -1,0 +1,225 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.APT_PREFERENCES" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.apt_preferences \- Manage APT preferences using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/apt_preferences\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-tags\fP \fBrole::apt_preferences\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run site\fP \fB\-\-skip\-tags\fP \fBskip::apt_preferences\fP [\fIplaybook\fP] ... [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%APT preferences\fP <\fBhttps://wiki.debian.org/AptPreferences\fP> can be used to influence package selection performed by APT
+during installation or upgrades. You can for example tell APT that you prefer
+packages from certain repositories or want to hold a package on a particular
+version no matter what (among other things).
+.sp
+By default, if you don\(aqt specify a version or provide a custom pin configuration,
+\fBdebops.apt_preferences\fP role will configure the specified packages to be
+installed from the backports repository of the current OS release.
+.SH GETTING STARTED
+.SS APT preferences configuration
+.sp
+You can use this role to select a different version of APT packages available
+without specifying the version directly in the playbooks or roles. This helps
+to ensure that the APT dependency tree is stable and there are no conflicts between
+different versions.
+.SS Example inventory
+.sp
+The \fBdebops.apt_preferences\fP role is included in the \fBcommon.yml\fP playbook, you
+can add your own entries to Ansible’s inventory and they should be picked up
+automatically on the next playbook run.
+.SS Example playbook
+.sp
+Here\(aqs an example playbook that can be used to manage APT preferences:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage APT preferences
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_apt_preferences\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.apt_preferences\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS apt_preferences__list
+.sp
+List of \fI\%apt_preferences(5)\fP <\fBhttps://manpages.debian.org/apt_preferences(5)\fP> \(dqpins\(dq, each pin is defined by a YAML
+dictionary. Supported parameters:
+.INDENT 0.0
+.TP
+.B \fBpackage\fP or \fBpackages\fP
+Required. String or YAML list of package names affected by this pin, each
+package separated by space. You can use a \fBpackage\-*\fP wildcard to specify
+multiple packages. First package name will be included in the automatically
+generated filename of the pin preferences file.
+.TP
+.B \fBbackports\fP
+List of OS releases which should be considered when
+the \fBdebops.apt_preferences\fP role configures a pin for a backported package. If
+the current OS release is not on this list, the pin won\(aqt be created and a existing
+pin will be removed. This should allow for easy transition to the next OS
+release.
+.TP
+.B \fBversion\fP
+Specify a particular package version you want to pin, for example \fB5.10\fP\&.
+It will be configured with a \fB*\fP at the end to allow for upgrades.
+.sp
+By default versioned pins are set with priority \fB1001\fP, which should ensure
+that the selected package version is never upgraded, or it will be downgraded if
+required.
+.TP
+.B \fBpriority\fP
+Specify a custom priority for a pin. By default pins are created with priority
+\fB500\fP to allow for easy installation of packages from backports, versioned
+pins are created with priority \fB1001\fP\&.
+.TP
+.B \fBreason\fP
+A short description explaining the reason for a pin. Might be used to point
+the admin to useful documentation explaining why a particular pin is defined.
+Multi\-line strings are handled properly by prepending each line by \fBExplanation:\fP\&.
+.TP
+.B \fBfilename\fP
+Name of the generated file with pin preferences, saved in
+\fB/etc/apt/preferences.d/\fP\&. If undefined, the \fBdebops.apt_preferences\fP role
+will automatically generate a filename.
+.TP
+.B \fBsuffix\fP
+Additional string added at the end of the autogenerated filename, can be used to
+prevent filename collisions.
+.TP
+.B \fBby_role\fP
+Name of a Ansible role in the format \fBROLE_OWNER.ROLE_NAME\fP which is
+responsible for the pin.
+The sanitized name will be included in the autogenerated filename.
+.TP
+.B \fBrole\fP
+Deprecated. Use \fBby_role\fP instead.
+.TP
+.B \fBpin\fP
+Custom pin definition. If this variable is undefined,
+the \fBdebops.apt_preferences\fP role will automatically configure selected
+packages with preference for a backported version.
+.TP
+.B \fBraw\fP
+Instead of generating a pin automatically, use contents of this YAML text
+block for pin configuration. Might be used to create several pins in one
+file.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, an APT pin will be created. If
+\fBabsent\fP, pin will be deleted.
+.TP
+.B \fBwhen\fP
+Deprecated. If this parameter is defined and \fBTrue\fP or \fBFalse\fP, enable or
+disable a particular pin conditionally.
+.TP
+.B \fBdelete\fP
+Deprecated. If this parameter is defined and \fBTrue\fP, the preferences file
+for this pin will be deleted and a new one will not be created.
+.UNINDENT
+.SS Examples
+.sp
+Ensure that Perl 5.10 is installed on the system:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_preferences__list:
+  \- package: \(aqperl\(aq
+    reason: |\-
+      Ensure that Perl 5.10 is installed on the system.
+      Any other Perl version breaks our legacy code!!! ;\-)
+      (Just an example for a multiline explanation).
+    version: \(aq5.10\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Prefer packages from a specific site:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_preferences__list:
+  \- package: \(aq*\(aq
+    pin: \(aqorigin \(dqftp.de.debian.org\(dq\(aq
+    priority: \(aq999\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Install the \fBnginx\fP packages from backports on Debian Wheezy and Debian Jessie:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt_preferences__list:
+  \- packages: [ \(aqnginx\(aq, \(aqnginx\-*\(aq ]
+    backports: [ \(aqwheezy\(aq, \(aqjessie\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,679 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.MARIADB" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.mariadb \- Manage MariaDB database client
+.SH SYNOPSIS
+.sp
+\fBdebops run service/mariadb\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%MariaDB\fP <\fBhttps://en.wikipedia.org/wiki/Mariadb\fP> is a popular relational SQL database that was forked from MySQL
+server. Ansible roles \fBdebops.mariadb\fP and \fBdebops.mariadb_server\fP allow
+you to manage a MariaDB server and / or access it remotely from other hosts.
+.sp
+\fBdebops.mariadb\fP role is the \(dqclient\(dq part \- it installs \fBmariadb\-client\fP
+Debian package, and uses Ansible delegation to configure users and databases in
+local or remote MariaDB servers. You can use \fBdebops.mariadb_server\fP role to
+manage the MariaDB server itself.
+.SH GETTING STARTED
+.sp
+\fBdebops.mariadb\fP role is only the \(dqclient\(dq part. To have working a
+MariaDB/MySQL installation, you also need to setup \fBdebops.mariadb_server\fP
+role somewhere. It can be either on the same host, or on a separate host.
+See the \fBdebops.mariadb_server\fP documentation to learn how to install the
+database server itself.
+.SS Server configuration
+.sp
+The role supports different modes of operation, depending on the presence of a
+MariaDB or MySQL server installed locally or not, or presence of a tunneled
+connection to a remote server.
+.SS Local database server
+.sp
+If the database server is installed locally, it will be automatically detected
+and used by the \fBdebops.mariadb\fP role without any additional configuration. Also,
+if a remote server was used previously, and a local one was installed, it will
+automatically override the remote configuration. You might need to recreate the
+databases and user accounts in that case.
+.SS Remote database server
+.sp
+If your MariaDB server is configured on a remote host and you don\(aqt have
+a local installation, \fBdebops.mariadb\fP will detect that and won\(aqt manage the
+databases/user accounts without a server specified. To point it to a server,
+you need to set a variable in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__server: \(aqdb.example.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This needs to be a FQDN address or an IP address of a host with MariaDB server
+installed. This host will be accessed by Ansible using task delegation, so it
+needs to be accessible and managed by Ansible. Currently only 1 server at
+a time is supported by the role.
+.sp
+If \fI\%debops.pki\fP role is used to configure a PKI environment, with default
+\fBdomain\fP PKI realm enabled, role will configure the provided private keys and
+X.509 certificates to enable SSL connections to the database by default.
+Support for client\-side X.509 authentication will depend on a given user having
+access to the PKI private keys \- see the documentation of \fI\%debops.pki\fP role
+for more details.
+.sp
+If the PKI environment is not configured or disabled, connections to the
+database server will be performed in cleartext, so you might want to consider
+securing them by configuring server on a separate internal network, or
+accessing it over a VPN connection. You can use \fBdebops.subnetwork\fP,
+\fI\%debops.tinc\fP and \fI\%debops.dnsmasq\fP Ansible roles to set up a VPN internal
+network to secure communication between hosts.
+.SS Remote database server over a SSL tunnel
+.sp
+If local MariaDB installation is not detected, but port \fB3306\fP is active and
+awaiting connections, \fBdebops.mariadb\fP role assumes that MariaDB server is
+accessible over a VPN connection. In this case you need to specify the remote
+host in inventory for Ansible to delegate its tasks:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__server: \(aqdb.example.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+User accounts will automatically be configured with \fBlocalhost\fP as the \(dqhost\(dq
+part of the account.
+.sp
+If you want to use tunneled connection to a MariaDB server, you can use
+\fI\%debops.stunnel\fP Ansible role to configure a SSL tunnel, although it might be
+more complex than using a VPN network.
+.SS Example inventory
+.sp
+To enable MariaDB client support on a host, you need to add that host to
+\fB[debops_service_mariadb]\fP Ansible group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_mariadb]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When MariaDB server is properly configured, or installed locally, you can
+create user accounts and databases using inventory variables:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__databases:
+
+  \- name: \(aqapplication_production\(aq
+
+mariadb__users:
+
+  \- name: \(aqapplication\(aq
+    owner: \(aqapplication\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Above set of variables will create local system UNIX account \fBapplication\fP if
+it doesn\(aqt already exist, with a supplementary UNIX group of the same name,
+grant all privileges to \fBapplication.*\fP and \fBapplication\e_%.*\fP databases,
+create a \fB~/.my.cnf\fP configuration file with database credentials and
+finally, create a database \fBapplication_production\fP on the database server.
+.SS Example playbook
+.sp
+Here\(aqs an example Ansible playbook that uses the \fBdebops.mariadb\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage MariaDB client
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_mariadb\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::mariadb\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ mariadb__keyring__dependent_apt_keys }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::mariadb\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ mariadb__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ mariadb__python__dependent_packages2 }}\(aq
+
+    \- role: mariadb
+      tags: [ \(aqrole::mariadb\(aq, \(aqskip::mariadb\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Usage as a role dependency
+.sp
+\fBdebops.mariadb\fP role can be used by another Ansible role as a dependency.
+The easiest way to do so is to have a separate set of variables for an user
+account, group, home directory, and MariaDB user. \fBdebops.mariadb\fP will the
+create MariaDB user account, as wall as local UNIX account with
+a \fB~/.my.cnf\fP configuration file as needed.
+.sp
+Database creation is best left for the application role, since then you can use
+the state change to perform other actions, like importing or initializing the
+database. See the next section for details.
+.sp
+Example usage as a role dependency:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dependencies:
+
+  \- role: debops.mariadb
+    mariadb__dependent_users:
+
+      \- user: \(aq{{ application__database_user }}\(aq
+        database: \(aq{{ application__database_name }}\(aq
+        owner: \(aq{{ application__user }}\(aq
+        group: \(aq{{ application__group }}\(aq
+        home: \(aq{{ application__home }}\(aq
+        system: True
+        priv_aux: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Password to the database user account can either be retrieved directly from the
+\fBsecret/\fP directory by the application role using \fI\%debops.secret\fP role, or
+set by the application role and provided as:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__dependent_users:
+
+  \- user: \(aq{{ application__database_user }}\(aq
+    password: \(aq{{ application__database_password }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In that case it\(aqs best to use \fI\%debops.secret\fP role to store the password
+securely in a separate directory.
+.SS Local Ansible facts, custom tasks
+.sp
+Role creates a set of local Ansible facts which can be used by other roles to
+create database management tasks that work both with local and remote MariaDB
+servers. These facts are:
+.INDENT 0.0
+.IP \(bu 2
+\fBansible_local.mariadb.client\fP
+.IP \(bu 2
+\fBansible_local.mariadb.delegate_to\fP
+.IP \(bu 2
+\fBansible_local.mariadb.host\fP
+.IP \(bu 2
+\fBansible_local.mariadb.port\fP
+.IP \(bu 2
+\fBansible_local.mariadb.server\fP
+.UNINDENT
+.sp
+These variables can be used in Ansible tasks to provide correct values pointing
+to the correct MariaDB server. An example set of tasks to create user account
+and database:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Create database user
+  mysql_user:
+    name: \(aq{{ application__database_user }}\(aq
+    host: \(aq{{ ansible_local.mariadb.host }}\(aq
+    password: \(aq{{ application__database_password }}\(aq
+    priv: \(aq{{ application__database_name }}.*:ALL\(aq
+    state: \(aqpresent\(aq
+  delegate_to: \(aq{{ ansible_local.mariadb.delegate_to }}\(aq
+
+\- name: Create application database
+  mysql_db:
+    name: \(aq{{ application__database_name }}\(aq
+    state: \(aqpresent\(aq
+  delegate_to: \(aq{{ ansible_local.mariadb.delegate_to }}\(aq
+  register: application__register_database
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.mariadb\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS mariadb__databases
+.sp
+List of databases that should be present or absent on a given MariaDB server.
+Each database is defined as a YAML dict with the following keys:
+.INDENT 0.0
+.TP
+.B \fBdatabase\fP or \fBname\fP
+Name of the database, required. Should be composed from alphanumeric
+characters and underscore (\fB_\fP) only. Max length: 16 for MySQL databases,
+80 for MariaDB databases.
+.TP
+.B \fBstate\fP
+Optional. If value is \fBpresent\fP, database will be created; if \fBabsent\fP,
+database will be removed.
+.TP
+.B \fBsource\fP
+Optional. Path to a file with SQL dump on the Ansible Controller, which will
+be copied to the remote host at the \fBtarget\fP location, imported into
+database (only if it was recently created), and removed afterwards. The role does
+not check if the file exists before copying it, so make sure that it\(aqs
+present in the location that you specify beforehand.
+.TP
+.B \fBtarget\fP
+Optional. Path to a file on the remote host which will be imported to the
+database after it has been created (only once). The role does not check if the
+file exists before trying to import it. You can use the \fBsource\fP parameter to
+specify a file on the Ansible Controller to copy to the \fBtarget\fP location
+before import.
+.TP
+.B \fBtarget_delete\fP
+Optional. If present and \fBFalse\fP, it will prevent deletion of target file
+on remote host.
+.TP
+.B \fBencoding\fP
+Optional. Encoding mode to use, examples include \fButf8\fP or \fBlatin1_swedish_ci\fP\&.
+.TP
+.B \fBcollation\fP
+Optional. Collation mode (sorting). This only applies to new table/databases
+and does not update existing ones, this is a limitation of MySQL.
+.UNINDENT
+.SS Examples
+.sp
+Create databases, remove some of the existing ones:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__databases:
+
+  \- name: \(aqdatabase1\(aq
+
+  \- name: \(aqdatabase2\(aq
+
+  \- name: \(aqold_database\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a database and import its contents from a file already present on remote
+host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__databases:
+
+  \- name: \(aqfancy_db\(aq
+    target: \(aq/tmp/dbcontents.sql.gz\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a database and import its contents from a file on the Ansible Controller:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__databases:
+
+  \- name: \(aqnew_database\(aq
+    source: \(aq/tmp/database\-contents.sql.gz\(aq
+    target: \(aq/tmp/dbcontents.sql.gz\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS mariadb__users
+.sp
+List of user accounts that should be present or absent on a given MariaDB
+server. Each user account is defined as a dict with a set of keys and values.
+.SS User account parameters
+.INDENT 0.0
+.TP
+.B \fBuser\fP or \fBname\fP
+Required. The \(dqusername\(dq part of the user account on the MariaDB server. If
+\fBname\fP is specified, it will be used to determine the database name for
+granting default privileges, if \fBdatabase\fP is not specified.
+.TP
+.B \fBhost\fP
+Optional. The \(dqhostname\(dq part of the user account on the MariaDB server. If
+not specified, it will be generated automatically by the role (this is
+usually what you want). It specifies the hostname or IP address of the host
+that is allowed to connect to the database.
+.TP
+.B \fBpassword\fP
+Optional. If specified, the role will set it as the password for the MariaDB
+account. If not present, a random password will be generated automatically
+and stored in the \fBsecret/\fP directory on the Ansible Controller. Refer to the
+\fI\%debops.secret\fP role for more details.
+.TP
+.B \fBstate\fP
+Optional. If \fBpresent\fP, the account will be created on the database server. If
+\fBabsent\fP, account will be removed from the database server.
+.UNINDENT
+.SS Database privileges
+.INDENT 0.0
+.TP
+.B \fBdatabase\fP
+Optional. If present, it specifies the database name and/or database prefix
+that a given user account will be able to access using default privileges. If
+not present, \fBname\fP will be used instead.
+.TP
+.B \fBpriv_default\fP
+Optional. By default, the user accounts will get all privileges to databases with
+the same name. If this key is present and \fBFalse\fP, the users will not get
+default privileges.
+.TP
+.B \fBpriv_aux\fP
+Optional. By default, the user accounts will get all privileges to the database
+prefixed with the name of the user account. If this key is present and \fBFalse\fP,
+the users will not get default prefix privileges.
+.TP
+.B \fBpriv\fP
+Optional. String or list of privileges to grant to a given user account. See
+\fBmysql_user\fP documentation for information about how to specify the
+privileges.
+.TP
+.B \fBappend_privs\fP
+Optional. If present and \fBTrue\fP, specified privileges will be appended to
+already existing privileges (default). If \fBFalse\fP, specified privileges
+will replace all current privileges for a given user account.
+.UNINDENT
+.SS User configuration file
+.INDENT 0.0
+.TP
+.B \fBowner\fP
+Optional. It should specify a local UNIX account on the host managed by
+the \fBdebops.mariadb\fP role (not on the host with the database, unless it\(aqs
+a local installation). If specified, the \fBdebops.mariadb\fP role will create
+a local UNIX account if it doesn\(aqt exist with the specified name and create
+a \fB~/.my.cnf\fP configuration file with the MariaDB account credentials and
+configuration pointing to the MariaDB server.
+.TP
+.B \fBgroup\fP
+Optional. Main local UNIX group of the created account. If not specified,
+a group named after the account will be created instead.
+.TP
+.B \fBhome\fP
+Required if \fBitem.owner\fP is specified. Specifies the home directory of
+given local UNIX account.
+.TP
+.B \fBsystem\fP
+Optional. If specified and \fBTrue\fP, the local UNIX group/user account which is going to be created
+will be a \(dqsystem\(dq account with UID/GID < 1000. If specified and \fBFalse\fP,
+local UNIX group/user account will be a \(dqnormal\(dq account with UID/GID
+>= 1000. By default groups and accounts will be created as \(dqsystem\(dq accounts.
+.TP
+.B \fBmode\fP
+Optional. If specified, defines the permissions of the \fB~/.my.cnf\fP configuration
+file. By default they are set to \fB0640\fP\&.
+.TP
+.B \fBcreds_path\fP
+Optional, string. Allows you to change the file path for the credentials file
+which defaults to \fB~/.my.cnf\fP\&.
+.UNINDENT
+.SS Examples
+.sp
+Create a MariaDB user account with all privileges granted to the \fBsomeuser.*\fP and
+\fBsomeuser\e_%.*\fP databases:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__users:
+
+  \- name: \(aqsomeuser\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a MariaDB user account with all privileges to \fBsomedatabase.*\fP
+without auxiliary privileges:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__users:
+
+  \- name: \(aqsomeuser\(aq
+    database: \(aqsomedatabase\(aq
+    priv_aux: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a MariaDB user account and set up a local system account configured to
+use MariaDB:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__users:
+
+  \- name: \(aqsomeuser\(aq
+    owner: \(aqsystem\-user\(aq
+    home: \(aq/var/local/system\-user\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a MariaDB user account without default privileges:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__users:
+
+  \- name: \(aqsomeuser\(aq
+    priv_default: False
+    priv_aux: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a MariaDB user account with custom additional privileges:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__users:
+
+  \- name: \(aqsomeuser\(aq
+    priv: [ \(aqotherdb.*:ALL\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS mariadb__options
+.sp
+The role uses \fB/etc/mysql/conf.d/client.cnf\fP configuration file to manage the
+MariaDB/MySQL system\-wide client configuration. This configuration file is
+generated by a template that uses the \fI\%mariadb__client_options\fP variable
+to get the configuration data. The configuration itself is split among several
+variables located in \fBdefaults/main.yml\fP file.
+.sp
+A minimal configuration is stored as a YAML dictionary. Keys of the dictionary
+as MariaDB configuration option names, and values of the dictionary are the
+configuration values. All values are automatically quoted in the generated
+configuration file.
+.sp
+Example configuration section:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__options:
+  \(aqquery_cache_type\(aq: \(aq0\(aq
+  \(aqkey_buffer\(aq: \(aq16M\(aq
+  \(aqskip_name_resolve\(aq:
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The dictionary keys without values will be written in the configuration file
+with correct notation.
+.sp
+Alternative configuration notation is to use a YAML list, each element of
+a list being a YAML dictionary in the above format. An example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__options:
+
+  \- \(aqquery_cache_type\(aq: \(aq0\(aq
+    \(aqkey_buffer\(aq: \(aq16M\(aq
+
+  \- \(aqskip_name_resolve\(aq:
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Yet another alternative format can be used if you use certain keys in the YAML
+dictionary. The template checks for presence of the \fBname\fP or \fBsection\fP
+keys, and if found, changes to a different format that uses YAML dictionary
+keys:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required for the main options. Name of the option to add.
+.TP
+.B \fBsection\fP
+Required for the definition of a configuration section. Create new section of
+the configuration file, written in square brackets.
+.TP
+.B \fBstate\fP
+Optional. Either \fBpresent\fP or \fBabsent\fP\&. If not specified or \fBpresent\fP,
+a given section or option will be added in the configuration file; if
+\fBabsent\fP, option or section won\(aqt be added.
+.TP
+.B \fBcomment\fP
+Optional. Add a comment to a given option or section.
+.TP
+.B \fBvalue\fP
+Optional for main options. If specified, set a value of a given option.
+.TP
+.B \fBoptions\fP
+Optional. A YAML dictionary or list of YAML dictionaries with options to
+include in a given section, or multiple options specified together as
+a group. If it\(aqs specified, values of \fBname\fP and \fBvalue\fP are ignored.
+.UNINDENT
+.sp
+Examples:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mariadb__options:
+
+  \- section: \(aqclient\(aq
+    comment: \(aqGlobal MariaDB client options\(aq
+    options:
+
+      \- name: \(aqskip_name_resolve\(aq
+
+      \- name: \(aqkey_buffer\(aq
+        value: \(aq16M\(aq
+
+      \- name: \(aqquery_cache_type\(aq
+        value: \(aq0\(aq
+        state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

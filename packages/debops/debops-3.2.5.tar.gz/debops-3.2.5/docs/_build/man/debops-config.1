@@ -1,0 +1,215 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS-CONFIG" "1" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops-config \- Inspect or manipulate DebOps project configuration
+.SH SYNOPSIS
+.sp
+\fBdebops config get\fP  [\-h|\-\-help] [\-\-project\-dir <project_dir>] [\-\-format json|toml|unix|yaml] [\-k|\-\-keys] [\-v|\-\-verbose] [<key>] [key] ...
+.sp
+\fBdebops config list\fP [\-h|\-\-help] [\-v|\-\-verbose] [<project_dir>]
+.SH DESCRIPTION
+.sp
+The \fBdebops config\fP command provides access to DebOps configuration
+system. At present it can only be used to inspect the configuration options, in
+the future it will allow modification of them as well.
+.SH DEBOPS CONFIG GET
+.sp
+Output DebOps project configuration, optionally scoped to a specific context.
+Multiple output formats are available (plain text, JSON, TOML, YAML).
+.SS Options
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-\-project\-dir <project_dir>\fP
+Path to the project directory to work on. If it\(aqs not specified, the script
+will use the current directory.
+.TP
+.B \fB\-\-format json|toml|unix|yaml\fP
+Specify the format of the output. The default format is TOML which is
+considered human\-friendly. The JSON format can be used to enable easy parsing
+by programs.
+.TP
+.B \fB\-k, \-\-keys\fP
+Instead of returning the entire configuration tree, return a list of
+configuration keys present at a given configuration level. Empty output or
+list means that there are no more subkeys present at a given level.
+.TP
+.B \fB\-v, \-\-verbose\fP
+Increase output verbosity. More letters means higher verbosity.
+.TP
+.B \fBkey\fP
+Name of the configuration option key to return. Subkeys are specified using
+dot (\fB\&.\fP) as a separator. If not specified, entire configuration tree will
+be returned by default. Multiple keys may be specified, they will be returned
+in order of appearance.
+.UNINDENT
+.SS Examples
+.sp
+Print all configuration options to standard output:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops config get
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+List known infrastructure views in a given project directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops config get \-k views
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Display the \(dqsystem view\(dq configuration options in TOML format:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops config get \-\-format toml views.system
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Use \fBjq\fP command to parse the DebOps configuration and extract path to
+the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops config get \-\-format json | jq .views.system.ansible.defaults.inventory
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Perform the same operation as above, but let the \fBdebops\fP script do
+the parsing by itself:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops config get \-\-format json .views.system.ansible.defaults.inventory | jq .
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The dot prefix (\fB\&.\fP) is optional.
+.SH DEBOPS CONFIG LIST
+.sp
+List all files which are parsed by the \fBdebops\fP script to configure
+the runtime and project environment.
+.SS Options
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-v, \-\-verbose\fP
+Increase output verbosity. More letters means higher verbosity.
+.TP
+.B \fB<project_dir>\fP
+Path to the project directory to work on. If it\(aqs not specified, the script
+will use the current directory.
+.UNINDENT
+.SS Examples
+.sp
+List currently parsed configuration files:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops config list
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH CONFIGURATION FILES
+.sp
+DebOps uses multiple levels of configuration files that are merged together in
+order of appearance:
+.INDENT 0.0
+.IP \(bu 2
+\fBdefaults.toml\fP (built\-in default configuration)
+.IP \(bu 2
+\fB/usr/lib/debops/conf.d/\fP (configuration included by OS distribution
+maintainers)
+.IP \(bu 2
+\fB/usr/local/lib/debops/conf.d/\fP (configuration included by Python
+package maintainers)
+.IP \(bu 2
+\fB/etc/debops/conf.d/\fP (configuration defined by local system
+administrators)
+.IP \(bu 2
+\fB$XDG_CONFIG_HOME/debops/conf.d/\fP (per\-user configuration)
+.IP \(bu 2
+\fB<project directory>/.debops.cfg\fP (per\-project configuration file,
+legacy)
+.IP \(bu 2
+\fB<project directory>/.debops/conf.d/\fP (per\-project configuration
+directory)
+.UNINDENT
+.sp
+Configuration directories can contain JSON, TOML or YAML configuration files;
+format is detected via the file extension (respectively \fB*.json\fP,
+\fB*.toml\fP, \fB*.yml\fP or \fB*.yaml\fP). The configuration files are
+interpreted in alphabetical order and their contents are merged together
+recursively.
+.sp
+Values of configuration options can contain environment variables specified as
+\fB$VARIABLE\fP or \fB${VARIABLE}\fP strings. These variables will be expanded at
+runtime and can be used to augment the final configuration. Variables
+themselves can be defined in the \fB<project directory>/.debops/environment\fP
+or the \fB<project directory>/.env\fP files and they will be automatically
+incorporated into runtime environment. Users can use the \fI\%The debops env command\fP
+command to inspect the runtime environment variables.
+.SH AUTHOR
+Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

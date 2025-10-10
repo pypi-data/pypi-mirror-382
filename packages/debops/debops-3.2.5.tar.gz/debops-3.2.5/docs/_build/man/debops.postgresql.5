@@ -1,0 +1,750 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.POSTGRESQL" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.postgresql \- Manage PostgreSQL client using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/postgresql\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%PostgreSQL\fP <\fBhttps://www.postgresql.org/\fP> is a popular relational open source database. The
+\fBdebops.postgresql\fP role can be used to create and manage PostgreSQL roles
+and databases on local or remote PostgreSQL servers.
+.sp
+To manage the PostgreSQL server itself, you will need to use
+\fBdebops.postgresql_server\fP role.
+.SH GETTING STARTED
+.sp
+\fBdebops.postgresql\fP role is only the \fIclient\fP part. For a working PostgreSQL
+installation, \fBdebops.postgresql_server\fP also needs to run somewhere.
+It can be either on the same host, or on a separate one.
+.sp
+See the \fI\%debops.postgresql_server\fP documentation to learn how to install
+the database server itself.
+.sp
+The PostgreSQL version installed by the role will be a default version offered
+by the distribution. If you want PostgreSQL 9.4 on Debian Wheezy, or an
+upstream version of the server, you can enable the upstream APT repository by
+adding in inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__upstream: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Check \fI\%postgresql__preferred_version\fP to learn more about
+selecting custom PostgreSQL versions.
+.SS Server configuration
+.sp
+The role supports different modes of operation, depending on the presence of a
+PostgreSQL server installed locally or not.
+.SS Local database server
+.sp
+If the database server is installed locally, it will be automatically detected
+and used by the \fBdebops.postgresql\fP role without any additional
+configuration.
+.sp
+If a remote server was used previously, and then a local one was installed,
+it will automatically override the remote configuration.
+You might need to recreate the databases and user accounts in that case.
+.SS Remote database server
+.sp
+If your PostgreSQL server is configured on a remote host and
+\fBdebops.postgresql\fP does not detect a local installation, it won\(aqt manage
+databases or user accounts without a server specified.
+.sp
+To point it to a server, you need to set a variable in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+postgresql__server: \(aqdb.example.org\(aq
+.UNINDENT
+.UNINDENT
+.sp
+This needs to be a FQDN address or an IP address of a host with the PostgreSQL
+server installed. This host will be accessed by Ansible using task delegation,
+so it needs to be accessible and managed by Ansible. Currently the role only
+supports one server at a time.
+.sp
+If you use \fI\%debops.pki\fP to manage SSL certificates and you configured
+PostgreSQL server with them, remote connections to the database will be
+automatically encrypted. The default server configuration requires remote
+connections to be done over SSL, otherwise the connection is dropped.
+.SS Example inventory
+.sp
+To enable PostgreSQL client support on a host, you need to add that host to
+\fB[debops_service_postgresql]\fP Ansible group:
+.INDENT 0.0
+.INDENT 3.5
+[debops_service_postgresql]
+hostname
+.UNINDENT
+.UNINDENT
+.sp
+When PostgreSQL server is properly configured, or installed locally, you can
+create user accounts and databases using inventory variables:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__roles:
+
+  \- name: \(aqapplication\(aq
+
+  \- name: \(aqapplication_production\(aq
+    flags: [ \(aqNOLOGIN\(aq ]
+
+postgresql__databases:
+
+  \- database: \(aqapplication_production\(aq
+    owner:    \(aqapplication_production\(aq
+
+postgresql__groups:
+
+  \- roles:  [ \(aqapplication\(aq ]
+    groups: [ \(aqapplication_production\(aq ]
+    database: \(aqapplication_production\(aq
+
+postgresql__pgpass:
+
+  \- owner: \(aqapplication\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above set of variables will create the PostgreSQL roles \fBapplication\fP and
+\fBapplication_production\fP, which is meant to manage the database and cannot
+directly be logged into.
+.sp
+The \fBapplication_production\fP PostgreSQL database will be created on the server
+and the \fBapplication_production\fP role will be its owner.
+.sp
+The \fBapplication\fP role will be granted access to the
+\fBapplication_production\fP role and all of its objects.
+.sp
+Next, Ansible will ensure that the local system group and user account
+\fBapplication\fP exists, and will create \fB~/.pgpass\fP with PostgreSQL user and
+password stored for easier access.
+.SS Example playbook
+.sp
+Here\(aqs an example Ansible playbook that uses the \fBdebops.postgresql\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage PostgreSQL client
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_postgresql\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::postgresql\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ postgresql__keyring__dependent_apt_keys }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::postgresql\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ postgresql__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ postgresql__python__dependent_packages2 }}\(aq
+
+    \- role: postgresql
+      tags: [ \(aqrole::postgresql\(aq, \(aqskip::postgresql\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Local Ansible facts, custom tasks
+.sp
+Role creates a set of local Ansible facts which can be used by other roles to
+create database management tasks that work both with local and remote
+PostgreSQL servers. These facts are:
+.INDENT 0.0
+.IP \(bu 2
+\fBansible_local.postgresql.delegate_to\fP
+.IP \(bu 2
+\fBansible_local.postgresql.server\fP
+.IP \(bu 2
+\fBansible_local.postgresql.port\fP
+.IP \(bu 2
+\fBansible_local.postgresql.user\fP
+.IP \(bu 2
+\fBansible_local.postgresql.version\fP
+.UNINDENT
+.sp
+These variables can be used in Ansible tasks to provide correct values pointing
+to the correct PostgreSQL server. An example set of tasks to create a role and
+database:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Create database role
+  postgresql_user:
+    name: \(aq{{ application_database_user }}\(aq
+    password: \(aq{{ application_database_password }}\(aq
+    state: \(aqpresent\(aq
+  delegate_to: \(aq{{ ansible_local.postgresql.delegate_to }}\(aq
+
+\- name: Create application database
+  postgresql_db:
+    name: \(aq{{ application_database_name }}\(aq
+    owner: \(aq{{ application_database_user }}\(aq
+    state: \(aqpresent\(aq
+  delegate_to: \(aq{{ ansible_local.postgresql.delegate_to }}\(aq
+  register: application_register_database
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.postgresql\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS postgresql__preferred_version
+.sp
+By default the role installs the PostgreSQL version preferred by the APT
+package manager. This behavior is influenced by how the PostgreSQL is packaged
+in Debian \- each version has its own set of packages with the version as
+a suffix, and there\(aqs a set of metapackages which depend on the version
+available in the distribution (by default only 1 version is available).
+.sp
+Multiple PostgreSQL versions become available after enabling the upstream APT
+repository. To choose a different version than the default one, you need to set
+two variables in the inventory:
+.INDENT 0.0
+.TP
+.B \fI\%postgresql__preferred_version\fP
+The value of this variable should be set as the version of the PostgreSQL you
+wish the role to manage (it does not influence the APT packages the role
+installs, but what version is used in different file/directory paths managed
+by the role, what features are enabled/disabled in the configuration, etc.).
+.TP
+.B \fI\%postgresql__base_packages\fP
+This is a list of APT packages which will be used by the role to install
+PostgreSQL. By default, it contains the metapackages which install the
+highest available version of PostgreSQL packages. To select a different
+version, you need to change the list of packages.
+.UNINDENT
+.sp
+For example, to install PostgreSQL 9.3 instead of the default available
+version, in inventory you need to define:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__upstream: True
+postgresql__preferred_version: \(aq9.3\(aq
+postgresql__base_packages: [ \(aqpostgresql\-client\-9.3\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remember that role does not support management of multiple PostgreSQL versions
+at the same time. The above variables should be defined in the inventory at all
+times, otherwise role might revert to the default PostgreSQL packages and
+version, and break your installation. This also is true for server upgrades.
+The preferred way to make an upgrade is to configure a new database server with
+desired PostgreSQL version and move the database to it.
+.sp
+You might also need to set similar set of variables for the
+\fBdebops.postgresql_server\fP role to keep both of the roles in sync. Refer to
+its documentation for details.
+.SS postgresql__user_clusters
+.sp
+This list defines what entries will be set in
+\fB/etc/postgresql\-common/user_clusters\fP configuration file. It is used by
+\fBpg_wrapper\fP in Debian to direct PostgreSQL\-related commands to correct
+clusters. DebOps uses the default entry to redirect PostgreSQL\-related commands
+like \fBpsql\fP to either local or remote PostgreSQL server.
+.sp
+Each entry is defined by a YAML dict. Supported parameters:
+.INDENT 0.0
+.TP
+.B \fBuser\fP
+Required. String or list with UNIX account usernames to include in a given
+entry. You can specify \fB*\fP to use any user account.
+.TP
+.B \fBgroup\fP
+Required. String or list with UNIX group names to include in a given entry.
+You can specify \fB*\fP to use any group.
+.TP
+.B \fBversion\fP
+Optional. Specify PostgreSQL version to use for a given entry. If not
+defined, default PostgreSQL detected by the role will be used.
+.TP
+.B \fBcluster\fP
+Optional. Specify name of the cluster to direct the commands to. If not
+specified, \fBmain\fP cluster will be used.
+.TP
+.B \fBhost\fP
+Optional. IP address or hostname of the server the PostgreSQL database is
+stored as. Requires \fBport\fP to be specified as well. Replaces \fBcluster\fP\&.
+.TP
+.B \fBport\fP
+Optional. TCP port to connect to as the PostgreSQL server. Requires \fBhost\fP
+to be specified as well. Replaces \fBcluster\fP\&.
+.TP
+.B \fBdatabase\fP
+Required. Name of the database to connect to by default. If \fB*\fP is
+specified, users will connect to the database with the same name as their
+UNIX account.
+.UNINDENT
+.SS postgresql__roles
+.sp
+PostgreSQL uses \fI\%Roles\fP <\fBhttps://www.postgresql.org/docs/current/user-manag.html\fP> as database accounts as well as groups.
+.sp
+Roles can have certain permissions granted to them by the server which allow
+access to database objects.
+This list can be used to create roles on a PostgreSQL server.
+Each role is defined as a YAML dictionary.
+.INDENT 0.0
+.TP
+.B \fBrole\fP or \fBname\fP
+Required. The name of a given role.
+.TP
+.B \fBport\fP
+Optional. By default roles are created on the local or remote PostgreSQL
+server\(aqs default cluster (\fB5432\fP). You can specify a different port to
+change the cluster which will be used.
+.TP
+.B \fBpassword\fP
+Optional. Specify the password for a given PostgreSQL role. If not set, a
+random password will be generated and stored in \fBsecret/\fP directory.
+See \fI\%debops.secret\fP role for more details.
+.TP
+.B \fBencrypted\fP
+Optional, bool. Specify if a given password is already encrypted or not.
+.TP
+.B \fBexpires\fP
+Optional. Specify password expiration date as a PostgreSQL timestamp value.
+.TP
+.B \fBflags\fP
+Optional. YAML list of role attribute flags which should be applied to
+a given PostgreSQL role. Choices: \fB[NO]SUPERUSER\fP, \fB[NO]CREATEROLE\fP,
+\fB[NO]CREATEUSER\fP, \fB[NO]CREATEDB\fP, \fB[NO]INHERIT\fP, \fB[NO]LOGIN\fP,
+\fB[NO]REPLICATION\fP\&.
+.UNINDENT
+.sp
+If a given role should manage a particular database, you can specify additional
+parameters:
+.INDENT 0.0
+.TP
+.B \fBdb\fP
+Name of the database to manage. Only one database can be configured in a role
+entry at a time.
+.TP
+.B \fBpriv\fP
+YAML list of privileges to grant for a given role to specified database. List
+will be joined using \fB/\fP character into one privilege string.
+.UNINDENT
+.SS Examples
+.sp
+Create a PostgreSQL role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__roles:
+  \- name: \(aqalpha\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a role and grant specific attribute flags:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__roles:
+  \- name: \(aqbeta\(aq
+    flags: [ \(aqNOLOGIN\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a role and grant privileges to a particular database:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__roles:
+  \- name: \(aqgamma\(aq
+    db: \(aqgamma\(aq
+    priv: [ \(aqCONNECT\(aq, \(aqtable1:ALL\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS postgresql__groups
+.sp
+Access to one or more PostgreSQL roles can be granted to other roles; that way
+an application role and database role can have different set of privileges.
+This list can be used to define these \(dqgroups\(dq automatically. Recognized
+parameters:
+.INDENT 0.0
+.TP
+.B \fBroles\fP
+Required. List of roles which will be granted access to specified \(dqgroups\(dq.
+.TP
+.B \fBgroups\fP
+Required. List of role \(dqgroups\(dq to grant access to.
+.TP
+.B \fBdatabase\fP
+Required. Name of the database on which to grant privileges.
+.TP
+.B \fBport\fP
+Optional. By default roles are managed on the local or remote PostgreSQL
+server\(aqs default cluster (\fB5432\fP). You can specify a different port to
+change the cluster which will be used.
+.UNINDENT
+.SS Examples
+.sp
+Grant membership to other roles:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__groups:
+  \- roles:  [ \(aqalpha\(aq, \(aqbeta\(aq ]
+    groups: [ \(aqgamma\(aq ]
+    database: \(aqgamma\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS postgresql__databases
+.sp
+List of PostgreSQL databases to create or manage on a PostgreSQL server. Known
+parameters:
+.INDENT 0.0
+.TP
+.B \fBdatabase\fP or \fBname\fP
+Required. Database name.
+.TP
+.B \fBowner\fP
+Optional. Specifies the PostgreSQL role which will be an owner of
+a particular database. If not specified, database will be owned by PostgreSQL
+superuser role, usually \fBpostgres\fP\&.
+.sp
+If owner is specified, given role will be granted all privileges to the
+database and will have grant option enabled for a given database.
+.TP
+.B \fBtemplate\fP
+Optional. Specify name of the database which will be used as the template for
+new database.
+.TP
+.B \fBencoding\fP
+Optional. Default encoding used by a given database.
+If not supplied it falls back to the server default, derived from
+\fI\%postgresql_server__locale\fP on the \fBpostgresql_server\fP role.
+.TP
+.B \fBcreate_db\fP
+Optional. Set this to False when granting a role specific privileges on an existing database.
+.TP
+.B \fBtype\fP
+Optional. Type of database object to set privileges on. Default: schema.
+.TP
+.B \fBobjs\fP
+Optional. Comma separated list of database objects to set privileges on. Default: public.
+.TP
+.B \fBprivs\fP
+Optional. Comma separated list of privileges to grant. Default: ALL.
+.TP
+.B \fBgrant_option\fP
+Optional. Whether role (\fBowner\fP) may grant/revoke the specified privileges to others. Default: yes.
+.UNINDENT
+.SS Examples
+.sp
+Create database owned by a specified role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__databases:
+  \- name: \(aqgamma\(aq
+    owner: \(aqgamma\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create database owned by a specified role and grant select privilege on all tables in schema public to another role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__databases:
+  \- name: \(aqgamma\(aq
+    owner: \(aqgamma\(aq
+  \- name: \(aqgamma\(aq
+    owner: \(aqalpha\(aq
+    create_db: False
+    type: \(aqtable\(aq
+    objs: \(aqALL_IN_SCHEMA\(aq
+    public_privs: [ \(aqSELECT\(aq ]
+    grant_option: \(aqno\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS postgresql__privileges
+.sp
+List of additional privileges to grant or revoke on a PostgreSQL server. The
+parameters closely match those of the \fI\%PostgreSQL Ansible module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/community/postgresql/postgresql_privs_module.html\fP>\&. Known
+parameters:
+.INDENT 0.0
+.TP
+.B \fBdatabase\fP
+Required. Database name.
+.TP
+.B \fBroles\fP
+Required. List of role (user/group) names to set permissions for.
+.TP
+.B \fBport\fP
+Optional. TCP port to use when connecting to the PostgreSQL server.
+.TP
+.B \fBobjs\fP
+Optional. List of database objects to set privileges on. Default: public.
+.TP
+.B \fBprivs\fP
+Optional. Comma separated list of privileges to grant. Default: ALL.
+.TP
+.B \fBstate\fP
+Optional. If \fBpresent\fP, the specified privileges are granted, if \fBabsent\fP
+they are revoked. Default: \fBpresent\fP\&.
+.TP
+.B \fBtype\fP
+Optional. Type of database object to set privileges on. Default: table.
+.TP
+.B \fBschema\fP
+Optional. Schema that contains the database objects specified via \fBobjs\fP\&.
+.TP
+.B \fBtarget_roles\fP
+Optional. A list of existing role (user/group) names for which to set the
+default permissions for database objects subsequently created by them. Only
+relevant when \fBtype=default_privs\fP\&.
+.TP
+.B \fBgrant_option\fP
+Optional. Whether role (\fBowner\fP) may grant/revoke the specified privileges
+to others.
+.UNINDENT
+.SS Examples
+.sp
+Give the role \fBreader\fP default rights to any default objects created in the
+database \fBlibrary\fP (e.g. tables created by another user).
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__privileges:
+  \- roles: [ \(aqreader\(aq ]
+    database: \(aqlibrary\(aq
+    objs: [ \(aqALL_DEFAULT\(aq ]
+    privs: [ \(aqSELECT\(aq, \(aqINSERT\(aq, \(aqUPDATE\(aq, \(aqDELETE\(aq ]
+    type: \(aqdefault_privs\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Give \fBSELECT\fP privileges to the role \fBreader\fP for any tables created by
+\fBlibrarian\fP in database \fBlibrary\fP\&.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__privileges:
+  \- roles: [ \(aqreader\(aq ]
+    database: \(aqlibrary\(aq
+    objs: [ \(aqTABLES\(aq ]
+    privs: [ \(aqSELECT\(aq ]
+    target_roles: [ \(aqlibrarian\(aq ]
+    type: \(aqdefault_privs\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS postgresql__extensions
+.sp
+List of YAML dictionaries that specify what extensions to enable or disable in
+a PostgreSQL database. Each dictionary can configure one extension at a time.
+Known parameters:
+.INDENT 0.0
+.TP
+.B \fBdatabase\fP
+Required. Name of the database to configure, it needs to be an existing
+database.
+.TP
+.B \fBextension\fP
+Required. Name of the PostgreSQL extension to configure.
+.TP
+.B \fBport\fP
+Optional. The PostgreSQL cluster port number. If not specified, the default
+\fI\%postgresql__port\fP will be used automatically.
+.TP
+.B \fBstate\fP
+Optional. Either \fBpresent\fP or \fBabsent\fP\&. If not specified or \fBpresent\fP,
+the extension will be enabled for a given database; if \fBabsent\fP, the
+extension will be disabled.
+.UNINDENT
+.SS Examples
+.sp
+Add a custom extension to a database:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__extensions:
+  \- database: \(aqgamma\(aq
+    extension: \(aqpg_trgm\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS postgresql__pgpass
+.sp
+The \fB~/.pgpass\fP configuration file is used to store usernames and passwords
+used to login to local or remote PostgreSQL databases. Using this list you can
+configure entries for different servers on UNIX accounts. If an account or
+group is not present, it will be created automatically.
+.sp
+Each entry is defined by a YAML dictionary. Recognized parameters:
+.INDENT 0.0
+.TP
+.B \fBowner\fP
+Required. Specify name of the UNIX account that should be configured to
+access PostgreSQL databases. If that account doesn\(aqt exist, it will be
+created automatically as a local account.
+.TP
+.B \fBgroup\fP
+Optional. Specify default group to use for a UNIX account. If it doesn\(aqt
+exist, it will be created as a local group. If it\(aqs not specified, a group
+with the same name as \fBowner\fP will be created automatically.
+.TP
+.B \fBsystem\fP
+Optional. If \fBTrue\fP (default), created local accounts will be \(dqsystem\(dq
+accounts with UID < 1000. If \fBFalse\fP, created accounts and groups will be
+\(dqnormal\(dq accounts and groups.
+.TP
+.B \fBhome\fP
+Specify home directory of created UNIX account. If not specified, parameter
+will be omitted (not changed if account is already present).
+.TP
+.B \fBserver\fP
+Optional. Specify IP address or FQDN hostname of the server that you want to
+configure. If not specified, default server will be guessed automatically
+from \fI\%postgresql__server\fP variable.
+.TP
+.B \fBport\fP
+Optional. Specify default TCP port to use for PostgreSQL server entry. If not
+specified, \fI\%postgresql__port\fP value will be used instead.
+.TP
+.B \fBdatabase\fP
+Optional. Specify name of the database that should be covered by a given
+entry. If not specified, \fB*\fP will be used which means any database.
+.TP
+.B \fBrole\fP
+Optional. Specify PostgreSQL role covered by a given entry. If not specified,
+\fBowner\fP will be used by default.
+.TP
+.B \fBpassword\fP
+Optional. Specify cleartext password which should be used with a given entry.
+If not specified, password will be pulled from \fBsecret/\fP directory managed
+by \fI\%debops.secret\fP Ansible role.
+.UNINDENT
+.SS Examples
+.sp
+Create \fB~/.pgpass\fP entry for a role with any database:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__pgpass:
+  \- owner: \(aqalpha\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create \fB~/.pgpass\fP entry for a specific database:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__pgpass:
+  \- owner: \(aqgamma\(aq
+    database: \(aqgamma\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

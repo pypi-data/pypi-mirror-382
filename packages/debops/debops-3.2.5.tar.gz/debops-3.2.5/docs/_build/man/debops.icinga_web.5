@@ -1,0 +1,416 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ICINGA_WEB" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.icinga_web \- Manage Icinga 2 Webservice using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/icinga_web\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%Icinga\fP <\fBhttps://www.icinga.com/\fP> project is a monitoring solution which can be used to monitor
+infrastructure hosts and services. Icinga can use variety of remote agents as
+well as SNMP to monitor remote hosts.
+.sp
+DebOps provides support for Icinga 2, split into several roles:
+.INDENT 0.0
+.IP \(bu 2
+the \fI\%debops.icinga\fP role is the Icinga 2 Agent role, usually installed
+on all hosts in the cluster that should be monitored. Different instances can
+function as masters, satellites or clients depending on the configuration.
+.IP \(bu 2
+the \fI\%debops.icinga_db\fP role can be used to configure the database
+support for Icinga 2, used by the web interface. Both PostgreSQL and MariaDB
+databases are supported.
+.IP \(bu 2
+the \fI\%debops.icinga_web\fP role manages the Icinga 2 Web interface,
+including installation of external modules like Icinga 2 Director.
+.UNINDENT
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The \fBdebops.icinga_web\fP role is not included in the \fBcommon.yml\fP playbook
+and needs to be enabled by adding a host to a specific Ansible inventory group.
+.sp
+The application expects a PostgreSQL or MariaDB database and won\(aqt work without
+one or the other. You can install a database on the same host as the
+application, or configure the \fI\%debops.postgresql\fP or  the
+\fI\%debops.mariadb\fP roles to use an external database (see the documentation
+of these roles for details).
+.sp
+It\(aqs also possible to install the Icinga 2 Web interface without the Icinga
+2 Agent on the same host, however it results in a reduced functionality and
+additional configuration is required to point the Web interface to an external
+Icinga 2 Agent for command transport. By default the role uses the Icinga
+2 Agent installed on the \fBlocalhost\fP for command transport.
+.sp
+See the \fI\%Deployment guide\fP documentation for more details about
+deploying Icinga in DebOps and for a full example of Ansible inventory.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.icinga_web\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure Icinga Web service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_icinga_web\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Apply keyring configuration for php environment
+      ansible.builtin.import_role:
+        name: \(aqkeyring\(aq
+      vars:
+        keyring__dependent_apt_keys:
+          \- \(aq{{ php__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ postgresql__keyring__dependent_apt_keys if (icinga_web__database_type == \(dqpostgresql\(dq) else [] }}\(aq
+          \- \(aq{{ mariadb__keyring__dependent_apt_keys
+                if (icinga_web__database_type == \(dqmariadb\(dq or icinga_web__x509_enabled)
+                else [] }}\(aq
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq,
+              \(aqrole::php\(aq, \(aqrole::nginx\(aq, \(aqrole::postgresql\(aq, \(aqrole::mariadb\(aq ]
+
+    \- name: Prepare php environment
+      ansible.builtin.import_role:
+        name: \(aqphp\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::php\(aq, \(aqrole::php:env\(aq, \(aqrole::logrotate\(aq ]
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ icinga_web__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ php__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ php__logrotate__dependent_config }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::mariadb\(aq, \(aqrole::postgresql\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ postgresql__python__dependent_packages3 if icinga_web__database_type == \(dqpostgresql\(dq else [] }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages3
+              if (icinga_web__database_type == \(dqmariadb\(dq or icinga_web__x509_enabled)
+              else [] }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ postgresql__python__dependent_packages2 if icinga_web__database_type == \(dqpostgresql\(dq else [] }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages2
+              if (icinga_web__database_type == \(dqmariadb\(dq or icinga_web__x509_enabled)
+              else [] }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: php
+      tags: [ \(aqrole::php\(aq, \(aqskip::php\(aq ]
+      php__dependent_packages:
+        \- \(aq{{ icinga_web__php__dependent_packages }}\(aq
+      php__dependent_pools:
+        \- \(aq{{ icinga_web__php__dependent_pools }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ icinga_web__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ icinga_web__nginx__dependent_upstreams }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ icinga_web__ldap__dependent_tasks }}\(aq
+
+    \- role: postgresql
+      tags: [ \(aqrole::postgresql\(aq, \(aqskip::postgresql\(aq ]
+      postgresql__dependent_roles:
+        \- \(aq{{ icinga_web__postgresql__dependent_roles }}\(aq
+      postgresql__dependent_groups:
+        \- \(aq{{ icinga_web__postgresql__dependent_groups }}\(aq
+      postgresql__dependent_databases:
+        \- \(aq{{ icinga_web__postgresql__dependent_databases }}\(aq
+      postgresql__dependent_privileges:
+        \- \(aq{{ icinga_web__postgresql__dependent_privileges }}\(aq
+      postgresql__dependent_extensions:
+        \- \(aq{{ icinga_web__postgresql__dependent_extensions }}\(aq
+      when: icinga_web__database_type == \(aqpostgresql\(aq
+
+    \- role: mariadb
+      tags: [ \(aqrole::mariadb\(aq, \(aqskip::mariadb\(aq ]
+      mariadb__dependent_databases:
+        \- \(aq{{ icinga_web__mariadb__dependent_databases }}\(aq
+      mariadb__dependent_users:
+        \- \(aq{{ icinga_web__mariadb__dependent_users }}\(aq
+      when: icinga_web__database_type == \(aqmariadb\(aq or
+            icinga_web__x509_enabled | bool
+
+    \- role: icinga_web
+      tags: [ \(aqrole::icinga_web\(aq, \(aqskip::icinga_web\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::icinga_web\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.icinga_web\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS icinga_web__modules
+.sp
+The \fBicinga_web__*_modules\fP variables define what Icinga Web modules will be
+installed by the role. The variables are merged together and each list entry
+from the default list can be overwritten using the
+\fI\%icinga_web__modules\fP variable. List entries are YAML dictionaries with
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the Icinga Web module. It will be used as the name of
+the symlink in the \fB/usr/share/icingaweb2/modules/\fP directory.
+.sp
+This parameter is also used as a marker for merging of different entries.
+.TP
+.B \fBgit_repo\fP
+Optional. An URL of the \fBgit\fP repository which contains the module.
+External modules will be cloned to the \fB/usr/local/src/icinga_web/\fP
+directory with subdirectories based on their URL.
+.TP
+.B \fBgit_version\fP
+Optional. Specify the version (tag) or branch of a given module to install.
+.TP
+.B \fBenabled\fP
+Optional, boolean. If \fBTrue\fP, the module will be enabled by default. If
+\fBFalse\fP, module will be disabled but can still be enabled via the web
+interface.
+.TP
+.B \fBstate\fP
+Optional. Specify the desired state of the module. If \fBpresent\fP, the module
+will be installed and enabled. If \fBabsent\fP, existing modules will be
+disabled but not removed entirely; non\-installed modules won\(aqt be installed.
+.UNINDENT
+.SS Examples
+.sp
+See the \fI\%icinga_web__default_modules\fP variable for examples.
+.SS icinga_web__initial_account_groups
+.sp
+The \fI\%icinga_web__initial_account_groups\fP variable defines a list of
+account groups added to the Icinga Web database during initialization. The list
+is ordered sequentially and groups are numbered from 1, therefore the first
+group listed should be \(dqAdministrators\(dq.
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the group to create.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the group will be created in the
+database. If \fBabsent\fP, the group will not be created.
+.UNINDENT
+.SS Examples
+.sp
+See the \fI\%icinga_web__initial_account_groups\fP variable for examples.
+.SS icinga_web__initial_accounts
+.sp
+The \fI\%icinga_web__initial_accounts\fP variable defines a set of
+administrator accounts added to the Icinga Web database during initialization.
+These accounts allow users to login to the web interface and use the Icinga
+Director REST API. All accounts listed will be added to the account group with
+id \fB1\fP, ie. the first one created, usually \(dqAdministrators\(dq.
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the user account to add to the database.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the account will be added to the
+database. If \fBabsent\fP, the account will not be created during
+initialization.
+.TP
+.B \fBpassword\fP
+Optional. A plaintext password which will be hashed and encoded in the format
+expected by Icinga Web application and stored in the database.
+.sp
+If not specified, the value of the
+\fI\%icinga_web__default_account_password\fP variable will be used by
+default.
+.TP
+.B \fBpassword_hash\fP
+Optional. A hash of the password to store in the database for a given user
+account. Icinga 2 Web uses \fI\%native password hashing from PHP 5.6+\fP <\fBhttps://www.icinga.com/docs/icingaweb2/latest/doc/20-Advanced-Topics/#advanced-authentication-tips\fP> and the
+password hash should be specified in this format.
+.TP
+.B \fBgroup_id\fP
+Optional. Specify the numeric group id to which a given account should be
+added. If not specified, \fB1\fP is used by default.
+.UNINDENT
+.SS Examples
+.sp
+See the \fI\%icinga_web__initial_accounts\fP variable for examples.
+.SS icinga_web__ini_configuration
+.sp
+The \fI\%debops.icinga_web\fP role uses a set of default variables to create and
+maintain the INI configuration files of Icinga 2 Web application, located in
+the \fB/etc/icingaweb2/\fP directory. Because these files can be modified
+through the Web interface, the role combines the current configuration gathered
+at runtime from the host with the default configuration defined by the role and
+custom user configuration defined in the Ansible inventory variables.
+.sp
+Each set of variables maintains one INI configuration file. The variables are
+defined as list of INI configuration sections with options defined as keys and
+values. Each section is defined using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The INI section name. This variable is used as a marker to merge
+multiple configuration entries together.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration section will
+be included in the generated file. If \fBabsent\fP, a given configuration
+section will be removed from the generated file. If \fBignore\fP, a given
+configuration entry will be ignored by the role and not evaluated.
+.TP
+.B \fBoptions\fP
+Optional. Specify the INI configuration options in a given section. The
+\fBoptions\fP lists from multiple configuration entries with the same \fBname\fP
+are merged together, this allows to modify existing options or add new ones
+seamlessly.
+.sp
+Each element of the list is a YAML dictionary with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. The option name.
+.TP
+.B \fBvalue\fP
+Required. The option value.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the option will be included in
+the generated file. If \fBabsent\fP, the option will be removed from the
+generated file. If \fBignore\fP, the given element will not be evaluated by
+the role.
+.UNINDENT
+.UNINDENT
+.SS Examples
+.sp
+See the \fI\%icinga_web__default_config\fP or the
+\fI\%icinga_web__default_resources\fP variables for example usage.
+.SS icinga_web__director_templates
+.sp
+Icinga has a notion of \fI\%templates\fP <\fBhttps://icinga.com/docs/icinga-2/latest/doc/03-monitoring-basics/#templates\fP> which can be used to define sets of
+objects (host templates, service templates) with multiple attributes and then
+assign them to specific hosts and services. Templates can simplify
+configuration of large environments; each object can use multiple templates,
+they can be inherited and augment each other hierarchically.
+.sp
+The \fI\%debops.icinga_web\fP Ansible role can define new host and service
+templates using Icinga Director API. The \fBicinga_web__director_*_templates\fP
+variables define the lists of YAML dictionaries, each dictionary represents an
+Icinga template. Currently templates can only be created, the role does not
+support removing or modifying existing templates.
+.SS Syntax
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the template, not used otherwise. Multiple entries with the
+same \fBname\fP parameter are merged together and can affect each other in
+order of appearance.
+.TP
+.B \fBdata\fP
+Required. The YAML dictionary with template configuration passed to Icinga
+Director via its API. See Icinga documentation for information about required
+keys and values for a specific template.
+.TP
+.B \fBapi_endpoint\fP
+Required. The HTTP API endpoint to use for a given template, for example
+\fB/host\fP or \fB/service\fP\&. It will be appended at the end of the
+\fI\%icinga_web__director_api_url\fP variable to point Ansible to the
+correct API endpoint.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given template will be created
+in Icinga Director if not already present. If \fBabsent\fP, the role will not
+try to create a template. If \fBignore\fP, a given entry will not be evaluated
+during role execution.
+.UNINDENT
+.SS Examples
+.sp
+You can see the default list of templates imported by the role in the
+\fI\%icinga_web__director_default_templates\fP variable.
+.SH AUTHOR
+Maciej Delmanowski, Gabriel Lewertowski, David Härdeman
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

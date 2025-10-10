@@ -1,0 +1,203 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.NFS" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.nfs \- manage NFS4 client using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/nfs\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.nfs\fP Ansible role can be used to configure NFS shares on
+Debian/Ubuntu hosts.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The role does not specify any NFS shares by default, you need to configure them
+using the provided variables (see \fI\%nfs__shares\fP for more details).
+.sp
+The configured NFS shares should exist and be available prior to the role
+execution, otherwise Ansible will hang waiting for the finished
+\fBmount\fP command. You can use the \fBdebops.nfs_server\fP role to
+configure NFS4 shares.
+.SS Example inventory
+.sp
+To enable NFS support on a host it needs to be included in the specific Ansible
+inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_nfs]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.nfs\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage NFS shares
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_nfs\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: nfs
+      tags: [ \(aqrole::nfs\(aq, \(aqskip::nfs\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.nfs\fP default variables have more extensive configuration than
+simple strings or lists, here you can find documentation and examples for them.
+.SS nfs__shares
+.sp
+The \fI\%nfs__shares\fP, \fI\%nfs__group_shares\fP and
+\fI\%nfs__host_shares\fP are list of NFS shares to configure on a host. Each
+list element is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBpath\fP
+Required. Absolute path of a directory where the given NFS share should be
+mounted. If the directory does not exist, it will be created by the role.
+.TP
+.B \fBsrc\fP
+Required. Mount point \(dqsource\(dq, usually in the form of:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+<hostname>:/<share_path>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can use either DNS names or IP addresses.
+.sp
+NOTE: If you want to use NFSv4 mount points, you need to specify share paths
+relative to the NFS \fBroot\fP directory configured on the nfs server.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBmounted\fP, the given NFS share will be added
+to the \fB/etc/fstab\fP configuration file and automatically mounted. If
+\fBpresent\fP, the NFS mount will be added to the \fB/etc/fstab\fP but its
+state will not be changed. If \fBunmounted\fP, and the NFS share is mounted, it
+will be unmounted. If \fBabsent\fP, the NFS share will be unmounted and its
+entry will be removed from \fB/etc/fstab\fP configuration file.
+.TP
+.B \fBoptions\fP or \fBopts\fP
+Optional. A comma\-separated string or a YAML list of \fBmount\fP options
+which should be used with a given NFS share. If not specified, the role will
+use a set of default options that configure the mount to be a network NFS4
+share.
+.TP
+.B \fBdefault_options\fP
+Optional, boolean. If present and \fBFalse\fP, the role will not add the
+default options to the custom ones provided by the user, which will allow
+full control over the configuration. The \fB_netdev\fP option is always added
+to ensure that the \fB/etc/fstab\fP configuration file remains valid.
+.TP
+.B \fBfstype\fP
+Optional. Specify the filesystem type to use for the mount point. By default
+it\(aqs \fBnfs4\fP\&.
+.TP
+.B \fBpassno\fP, \fBdump\fP, \fBfstab\fP
+Optional. Additional parameters passed to the Ansible \fBmount\fP module, by
+default omitted since they are not useful for NFS shares. See the module
+documentation page for more details.
+.TP
+.B \fBowner\fP, \fBgroup\fP, \fBmode\fP
+Optional. Specify UNIX account, group and directory permissions for the mount
+point of a given NFS share. They will be applied to the directories created
+by the role when the NFS share is not mounted immediately.
+.UNINDENT
+.SS Examples
+.sp
+Mount a NFS4 share with automatic configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nfs__shares:
+  \- path: \(aq/media/nfs/shared\(aq
+    src: \(aqnas.example.org:/shared\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create an automount entry for a NFSv4 share using \fBsystemd\fP
+automount functionality:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nfs__shares:
+
+  \- path: \(aq/media/nfs/shared\(aq
+    src: \(aqnas.example.org:/shared\(aq
+    opts: [ \(aqdefaults\(aq,  \(aqx\-systemd.automount\(aq, \(aqx\-systemd.idle\-timeout=2\(aq,
+            \(aqx\-systemd.device\-timeout=2\(aq, \(aqx\-systemd.mount\-timeout=2\(aq ]
+    # Without this, Ansible tries to mount the share right away which
+    # results in an error
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,166 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ETESYNC" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.etesync \- Deploy and manage the EteSync server
+.SH SYNOPSIS
+.sp
+\fBdebops run service/etesync\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+Deploys a \fI\%EteSync\fP <\fBhttps://www.etesync.com/\fP> server. EteSync is a cross\-platform project to provide
+secure, end\-to\-end encrypted, and privacy respecting sync for your contacts,
+calendars and tasks.
+.sp
+Note that the role only sets up the \(dqAPI\(dq server without the user web interface
+that can be used to edit contacts and calendars in a browser. Therefore, after
+the setup is completed, you will need to use a EteSync client program to work
+with the service. The only \(dqgraphical\(dq interface provided is the administration
+web interface, that you can use to manage EteSync users (available under
+\fB/admin\fP).
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To configure EteSync on a given remote host, it needs to be added to the
+\fB[debops_service_etesync]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_etesync]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook that can be used to manage EteSync:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Deploy and manage the EteSync server
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_etesync\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq,
+              \(aqrole::nginx\(aq, \(aqrole::etesync\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ etesync__keyring__dependent_gpg_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ gunicorn__logrotate__dependent_config }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::gunicorn\(aq, \(aqrole::etesync\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ gunicorn__python__dependent_packages3 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+        \- \(aq{{ etesync__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ gunicorn__python__dependent_packages2 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: gunicorn
+      tags: [ \(aqrole::gunicorn\(aq, \(aqskip::gunicorn\(aq ]
+      gunicorn__dependent_applications:
+        \- \(aq{{ etesync__gunicorn__dependent_applications }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_upstreams:
+        \- \(aq{{ etesync__nginx__dependent_upstreams }}\(aq
+      nginx__dependent_servers:
+        \- \(aq{{ etesync__nginx__dependent_servers }}\(aq
+
+    \- role: etesync
+      tags: [ \(aqrole::etesync\(aq, \(aqskip::etesync\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::etesync\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::etesync:config\fP
+Run tasks related to EteSync configuration.
+.TP
+.B \fBrole::etesync:show_url\fP
+Print URL entry point if EteSync is deployed on a subpath.
+.UNINDENT
+.SH AUTHOR
+Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

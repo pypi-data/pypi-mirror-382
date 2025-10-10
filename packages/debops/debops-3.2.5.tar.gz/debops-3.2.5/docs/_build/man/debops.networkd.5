@@ -1,0 +1,603 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.NETWORKD" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.networkd \- Manage network interfaces using systemd-networkd
+.SH SYNOPSIS
+.sp
+\fBdebops run service/networkd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%systemd\-networkd(8)\fP <\fBhttps://manpages.debian.org/systemd-networkd(8)\fP> service is a part of the \fI\%systemd\fP <\fBhttps://www.freedesktop.org/wiki/Software/systemd/\fP> project.
+The service manages the runtime and on\-disk configuration of the network
+connections, physical and virtual network devices and their state in the
+\fI\%systemd\-udevd(8)\fP <\fBhttps://manpages.debian.org/systemd-udevd(8)\fP> subsystem.
+.sp
+The \fI\%debops.networkd\fP Ansible role can be used to generate and update
+configuration of the \fBsystemd\-networkd\fP service. Other parts of the
+\fBsystemd\fP ecosystem are managed by separate Ansible roles.
+.SH GETTING STARTED
+.SS On first run, no changes to network stack take effect
+.sp
+The role is designed around the default presence of the \fBifupdown\fP Debian
+package, which manages the network interfaces. Due to this, first execution of
+the role will result in the \fBsystemd\-networkd\fP configuration files
+being generated, but the service itself will not be restarted (see below for
+detailed instructions). The service will be restarted on subsequent executions
+of the role. In an environment where the \fBsystemd\-networkd\fP already
+manages the network interfaces, the role should work normally.
+.SS Replacing \fBifupdown\fP scripts with \fBsystemd\-networkd\fP
+.sp
+The default non\-GUI Debian installation uses the \fBifupdown\fP package to
+configure network interfaces. It\(aqs not compatible with the
+\fBsystemd\-networkd\fP service, therefore it\(aqs best to purge it from the
+host after the new configuration has been applied. This has to be done through
+local console, since during removal the post\-rm scripts will bring the network
+interfaces down, disconnecting the host from the network.
+.sp
+Specific steps to take to replace the \fBifupdown\fP package with
+\fBsystemd\-networkd\fP service:
+.INDENT 0.0
+.IP 1. 3
+Make sure that the host is in the \fB[debops_service_networkd]\fP Ansible inventory group.
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_networkd]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP 2. 3
+Apply the \fI\%debops.networkd\fP playbook, check if the host has network
+connection. On first execution of the role, the \fBsystemd\-networkd\fP
+service will not be restarted to avoid making changes in the network stack.
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@host:~$ debops check service/networkd \-l hostname
+user@host:~$ debops run service/networkd \-l hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP 3. 3
+Login to the host on the local console, purge \fBifupdown\fP and
+\fBdhcpcd\-base\fP APT packages and reboot the host.
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@host:~$ sudo apt purge ifupdown dhcpcd\-base
+user@host:~$ sudo systemctl reboot
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP 4. 3
+Login to the host and check if the new configuration has been set up
+correctly. Apply the \fI\%debops.resolved\fP playbook to configure
+\fB/etc/resolv.conf\fP configuration file.
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+user@host:~$ debops check service/resolved \-l hostname
+user@host:~$ debops run service/resolved \-l hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS Example inventory
+.sp
+To manage the network configuration using \fBsystemd\-networkd\fP service,
+the host needs to be included in the \fB[debops_service_networkd]\fP Ansible
+inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_networkd]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.networkd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage systemd\-networkd service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_networkd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: networkd
+      tags: [ \(aqrole::networkd\(aq, \(aqskip::networkd\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::networkd\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.networkd\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS networkd__configuration
+.sp
+The \fBnetworkd__*_configuration\fP default variables define the configuration of
+the \fBsystemd\-networkd\fP service itself. You can find more details about
+\fBsystemd\-networkd\fP configuration in the \fI\%networkd.conf(5)\fP <\fBhttps://manpages.debian.org/networkd.conf(5)\fP> manual
+page.
+.sp
+The generated configuration will be located in the
+\fB/etc/systemd/networkd.conf.d/ansible.conf\fP config file. This file is not
+generated by default to fall back on the default configuration provided in the
+OS packages; to generate it the \fI\%networkd__deploy_state\fP variable needs
+to be set to \fBpresent\fP\&.
+.SS Examples
+.sp
+You can check the \fI\%networkd__default_configuration\fP variable for the
+default contents of the configuration file.
+.SS Syntax
+.sp
+The role uses the \fI\%Universal Configuration\fP system to configure
+\fBsystemd\-networkd\fP daemon. Each configuration entry in the list is
+a YAML dictionary. The simple form of the configuration uses the dictionary
+keys as the parameter names, and dictionary values as the parameter values.
+Remember that the parameter names need to be specified in the exact case they
+are used in the documentation (e.g.  \fBSpeedMeterInterval\fP, \fBDUIDType\fP),
+otherwise they will be duplicated in the generated configuration file. It\(aqs
+best to use a single YAML dictionary per configuration option.
+.sp
+If the YAML dictionary contains the \fBname\fP key, the configuration switches to
+the complex definition mode, with configuration options defined by specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Specify the name of the \fBsystemd\-networkd\fP configuration
+file parameter. The case is important and should be the same as specified in
+the configuration file or the \fI\%networkd.conf(5)\fP <\fBhttps://manpages.debian.org/networkd.conf(5)\fP> manual page, otherwise
+the configuration entries will be duplicated.
+.sp
+Multiple configuration entries with the same \fBname\fP parameter are merged
+together in order of appearance. This can be used to modify parameters
+conditionally.
+.TP
+.B \fBvalue\fP
+Required. The value of a given configuration option. It can be a string,
+number, \fBTrue\fP/\fBFalse\fP boolean or an empty string.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration parameter
+will be present in the generated configuration file. If \fBabsent\fP, a given
+parameter will be removed from the configuration file. If \fBcomment\fP, the
+parameter will be present but commented out.
+.sp
+If the state is \fBinit\fP, the parameter will be \(dqprimed\(dq in the configuration
+pipeline, but it will be commented out in the generated configuration file.
+Any subsequent configuration entry with the same \fBname\fP will switch the
+state to \fBpresent\fP \- this is used to define the default parameters in the
+role which can be changed via the Ansible inventory.
+.sp
+If the state is \fBignore\fP, a given configuration entry will not be evaluated
+during role execution. This can be used to activate configuration entries
+conditionally.
+.UNINDENT
+.SS networkd__units
+.sp
+The \fBnetworkd__*_units\fP default variables can be used to manage
+\fBsystemd\-networkd\fP units (\fB*.network\fP, \fB*.netdev\fP and
+\fB*.link\fP files) located in the \fB/etc/systemd/network/\fP
+subdirectory. You can find more information about the units themselves in the
+\fI\%systemd.network(5)\fP <\fBhttps://manpages.debian.org/systemd.network(5)\fP>, \fI\%systemd.netdev(5)\fP <\fBhttps://manpages.debian.org/systemd.netdev(5)\fP> and \fI\%systemd.link(5)\fP <\fBhttps://manpages.debian.org/systemd.link(5)\fP>
+manual pages.
+.SS Examples
+.sp
+Disable the default network configuration defined in
+\fI\%networkd__default_units\fP variable so that it doesn\(aqt interfere with
+the user configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+networkd__units:
+
+  \- name: \(aqwired\-dhcp.network\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The examples below are based on examples found in the \fI\%systemd.network(5)\fP <\fBhttps://manpages.debian.org/systemd.network(5)\fP>
+manual page. For ease of use, the examples are provided in the
+\fI\%debops.networkd\fP role documentation in the DebOps monorepo.
+.sp
+Configure any wired Ethernet network cards using DHCP and accept search domains
+provided remotely (default configuration in \fI\%networkd__default_units\fP
+variable):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# File: ansible/inventory/group_vars/all/networkd.yml
+
+networkd__units:
+
+  \- name: \(aqwired\-dhcp.network\(aq
+    comment: \(aqConfigure any wired Ethernet interface via DHCP\(aq
+    raw: |
+      [Match]
+      Name=en*
+
+      [Network]
+      DHCP=yes
+
+      [DHCPv4]
+      UseDomains=true
+    state: \(aqpresent\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure a network bridge using DHCP and connect a physical Ethernet interface
+to it:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# File: ansible/inventory/group_vars/all/networkd.yml
+
+networkd__units:
+
+  \- name: \(aqbr0.netdev\(aq
+    raw: |
+      [NetDev]
+      Name=br0
+      Kind=bridge
+    state: \(aqpresent\(aq
+
+  \- name: \(aqbr0.network\(aq
+    raw: |
+      [Match]
+      Name=br0
+
+      [Network]
+      DHCP=yes
+
+      [DHCPv4]
+      UseDomains=true
+    state: \(aqpresent\(aq
+
+  \- name: \(aqenp1s0.network\(aq
+    raw: |
+      [Match]
+      Name=enp1s0
+
+      [Network]
+      Bridge=br0
+    state: \(aqpresent\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure a network interface with static IP address:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# File: ansible/inventory/host_vars/hostname/networkd.yml
+
+networkd__units:
+
+  \- name: \(aq50\-static.network\(aq
+    comment: \(aqConfigure specific interface with static IP address\(aq
+    raw: |
+      [Match]
+      Name=enp2s0
+
+      [Network]
+      Address=192.0.2.15/24
+      Gateway=192.0.2.1
+    state: \(aqpresent\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure a bridge interface and connect two network cards to it, wired
+Ethernet and WiFi:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# File: ansible/inventory/group_vars/group0/networkd.yml
+
+bridge_if: \(aqbridge0\(aq
+
+networkd__group_units:
+
+  \- name: \(aqbridge0.netdev\(aq
+    raw: |
+      [NetDev]
+      Name={{ bridge_if }}
+      Kind=bridge
+    state: \(aqpresent\(aq
+
+  \- name: \(aq25\-bridge\-static.network\(aq
+    raw: |
+      [Match]
+      Name={{ bridge_if }}
+
+      [Network]
+      Address=192.0.2.15/24
+      Gateway=192.0.2.1
+      DNS=192.0.2.1
+    state: \(aqpresent\(aq
+
+  \- name: \(aq25\-bridge\-slave\-interface\-1.network\(aq
+    raw: |
+      [Match]
+      Name=enp2s0
+
+      [Network]
+      Bridge={{ bridge_if }}
+    state: \(aqpresent\(aq
+
+  \- name: \(aq25\-bridge\-slave\-interface\-2.network\(aq
+    raw: |
+      [Match]
+      Name=wlp3s0
+
+      [Network]
+      Bridge={{ bridge_if }}
+    state: \(aqpresent\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Augment the above configuration on a specific host with VLAN support:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# File: ansible/inventory/host_vars/hostname/networkd.yml
+
+networkd__host_units:
+
+  \- name: \(aq20\-bridge\-slave\-interface\-vlan.network\(aq
+    raw: |
+      [Match]
+      Name=enp2s0
+
+      [Network]
+      Bridge=bridge0
+
+      [BridgeVLAN]
+      VLAN=1\-32
+      PVID=42
+      EgressUntagged=42
+
+      [BridgeVLAN]
+      VLAN=100\-200
+
+      [BridgeVLAN]
+      EgressUntagged=300\-400
+    state: \(aqpresent\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a bonded network interface using two specific Ethernet network cards and
+configure IPv6 connectivity using DHCP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# File: ansible/inventory/host_vars/hostname/networkd.yml
+
+networkd__host_units:
+
+  \- name: \(aq30\-bond1.network\(aq
+    raw: |
+      [Match]
+      Name=bond1
+
+      [Network]
+      DHCP=ipv6
+    state: \(aqpresent\(aq
+
+  \- name: \(aq30\-bond1.netdev\(aq
+    raw: |
+      [NetDev]
+      Name=bond1
+      Kind=bond
+    state: \(aqpresent\(aq
+
+  \- name: \(aq30\-bond1\-dev1.network\(aq
+    raw: |
+      [Match]
+      MACAddress=52:54:00:e9:64:41
+
+      [Network]
+      Bond=bond1
+    state: \(aqpresent\(aq
+
+  \- name: \(aq30\-bond1\-dev2.network\(aq
+    raw: |
+      [Match]
+      MACAddress=52:54:00:e9:64:42
+
+      [Network]
+      Bond=bond1
+    state: \(aqpresent\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The role uses the \fI\%Universal Configuration\fP system to manage
+\fBsystemd\-networkd\fP unit files. Each configuration entry in the list is
+a YAML dictionary, with configuration options defined by specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the \fBsystemd\-networkd\fP unit file to manage. The
+name can be in the form \fB<unit.type>\fP to denote a single
+\fI\%systemd.unit(5)\fP <\fBhttps://manpages.debian.org/systemd.unit(5)\fP>, as well as \fB<unit.type>.d/<override>.conf\fP to
+denote a single \(dqoverride\(dq configuration file that changes the configuration
+of a specific unit.
+.sp
+Unit files are stored under the \fB/etc/systemd/network/\fP subdirectory.
+The role will create the \fB<unit.type>.d/\fP subdirectories as needed.
+.sp
+The \fBname\fP parameter needs to be unique. Multiple configuration entries
+with the same \fBname\fP parameter are merged together and override each other.
+.TP
+.B \fBraw\fP
+Optional. YAML text block in the INI format, with the
+\fBsystemd\-networkd\fP configuration options which will be included in
+the generated configuration file as\-is. The text block can contain Jinja
+statements to generate parts of the configuration dynamically.
+.sp
+See the \fI\%systemd.network(5)\fP <\fBhttps://manpages.debian.org/systemd.network(5)\fP>, \fI\%systemd.netdev(5)\fP <\fBhttps://manpages.debian.org/systemd.netdev(5)\fP> and
+\fI\%systemd.link(5)\fP <\fBhttps://manpages.debian.org/systemd.link(5)\fP> manual pages for details about the unit configuration
+syntax and available options. The generated files are not validated by
+Ansible before being applied in the \fBsystemd\-networkd\fP configuration
+at this time.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP (default), a given unit
+configuration file will be generated by Ansible and placed in the
+\fBsystemd\-networkd\fP configuration directory. The service will be
+automatically restarted on changes.
+.sp
+If \fBabsent\fP, the role will remove the specified unit configuration file as
+well as the override directory if it is present (all override files will be
+removed, even ones not managed by Ansible). Specific override files can be
+removed as well if they are defined directly in the \fBname\fP parameter.
+.sp
+If \fBinit\fP, the configuration entry will be prepared, but no changes will be
+done on the host itself. This can be done to prepare a unit configuration and
+activate it conditionally later in the universal configuration pipeline.
+.sp
+If \fBignore\fP, a given configuration entry will not be evaluated during role
+execution.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with comments included in the generated
+configuration file.
+.UNINDENT
+.SH SEE ALSO
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%systemd\-networkd.service(8)\fP <\fBhttps://manpages.debian.org/systemd-networkd.service(8)\fP>, \fI\%networkctl(1)\fP <\fBhttps://manpages.debian.org/networkctl(1)\fP>
+.IP \(bu 2
+\fI\%Debian Wiki: systemd\-networkd\fP <\fBhttps://wiki.debian.org/SystemdNetworkd\fP>
+.IP \(bu 2
+\fI\%Arch Linux Wiki: systemd\-networkd\fP <\fBhttps://wiki.archlinux.org/title/systemd-networkd\fP>
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

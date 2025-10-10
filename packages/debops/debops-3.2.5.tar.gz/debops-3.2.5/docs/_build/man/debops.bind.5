@@ -1,0 +1,198 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.BIND" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.bind \- Manage the BIND DNS server using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops service/bind\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.bind\fP Ansible role manages the well\-known domain name server
+(DNS) software \fI\%BIND\fP <\fBhttps://www.isc.org/bind/\fP>\&.
+.SH GETTING STARTED
+.SS Default setup
+.sp
+If you don\(aqt specify any configuration values, the role will setup BIND
+as a caching nameserver which is neither an authoritative, nor a secondary
+server for any domains/zones.
+.sp
+In addition, \fI\%DNSSEC\fP <\fBhttps://en.wikipedia.org/wiki/Domain_Name_System_Security_Extensions\fP> validation is enabled (i.e. DNSSEC is enabled when BIND
+acts as a resolver). The configuration is also prepared with policies which
+allow BIND to perform largely automatic \fI\%DNSSEC signing\fP of zones, on an opt\-in basis.
+.sp
+When a valid \fI\%Public Key Infrastructure\fP is detected,
+and the installed version of BIND supports it, support for
+\fI\%DNS over TLS/HTTP(S)\fP is also enabled, either in a standalone fashion or,
+if the role is detected, using \fI\%debops.nginx\fP as a reverse proxy.
+.sp
+Initial zones can be created using the Ansible inventory (see
+\fI\%Zones and Views\fP) and later updated dynamically using e.g.
+\fBnsupdate\fP\&.
+.sp
+The role also supports the automatic generation of keys, which can be used
+to authenticate e.g. update requests or to provision other roles with keys
+to be used for automated DNS updates. These keys are, by default, also
+stored on the Ansible controller (in the directory tree maintained by
+the \fI\%debops.secret\fP role) for further use.
+.SS Example inventory
+.sp
+To install and configure BIND on a host, it needs to be present in the
+\fB[debops_service_bind]\fP Ansible inventory group. Additionally, if you
+plan to run a web server on the same host at some point, it is a good idea
+to define that in the inventory before you apply this role, as a later
+installation may clash with features such as \fI\%DNS over TLS/HTTP(S)\fP\&.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+dns
+
+[debops_service_nginx]
+dns
+
+[debops_service_bind]
+dns
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+The following playbook can be used with DebOps. If you are using these role
+without DebOps you might need to adapt them to make them work in your setup.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage BIND servers
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_bind\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq,
+              \(aqrole::nginx\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ bind__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq, \(aqrole::nginx\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+        \- \(aq{{ bind__ferm__dependent_rules }}\(aq
+
+    \- role: resolvconf
+      tags: [ \(aqrole::resolvconf\(aq, \(aqskip::resolvconf\(aq ]
+      resolvconf__dependent_services:
+        \- \(aqbind\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ slapd__logrotate__dependent_config }}\(aq
+      when:
+        \- \(aq\(dqdnssec\(dq in bind__features\(aq
+        \- bind__dnssec_script_enabled | d(False)
+
+    \- role: bind
+      tags: [ \(aqrole::bind\(aq, \(aqskip::bind\(aq ]
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ bind__nginx__dependent_servers }}\(aq
+      # Run the role even if it is not being used by any
+      # BIND features so that the BIND\-specific server can be disabled,
+      # if appropriate.
+      when: ansible_local.nginx.enabled | d(False) or
+            bind__features | intersect([ \(dqdoh_proxy\(dq, \(dqstats_proxy\(dq ]) | length > 0
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This playbook is also shipped with DebOps as
+\fBansible/playbooks/service/bind.yml\fP\&.
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::bind\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::bind:backup\fP
+Run tasks related to the backup script.
+.TP
+.B \fBrole::bind:config\fP
+Run tasks related to the BIND configuration.
+.TP
+.B \fBrole::bind:dnssec\fP
+Run tasks related to DNSSEC.
+.TP
+.B \fBrole::bind:keys\fP
+Run tasks related to key generation/download/etc.
+.TP
+.B \fBrole::bind:packages\fP
+Run tasks related to system package installation.
+.TP
+.B \fBrole::bind:pki\fP
+Run tasks related to the PKI integration.
+.UNINDENT
+.SH AUTHOR
+David Härdeman
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

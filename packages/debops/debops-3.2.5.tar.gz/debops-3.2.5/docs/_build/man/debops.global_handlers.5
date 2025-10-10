@@ -1,0 +1,129 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.GLOBAL_HANDLERS" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.global_handlers \- Provide Ansible handlers to other Ansible roles
+.SH SYNOPSIS
+.sp
+\fBdebops run site [**\-\-limit** \(gagroup,host,\(ga...] [**\-\-diff**] [**\-\-check**] [**\-\-tags** \(gatag1,tag2,\(ga...] [**\-\-skip\-tags** \(gatag1,tag2,\(ga...] [<\(ga\(gaansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.global_handlers\fP role is a central place to define \fI\%Ansible
+handlers\fP <\fBhttps://docs.ansible.com/ansible/latest/user_guide/playbooks_intro.html#handlers-running-operations-on-change\fP> used by different Ansible roles. Keeping the handlers centralized
+allows them to be used in different Ansible roles without the need to add
+dependent roles to the playbook, making execution faster and the codebase
+easier to modify and maintain.
+.SH GETTING STARTED
+.SS Example usage in other Ansible roles
+.sp
+The \fBdebops.global_handlers\fP role does not have its own Ansible playbook. It
+is meant to be used by importing it in other Ansible roles:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Import DebOps global handlers
+  import_role:
+    name: \(aqglobal_handlers\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Afterwards, the role can notify the known handlers in its tasks. The handlers
+will be executed in the order defined in the \fBdebops.global_handlers\fP role,
+notification order in the calling roles does not matter.
+.sp
+Common use case for this \(dqpattern\(dq is adding \fBconf.d/\fP configuration
+snippets to services maintained by other roles \- this sometimes requires
+a given service to be restarted to enable new configuration. With the handlers
+always available, the \(dqapplication\(dq role can modify its own configuration and
+restart the external service without the need to involve its corresponding
+role in its entirety. For example, let\(aqs add a custom \fBrsyslog\fP
+configuration and restart the service on any changes:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Add ryslog configuration snippet
+  template:
+    src: \(aqetc/rsyslog.d/application.conf.j2\(aq
+    dest: \(aq/etc/rsyslog.d/application.conf\(aq
+    mode: \(aq0644\(aq
+  notify: [ \(aqCheck and restart rsyslogd\(aq ]
+  when: (ansible_local.rsyslog.installed | d()) | bool
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Ansible will restart the \fBrsyslog\fP daemon on any changes as long as
+the configuration is parsed correctly. Note that the task will only be executed
+if the \fI\%debops.rsyslog\fP role has been used on the host to configure the
+\fBrsyslog\fP service, which is indicated by a custom Ansible local fact
+\- if that is not the case, or the \fBrsyslog\fP service has been
+uninstalled in the meantime, the task and the handlers will be skipped
+automatically.
+.SS How to add new handlers
+.sp
+If a given Ansible role provides handlers for its service(s), they should be
+put in a separate \fBhandlers/<role_name>.yml\fP file in the
+\fBdebops.global_handlers\fP role. This file can then be imported in the
+\fBhandlers/main.yml\fP file in a specific place to ensure the desired order
+of service notifications.
+.sp
+The handlers should not use the role default variables from its role directly
+because they might not be available at all times. Some handlers may use
+variables in the \fBhandlers__*\fP role namespace to lookup information from the
+\fBsecret/\fP directory maintained by the \fI\%debops.secret\fP role, but it
+should be avoided if possible. If handers depend on the information from the
+remote hosts passed via register variables, the command that registered them
+needs to be a part of the \(dqhandler chain\(dq which notifies subsequent handlers on
+changes.
+.sp
+If a service is optional or may not be available on a host, the service role
+should provide an \fBansible_local.<role>.installed\fP or similar boolean Ansible
+local fact. This fact can then be checked by a given handler to determine if
+the service is available and can be acted upon.
+.sp
+If a role has an internal \fBhandlers/main.yml\fP file with additional
+handlers defined within, they will be executed \fBbefore\fP the handlers defined
+in the \fI\%debops.global_handlers\fP role. In some cases this might result in
+a wrong execution order, therefore roles can create copies of needed handlers
+as necessary. Copied handlers need to have unique names to not clash with their
+originals.
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

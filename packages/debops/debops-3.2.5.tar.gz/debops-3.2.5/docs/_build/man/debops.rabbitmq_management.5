@@ -1,0 +1,164 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.RABBITMQ_MANAGEMENT" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.rabbitmq_management \- Configure RabbitMQ Management Console
+.SH SYNOPSIS
+.sp
+\fBdebops run service/rabbitmq_management\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%RabbitMQ\fP <\fBhttps://www.rabbitmq.com/\fP> is an Open Source message broker which
+supports \fI\%AMQP\fP <\fBhttps://en.wikipedia.org/wiki/Advanced_Message_Queuing_Protocol\fP>, \fI\%STOMP\fP <\fBhttps://en.wikipedia.org/wiki/Streaming_Text_Oriented_Messaging_Protocol\fP> and \fI\%MQTT\fP <\fBhttps://en.wikipedia.org/wiki/MQTT\fP> protocols.
+.sp
+This ansible role can be used to enable and configure the
+\fI\%RabbitMQ Management Console\fP <\fBhttps://www.rabbitmq.com/management.html\fP>\&.
+The role can configure the plugin in a locally installed RabbitMQ service, or
+configure a reverse proxy to a remote instance of RabbitMQ.
+.sp
+See the \fBdebops.rabbitmq_server\fP Ansible role for general RabbitMQ service
+deployment and configuration.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The role will detect if an existing installation of RabbitMQ done by the
+\fI\%debops.rabbitmq_server\fP role is present on a host. If it\(aqs found, the
+Management Console will be configured locally. Otherwise, no RabbitMQ
+configuration will take place, but role will still install the \fBnginx\fP
+server on a host and configure a reverse proxy instance. In that case, you
+might want to modify the \fI\%rabbitmq_management__app_host\fP,
+\fI\%rabbitmq_management__app_port\fP and
+\fI\%rabbitmq_management__app_protocol\fP parameters to point to a remote
+RabbitMQ Management Console instance.
+.SS Example inventory
+.sp
+To configure RabbitMQ Management Console on a host, it should be added to the
+\fB[debops_service_rabbitmq_management]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_rabbitmq_management]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.rabbitmq_management\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure RabbitMQ Management Console
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_rabbitmq_management\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare rabbitmq_server environment
+      ansible.builtin.import_role:
+        name: \(aqrabbitmq_server\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::rabbitmq_server\(aq, \(aqrole::secret\(aq, \(aqrole::rabbitmq_server:config\(aq ]
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::nginx\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::rabbitmq_server\(aq, \(aqrole::rabbitmq_server:config\(aq ]
+      secret__directories:
+        \- \(aq{{ rabbitmq_server__secret__directories }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ rabbitmq_management__etc_services__dependent_list }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ rabbitmq_management__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ rabbitmq_management__nginx__dependent_upstreams }}\(aq
+
+    \- role: rabbitmq_server
+      tags: [ \(aqrole::rabbitmq_server\(aq, \(aqskip::rabbitmq_server\(aq ]
+      rabbitmq_server__dependent_role: \(aqrabbitmq_management\(aq
+      rabbitmq_server__dependent_state: \(aq{{ rabbitmq_management__deploy_state }}\(aq
+      rabbitmq_server__dependent_config:
+        \- \(aq{{ rabbitmq_management__rabbitmq_server__dependent_config }}\(aq
+
+    \- role: rabbitmq_management
+      tags: [ \(aqrole::rabbitmq_management\(aq, \(aqskip::rabbitmq_management\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

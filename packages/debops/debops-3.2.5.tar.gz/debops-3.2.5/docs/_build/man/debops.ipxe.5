@@ -1,0 +1,365 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.IPXE" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.ipxe \- Manage iPXE boot service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/ipxe\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%iPXE\fP <\fBhttps://ipxe.org/\fP> project provides an open source network boot firmware. It can be
+used to boot computers over the network using DHCP, PXE and TFTP protocols, and
+hand off the boot process to other operating systems provided over HTTP, NFS or
+iSCSI protocols.
+.sp
+The \fBdebops.ipxe\fP Ansible role installs the \fBipxe\fP APT package and prepares
+a simple boot menu which can be used to either launch the Debian Installer over
+the network, or switch to another publicly available network boot menu.
+.SH GETTING STARTED
+.SS Debian netboot installer support
+.sp
+By default the role will download and prepare a set of Debian netboot
+installers for various OS releases. The Debian installers will be available via
+the boot menu, with a possibility to boot into the text, graphical or expert
+install. A preseeded configuration is also available for larger environments.
+.sp
+Optionally, the role can include the non\-free firmware required by certain
+devices (for example network cards) for convenience.The installation of the
+non\-free firmware is disabled by default, you can enable it using the
+\fI\%ipxe__debian_netboot_firmware\fP variable. The firmware will also be
+enabled automatically if non\-free repositories are configured on the host in
+APT.
+.SS Additional services required
+.sp
+The \fBdebops.ipxe\fP role relies on other DebOps roles to provide the needed
+DHCP and TFTP services. You can use either \fI\%debops.dnsmasq\fP on an internal
+network to configure DHCP, DNS, PXE and TFTP services, or use
+\fI\%debops.dhcpd\fP and \fI\%debops.tftpd\fP roles to set up a more
+comprehensive network environment.
+.SS Example inventory
+.sp
+To configure iPXE boot firmware on a given host, you need to include in the
+\fB[debops_service_ipxe]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_ipxe]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you are using \fI\%debops.dnsmasq\fP to provide DHCP and TFTP services, you
+can configure iPXE environment on the same host. Alternatively,
+\fI\%debops.tftpd\fP role can be used to provide TFTP service on a separate host
+on the network, which is then specified via DHCP as the \(dqnext server\(dq for other
+hosts to boot from.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.ipxe\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage iPXE configuration files
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_ipxe\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: ipxe
+      tags: [ \(aqrole::ipxe\(aq, \(aqskip::ipxe\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::ipxe\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.ipxe\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%iPXE scripting documentation\fP <\fBhttps://ipxe.org/scripting\fP>, \fI\%command reference\fP <\fBhttps://ipxe.org/cmd\fP>
+.IP \(bu 2
+\fI\%Installing Debian using network booting\fP <\fBhttps://wiki.debian.org/PXEBootInstall\fP>
+.IP \(bu 2
+\fI\%Non\-free firmware in Debian\fP <\fBhttps://wiki.debian.org/Firmware\fP> documentation page
+.IP \(bu 2
+\fI\%How to include non\-free firmware in Debian netboot installer\fP <\fBhttps://wiki.debian.org/DebianInstaller/NetbootFirmware\fP>
+.IP \(bu 2
+\fI\%netboot.xyz\fP <\fBhttps://netboot.xyz/\fP> \- public network boot server, available from DebOps Boot Menu
+.IP \(bu 2
+\fI\%SAL\(aqs Boot Menu\fP <\fBhttp://boot.salstar.sk/\fP> \- another public network boot server available via DebOps Boot Menu
+.IP \(bu 2
+\fI\%Rackspace Boot Server\fP <\fBhttp://boot.rackspace.com/\fP>, available via DebOps Boot Menu
+.UNINDENT
+.SH DEFAULT VARIABLES: CONFIGURATION
+.sp
+some of \fBdebops.ipxe\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS ipxe__debian_netboot_release_map
+.sp
+The \fBipxe__debian_netboot_*_release_map\fP variables define a list of Debian
+Installer releases known to the role. These releases will be downloaded and
+prepared by the \fI\%debops.ipxe\fP Ansible role for use on the local network.
+.sp
+The Debian netboot installers are prepared in an elaborate directory structure
+inside of the \fI\%ipxe__debian_netboot_pxe_root\fP directory, which supports
+multiple OS releases, architectures and installation flavors. Each installer
+optionally can be supplemented by a set of non\-free firmware packages provided
+by Debian to allow use of hardware that requires it.
+.SS Examples
+.sp
+See the \fI\%ipxe__debian_netboot_default_release_map\fP variable for an
+example configuration.
+.SS Syntax
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. An identifier for a particular configuration entry, not used
+otherwise. Configuration entries with the same \fBname\fP parameter are merged
+together, this can be used to modify entries from the role defaults using
+Ansible inventory.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given Debian Installer release
+will be downloaded and prepared by the role. If \fBabsent\fP, a given release
+will be skipped; existing configuration will not be modified or removed.
+If \fBignore\fP, a given configuration entry will not be evaluated by the role.
+This can be used to modify the configuration conditionally.
+.TP
+.B \fBrelease\fP
+Required. Name of the OS release a given entry defines. The OS releases which
+will be prepared are filtered by the \fI\%ipxe__debian_netboot_releases\fP
+list variable.
+.TP
+.B \fBarchitecture\fP
+Required. Name of the OS architecture a given entry defines. The OS
+architectures which will be prepared are filtered by the
+\fI\%ipxe__debian_netboot_architectures\fP list variable.
+.TP
+.B \fBnetboot_url\fP
+Optional. An URL to the \fBnetboot.tar.gz\fP tarball which contains the
+installer files. If not specified, the URL will be generated automatically
+based on the selected Debian mirror, release and architecture.
+.TP
+.B \fBnetboot_subdir\fP
+Optional. Normally empty, this parameter can be used to specify
+a subdirectory in the installer directory which will be included in the URL
+to the installer tarball. Currently this is only useful to define
+a \(dqgtk\-based\(dq installer entry which provides the graphical installer. At the
+moment the only sensible value is \fB/gtk\fP\&.
+.TP
+.B \fBnetboot_version\fP
+Required. Specify the version of the installer to download and prepare. This
+parameter will be changed over time as the new installer version are
+released; the \fBcurrent\fP symlink will be updated to match the selected
+version. The current and upstream versions can be checked in the DebOps
+monorepo root directory by running the \fBmake versions\fP command.
+.TP
+.B \fBnetboot_checksum\fP
+Optional. Specify the checksum of the installer tarball, usually a SHA256. If
+not specified, the file checksum will not be verified. The checksum should be
+updated on any version changes to match the new tarball.
+.TP
+.B \fBnetboot_current\fP
+Optional, boolean. If not specified or \fBTrue\fP, the role will update the
+\fBcurrent\fP symlink to the specified installer version. If \fBFalse\fP,
+existing symlink will not be updated.
+.TP
+.B \fBfirmware_url\fP
+Optional. An URL to the \fBfirmware.cpio.gz\fP file which contains the
+firmware packages. If not specified and the \fBfirmware_version\fP parameter is
+specified, the URL will be generated automatically based on the firmware
+mirror URL, OS release and firmware version.
+.TP
+.B \fBfirmware_version\fP
+Optional. Specify the version of the firmware file to download and add to the
+Debian installer \fBinitrd.gz\fP file. If not specified, the firmware will
+not be downloaded.
+.TP
+.B \fBfirmware_checksum\fP
+Optional. Specify the checksum of the firmware file, usually a SHA256. If not
+specified, the file checksum will not be verified. The checksum should be
+updated on any firmware version changes to match the new file.
+.UNINDENT
+.SS ipxe__scripts
+.sp
+The \fBipxe__*_scripts\fP variables define a list of iPXE scripts stored in the
+\fI\%ipxe__tftp_root\fP directory (by default \fB/srv/tftp/\fP). At boot
+time, the iPXE boot loader will download and execute the \fBmenu.ipxe\fP
+script (this is just a convention controlled by the DHCP server). The script
+contains iPXE commands which can be used to define an interactive menu,
+chainload other scripts and boot operating systems.
+.SS Examples
+.sp
+See the \fI\%ipxe__default_scripts\fP variable for an example configuration.
+.sp
+Modify an existing default configuration to include additional main menu items
+that boot an ISO image over HTTP. When the new option is selected, the iPXE
+boot loader will load the new \fBiso\-image.ipxe\fP script:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: \(aqmenu.ipxe\(aq
+  options:
+
+    \- name: \(aqmain\-menu\(aq
+      raw: |
+        item \-\-key d debian\-installer ${space} Install Debian GNU/Linux on this host [d]
+        item iso\-image ${space} Boot custom ISO image
+        item
+
+\- name: \(aqiso\-image.ipxe\(aq
+  raw: |
+    set iso\-root http://boot.{{ ansible_domain }}/iso/
+    set iso\-img custom\-image.iso
+
+    initrd ${iso\-root}/${iso\-img}
+    chain memdisk iso || goto error
+
+    :error
+    echo Error occurred, press any key to return to menu...
+    prompt
+    set menu main_menu
+    chain menu.ipxe
+  state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each configuration entry defines one iPXE script. The configuration is
+specified as a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the iPXE script. You can include subdirectories in the name
+(for example \fBextra/menu.ipxe\fP which will be created automatically.
+Entries with the same \fBname\fP parameter are merged together, this can be
+used to modify existing entries as needed.
+.TP
+.B \fBcomment\fP
+Optional. A string or a YAML text block with a comment added at the top of
+the iPXE script.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given iPXE script will be created
+by the role. If \fBabsent\fP, the specified iPXE script will be removed by the
+role. If \fBignore\fP, a given configuration entry will be ignored by the role
+during its execution. This can be used to activate configuration entries
+conditionally.
+.TP
+.B \fBraw\fP
+Optional. A YAML text block that contains the iPXE script, added as\-is in the
+generated file. The \fB#!ipxe\fP shebang will be added automatically at the top
+of the file and does not have to be specified. See the \fI\%iPXE documentation\fP <\fBhttps://ipxe.org/scripting\fP>
+for more details about scripting the bootloader.
+.TP
+.B \fBoptions\fP
+Optional. An alternative way to define the contents of the generated iPXE
+script. The \fBoptions\fP parameters from different configuration entries are
+merged together and elements of the options list can affect each other. This
+is a list of YAML dictionaries, each dictionary describes a part of the
+generated file using specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. An identifier of a given part of the iPXE script. If \fBraw\fP
+parameter is specified, the \fBname\fP parameter is not used otherwise. If
+\fBraw\fP parameter is not specified, the \fBname\fP parameter is the second
+element in the script line (see \fBvalue\fP and \fBcommand\fP parameters). By
+default this defines an iPXE variable name. Option list entries with the
+same \fBname\fP parameter are merged together.
+.TP
+.B \fBvalue\fP
+Optional. If \fBraw\fP parameter is not specified, this parameter defines the
+third element of the script line. By default this defines a value of
+a given iPXE variable. You can specify a string or a list which will be
+concatenated with spaces as separators.
+.TP
+.B \fBcommand\fP
+Optional. If \fBraw\fP parameter is not specified, this parameter defines the
+first element of the script line, by default \fBset\fP which defines an iPXE
+variable.
+.TP
+.B \fBraw\fP
+Optional. YAML text block that contains a section of the iPXE script.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment about a given script
+section.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given script section will be
+included in the generated file. If \fBabsent\fP, a given script section will
+be removed from the generated file.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

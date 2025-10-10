@@ -1,0 +1,180 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.OPENSEARCH" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.opensearch \- Install and manage OpenSearch
+.SH SYNOPSIS
+.sp
+\fBdebops run [<\(ga\(gadebops run\fP options>] [\-\-] service/opensearch\(ga\(ga [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%OpenSearch\fP <\fBhttps://www.opensearch.org/\fP> is a fork of the popular
+distributed search engine and storage system Elasticsearch (see
+\fI\%debops.elasticsearch\fP). Some software vendors, for example Graylog, have
+switched to OpenSearch because of legal concerns regarding the Server Side
+Public License under which Elasticsearch is nowadays released.
+.sp
+The \fBdebops.opensearch\fP role only implements a subsection of the features
+supported by \fI\%debops.elasticsearch\fP\&. The role is currently only suitable
+for setting up a local OpenSearch instance without TLS support.
+.SH GETTING STARTED
+.SS When to use this role
+.sp
+WARNING: this role can only manage local, unsecured OpenSearch installations.
+This is useful when running it alongside dependent software like Graylog, which
+switched from Elasticsearch to OpenSearch due to
+\fI\%issues with the new Elasticsearch license\fP <\fBhttps://www.graylog.org/post/graylog-to-add-support-for-opensearch\fP>\&.
+.sp
+If you are not encumbered by Elasticsearch\(aqs new license, then please consider
+using the \fI\%debops.elasticsearch\fP role instead.
+.SS Installation
+.sp
+This role installs OpenSearch from the release tarball. The PGP signature is
+used to verify the tarball. Directories for configuration and logging are
+created according to the
+\fI\%Filesystem Hierarchy Standard\fP <\fBhttps://refspecs.linuxfoundation.org/fhs.shtml\fP>\&.
+The role is able to upgrade your installation automatically, and can configure
+OpenSearch, the included JVM, and the systemd service.
+.SS Example inventory
+.sp
+To deploy OpenSearch, you can add the host to the
+\fB[debops_service_opensearch]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_opensearch]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.opensearch\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install and manage OpenSearch
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_opensearch\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq ]
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ opensearch__keyring__dependent_gpg_keys }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ opensearch__etc_services__dependent_list }}\(aq
+
+    \- role: sysctl
+      tags: [ \(aqrole::sysctl\(aq, \(aqskip::sysctl\(aq ]
+      sysctl__dependent_parameters:
+        \- \(aq{{ opensearch__sysctl__dependent_parameters }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ opensearch__ferm__dependent_rules }}\(aq
+
+    \- role: opensearch
+      tags: [ \(aqrole::opensearch\(aq, \(aqskip::opensearch\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.opensearch\fP default variables have more extensive
+configuration than simple strings or lists. Here you can find documentation and
+examples for them.
+.SS opensearch__configuration
+.sp
+The \fBopensearch__*_configuration\fP variables define the OpenSearch
+configuration options that are set in the
+\fB/etc/opensearch/opensearch.yml\fP configuration file. For example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opensearch__configuration:
+
+  \- name: \(aqcluster.name\(aq
+    value: \(aqexample\-cluster\(aq
+
+  \- name: \(aqnode.name\(aq
+    comment: \(aqMy first node\(aq
+    value: \(aqnode\-1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Each configuration entry is a list item containing a YAML dictionary. These
+parameters are supported:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+String, mandatory. The name of the OpenSearch configuration entry.
+.TP
+.B \fBvalue\fP
+String, mandatory. The value of the OpenSearch configuration entry. Can be a
+string, an integer, a boolean or a list.
+.TP
+.B \fBcomment\fP
+String or YAML text block, optional. A comment added to the configuration
+entry.
+.TP
+.B \fBstate\fP
+String, optional. If not specified or \fBpresent\fP, the entry will be included
+in the configuration file. If \fBabsent\fP, the entry will not be included.
+.UNINDENT
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

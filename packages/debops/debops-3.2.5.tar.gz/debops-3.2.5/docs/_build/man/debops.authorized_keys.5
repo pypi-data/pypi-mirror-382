@@ -1,0 +1,577 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.AUTHORIZED_KEYS" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.authorized_keys \- Manage SSH public keys using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/authorized_keys\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.authorized_keys\fP role can be used to manage SSH keys centrally in
+the \fB/etc/ssh/authorized_keys/\fP directory. The role only manages the keys
+themselves, you should configure the \fBsshd\fP service to use them separately,
+for example by using the \fI\%debops.sshd\fP Ansible role.
+.SH GETTING STARTED
+.SS Security considerations
+.sp
+The \fBdebops.authorized_keys\fP role is designed to manage files in
+\fB/etc/ssh/authorized_keys/\fP directory which contain SSH public keys for user
+accounts.
+.sp
+By default, role modifies the ownership and permissions of these files after
+the Ansible \fBauthorized_key\fP changes them, so that the owner of these files
+is \fBroot\fP account, and the file group, either named after the specified
+username, set as an \fBitem.group\fP parameter or \fBroot\fP if the previous
+entries don\(aqt result in an existing group present on a given system. This
+assumes that each user account has a primary group of the same name as their
+account, and they are the only members of that group.
+.sp
+The file attributes will be set as \fB640\fP to allow read only access to the SSH
+public key files. This should ensure that user accounts can be logged into the
+specific SSH public keys, but they cannot be modified by their respective
+users.
+.sp
+Unfortunately, it seems that the Ansible \fBauthorized_key\fP module
+\fI\%enforces the \(dq600\(dq file permissions\fP <\fBhttps://github.com/ansible/ansible-modules-core/blob/devel/system/authorized_key.py#L298-L302\fP>
+on any file change, therefore there exists a window of opportunity between the
+given user file being updated by the \fBauthorized_key\fP module and permissions
+being enforced again by the \fBfile\fP Ansible module. At the moment there\(aqs no
+good solution to this issue, perhaps in the future the \fBauthorized_key\fP
+module will be updated to allow for setting custom file ownership and
+permissions similarly to the \fBfile\fP module. However, if there are no updates
+to the user files, the permissions are not changed.
+.SS SSH service configuration
+.sp
+The \fBdebops.authorized_keys\fP role does not manage the \fBsshd\fP service
+configuration by itself. Instead, you are expected to configure the \fBsshd\fP
+daemon to use the authorized keys from its directory, either by hand or by an
+Ansible role.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+The \fI\%debops.sshd\fP role enables use of the SSH public keys managed by the
+\fBdebops.authorized_keys\fP automatically.
+.UNINDENT
+.UNINDENT
+.sp
+To enable the \fBsshd\fP service to use the configured public keys, you should
+change the configuration in the \fB/etc/ssh/sshd_config\fP file to something like
+this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# /etc/ssh/sshd_config
+AuthorizedKeysFile /etc/ssh/authorized_keys/%u %h/.ssh/authorized_keys
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above configuration will enable use of the configured keys by all
+subsequent SSH connections.
+.sp
+You can use the \fBMatch\fP keyword to restrict the use of the authorized keys to
+a particular hosts, users, groups or IP addresses/subnets as needed. For
+example, if you want to check these authorized keys only for users in
+a specific subnet, you can do it like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# /etc/ssh/sshd_config
+Match Address 192.0.2.0/24
+      AuthorizedKeysFile /etc/ssh/authorized_keys/%u %h/.ssh/authorized_keys
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Alternatively, you can use different conditions to restrict the SSH public keys
+checked by the \fBsshd\fP daemon to only the authorized keys maintained by this
+role. For example, to restrict a particular system group to only use these
+authorized keys for authentication, you can do it like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# /etc/ssh/sshd_config
+Match Group sftponly
+      AuthorizedKeysFile /etc/ssh/authorized_keys/%u
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example inventory
+.sp
+This role is included by default in the \fBcommon.yml\fP DebOps playbook, so you
+don\(aqt need to do anything to enable it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.authorized_keys\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage SSH public keys
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_authorized_keys\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: authorized_keys
+      tags: [ \(aqrole::authorized_keys\(aq, \(aqskip::authorized_keys\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.authorized_keys\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS authorized_keys__identities
+.sp
+The \fBauthorized_keys__*_identities\fP variables are used to define a list of
+\(dqSSH Key identities\(dq. Each identity can use one or more SSH public keys and has
+a corresponding list of UNIX accounts which will include the SSH keys of
+a given identity, with optional configuration as specified in the
+\fI\%authorized_keys(5)\fP <\fBhttps://manpages.debian.org/authorized_keys(5)\fP> manual page (see \(dqauthorized_keys file format\(dq
+section for list of options).
+.sp
+By default the keys will be stored in the \fB/etc/ssh/authorized_keys/\fP
+directory, with separate file for each UNIX account. These files are owned by
+\fBroot\fP and the corresponding user\(aqs UNIX group has read\-only access to them,
+to prevent modification by the users.
+.sp
+Alternatively, the account\(aqs \fB~/.ssh/authorized_keys\fP file can be used,
+but this location will not be protected from the user modifications.
+.SS Examples
+.sp
+Ensure that given SSH public keys are present in the user file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+authorized_keys__identities:
+
+  \- name: \(aqidentity1\(aq
+    sshkeys: [ \(aqssh\-rsa AAAAB3NzaC1yc2EAAAA...\(aq, \(aqssh\-rsa AAAAB3NzaC1yc2EAAAA...\(aq ]
+    comment: \(aqadmin@example.org\(aq
+    accounts:
+      \- \(aquser1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add SSH public keys from the \fBssh\-agent\fP service running on the
+Ansible Controller (useful with smartcards):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+authorized_keys__identities:
+
+  \- name: \(aqidentity2\(aq
+    sshkeys: \(aq{{ lookup(\(dqpipe\(dq,\(dqssh\-add \-L | grep ^ssh || cat ~/.ssh/*.pub || true\(dq) }}\(aq
+    accounts:
+      \- \(aquser2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define two global SSH identities and add them to different UNIX accounts on
+different hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ # ansible/inventory/group_vars/debops_all_hosts/authorized_keys.yml
+ authorized_keys__identities:
+
+   \- name: \(aqmanager\(aq
+     url: \(aqhttps://github.com/user2.keys\(aq
+
+   \- name: \(aqdeployment\(aq
+     url: \(aqhttps://gitlab.com/user2.keys\(aq
+
+# ansible/inventory/host_vars/webserver/authorized_keys.yml
+authorized_keys__host_identities:
+
+  \- name: \(aqmanager\(aq
+    accounts:
+      \- name: \(aqapplication\(aq
+        home: True
+
+  \- name: \(aqdeployment\(aq
+    accounts:
+      \- name: \(aqapplication\(aq
+        options: [ \(aqrestrict\(aq, \(aqpty\(aq ]
+        command: \(aq/usr/local/bin/rrsync \-wo /home/application/\(aq
+        comment: \(aqDeployment account\(aq
+
+# ansible/inventory/host_vars/database/authorized_keys.yml
+authorized_keys__host_identities:
+
+  \- name: \(aqmanager\(aq
+    accounts:
+      \- \(aqpostgres\(aq
+
+  \- name: \(aqdeployment\(aq
+    accounts:
+      \- name: \(aqpostgres\(aq
+        options: [ \(aqrestrict\(aq, \(aqpty\(aq ]
+        environment:
+          APP_NAME: \(aqapplication1\(aq
+        command: \(aq/usr/bin/psql application_db app_user\(aq
+        comment: \(aqDatabase management access\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Set SSH keys from a file on Ansible Controller as the only keys on a given user
+account:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+authorized_keys__identities:
+
+  \- name: \(aqidentity3\(aq
+    sshkeys: \(aq{{ lookup(\(dqfile\(dq, \(dq/path/to/user3.pub\(dq) }}\(aq
+    accounts:
+      \- name: \(aquser3\(aq
+        exclusive: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A few examples from the \fI\%authorized_keys(5)\fP <\fBhttps://manpages.debian.org/authorized_keys(5)\fP> manual page:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+authorized_keys__identities:
+
+  \- name: \(aqjohn\(aq
+    comment: \(aqjohn@example.net\(aq
+    sshkeys: \(aqssh\-rsa AAAAB2...19Q==\(aq
+    accounts:
+
+      \- name: \(aqapplication\(aq
+        options:
+          \- \(aqfrom=\(dq*.sales.example.net,!pc.sales.example.net\(dq\(aq
+
+ \- name: \(aqdump\-user\(aq
+   comment: \(aqexample.net\(aq
+   sshkeys: [ \(aqssh\-rsa AAAAC3...51R==\(aq ]
+   accounts:
+
+     \- name: \(aqbackup\(aq
+       command: \(aqdump /home\(aq
+
+ \- name: \(aqpermit\-access\(aq
+   sshkeys: \(aqssh\-rsa AAAAB5...21S==\(aq
+   accounts:
+
+     \- name: \(aqaccount1\(aq
+       options:
+         \- \(aqpermitopen=\(dq192.0.2.1:80\(dq\(aq
+         \- \(aqpermitopen=\(dq192.0.2.2:25\(dq\(aq
+
+     \- name: \(aqaccount2\(aq
+       options:
+         \- \(aqpermitlisten=\(dqlocalhost:8080\(dq\(aq
+         \- \(aqpermitopen=\(dqlocalhost:22000\(dq\(aq
+
+ \- name: \(aqjane\(aq
+   sshkeys: \(aqssh\-rsa AAAA...==\(aq
+   accounts:
+
+     \- name: \(aqvpntunnel\(aq
+       comment: \(aqjane@example.net\(aq
+       options:
+         \- \(aqtunnel=\(dq0\(dq\(aq
+       command: \(aqsh /etc/netstart tun0\(aq
+
+ \- name: \(aqrestricted\-user\(aq
+   sshkeys:
+     \- \(aqssh\-rsa AAAA1C8...32Tv==\(aq
+     \- \(aqssh\-rsa AAAA1f8...IrrC5==\(aq
+   comment: \(aquser@example.net\(aq
+   options:
+     \- \(aqrestrict\(aq
+   accounts:
+
+     \- name: \(aquptime\(aq
+       command: \(aquptime\(aq
+
+     \- name: \(aqgames\(aq
+       options:
+         \- \(aqpty\(aq
+       command: \(aqnethack\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Setup a \fI\%git\-shell(1)\fP <\fBhttps://manpages.debian.org/git-shell(1)\fP> service for a specific SSH key identity on a given
+UNIX account, with a custom \fBgitserve\fP wrapper to support both
+interactive and non\-interactive operation:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#!/bin/sh
+# /usr/local/bin/gitserve
+# See also: https://www.reddit.com/r/git/comments/2s0yi6/
+set \-ef
+if [ \-n \(dq$SSH_ORIGINAL_COMMAND\(dq ] ; then
+    exec git\-shell \-c \(dq$SSH_ORIGINAL_COMMAND\(dq
+else
+    exec git\-shell
+fi
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+authorized_keys__identities:
+
+  \- name: \(aqgit\-deploy\(aq
+    url: \(aqhttps://github.com/username.keys\(aq
+    comment: \(aqDeployment identity\(aq
+    options:
+      \- \(aqrestrict\(aq
+      \- \(aqpty\(aq
+    command: \(aq/usr/local/bin/gitserve\(aq
+    accounts:
+      \- \(aqapplication1\(aq
+      \- \(aqapplication2\(aq
+      \- \(aqapplication3\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. A string which identifies an \(dqSSH key identity\(dq, not used
+otherwise. Configuration entries with the same \fBname\fP parameter are merged
+during role execution and can affect each other. Most of the parameters in
+subsequent configuration entries will replace the former ones; exceptions are
+\fBoptions\fP, \fBenvironment\fP and \fBaccounts\fP parameters.
+.TP
+.B \fBsshkeys\fP
+String or a YAML list containing SSH public keys. If both \fBsshkeys\fP and
+\fBurl\fP are specified, the former takes precedence.
+.TP
+.B \fBurl\fP
+String containing an URL to a resource which returns a file with SSH public
+keys (only one URL is allowed at the moment). Be aware that SSH key sources
+not controlled directly can be modified at any time, in which case the role
+might lose track of SSH keys already present on the host.
+.TP
+.B \fBcomment\fP
+Optional. String which will be added at the end of the SSH public key on all
+defined UNIX accounts, usually a comment about the key owner.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given SSH identity will be
+included in the list of generated identities. SSH keys will be added on any
+UNIX accounts defined in the \fBaccounts\fP parameter. If \fBabsent\fP, known SSH
+keys will be removed from any defined UNIX accounts. If \fBignore\fP, a given
+configuration entry will not be processed by the role during execution.
+.TP
+.B \fBoptions\fP
+Optional. YAML list of \fI\%authorized_keys(5)\fP <\fBhttps://manpages.debian.org/authorized_keys(5)\fP> key options which should be
+added to SSH keys added to all defined UNIX accounts. Mostly useful to add
+the \fBrestrict\fP option to all SSH keys, which can then be augmented on
+a per\-account basis. Values of the parametrized options need to include
+quotation marks. The \fBenvironment=\fP and \fBcommand=\fP options have separate
+parameters for special handling and should not be defined using the
+\fBoptions\fP parameter.  The \fBoptions\fP parameters from multiple
+configuration entries are merged together and can affect each other,
+depending on the \fBstate\fP parameter.
+.TP
+.B \fBenvironment\fP
+Optional. YAML dictionary which specifies environment variables which should
+be set for a given SSH key. The variable names are defined as dictionary keys
+and their values as dictionary values. These environment variables will be
+set on all defined UNIX accounts; variable values can be overridden on
+a per\-account basis.
+.TP
+.B \fBcommand\fP
+Optional. A string which will be defined as the \fBcommand=\fP option for given
+SSH keys on all specified UNIX accounts. Commands will be automatically
+quoted using double quotes (\fB\(dq\(dq\fP) characters. The \fBcommand\fP parameter can
+be overridden on a per\-account basis.
+.TP
+.B \fBaccounts\fP
+Optional. List of UNIX accounts on which a given SSH identity should be
+configured. The \fBaccounts\fP parameters from multiple configuration
+entries are merged together and can affect each other, depending on the
+\fBstate\fP parameter.
+.sp
+The list entries can be simple strings which will be interpreted as UNIX
+account names \- in this case a given SSH identity will be configured in the
+\fB/etc/ssh/authorized_keys/<account>\fP file. Alternative syntax using
+YAML dictionary with specific parameters described below can be used to
+modify SSH identity configuration on a per\-account basis:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. Name of the user account to configure. This will be used as the
+name of the file located in the \fB/etc/ssh/authorized_keys/\fP
+directory. If needed, a corresponding UNIX group with the same name will be
+created to provide access to the file with SSH keys.
+.TP
+.B \fBstate\fP
+Optional. If undefined or \fBpresent\fP, the SSH public keys will be added to
+the user file. If \fBabsent\fP, the specified SSH public keys will be removed
+from the user file.
+.TP
+.B \fBcomment\fP
+Optional. String which will be added at the end of the SSH public key,
+usually a comment about the key owner.
+.TP
+.B \fBoptions\fP
+Optional. YAML list of \fI\%authorized_keys(5)\fP <\fBhttps://manpages.debian.org/authorized_keys(5)\fP> key options which should
+be added to SSH keys added to a given UNIX account. Values of the
+parametrized options need to include quotation marks. The \fBenvironment=\fP
+and \fBcommand=\fP options have separate parameters for special handling and
+should not be defined using the \fBoptions\fP parameter.
+.TP
+.B \fBenvironment\fP
+Optional. YAML dictionary which specifies environment variables which
+should be set for a given SSH key on a given UNIX account. The variable
+names are defined as dictionary keys and their values as dictionary values.
+.TP
+.B \fBcommand\fP
+Optional. A string which will be defined as the \fBcommand=\fP option for
+given SSH keys on a given UNIX account. Commands will be automatically
+quoted using double quotes (\fB\(dq\(dq\fP) characters.
+.TP
+.B \fBexclusive\fP
+Optional, boolean. If defined and \fBTrue\fP, role will remove all other SSH
+public keys located in the user file and set only the SSH public keys present
+in the \fBitem.sshkeys\fP or \fBitem.url\fP parameters. Keep in mind that using
+this option can break idempotency if multiple entries with the same
+\fBname\fP parameter are used.
+.TP
+.B \fBfollow\fP
+Optional, boolean. If defined and \fBTrue\fP, the role will follow symlinks to
+the \fBauthorized_keys\fP file instead of replacing them.
+.TP
+.B \fBhome\fP
+Optional, boolean. If not specified or \fBFalse\fP, the SSH keys will be
+managed in the \fB/etc/ssh/authorized_keys/\fP directory, with custom
+access permissions. If \fBTrue\fP, the SSH keys will be maintained in the
+\fB~/.ssh/authorized_keys\fP file of a given UNIX account, if that
+account already exists.
+.UNINDENT
+.sp
+The parameters below are related to the files located in the
+\fB/etc/ssh/authorized_keys/\fP directory:
+.INDENT 7.0
+.TP
+.B \fBowner\fP
+Optional. Set the owner of the SSH identity file. If the owner account does
+not exist, \fBroot\fP will become the owner.
+.TP
+.B \fBgroup\fP
+Optional. Name of the primary group of a given SSH identity file. If the
+specified group does not exist, it will be automatically created by the
+role.
+.sp
+If the \fBgroup\fP parameter is not specified, the role will try to set the
+group of the file the same as the specified UNIX account in \fBname\fP
+parameter with the assumption that the corresponding primary group exists.
+If it does not exist, the primary group of the SSH identity file will be
+\fBroot\fP\&.
+.TP
+.B \fBsystem\fP
+Optional, boolean. If undefined or \fBTrue\fP, the group created by the role
+will be a \(dqsystem\(dq group, with GID < 1000. If \fBFalse\fP, the created group
+will be a \(dqnormal\(dq group with GID >= 1000. The existing groups are not
+modified.
+.TP
+.B \fBgid\fP
+Optional. Specify the GID a given group should use.
+.TP
+.B \fBmode\fP
+Optional. Set the mode of the SSH identity file. If not specified, mode
+\fB0640\fP will be set to allow read access to the UNIX group.
+.TP
+.B \fBfile_state\fP
+Optional. If undefined or \fBpresent\fP, the SSH identity file will be
+present. If \fBabsent\fP, the SSH identity file will be removed.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

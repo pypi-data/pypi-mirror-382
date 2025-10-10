@@ -1,0 +1,187 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ETCKEEPER" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.etckeeper \- Put /etc under version control using etckeeper
+.SH SYNOPSIS
+.sp
+\fBdebops run service/etckeeper\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.etckeeper\fP Ansible role will install \fI\%etckeeper\fP <\fBhttps://etckeeper.branchable.com/\fP>, which puts
+the \fB/etc\fP directory under version control. To do this,
+\fBetckeeper\fP hooks into the package management and from now on
+automatically will commit changes to a local git repository under
+\fB/etc/.git/\fP directory. This makes it easy to see which changes are
+applied on a specific host and quickly revert them, if something breaks.
+.sp
+The role will install a special Ansible local fact which will commit any
+changes in the \fB/etc\fP directory as well, usually at the moment the
+Ansible facts are gathered.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+By default \fBgit\fP is used as VCS. This can be changed via the
+\fI\%etckeeper__vcs\fP variable through Ansible inventory.
+.sp
+The role is designed with \fBetckeeper\fP being already installed on
+a host in mind. This can be done for example via Debian Preseeding or LXC
+template installing and pre\-configuring \fBetckeeper\fP; the role will
+keep the already existing configuration without any changes if the variables
+are not overwritten through the Ansible inventory. Any changes in the
+\fB/etc/\fP directory will be automatically committed by Ansible local facts
+before Ansible role execution.
+.SS Example inventory
+.sp
+The \fBdebops.etckeeper\fP role is part of the default DebOps playbook and run on
+all hosts which are part of the \fB[debops_all_hosts]\fP group. To use this role
+with DebOps it\(aqs therefore enough to add your host to the mentioned host group
+(which most likely it is already):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook that uses the \fBdebops.etckeeper\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Put /etc under version control using etckeeper
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_etckeeper\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ etckeeper__apt_preferences__dependent_list }}\(aq
+
+    \- role: etckeeper
+      tags: [ \(aqrole::etckeeper\(aq, \(aqskip::etckeeper\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::etckeeper\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.etckeeper\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS etckeeper__gitignore
+.sp
+The \fBetckeeper__*_gitignore\fP variables configure the contents of a section in
+the \fB/etc/.gitignore\fP file managed by the \fBdebops.etckeeper\fP role. This
+file specifies which paths (directories, files) should be ignored by
+\fBetckeeper\fP and \fBgit\fP\&. You can check the \fI\%gitignore(5)\fP <\fBhttps://manpages.debian.org/gitignore(5)\fP>
+manual page for the allowed syntax.
+.sp
+Each entry in the list defined in the variables is a YAML dictionary with
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of a given entry. If the \fBignore\fP parameter is not
+specified, the \fBname\fP parameter is used as\-is, otherwise it\(aqs not included
+in the file.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment that describes a given
+entry.
+.TP
+.B \fBignore\fP
+Optional. String or YAML text block that contains the paths which should be
+present in the \fB/etc/.gitignore\fP file, it will be added in the file
+as\-is.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given entry will be included in
+the generated section. If \fBabsent\fP, and entry will be removed from the
+generated section.
+.UNINDENT
+.SS Examples
+.sp
+Don\(aqt include \fB/etc/shadow\fP and \fB/etc/shadow\-\fP files in
+\fBetckeeper\fP repository:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+etckeeper__gitignore:
+
+  \- name: \(aqignore\-shadow\(aq
+    ignore: |
+      shadow
+      shadow\-
+    comment: \(dqDon\(aqt track shadow database\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Robin Schneider, Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

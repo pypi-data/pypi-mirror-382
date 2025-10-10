@@ -1,0 +1,440 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DEBCONF" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.debconf \- Configure APT packages using Debconf database
+.SH SYNOPSIS
+.sp
+\fBdebops run service/debconf\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%debconf\fP <\fBhttps://wiki.debian.org/debconf\fP> database is a Debian configuration management system meant to
+ease configuration of applications packaged using the \fB\&.deb\fP file format.
+Debconf allows system administrators to pre\-seed the answers to the questions
+asked by a given package during installation, allowing for automated and
+non\-interactive configuration of said package.
+.sp
+The \fI\%debops.debconf\fP role is built around using \fBdebconf\fP to
+pre\-configure applications installed using \fB\&.deb\fP packages. The role is
+executed late in the configuration order defined in the \fBsite.yml\fP Ansible
+playbook, so that other services required by a given application can be prepared
+before its installation.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The role is not active by default. To enable it on a given host, the host needs
+to be included in the \fB[debops_service_debconf]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_debconf]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.debconf\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage debconf\-based services
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_debconf\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: debconf
+      tags: [ \(aqrole::debconf\(aq, \(aqskip::debconf\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::debconf\fP
+Main role tag, should be used in the playbook to execute all tasks.
+.TP
+.B \fBrole::debconf:commands\fP
+Run specified commands on the remote hosts.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.debconf\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS debconf__entries
+.sp
+The \fBdebconf__*_entries\fP variables contain list of \fBdebconf\fP database
+entries which should be set by the role. The configuration is managed using the
+\fI\%Universal Configuration\fP system.
+.sp
+The syntax used in the role is a bit more streamlined version of the syntax used
+by the \fI\%ansible.builtin.debconf\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/ansible/builtin/debconf_module.html\fP> Ansible module. To see a list of currently
+set \fBdebconf\fP answers for a given package, use the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debconf\-show <package>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To see a list of possible questions for a given package, use the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debconf\-get\-selections | grep package
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Examples
+.sp
+Set multiple values for a custom \fBapplication.deb\fP package:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debconf__entries:
+
+  \- name: \(aqapplication\(aq
+    options:
+
+      \- name: \(aqenvironment\(aq
+        vtype: \(aqselect\(aq
+        value: \(aqproduction\(aq
+
+      \- name: \(aqapplication/fqdn\(aq
+        value: \(aqexample.com\(aq
+
+      \- name: \(aqdebug_enabled\(aq
+        vtype: \(aqboolean\(aq
+        value: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Set default locale to fr_FR.UTF\-8 and define which locales should be generated:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debconf__entries:
+
+  \- name: \(aqlocales\(aq
+    options:
+
+      \- name: \(aqlocales/default_environment_locale\(aq
+        vtype: \(aqselect\(aq
+        value: \(aqfr_FR.UTF\-8\(aq
+
+      \- name: \(aqlocales/locales_to_be_generated\(aq
+        vtype: \(aqmultiselect\(aq
+        value: \(aqen_US.UTF\-8 UTF\-8, fr_FR.UTF\-8 UTF\-8\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Accept license of some Oracle products:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debconf__entries:
+
+  \- name: \(aqoracle\-java7\-installer\(aq
+    options:
+
+      \- name: \(aqshared/accepted\-oracle\-license\-v1\-1\(aq
+        vtype: \(aqselect\(aq
+        value: \(aqtrue\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a site passprhase for Tripwire and store it in the
+\fBansible/secret/\fP directory (see \fI\%debops.secret\fP for more details):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debconf__entries:
+
+  \- name: \(aqtripwire\(aq
+    options:
+
+      \- name: \(aqsite\-passphrase\(aq
+        vtype: \(aqpassword\(aq
+        value: \(aq{{ lookup(\(dqpassword\(dq, secret + \(dq/tripwire/credentials\(dq
+                                      + \(dq/site\-passphrase\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Database entries are define using a list of YAML dictionaries with specific
+syntax:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the APT package to configure. Entries with the same \fBname\fP
+parameter will be merged together and can affect each other in order of
+appearance.
+.TP
+.B \fBreconfigure\fP
+Optional, boolean. If specified and \fBTrue\fP, the role will not try to
+reconfigure a given APT package during execution. This might be useful if a
+package is not expected to be installed on the system when the role is
+applied.
+.TP
+.B \fBoptions\fP
+Required. A list of YAML dictionaries which define questions and answers for a
+given package. The \fBoptions\fP lists from multiple configuration entries with
+the same \fBname\fP are merged together and can affect each other in order of
+appearance.
+.sp
+Each option is defined as a YAML dictionary with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The name of the question for a given answer. If the name does not contain
+the \fB/\fP character, the package name will be prepended to it (\fBquestion\fP
+becomes \fBpackage/question\fP). If the question name contains the \fB/\fP
+character, it will be used as\-is. Questions from entries with the same
+\fBname\fP will be merged together in order of appearance and can affect each
+other.
+.TP
+.B \fBvalue\fP
+The answer for a given \fBdebconf\fP question.
+.TP
+.B \fBvtype\fP
+Optional. The type of the value for a given question. Supported types:
+\fBboolean\fP, \fBerror\fP, \fBmultiselect\fP, \fBnote\fP, \fBpassword\fP, \fBseen\fP,
+\fBselect\fP, \fBstring\fP (default), \fBtext\fP, \fBtitle\fP\&.
+.sp
+If the \fBpassword\fP type is selected, the role will automatically set the
+\fBno_log=True\fP for a given task item to avoid storing sensitive values in
+logs.
+.TP
+.B \fBunseen\fP
+Optional, boolean. If \fBTrue\fP, the \(dqseen\(dq flag for a given question won\(aqt
+be set and \fBdebconf\fP might still ask the user for an answer during
+installation or re\-configuration of the package. This might be used to pre\-seed answers for different packages.
+.UNINDENT
+.UNINDENT
+.SS debconf__alternatives
+.sp
+These YAML lists can be used to configure special symlinks (for example,
+\fBeditor\fP, \fBx\-terminal\-emulator\fP, \fBpager\fP) which can point to different
+applications that provide similar functionality using the
+\fBupdate\-alternatives\fP command.
+.SS Examples
+.sp
+Configure Emacs to be the default system editor:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debconf__alternatives:
+
+  \- name: \(aqeditor\(aq
+    path: \(aq/usr/bin/emacs24\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Let the system decide automatically what editor to use as default:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debconf__alternatives:
+
+  \- name: \(aqeditor\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the symlink which should be configured.
+.TP
+.B \fBpath\fP
+Optional. Absolute path to the application which should be symlinked. To see
+available alternatives, you can run the command:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+update\-alternatives \-\-display <name>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If the \fBpath\fP parameter is not specified, the role will configure a given
+symlink to select an application automatically.
+.TP
+.B \fBlink\fP
+Optional. Absolute path to the file which should be symlinked. This is rarely
+needed.
+.TP
+.B \fBpriority\fP
+Optional. Set a priority for a given application package. This is rarely
+needed.
+.UNINDENT
+.SS debconf__commands
+.sp
+The \fBdebconf__*_commands\fP variables can be used to define shell commands or
+small scripts which should be executed on the remote hosts. This can be useful
+to, for example, start a \fBsystemd\fP service when it\(aqs not automatically
+started after installation.
+.sp
+This is not a replacement for a fully\-fledged Ansible role. The interface is
+extremely limited, and you need to ensure idempotency inside of the script or
+command you are executing. The \fI\%debops.debconf\fP role can be executed at
+different points in the main playbook, which you should also take into account.
+.SS Examples
+.sp
+Start a \fBsystemd\fP service after package installation:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debconf__commands:
+  \- name: \(aqReload systemd and start example service\(aq
+    shell: |
+      if ! systemctl is\-active example.service ; then
+          systemctl daemon\-reload
+          systemctl start example.service
+      fi
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each shell command entry is defined by a YAML dictionary with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. A name of a given shell command displayed during Ansible execution,
+not used for anything else in the task. Multiple configuration entries with
+the same \fBname\fP parameter are merged together.
+.TP
+.B \fBscript\fP / \fBshell\fP / \fBcommand\fP
+Required. String or YAML text block that contains the command or script to
+execute on the remote host. The contents will be passed to the \fBshell\fP
+Ansible module.
+.TP
+.B \fBchdir\fP
+Optional. Specify the path to the directory on the remote host where the
+script should be executed.
+.TP
+.B \fBcreates\fP
+Optional. Specify the path of the file on the remote host \- if it\(aqs present,
+the \fBshell\fP module will not execute the script.
+.TP
+.B \fBremoves\fP
+Optional. Specify the path of the file on the remote host \- if it\(aqs absent,
+the \fBshell\fP module will not execute the script.
+.TP
+.B \fBexecutable\fP
+Optional. Specify the command interpreter to use. If not specified,
+\fB/bin/bash\fP will be used by default.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the shell command will be executed
+as normal by the role. If \fBabsent\fP, the shell command will not be executed
+by the role. If \fBignore\fP, the configuration entry will not be evaluated by
+the role during execution. This can be used to conditionally activate and
+deactivate different shell commands on the Ansible level.
+.TP
+.B \fBno_log\fP
+Optional, boolean. If \fBTrue\fP, Ansible will not display the task contents or
+record them in the log. It\(aqs useful to avoid recording sensitive data like
+passwords.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

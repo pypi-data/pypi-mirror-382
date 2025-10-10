@@ -1,0 +1,345 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.SYSTEM_GROUPS" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.system_groups \- Manage UNIX system groups with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/system_groups\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The UNIX system groups are used on Linux hosts for low level access control
+mechanism for different system services. Debian by default creates a
+\fI\%a set of UNIX system groups\fP <\fBhttps://wiki.debian.org/SystemGroups\fP> which control access to various parts of the
+system.
+.sp
+The \fBdebops.system_groups\fP Ansible role is used to configure additional UNIX
+system groups that are used on hosts managed by DebOps. It can also be used to
+define \fBsudo\fP and \fBsystemd\-tmpfiles\fP configuration for these
+UNIX groups.
+.sp
+Additionally, a simple Access Control List managed by the role in the Ansible
+local facts can be used by other Ansible roles to configure access for selected
+UNIX groups to the services managed by these roles.
+.SH GETTING STARTED
+.SS Access Control List
+.sp
+The \fBdebops.system_groups\fP role maintains a simple Access Control List in the
+Ansible local facts, under \fBansible_local.system_groups.access.*\fP variable
+hierarchy. Other roles can inspect it to get a list of UNIX group names which
+they can use to configure access in their respective applications.
+.sp
+The \fBansible_local.system_groups.access\fP variable is a YAML dictionary. Each
+key of this dictionary corresponds to a particular resource, and the value is
+a list of UNIX group names. The resources are user\-defined, by default the role
+creates:
+.INDENT 0.0
+.TP
+.B \fBroot\fP
+Members of these UNIX groups have full, privileged access to the \fBroot\fP
+account on a given host. This resource should be reserved to system
+administrators.
+.TP
+.B \fBsshd\fP
+Members of these UNIX groups can login to the host via the SSH service.
+See \fI\%debops.sshd\fP role for more details.
+.TP
+.B \fBwebserver\fP
+Members of these UNIX groups can manipulate various webserver\-related
+services. See \fI\%debops.nginx\fP and \fI\%debops.php\fP roles for more
+details.
+.UNINDENT
+.SS Example inventory
+.sp
+The \fBdebops.system_groups\fP role is included by default in the \fBcommon.yml\fP
+DebOps playbook; you don\(aqt need to add hosts to any Ansible groups to enable
+it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.system_groups\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure UNIX system groups
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_system_groups\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ sudo__ldap__dependent_tasks }}\(aq
+
+    \- role: sudo
+      tags: [ \(aqrole::sudo\(aq, \(aqskip::sudo\(aq ]
+
+    \- role: system_groups
+      tags: [ \(aqrole::system_groups\(aq, \(aqskip::system_groups\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::system_groups\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.system_groups\fP Ansible
+role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%group(5)\fP <\fBhttps://manpages.debian.org/group(5)\fP>, \fI\%sudoers(5)\fP <\fBhttps://manpages.debian.org/sudoers(5)\fP>, \fI\%tmpfiles.d(5)\fP <\fBhttps://manpages.debian.org/tmpfiles.d(5)\fP>
+.IP \(bu 2
+\fI\%Debian System Groups\fP <\fBhttps://wiki.debian.org/SystemGroups\fP> documentation on Debian Wiki
+.IP \(bu 2
+\fI\%UNIX permissions\fP <\fBhttps://wiki.debian.org/Permissions\fP> documentation on Debian Wiki
+.IP \(bu 2
+\fI\%User Private Groups\fP <\fBhttps://wiki.debian.org/UserPrivateGroups\fP> documentation on Debian Wiki
+.IP \(bu 2
+\fI\%Security privileges\fP <\fBhttps://wiki.ubuntu.com/Security/Privileges\fP> documentation on Ubuntu Wiki
+.IP \(bu 2
+\fI\%Multi User Management\fP <\fBhttps://wiki.ubuntu.com/MultiUserManagement\fP> documentation on Ubuntu Wiki
+.IP \(bu 2
+\fI\%UNIX group identifier\fP <\fBhttps://en.wikipedia.org/wiki/Group_identifier\fP> page on Wikipedia
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.system_groups\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS system_groups__list
+.sp
+The \fBsystem_groups__*_list\fP variables define what UNIX system groups should
+be present on a given host, and can optionally create or modify configuration
+of selected services. The variables are list of YAML dictionaries, each
+dictionary defining one UNIX group.
+.sp
+The lists are combined together in the order specified by the
+\fI\%system_groups__combined_list\fP variable and the entries with the same
+\fBname\fP parameters will be merged. This can be used to change the
+configuration of existing entries via Ansible inventory.
+.sp
+Each entry can specify a set of parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the UNIX group to manage. This should be an
+alphanumeric string, you can check the \fI\%groupadd(8)\fP <\fBhttps://manpages.debian.org/groupadd(8)\fP> manpage for allowed
+characters. This parameter is used as a key for merging multiple
+configuration entries together in order of appearance.
+.TP
+.B \fBgid\fP
+Optional. Specify the group ID (GID) of a given UNIX group. If not specified,
+it will be selected automatically.
+.TP
+.B \fBsystem\fP
+Optional, boolean. If \fBTrue\fP (default), the created UNIX group will be
+a \(dqsystem\(dq group with GID < 1000.
+.TP
+.B \fBstate\fP
+Optional. If \fBpresent\fP, the specified UNIX group will be created and its
+configuration in different services will be set. If \fBabsent\fP, the UNIX
+group will not be created, but existing configuration will be left in place.
+.sp
+If \fBinit\fP, the configuration for a given UNIX group will be prepared but it
+will not be active \- this can be done conditionally in a later configuration
+entry. If \fBignore\fP, a given configuration entry will be ignored by the role
+and its parameters will not affect a given UNIX group.
+.TP
+.B \fBmembers\fP
+Optional. List of UNIX accounts that should be the members of a given UNIX
+group. Only existing UNIX accounts will be added by the role.
+.TP
+.B \fBsudoers\fP
+Optional. A string or YAML text block which specifies the \fBsudo\fP
+configuration for a given UNIX group. It will be saved as
+\fB/etc/sudoers.d/system_groups\-<group>\fP configuration file.
+.sp
+If the value is \fBFalse\fP, or the parameter is not specified, the
+\fBsudo\fP configuration file will be removed.
+.sp
+See \fI\%sudoers(5)\fP <\fBhttps://manpages.debian.org/sudoers(5)\fP> manual page for information about the configuration
+syntax. The role does not ensure that the configuration is related to the
+specified UNIX group, you should ensure that independently using the
+\fBsudo\fP configuration options.
+.TP
+.B \fBsudoers_filename\fP
+Optional. Override the filename of the \fBsudo\fP configuration file in
+the \fB/etc/sudoers.d/\fP directory. This might be useful if you need to
+change the order of the \fBsudo\fP configuration options. You shouldn\(aqt
+change the filename of existing configuration, because the role will lose
+track of it.
+.TP
+.B \fBtmpfiles\fP
+Optional. A string or YAML text block which specifies the configuration of
+temporary files and directories maintained by the \fBsystem\-tmpfiles\fP
+command. It will be saved as
+\fB/etc/tmpfiles.d/system_groups\-<group>.conf\fP configuration file.
+.sp
+If the value is \fBFalse\fP, or the parameter is not specified, the
+\fBsystemd\-tmpfiles\fP configuration file will be removed.
+.sp
+See \fI\%tmpfiles.d(5)\fP <\fBhttps://manpages.debian.org/tmpfiles.d(5)\fP> manual page for information about the configuration
+syntax. The role does not ensure that the configuration is related to the
+specified UNIX group, you should ensure that independently using the
+\fBsystemd\-tmpfiles\fP configuration options.
+.TP
+.B \fBtmpfiles_filename\fP
+Optional. Override the filename of the \fBsystemd\-tmpfiles\fP
+configuration file in the \fB/etc/tmpfiles.d/\fP directory. This might be
+useful if you need to change the order of the \fBsystemd\-tmpfiles\fP
+configuration options. You shouldn\(aqt change the filename of existing
+configuration, because the role will lose track of it. The filename should
+contain the \fB\&.conf\fP suffix, otherwise it will be ignored by
+\fBsystemd\-tmpfiles\fP command.
+.UNINDENT
+.sp
+The role maintains a simple \fI\%Access Control List\fP
+using Ansible local facts which can be used by other Ansible roles to augment
+their configuration. The parameters below control the ACL configuration.
+.INDENT 0.0
+.TP
+.B \fBaccess\fP
+Optional. A string or a list of resources which correspond to Access Control
+List entries. A given UNIX group will be added to all of the ACL entries with
+corresponding resources.
+.sp
+The \fBaccess\fP parameter should be used in default or initial configuration,
+using it in the inventory will override the default list of resources of
+a given UNIX group.
+.TP
+.B \fBallow\fP
+Optional. A string or a list of resources which correspond to Access Control
+List entries. A given UNIX group will be added to all of the ACL entries with
+corresponding resources.
+.sp
+The \fBallow\fP parameter should be used in additional configuration entries to
+augment an existing ACL entries. Currently the configuration of ACL from
+multiple entries is not merged automatically, but existing ACL entries are
+preserved.
+.TP
+.B \fBdeny\fP
+Optional. A string or a list of resources which corresdpond to Access Control
+List entries. A given UNIX group will be removed from all of the ACL entries
+specified here.
+.sp
+The \fBdeny\fP parameter should be used in additional configuration entries to
+augment an existing ACL entries. Currently the configuration of ACL from
+multiple entries is not merged automatically, but existing ACL entries are
+preserved.
+.UNINDENT
+.SS Examples
+.sp
+Create a system UNIX group for an application that is composed of multiple UNIX
+accounts for better access control. The group will use a temporary directory as
+a shared communication channel and will allow its members to reload system
+services via \fBsudo\fP commands. Members of the group will be allowed to
+connect to the host via SSH.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+system_groups__list:
+
+  \- name: \(aqapplication\(aq
+    members: [ \(aqapp\-core\(aq, \(aqapp\-webui\(aq, \(aqapp\-admin1\(aq, \(aqapp\-admin2\(aq ]
+    sudoers: |
+      User_Alias  APP_ADMINS   = app\-admin1, app\-admin2
+      Runas_Alias APP_SERVICES = app\-core, app\-webui
+
+      Cmnd_Alias  APP_RELOAD   = /bin/systemctl reload app\-core.service,\e
+                                 /bin/systemctl reload app\-webui.service
+
+      Cmnd_Alias  APP_RESTART  = /bin/systemctl restart app\-core.service,\e
+                                 /bin/systemctl restart app\-webui.service
+
+      Cmnd_Alias  APP_STATUS   = /bin/systemctl status app\-core.service,\e
+                                 /bin/systemctl status app\-webui.service
+
+      # Allow service reloads for all members, even services
+      %application ALL = (root) NOPASSWD: APP_RELOAD
+
+      # Allow more control over services for application administrators
+      APP_ADMINS ALL = (root) NOPASSWD: APP_RESTART, APP_STATUS
+
+      # Allow administrators to switch to the service UNIX accounts and run
+      # commands on their behalf, after authentication
+      APP_ADMINS ALL = (APP_SERVICES) ALL
+    tmpfiles: |
+      # Temporary directory for UNIX sockets
+      d   /run/application   2771 root application  \- \-
+    access: [ \(aqsshd\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You might need to add the individual accounts to the UNIX group in your role if
+they don\(aqt exist before the \fBdebops.system_groups\fP role is executed,
+afterwards the role will ensure that the specified members are present in the
+group.
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

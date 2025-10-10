@@ -1,0 +1,190 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.PHPIPAM" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.phpipam \- Manage phpIPAM installation with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/phpipam\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%phpIPAM\fP <\fBhttps://phpipam.net/\fP>  is an open\-source web IP address management application (IPAM).
+Its goal is to provide light, modern and useful IP address management.
+It is php\-based application with MySQL database backend, using jQuery
+libraries, ajax and HTML5/CSS3 features.
+.sp
+The \fBdebops.phpipam\fP role installs this ipam on a specified host with
+nginx as a webserver (using \fI\%debops.nginx\fP).
+.SH GETTING STARTED
+.sp
+By default phpIPAM is installed on a separate system account \fB\(dqphpipam\(dq\fP,
+in \fB/srv/www/phpipam/\fP subdirectory and will be accessible on
+\fBhttps://ipam.<domain>/\fP\&. \fI\%debops.nginx\fP and \fI\%debops.php\fP roles are used
+to configure the required environment.
+.SS Example inventory
+.sp
+You can install phpIPAM on a host by adding it to
+\fB[debops_service_phpipam]\fP group in your Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_phpipam]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook which uses \fBdebops.phpipam\fP role to install
+DokuWiki:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage phpIPAM service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_phpipam\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Apply keyring configuration for php environment
+      ansible.builtin.import_role:
+        name: \(aqkeyring\(aq
+      vars:
+        keyring__dependent_apt_keys:
+          \- \(aq{{ php__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ mariadb__keyring__dependent_apt_keys }}\(aq
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::php\(aq, \(aqrole::nginx\(aq, \(aqrole::mariadb\(aq ]
+
+    \- name: Prepare php environment
+      ansible.builtin.import_role:
+        name: \(aqphp\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::php\(aq, \(aqrole::php:env\(aq, \(aqrole::logrotate\(aq ]
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ php__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ php__logrotate__dependent_config }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::mariadb\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ mariadb__python__dependent_packages3 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ mariadb__python__dependent_packages2 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: php
+      tags: [ \(aqrole::php\(aq, \(aqskip::php\(aq ]
+      php__dependent_packages:
+        \- \(aq{{ phpipam__php__dependent_packages }}\(aq
+      php__dependent_pools:
+        \- \(aq{{ phpipam__php__dependent_pools }}\(aq
+      when: (phpipam__mode is defined and \(aqwebui\(aq in phpipam__mode)
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ phpipam__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ phpipam__nginx__dependent_upstreams }}\(aq
+      when: (phpipam__mode is defined and \(aqwebui\(aq in phpipam__mode)
+
+    \- role: mariadb
+      tags: [ \(aqrole::mariadb\(aq, \(aqskip::mariadb\(aq ]
+      mariadb__dependent_users:
+        \- \(aq{{ phpipam__mariadb__dependent_users }}\(aq
+
+    \- role: phpipam
+      tags: [ \(aqrole::phpipam\(aq, \(aqskip::phpipam\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Post\-install steps
+.sp
+When Ansible is finished, you need to finish the configuration by opening the
+\fBhttps://ipam.<domain>\fP page. There you will be able to finish
+the installation process.
+.sp
+You can then login and configure it using the administrative
+interface.
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::phpipam\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Alin Alexandru
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.
