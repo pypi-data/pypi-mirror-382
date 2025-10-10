@@ -1,0 +1,272 @@
+Kit de Ferramentas para Automação Zendesk
+
+Uma biblioteca Python projetada para acelerar o desenvolvimento de robôs de automação de processos (RPA) que interagem com a plataforma Zendesk. Ela combina a automação de interface de usuário (UI) com o Selenium e a interação via API com o Zenpy, além de fornecer componentes integrados para monitoramento (Heartbeat) e logging estruturado (BotsLogger).
+
+Principais Funcionalidades 🚀
+Gerenciamento de Driver: Crie e gerencie drivers do Selenium (Chrome, Firefox) de forma simplificada, com suporte para execução local e remota (Selenoid).
+
+Automação UI Zendesk: Um conjunto de métodos de alto nível para interagir com a interface do Zendesk, como fazer login, preencher campos, submeter tickets, aplicar macros e muito mais.
+
+Integração API Zendesk: Um wrapper conveniente para a biblioteca Zenpy que facilita a autenticação e a extração de dados da API do Zendesk, como buscar tickets em uma visualização.
+
+Monitoramento e Alertas: A classe Heartbeat permite enviar atualizações de status e alertas para um painel de monitoramento centralizado via API.
+
+Logging Estruturado: A classe BotsLogger gera logs em formato JSON, classifica erros automaticamente (críticos vs. avisos) e decide a melhor ação (parar o bot ou tentar novamente), integrando-se ao sistema de alertas.
+
+Instalação
+Instale a biblioteca usando o pip:
+
+Bash
+
+pip install dadosic-zencraft
+Como Usar
+A biblioteca é dividida em componentes modulares que podem ser usados em conjunto para construir um robô robusto.
+
+1. Configurando o Driver do Selenium (Driver_Selenium)
+Esta classe abstrai a configuração do WebDriver.
+
+Python
+
+from dadosic-zencraft import Driver_Selenium
+
+# Configura um driver remoto (Selenoid) para o Chrome em modo headless
+config_driver = Driver_Selenium(
+    ipselenoid='http://seu-ip-selenoid:4444/wd/hub',
+    browser='chrome',
+    headless=True
+)
+
+# Cria a instância do driver
+driver = config_driver.criar_driver()
+
+print("Driver criado com sucesso!")
+# ... seu código de automação aqui ...
+driver.quit()
+
+2. Monitorando o Robô (Heartbeat)
+Envie o status do seu robô para um painel de acompanhamento.
+
+from dadosic-zencraft import Heartbeat, execucao, aguardando
+
+# Instancia o Heartbeat com as credenciais da sua API de monitoramento
+heartbeat = Heartbeat(
+    bot_id='MEU_BOT_ZENDESK_01',
+    endpoint='https://api.meupainel.com/status',
+    token='SEU_TOKEN_SECRETO'
+)
+
+# Envia um status
+heartbeat.alertas(status=execucao)
+print("Status 'EM EXECUÇÃO' enviado.")
+
+# Envia o ID de um ticket processado para contagem
+heartbeat.alertas(ticket_id='12345')
+print("Registro do ticket 12345 enviado.")
+
+# Ao final, informa que o bot está ocioso
+heartbeat.alertas(status=aguardando)
+print("Status 'AGUARDANDO CASOS' enviado.")
+
+3. Usando a API do Zendesk (Zendesk_Zenpy)
+Busque tickets de uma visualização específica antes de iniciar a automação da UI.
+
+from dadosic-zencraft import Zendesk_Zenpy
+
+# Autentica na API do Zendesk
+zen_api = Zendesk_Zenpy(
+    zlogin='seu_email@empresa.com/token',
+    zpass='SEU_TOKEN_DA_API_ZENDESK',
+    instancia='sua-instancia-zendesk'
+)
+
+# Pega todos os tickets da visualização com ID 9000
+ID_DA_FILA = 9000
+tickets_para_processar = zen_api.pegar_tickets(fila=ID_DA_FILA)
+
+if tickets_para_processar:
+    print(f"Encontrados {len(tickets_para_processar)} tickets: {tickets_para_processar}")
+else:
+    print("Nenhum ticket encontrado na fila.")
+4. Automatizando a Interface (Zendesk_Selenium)
+Após obter um ticket, use o Selenium para interagir com ele.
+
+Python
+
+from dadosic-zencraft import Zendesk_Selenium, Driver_Selenium
+
+# (Supondo que você já tenha um 'driver' criado)
+# driver = Driver_Selenium(...).criar_driver()
+
+# Instancia o controlador da UI do Zendesk
+zen_ui = Zendesk_Selenium(
+    driver=driver,
+    usuario='seu_usuario_zendesk',
+    senha='sua_senha_zendesk',
+    instancia='sua-instancia-zendesk'
+)
+
+# Realiza o login
+zen_ui.login()
+print("Login realizado com sucesso.")
+
+# Navega até um ticket e realiza ações
+ticket_id = '12345'
+driver.get(f"https://sua-instancia-zendesk.zendesk.com/agent/tickets/{ticket_id}")
+
+zen_ui.esperar_carregamento()
+
+# Aplica uma macro
+zen_ui.aplicar_macro("Nome da Macro::Opção")
+
+# Adiciona uma observação interna
+zen_ui.enviar_mensagem("Este ticket foi processado pelo robô.")
+
+# Submete o ticket como resolvido
+zen_ui.enviar_ticket('resolvido')
+print(f"Ticket {ticket_id} resolvido.")
+
+driver.quit()
+
+5. Logging Inteligente (BotsLogger)
+Capture exceções, classifique-as e envie alertas automaticamente.
+
+Python
+
+from dadosic-zencraft import BotsLogger, Heartbeat, erro
+
+# O Logger precisa de uma instância do Heartbeat para enviar alertas
+heartbeat = Heartbeat(...)
+logger = BotsLogger(heartbeat_instancia=heartbeat)
+
+ticket_id = '12345'
+
+try:
+    # Simula um erro
+    raise ValueError("Ocorreu um problema inesperado.")
+except Exception as e:
+    print("Capturando exceção...")
+    # O logger analisa o erro, envia um alerta via heartbeat e retorna uma ação
+    acao_sugerida = logger.error(
+        error=e,
+        message=f"Falha ao processar o ticket {ticket_id}",
+        ticket_id=ticket_id,
+        error_type='WARNING'
+    )
+    
+    # Você pode usar a sugestão para controlar o fluxo do seu robô
+    if acao_sugerida == 'stop':
+        print("Ação sugerida: Parar o robô.")
+        heartbeat.alertas(status=erro)
+        # sys.exit()
+    elif acao_sugerida == 'retry':
+        print("Ação sugerida: Tentar novamente mais tarde.")
+Exemplo Completo: Estrutura de um Robô
+Juntando todos os componentes para criar um fluxo de automação robusto.
+
+Python
+
+from rpa_zendesk_toolkit import (
+    Heartbeat, BotsLogger, Driver_Selenium, Zendesk_Zenpy, Zendesk_Selenium,
+    execucao, aguardando, erro
+)
+import time
+
+# --- 1. CONFIGURAÇÃO INICIAL ---
+
+HEARTBEAT_CONFIG = {
+    'bot_id': 'ZENDESK_PROCESSOR_01',
+    'endpoint': 'https://api.meupainel.com/status',
+    'token': 'SEU_TOKEN_SECRETO'
+}
+
+ZENDESK_API_CREDS = {
+    'zlogin': 'seu_email@empresa.com/token',
+    'zpass': 'SEU_TOKEN_DA_API_ZENDESK',
+    'instancia': 'sua-instancia'
+}
+
+ZENDESK_UI_CREDS = {
+    'usuario': 'seu_usuario_zendesk',
+    'senha': 'sua_senha_zendesk',
+    'instancia': 'sua-instancia'
+}
+
+SELENOID_IP = 'http://seu-ip-selenoid:4444/wd/hub'
+
+ID_FILA_ZENDESK = 9000
+
+# --- 2. INICIALIZAÇÃO DOS COMPONENTES ---
+
+heartbeat = Heartbeat(**HEARTBEAT_CONFIG)
+
+logger = BotsLogger(heartbeat_instancia=heartbeat)
+
+zen_api = Zendesk_Zenpy(**ZENDESK_API_CREDS)
+
+# --- 3. LOOP PRINCIPAL DO ROBÔ ---
+
+def main():
+    driver = None
+    try:
+        heartbeat.alertas(status=aguardando)
+        tickets = zen_api.pegar_tickets(fila=ID_FILA_ZENDESK)
+
+        if not tickets:
+            print("Nenhum ticket na fila. Aguardando...")
+            return
+
+        heartbeat.alertas(status=execucao)
+        
+        # Cria o driver apenas se houver tickets para processar
+        driver_manager = Driver_Selenium(ipselenoid=SELENOID_IP)
+        driver = driver_manager.criar_driver()
+        
+        zen_ui = Zendesk_Selenium(driver=driver, **ZENDESK_UI_CREDS)
+        zen_ui.login()
+
+        for ticket_id in tickets:
+            try:
+                print(f"Processando ticket: {ticket_id}")
+                driver.get(f"https://{ZENDESK_UI_CREDS['instancia']}.zendesk.com/agent/tickets/{ticket_id}")
+                zen_ui.esperar_carregamento()
+
+                # --- Lógica de negócio do seu robô ---
+                zen_ui.enviar_mensagem(f"Processamento automático iniciado pelo bot {HEARTBEAT_CONFIG['bot_id']}.")
+                time.sleep(2) # Simula trabalho
+                zen_ui.enviar_ticket('pendente')
+                zen_ui.esperar_carregamento()
+                # ------------------------------------
+
+                heartbeat.alertas(ticket_id=ticket_id) # Registra sucesso
+
+            except Exception as e:
+                logger.error(
+                    error=e,
+                    message=f"Erro ao processar ticket {ticket_id}",
+                    ticket_id=ticket_id
+                )
+                # Pular para o próximo ticket em caso de erro
+
+    except Exception as e:
+        acao = logger.error(
+            error=e,
+            message="Erro crítico na execução principal do robô",
+            ticket_id="N/A",
+            error_type='CRITICAL'
+        )
+        if acao == 'stop':
+            heartbeat.alertas(status=erro)
+            # Adicione lógica para parar o robô de forma segura
+    
+    finally:
+        if driver:
+            driver.quit()
+        print("Ciclo finalizado.")
+
+if __name__ == '__main__':
+    while True:
+        main()
+        time.sleep(60) # Espera 1 minuto antes de verificar a fila novamente
+
+Licença
+Este projeto está licenciado sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
