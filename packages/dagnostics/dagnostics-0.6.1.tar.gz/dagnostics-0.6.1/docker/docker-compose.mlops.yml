@@ -1,0 +1,180 @@
+# Docker Compose for DAGnostics MLOps Environment
+# Complete MLOps stack with training, tracking, and monitoring
+
+version: '3.8'
+
+services:
+  # MLOps Training Service
+  mlops-training:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mlops
+    container_name: dagnostics-mlops-training
+    volumes:
+      # Mount data directories
+      - ../data:/workspace/data:ro
+      - ../mlops:/workspace/mlops
+      # Mount for model outputs
+      - mlops-models:/workspace/models
+      - mlops-artifacts:/workspace/mlops/artifacts
+      # Mount source for development (optional)
+      # - ../src:/workspace/src:ro
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - PYTHONPATH=/workspace
+    networks:
+      - mlops-network
+    depends_on:
+      - mlflow
+      - postgres
+    command: >
+      sh -c "echo 'MLOps Training Service Ready' && 
+             python -m mlops.cli status && 
+             sleep infinity"
+    restart: unless-stopped
+
+  # MLflow Tracking Server
+  mlflow:
+    image: python:3.9-slim
+    container_name: dagnostics-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    environment:
+      - BACKEND_STORE_URI=postgresql://mlflow:mlflow@postgres:5432/mlflow
+      - DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    networks:
+      - mlops-network
+    depends_on:
+      - postgres
+    command: >
+      sh -c "pip install mlflow psycopg2-binary && 
+             mlflow server 
+             --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow 
+             --default-artifact-root /mlflow/artifacts 
+             --host 0.0.0.0 
+             --port 5000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL for MLflow backend
+  postgres:
+    image: postgres:13
+    container_name: dagnostics-postgres
+    environment:
+      - POSTGRES_DB=mlflow
+      - POSTGRES_USER=mlflow
+      - POSTGRES_PASSWORD=mlflow
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - mlops-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optuna Dashboard for HPO
+  optuna-dashboard:
+    image: optuna/optuna-dashboard
+    container_name: dagnostics-optuna
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../mlops/optuna_studies:/studies
+    command: >
+      optuna-dashboard sqlite:///studies/optuna.db --host 0.0.0.0 --port 8080
+    networks:
+      - mlops-network
+    restart: unless-stopped
+
+  # Jupyter Lab for MLOps Analysis
+  jupyter:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mlops
+    container_name: dagnostics-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ../notebooks:/workspace/notebooks
+      - ../mlops:/workspace/mlops
+      - ../data:/workspace/data:ro
+      - mlops-models:/workspace/models:ro
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - JUPYTER_ENABLE_LAB=yes
+    networks:
+      - mlops-network
+    depends_on:
+      - mlflow
+    command: >
+      sh -c "pip install jupyterlab ipywidgets && 
+             jupyter lab --ip=0.0.0.0 --port=8888 --no-browser 
+             --allow-root --NotebookApp.token='' 
+             --NotebookApp.password=''"
+    restart: unless-stopped
+
+  # Model Registry API (FastAPI)
+  model-registry-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mlops
+    container_name: dagnostics-model-registry
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../mlops:/workspace/mlops
+      - mlops-models:/workspace/models
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    networks:
+      - mlops-network
+    depends_on:
+      - mlflow
+    command: >
+      sh -c "pip install fastapi uvicorn && 
+             echo 'Starting Model Registry API...' && 
+             python -c '
+             from fastapi import FastAPI
+             from mlops.model_registry import ModelRegistry
+             import uvicorn
+             
+             app = FastAPI(title=\"DAGnostics Model Registry\")
+             registry = ModelRegistry()
+             
+             @app.get(\"/\")
+             def root():
+                 return {\"service\": \"DAGnostics Model Registry\", \"status\": \"healthy\"}
+             
+             @app.get(\"/models\")
+             def list_models():
+                 models = registry.list_models()
+                 return [{\"name\": m.name, \"version\": m.version, \"stage\": m.stage} for m in models]
+             
+             if __name__ == \"__main__\":
+                 uvicorn.run(app, host=\"0.0.0.0\", port=8001)
+             '"
+    restart: unless-stopped
+
+volumes:
+  mlflow-data:
+    driver: local
+  postgres-data:
+    driver: local
+  mlops-models:
+    driver: local
+  mlops-artifacts:
+    driver: local
+
+networks:
+  mlops-network:
+    driver: bridge
+    name: dagnostics-mlops
