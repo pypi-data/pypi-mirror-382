@@ -1,0 +1,51 @@
+{% extends "barest_base.html" %}
+{% load static %}
+{% load i18n %}
+{% load tailwind_forms %}
+
+{% block title %}Log in · {{ site_title }}{% endblock %}
+
+{% block content %}
+
+<div class="bg-cyan-100 dark:bg-cyan-900 h-screen overflow-y-scroll flex items-center justify-center"> {# the cyan background #}
+    <div class="bg-white dark:bg-slate-900 lg:w-5/12 md:6/12 w-10/12">  {# the centered box #}
+        <div class="bg-slate-200 dark:bg-slate-800 absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-full p-4 md:p-8">  {# the logo #}
+                <a href="{{ script_prefix }}/"><img src="{% static 'images/bugsink-logo.png' %}" class="h-8 w-8 md:h-16 md:w-16 dark:hidden block" alt="Bugsink logo"><img src="{% static 'images/bugsink-logo-dark.png' %}" class="h-8 w-8 md:h-16 md:w-16 hidden dark:block" alt="Bugsink logo"></a>
+        </div>
+
+        <div class="p-12 md:pt-24 md:pl-24 md:pr-24 md:pb-16">
+
+            {% if form.errors %}
+                {% for error in form.non_field_errors %}
+                    <div class="mb-8 text-red-500 dark:text-red-400">{{ error }}</div>
+                {% endfor %}
+
+            {% elif next %}
+                {% if user.is_authenticated %}
+                <div class="mb-8">{% translate "Your account doesn't have access to this page. To proceed, please login with an account that has access." %}</div>
+                {% else %}
+                <div class="mb-8">{% translate "Please login to see this page." %}</div>
+                {% endif %}
+            {% endif %}
+
+            <form method="post" action="{% url 'login' %}">
+                {% csrf_token %}
+
+                {% tailwind_formfield_implicit form.username %}
+                {% tailwind_formfield_implicit form.password %}
+
+                <input type="hidden" name="next" value="{{ next }}">
+                <button class="bg-slate-800 font-medium p-2 md:p-4 text-white uppercase w-full">{% translate "Login" %}</button>
+
+            </form>
+
+            <div class="mt-4">
+                <a href="{% url 'request_reset_password' %}" class="text-slate-800 dark:text-slate-100">{% translate "Forgot password?" %}</a>
+                {% if registration_enabled %}<a href="{% url 'signup' %}" class="float-right text-slate-800 dark:text-slate-100">{% translate "Create an account" %}</a>{% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}

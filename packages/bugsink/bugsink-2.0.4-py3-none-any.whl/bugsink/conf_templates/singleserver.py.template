@@ -1,0 +1,135 @@
+# Generated using bugsink-create-conf --template=singleserver
+# This is the configuration for the singleserver setup for Bugsink in production.
+
+from bugsink.settings.default import *  # noqa
+from bugsink.conf_utils import deduce_allowed_hosts, eat_your_own_dogfood, deduce_script_name
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = "{{ secret_key }}"
+
+
+
+# Note: the singleserver production setup uses a reverse proxy (i.e. Nginx) in front of the Django server. This is why
+# we trust the X-Forwarded-Proto and X-Real-IP headers. If you do not use a reverse proxy, you should remove these
+# settings.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # Note: slightly redundant, Gunicorn also does this.
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+USE_X_REAL_IP = True
+# Alternatively, you can use X-Forwarded-For. (Set the number of proxies in the settings below.)
+# USE_X_FORWARDED_FOR = True
+# X_FORWARDED_FOR_PROXY_COUNT = 1
+
+
+# In the singleserver production setup, the database is SQLite. The single (unix) user is named `bugsink` and we put
+# the database in its home directory:
+DATABASES["default"]["NAME"] = '{{ base_dir }}/db.sqlite3'
+DATABASES["snappea"]["NAME"] = '{{ base_dir }}/snappea.sqlite3'
+
+
+# Set SENTRY_DSN to track any errors in the Bugsink code itself ("eating your own dogfood").
+SENTRY_DSN = None
+eat_your_own_dogfood(SENTRY_DSN)
+
+
+# The time-zone here is the default for display purposes (when no project/user configuration is used).
+# You can change this at any time since datetime information is stored as UTC in the database.
+# https://docs.djangoproject.com/en/4.2/ref/settings/#std-setting-TIME_ZONE
+TIME_ZONE = 'UTC'  # alternatively, e.g. 'Europe/Amsterdam'
+
+
+# In the singleserver production setup, we use Snappea for background tasks.
+SNAPPEA = {
+    "TASK_ALWAYS_EAGER": False,
+    "NUM_WORKERS": 4,
+
+    "PID_FILE": None,
+    # alternatively (if you don't trust systemd to get at most one snappea foreman running; or if you don't use systemd
+    # at all), use the below. Make sure the file is in a directory owned by the user running bugsink/snappea (the
+    # directory will be created if it does not exist yet).
+    # "PID_FILE": "{{ base_dir }}/snappea/snappea.pid",
+
+    "WAKEUP_CALLS_DIR": "{{ base_dir }}/snappea/wakeup",
+    "STATS_RETENTION_MINUTES": 60 * 24 * 7,
+}
+
+
+# Email settings:
+# to configure email, switch the EMAIL_BACKEND to a real backend and set the EMAIL_* settings.
+EMAIL_BACKEND = "bugsink.email_backends.QuietConsoleEmailBackend"  # instead of sending, write the subject to console
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"  # dump the whole email to the console (noisy)
+# EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"  # do nothing (no email sent), not even to console
+
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # SMTP; use together with the settings below
+# EMAIL_HOST = ...
+# EMAIL_HOST_USER = ...
+# EMAIL_HOST_PASSWORD = ...
+# EMAIL_PORT = ...
+# EMAIL_USE_TLS = ...
+# EMAIL_USE_SSL = ...
+
+SERVER_EMAIL = DEFAULT_FROM_EMAIL = "Bugsink <bugsink@example.org>"
+
+# constants for "create by" (user/team/project) settings
+CB_ANYBODY = "CB_ANYBODY"
+CB_MEMBERS = "CB_MEMBERS"
+CB_ADMINS = "CB_ADMINS"
+CB_NOBODY = "CB_NOBODY"
+
+
+BUGSINK = {
+    # The URL where the Bugsink instance is hosted. This is used in the email notifications and to construct DSNs.
+    "BASE_URL": "https://{{ host }}",  # no trailing slash
+
+    # you can customize this as e.g. "My Bugsink" or "Bugsink for My Company"
+    "SITE_TITLE": "Bugsink",  
+
+    # Settings for Users, Teams and Projects
+    "SINGLE_USER": False,
+
+    "USER_REGISTRATION": CB_MEMBERS,  # who can register new users. default: members, i.e. any user can invite others
+    "USER_REGISTRATION_VERIFY_EMAIL": True,
+    "USER_REGISTRATION_VERIFY_EMAIL_EXPIRY": 3 * 24 * 60 * 60,  # 7 days
+
+    # if True, there is only one team, and all projects are in that team
+    "SINGLE_TEAM": False,
+    "TEAM_CREATION": CB_MEMBERS,  # who can create new teams. default: members, which means "any member of the site"
+
+    # In the singleserver production setup, we do not digest events immediately, but instead offload this to Snappea.
+    # This ensures a more response and reliable server when there are peak loads in the events.
+    "DIGEST_IMMEDIATELY": False,
+
+    # "MAX_EVENT_SIZE": _MEBIBYTE,
+    # "MAX_EVENT_COMPRESSED_SIZE": 200 * _KIBIBYTE,
+    # "MAX_ENVELOPE_SIZE": 100 * _MEBIBYTE,
+    # "MAX_ENVELOPE_COMPRESSED_SIZE": 20 * _MEBIBYTE,
+
+    "INGEST_STORE_BASE_DIR": "{{ base_dir }}/ingestion",
+
+    # Optionally, you can set the following to True to further minimize information exposure in the UI. (The default is
+    # False, which we've judged to still not expose too much in most cases, but you might have different requirements.)
+    "MINIMIZE_INFORMATION_EXPOSURE": False,
+
+    # "EVENT_STORAGES": {
+    #     "local_flat_files": {  # a meaningful name of your choosing
+    #         "STORAGE": "events.storage.FileEventStorage",
+    #         "OPTIONS": {
+    #             "basepath": "{{ base_dir }}/event_storage",
+    #         },
+    #         "USE_FOR_WRITE": True,
+    #     },
+    # },
+
+}
+
+ALLOWED_HOSTS = deduce_allowed_hosts(BUGSINK["BASE_URL"])
+
+# Alternatively, you can set the ALLOWED_HOSTS manually:
+# ALLOWED_HOSTS = ["{{ host }}"]
+
+FORCE_SCRIPT_NAME = deduce_script_name(BUGSINK["BASE_URL"])
+if FORCE_SCRIPT_NAME:
+    # "in theory" a "relative" (non-leading-slash) config for STATIC_URL should just prepend [FORCE_]SCRIPT_NAME
+    # automatically, but I haven't been able to get that to work reliably, https://code.djangoproject.com/ticket/34028
+    # so we'll just be explicit about it.
+    STATIC_URL = f"{FORCE_SCRIPT_NAME}/static/"
