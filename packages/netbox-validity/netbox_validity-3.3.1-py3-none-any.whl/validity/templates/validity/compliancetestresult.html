@@ -1,0 +1,96 @@
+{% extends 'generic/object.html' %}
+{% load validity %}
+{% load render_table from django_tables2 %}
+
+{% block head %}
+  {{ block.super }}
+  {% include "validity/inc/prism.html" with header=True only %}
+{% endblock head %}
+{% block controls %}
+<div class="controls"></div>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+  <div class="col col-md-4">
+    <div class="card">
+      <h5 class="card-header">Compliance Test Results</h5>
+      <div class="card-body">
+        <table class="table table-hover attr-table">
+          <tr>
+            <th scope="row">ID</th>
+            <td>{{ object.id }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Test</th>
+            <td>{{ object.test | linkify }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Test Severity</th>
+            <td>{{ object.test | colored_choice:"severity" }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Device</th>
+            <td>{{ object.device | linkify }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Dynamic Pair</th>
+            <td>{{ object.dynamic_pair | linkify | placeholder }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Result</th>
+            <td>
+              {% if object.passed %}
+              <span class="badge text-bg-green">PASSED</span>
+              {% else %}
+              <span class="badge text-bg-red">FAILED</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Created</th>
+            <td>{{ object.created | date:"Y-m-d G:i:s" }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Report</th>
+            <td>{{ object.report | linkify | placeholder }}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col col-md-8">
+    <div class="card">
+      <div class="row">
+        <div class="col mb-0 pb-0">
+          <h5 class="card-header">Explanation</h5>
+        </div>
+        <div class="col d-flex align-items-center mb-0 pb-0 justify-content-end me-5">
+          <a class="btn btn-sm btn-primary" href="?verbose=true">Verbose</a>
+        </div>
+      </div>
+      <div class="card-body pt-0">
+        <div class="table-responsive">{% render_table explanation_table %}</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="row">
+  <div class="col col-md-12">
+    <div class="card">
+      <h5 class="card-header">Other results for the same test and device</h5>
+      <div class="card-body">
+        <div class="table-responsive">
+          {% render_table result_table %}
+        </div>
+        {%include 'inc/paginator.html' with paginator=result_table.paginator page=result_table.page%}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+
+{% block javascript %}
+{{ block.super }}
+{% include "validity/inc/prism.html" %}
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends 'generic/object.html' %}
+{% load validity %}
+{% load django_bootstrap5 %}
+{% load buttons %}
+{% load perms %}
+{% load render_table from django_tables2 %}
+{% block controls %}
+<div class="controls">
+{% if request.user|can_delete:object %}
+  {% delete_button object %}
+{% endif %}
+</div>
+{% endblock %}
+{% block content %}
+  <div class="row">
+    <div class="col col-md-8">
+      <div class="card mb-2">
+        <h5 class="card-header">Compliance Report</h5>
+        <div class="card-body">
+          <table class="table table-hover attr-table">
+            <tr>
+              <th scope="row">ID</th>
+              <td>{{ object.id }}</td>
+            </tr>
+            <tr>
+              <th scope="row">Created</th>
+              <td>{{ object.created | date:"Y-m-d G:i:s" }}</td>
+            </tr>
+            {% with job=object.jobs.first %}
+            <tr>
+              <th scope="row">Job</th>
+              <td>
+                {% if job %}<a href="{{ job.get_absolute_url }}">{{ job.pk }}</a>
+                | {{ job | colored_choice:"status" }}{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% if job.error %}
+            <tr>
+              <th scope="row">Job Error</th>
+              <td>{{ job.error }}</td>
+            </tr>
+            {% endif %}
+            {% endwith %}
+            <tr>
+              <th scope="row">Devices involved</th>
+              <td>{{ object.device_count }}</td>
+            </tr>
+            <tr>
+              <th scope="row">Unique Tests involved</th>
+              <td>{{ object.test_count }}</td>
+            </tr>
+            <tr>
+              <th>Overall Results</th>
+              <td>{% report_stats object "total" %}</td>
+            </tr>
+          </table>
+          <div class="card-header"></div>
+          <table class="table table-hover">
+            <tr>
+              <th>LOW Severity</th><th>MIDDLE Severity</th><th>HIGH Severity</th>
+            </tr>
+            <tr>
+              <td>{% report_stats object "low" %}</td>
+              <td>{% report_stats object "middle" %}</td>
+              <td>{% report_stats object "high" %}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col col-md-4">
+      <div class="card">
+        <h5 class="card-header">Group Results By</h5>
+        <div class="card-body">
+          <form role="form" class="row align-items-center" method="get">
+            <div class="col-auto">{% bootstrap_form groupby_form layout="inline" %}</div>
+            <div class="col-auto">{% bootstrap_button button_type="submit" content="Apply" %}</div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col col-md-12">
+      <div class="card">
+        <h5 class="card-header">Statistics grouped by {{ groupby_label }}</h5>
+        <div class="card-body">
+          {% if groupby_table %}
+          <div class="table-responsive">{% render_table groupby_table %}</div>
+          {%include 'inc/paginator.html' with paginator=groupby_table.paginator page=groupby_table.page%}
+          {% else %}
+          <i>Choose a field to group by to display statistics</i>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
