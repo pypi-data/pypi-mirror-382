@@ -1,0 +1,119 @@
+# ADK MongoDB Session
+
+A session management library for the Google ADK framework that uses MongoDB as a backend.
+
+This package provides a `MongodbSessionService` that implements the `google.adk.sessions.base_session_service.BaseSessionService` abstract base class, allowing you to store and manage session state in a MongoDB database.
+
+## Installation
+
+To install the package, you can use `pip` to install it directly from the source:
+
+```bash
+pip install .
+```
+
+For development, you can install it in editable mode with the testing dependencies:
+
+```bash
+pip install -e ".[test]"
+```
+
+## Usage
+
+First, you need to instantiate the `MongodbSessionService` with your MongoDB connection details.
+
+```python
+from adk-mongodb-session.adk.mongodb.sessions.mongodb_session_service import MongodbSessionService
+# Initialize the service
+session_service = MongodbSessionService(
+    db_url="mongodb://localhost:27017/",
+    database="my_adk_app",
+    collection_prefix="sessions"
+)
+```
+
+Now you can use the service to create, retrieve, list, and delete sessions.
+
+### Creating a Session
+
+```python
+import asyncio
+
+async def main():
+    # Create a new session
+    new_session = await session_service.create_session(
+        app_name="my_app",
+        user_id="user_123",
+        state={"initial_key": "initial_value"}
+    )
+    print(f"Created session with ID: {new_session.id}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Retrieving a Session
+
+```python
+import asyncio
+
+async def main():
+    # Get a session by ID
+    session = await session_service.get_session(
+        app_name="my_app",
+        user_id="user_123",
+        session_id="<your_session_id>"
+    )
+    if session:
+        print(f"Retrieved session state: {session.state}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Tiered State Management
+
+The service automatically handles the three-tiered state (`app`, `user`, and `session`). When you create or update a session, you can provide state keys with the prefixes `app:` and `user:` to store data at the corresponding level.
+
+```python
+import asyncio
+from google.adk.sessions.state import State
+
+async def main():
+    # Create a session with tiered state
+    session = await session_service.create_session(
+        app_name="my_app",
+        user_id="user_123",
+        state={
+            f"{State.APP_PREFIX}theme": "dark",
+            f"{State.USER_PREFIX}language": "en",
+            "session_specific_data": "foo"
+        }
+    )
+    
+    # The session object will have a merged view of the state
+    print(session.state)
+    # {
+    #     'app:theme': 'dark',
+    #     'user:language': 'en',
+    #     'session_specific_data': 'foo'
+    # }
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Running Tests
+
+To run the tests, first install the testing dependencies:
+
+```bash
+pip install -e ".[test]"
+```
+
+Then, run the tests using `unittest`:
+
+```bash
+python -m unittest discover tests
+```
+
