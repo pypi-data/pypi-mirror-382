@@ -1,0 +1,6 @@
+version = "0.1.0rc0"
+build_type = "candidate"
+build_iteration = "0"
+git_commit = "None"
+git_branch = "None"
+git_last_tag = "None"
