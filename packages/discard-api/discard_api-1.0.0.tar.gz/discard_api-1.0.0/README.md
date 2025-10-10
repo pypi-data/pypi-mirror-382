@@ -1,0 +1,521 @@
+<h1 align="center"> Discard Rest APIs Python SDK </h1>
+
+<h2 align="center">
+  Official Python SDK for the Discard Rest APIs providing access to 500+ endpoints across multiple categories.
+  A hub of RESTful APIs for developers — from downloaders and AI tools to image processing, games, and converters — everything you need to elevate your applications.
+</h2>
+
+[![PyPI](https://img.shields.io/pypi/v/discard-api.svg)](https://pypi.org/project/discard-api/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/discard-api.svg)](https://pypi.org/project/discard-api/)
+[![Downloads](https://img.shields.io/pypi/dm/discard-api.svg)](https://pypi.org/project/discard-api/)
+![GitHub release](https://img.shields.io/github/v/release/stormfiber/discardapi-py)
+[![License](https://img.shields.io/github/license/stormfiber/discardapi-py)](LICENSE)
+[![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+## Overview
+
+A Python client library for interacting with the **Discard API**.  
+Provides a simple, typed interface for making API calls and handling responses efficiently.
+Explore our complete catalog and documentation at [discardapi.dpdns.org](https://discardapi.dpdns.org)
+
+
+## Getting Started with Discard Rest APIs
+
+**Welcome to Discard Rest APIs, your one-stop solution for seamless API integrations! Our extensive collection of APIs is designed for developers building apps, businesses enhancing services, or tech enthusiasts experimenting with new ideas.**
+
+**Step 1: Sign Up & Get Your API Key**
+[Signup](https://discardapi.dpdns.org/auth)
+- Create an account to access our API dashboard. Signing up is quick and easy, providing instant access to hundreds of powerful APIs.
+
+**Step 2: Choose an API**
+[Endpoints](https://discardapi.dpdns.org/)
+- Browse our comprehensive API library and select the API that fits your needs. Each API includes detailed documentation with endpoints, parameters, and response formats.
+
+**Step 3: Make Your First API Call**
+
+- With your API key in hand, you're ready to start! All our APIs follow REST principles and are designed for simple, intuitive integration.
+
+**Step 4: Some Features Are Premium Only 📊**
+
+- For extensive usage and advanced features, upgrade to a PRO or VIP plan offering higher limits, faster response times, and premium feature access.
+
+
+## Installation
+
+```bash
+pip install discard-api
+```
+
+## Quick Start
+
+```python
+from discard import DiscardAPI
+
+# Initialize the SDK
+api = DiscardAPI(api_key="your_api_key_here")
+
+# Use any endpoint
+result = api.ai.gemini_pro("What is artificial intelligence?")
+print(result)
+```
+
+## Features
+
+- ✅ **Complete API Coverage**: All 30+ categories with 500+ endpoints
+- ✅ **Type Hints**: Full type annotations for better IDE support
+- ✅ **Error Handling**: Comprehensive error handling
+- ✅ **Context Manager**: Automatic session cleanup
+- ✅ **File Uploads**: Support for multipart/form-data uploads
+- ✅ **Flexible Configuration**: Customizable timeout, base URL, and response format
+
+## Available Categories
+
+1. **Islamic** - Quran, Hadith, Prayer times, Islamic books
+2. **AI** - Gemini, Llama, Mistral, Image generation (Stable Diffusion, DALL-E, Flux)
+3. **Anime** - Anime reaction images
+4. **Apps** - APK search and download from multiple sources
+5. **Chatbots** - Multiple AI chatbot models
+6. **Canvas** - Image overlay effects
+7. **Codec** - Encoding/decoding (Base64, Base32, Binary, etc.)
+8. **Shortener** - URL shortening services
+9. **AudioDB** - Music database API
+10. **Quotes** - Various quote collections
+11. **Downloads** - Social media downloaders (TikTok, Instagram, YouTube, etc.)
+12. **ImageMakers** - QR codes, barcodes, text-to-image
+13. **Music** - Spotify, SoundCloud, lyrics
+14. **Jokes** - Multiple joke categories
+15. **Images** - Random image collections
+16. **Facts** - Historical and mathematical facts
+17. **Faker** - Fake data generation
+18. **FakeStore** - Mock e-commerce API
+19. **News** - International news sources
+20. **Stalker** - Profile information lookup
+21. **Search** - Web search engines
+22. **Tools** - Utility tools (translate, screenshot, etc.)
+23. **Memes** - Meme generators
+24. **Time** - Timezone and time conversion
+25. **PhotoOxy** - Photo effects
+26. **Ephoto360** - Advanced photo effects
+27. **ImageProcess** - Image processing (resize, crop, filters, etc.)
+28. **Information** - Weather, IP info, country data, etc.
+29. **TempMail** - Temporary email services
+30. **Uploads** - File upload services
+31. **Random** - Random data and games
+
+## Usage Examples
+
+### AI & Image Generation
+
+```python
+# Text generation with Gemini
+response = api.ai.gemini_pro("Explain quantum computing")
+
+# Image generation with Stable Diffusion
+image = api.ai.stable_diffusion("A beautiful sunset over mountains")
+
+# AI chatbot
+chat = api.chatbots.llama_bot("How are you?")
+```
+
+### Downloads
+
+```python
+# Download Instagram post
+insta = api.downloads.instagram("https://www.instagram.com/p/example")
+
+# Download TikTok video (no watermark)
+tiktok = api.downloads.tiktok("https://vm.tiktok.com/example")
+
+# Download YouTube video
+youtube = api.downloads.youtube_video("https://youtube.com/watch?v=example", format="720")
+
+# Clone GitHub repository
+repo = api.downloads.gitclone("https://github.com/user/repo")
+```
+
+### Image Processing
+
+```python
+# Remove background
+with open("photo.jpg", "rb") as f:
+    no_bg = api.imageprocess.remove_bg(f)
+
+# Resize image
+with open("photo.jpg", "rb") as f:
+    resized = api.imageprocess.resize(f, "800", "600")
+
+# Apply filters
+with open("photo.jpg", "rb") as f:
+    sepia = api.imageprocess.sepia(f)
+    cartoon = api.imageprocess.cartoon(f)
+    sketch = api.imageprocess.sketch(f, style="Charcoal")
+```
+
+### Tools & Utilities
+
+```python
+# Translate text
+translation = api.tools.translate("Hello world", "es")
+
+# Generate QR code
+qr = api.imagemakers.qrcode("https://example.com")
+
+# Screenshot website
+screenshot = api.tools.screenshot("https://github.com")
+
+# Get weather
+weather = api.information.weather_city("London")
+
+# Shorten URL
+short = api.shortener.tiny("https://very-long-url.com")
+```
+
+### News & Information
+
+```python
+# Get latest news
+cnn = api.news.cnn_news()
+bbc = api.news.sky_news()
+
+# Get country information
+country = api.information.country_info("Japan")
+
+# Get IP information
+ip_info = api.information.ip_info("8.8.8.8")
+
+# Search Wikipedia
+wiki = api.information.wikipedia("Artificial Intelligence")
+```
+
+### Social Media
+
+```python
+# Stalk profiles
+github = api.stalker.github_stalk("username")
+instagram = api.stalker.instagram_stalk("username")
+twitter = api.stalker.twitter_stalk("username")
+
+# Get trends
+trends = api.information.x_trends("Pakistan")
+```
+
+### Meme Generation
+
+```python
+# Drake meme
+drake = api.memes.drake_hotline("Python", "Go")
+
+# Distracted boyfriend meme
+meme = api.memes.distracted_boyfriend("Rust", "Me", "Go")
+
+# Custom meme
+custom = api.memes.custom_meme("template_id", "text1", "text2")
+```
+
+### File Uploads
+
+```python
+# Upload to Catbox (permanent)
+with open("document.pdf", "rb") as f:
+    catbox = api.uploads.catbox(f)
+
+# Upload to ImgBB (7 days)
+with open("image.png", "rb") as f:
+    imgbb = api.uploads.imgbb(f)
+
+# Upload to Gofile (permanent)
+with open("video.mp4", "rb") as f:
+    gofile = api.uploads.gofile(f)
+```
+
+### Temporary Email
+
+```python
+# Create temporary email
+mail = api.tempmail.create_mail("password123")
+print(f"Email: {mail['address']}")
+print(f"Token: {mail['token']}")
+
+# Check inbox
+inbox = api.tempmail.mail_inbox(token=mail['token'])
+
+# Read specific message
+message = api.tempmail.message_id(token=mail['token'], id="message_id")
+```
+
+### Music
+
+```python
+# Search Spotify
+spotify = api.music.spotify_search("Bohemian Rhapsody")
+
+# Get lyrics
+lyrics = api.music.lyrics("never gonna give you up")
+
+# Search SoundCloud
+soundcloud = api.music.soundcloud_search("remix")
+
+# Download Spotify track (Pro plan)
+track = api.music.spotify_download("https://open.spotify.com/track/...")
+```
+
+## Advanced Configuration
+
+```python
+# Custom configuration
+api = DiscardAPI(
+    api_key="your_api_key_here",
+    base_url="https://discardapi.dpdns.org",  # Custom base URL
+    full_response=True,  # Get full API response including metadata
+    timeout=60  # Request timeout in seconds
+)
+
+# Get full response with metadata
+response = api.jokes.random()
+print(f"Creator: {response.creator}")
+print(f"Status: {response.status}")
+print(f"Result: {response.result}")
+
+# Update settings dynamically
+api.client.set_full_response(False)
+api.client.set_timeout(30)
+api.client.set_api_key("new_api_key")
+```
+
+## Context Manager
+
+```python
+# Automatic session cleanup
+with DiscardAPI(api_key="your_api_key_here") as api:
+    result = api.ai.gemini_pro("Hello!")
+    print(result)
+# Session is automatically closed
+```
+
+## Error Handling
+
+```python
+try:
+    api = DiscardAPI(api_key="your_api_key_here")
+    result = api.downloads.instagram("invalid_url")
+except ValueError as e:
+    print(f"Configuration error: {e}")
+except Exception as e:
+    print(f"API error: {e}")
+```
+
+
+## Method Naming Convention
+
+All methods follow Python naming conventions (snake_case) and are organized by category:
+
+- `api.islam.*` - Islamic resources
+- `api.ai.*` - AI and image generation
+- `api.downloads.*` - Media downloaders
+- `api.imageprocess.*` - Image processing
+- `api.tools.*` - Utility tools
+- `api.search.*` - Search engines
+- `api.news.*` - News sources
+- `api.stalker.*` - Profile lookups
+- And many more...
+
+## File Upload Methods
+
+Methods that require file uploads accept file-like objects:
+
+```python
+# Using context manager (recommended)
+with open("image.jpg", "rb") as f:
+    result = api.imageprocess.remove_bg(f)
+
+# Or with file object
+file = open("image.jpg", "rb")
+result = api.imageprocess.remove_bg(file)
+file.close()
+```
+
+## Response Format
+
+By default, the SDK returns just the result data. Set `full_response=True` to get the complete API response:
+
+```python
+# Default behavior (result only)
+api = DiscardAPI(api_key="key")
+result = api.jokes.dad()  # Returns the joke directly
+
+# Full response mode
+api = DiscardAPI(api_key="key", full_response=True)
+response = api.jokes.dad()
+print(response.creator)  # API creator
+print(response.status)   # Request status
+print(response.result)   # Actual result
+```
+
+Check the API documentation for specific endpoint requirements.
+
+## Rate Limiting
+
+The API may have rate limits. Handle them appropriately:
+
+```python
+import time
+
+def retry_with_backoff(func, max_retries=3):
+    for i in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            if i < max_retries - 1:
+                time.sleep(2 ** i)  # Exponential backoff
+                continue
+            raise e
+
+# Usage
+result = retry_with_backoff(lambda: api.ai.gemini_pro("Hello"))
+```
+
+## Complete Category Reference
+
+### Islamic (`api.islam`)
+- `quran_surah()`, `prayer_timing()`, `hadit()`, `tahlil()`, `wirid()`, `dua_harian()`, `ayat_kursi()`, `search_books()`, `get_books()`
+
+### AI (`api.ai`)
+- `gemini_pro()`, `gemini_flash()`, `llama_ai()`, `mistral_ai()`, `qwen_coder()`, `flux_schnell()`, `stable_diffusion()`, `dalle()`
+
+### Anime (`api.anime`)
+- `anime_nom()`, `anime_poke()`, `anime_cry()`, `anime_kiss()`, `anime_pat()`, `anime_hug()`
+
+### Apps (`api.apps`)
+- `android_one_search()`, `apk_mirror_search()`, `play_store_search()`, `steam_app()`, `happy_mod()`
+
+### Chatbots (`api.chatbots`)
+- `llama_bot()`, `qwen_bot()`, `baidu_bot()`, `gemma_bot()`, `spark_bot()`, `glm_bot()`
+
+### Canvas (`api.canvas`)
+- `circle()`, `bisexual()`, `heart()`, `lgbtq()`, `tonikawa()`, `simpcard()`
+
+### Codec (`api.codec`)
+- `base64()`, `base32()`, `base16()`, `binary()`, `brainfuck()`, `interpreter()`
+
+### Shortener (`api.shortener`)
+- `isgd()`, `tiny()`, `bitly()`, `vgd()`, `unshort()`
+
+### AudioDB (`api.audiodb`)
+- `search_artist()`, `search_track()`, `search_albums()`, `trending_albums()`, `top_tracks()`
+
+### Quotes (`api.quotes`)
+- `commit_message()`, `pickup_lines()`, `tech_tips()`, `coding_tips()`, `islamic_quotes()`, `stoic_quotes()`
+
+### Downloads (`api.downloads`)
+- `facebook()`, `instagram()`, `tiktok()`, `twitter()`, `youtube_video()`, `youtube_audio()`, `spotify()`, `pinterest_search()`, `reddit()`, `snapchat()`
+
+### ImageMakers (`api.imagemakers`)
+- `qrcode()`, `barcode_128()`, `emoji_mix()`, `carbon_image()`, `welcome_image()`
+
+### Music (`api.music`)
+- `spotify_search()`, `spotify_download()`, `soundcloud_search()`, `lyrics()`, `ringtones()`
+
+### Jokes (`api.jokes`)
+- `dad()`, `general()`, `programming()`, `dark()`, `random()`, `animal()`, `science()`
+
+### Images (`api.images`)
+- `couple()`, `pizza()`, `tech()`, `game()`, `mountain()`, `cat()`, `dog()`
+
+### Facts (`api.facts`)
+- `date_fact()`, `year_fact()`, `math_fact()`, `trivia_fact()`, `useless_facts()`
+
+### Faker (`api.faker`)
+- `fake_user()`, `fake_users()`, `fake_addresses()`, `fake_persons()`, `fake_products()`
+
+### FakeStore (`api.fakestore`)
+- `all_products()`, `get_product()`, `add_product()`, `update_product()`, `delete_product()`, `all_carts()`, `login()`
+
+### News (`api.news`)
+- `cnn_news()`, `bbc_news()`, `sky_news()`, `aljazeera_english()`, `fox_news()`, `guardian_news()`
+
+### Stalker (`api.stalker`)
+- `github_stalk()`, `instagram_stalk()`, `twitter_stalk()`, `tiktok_stalk()`, `npm_stalk()`
+
+### Search (`api.search`)
+- `google_search()`, `bing_search()`, `youtube_search()`, `movies_search()`, `manga_toon()`
+
+### Tools (`api.tools`)
+- `translate()`, `screenshot()`, `detect_lang()`, `mathematics()`, `whois_lookup()`, `port_scanner()`
+
+### Memes (`api.memes`)
+- `drake_hotline()`, `distracted_boyfriend()`, `success_kid()`, `disaster_girl()`, `trending_memes()`
+
+### Time (`api.time`)
+- `time_by_zone()`, `time_convert()`, `day_of_week()`, `day_of_year()`
+
+### PhotoOxy (`api.photooxy`)
+- `pubg_banner()`, `battlefield()`, `tiktok_effect()`, `neon_effect()`
+
+### Ephoto360 (`api.ephoto360`)
+- `deadpool()`, `thor_logo()`, `captain_america()`, `pubg_logo()`, `blackboard()`
+
+### ImageProcess (`api.imageprocess`)
+- `remove_bg()`, `resize()`, `crop()`, `rotate()`, `flip()`, `grayscale()`, `sepia()`, `cartoon()`, `sketch()`, `blur()`, `sharpen()`
+
+### Information (`api.information`)
+- `weather_city()`, `country_info()`, `ip_info()`, `wikipedia()`, `crypto_info()`
+
+### TempMail (`api.tempmail`)
+- `create_mail()`, `mail_inbox()`, `message_id()`, `delete_account()`
+
+### Uploads (`api.uploads`)
+- `catbox()`, `gofile()`, `imgbb()`, `pixeldrain()`, `gyazo()`
+
+### Random (`api.random`)
+- `sudoku_generate()`, `world_wonders()`, `age_guess()`, `gender_guess()`, `random_advice()`
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT License - feel free to use this SDK in your projects.
+
+## Support
+
+For issues and questions:
+- GitHub Issues: [Create an issue](https://github.com/your-repo/issues)
+- API Documentation: [Explore Complete Catalog](https://discardapi.dpdns.org)
+- Discord: [Join our community](https://discord.gg/mbdE2xJPP)
+
+
+## Changelog
+
+### Version 1.0.0
+- Initial release
+- Complete API coverage for all 30+ categories
+- 500+ endpoints implemented
+- File upload support
+- Context manager support
+- Comprehensive error handling
+- Type hints support
+
+## Credits
+
+Created by the Discard API Team. Python SDK maintained by the community.
+
+---
+
+### 📞 Contact Methods
+
+- ![](https://img.shields.io/badge/Email-blue) **Email Support** → [discardapi@gmail.com](mailto:discardapi@gmail.com?subject=Support&body=Hello%20Team,)  
+- ![](https://img.shields.io/badge/WhatsApp-green) **Live Chat** → [Chat on WhatsApp](https://wa.me/923051391007?text=Hello%20I%20need%20support)  
+- ![](https://img.shields.io/badge/Discord-purple) **Community Support** → [Join our Discord Server](https://discord.gg/YBkzCWqz)  
+- ![](https://img.shields.io/badge/GitHub-black) **Documentation** → [GitHub Examples](https://github.com/GlobalTechInfo/discard-api)  
+
+---
+
+### ⏱ Response Times
+- ✅ **Premium Support** → < 1 hour  
+- 🆓 **Free Support** → < 24 hours  
+
+---
+© 2025 **Discard API** — Built with Go & Fiber
+
+**Note**: Replace `your_api_key_here` with your actual API key. Get your API key from the [Discard API website](https://discardapi.dpdns.org).
