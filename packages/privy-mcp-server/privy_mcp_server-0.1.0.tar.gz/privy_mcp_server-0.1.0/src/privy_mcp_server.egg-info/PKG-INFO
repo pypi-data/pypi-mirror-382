@@ -1,0 +1,299 @@
+Metadata-Version: 2.4
+Name: privy-mcp-server
+Version: 0.1.0
+Summary: MCP server for Privy.io API - user statistics, wallet management, and authentication
+Author-email: Rostislav Tsachev <rtsachev@incentivai.io>
+License: MIT
+Project-URL: Homepage, https://github.com/yourusername/privy-mcp-server
+Project-URL: Repository, https://github.com/yourusername/privy-mcp-server
+Project-URL: Issues, https://github.com/yourusername/privy-mcp-server/issues
+Keywords: mcp,privy,web3,wallet,blockchain,model-context-protocol
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: python-dotenv>=1.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.0; extra == "dev"
+Requires-Dist: build>=1.0.0; extra == "dev"
+Requires-Dist: twine>=5.0.0; extra == "dev"
+Dynamic: license-file
+
+# Privy.io MCP Server
+
+A Model Context Protocol (MCP) server for [Privy.io](https://privy.io) - the Web3 wallet infrastructure platform. Provides comprehensive access to user statistics, wallet management, and authentication features through Claude and other MCP clients.
+
+## Features
+
+### User Management
+- **Get User Details**: Retrieve user information by Privy DID including linked accounts, MFA methods, and metadata
+- **List Users**: Paginated listing of all users (up to 500 per page)
+- **Query by Wallet**: Find users by blockchain wallet address
+- **Create Users**: Create new users with linked accounts (email, phone, wallet, OAuth providers)
+- **Delete Users**: Remove users and associated data
+
+### Wallet Management
+- **Get Wallet**: Retrieve wallet details including address, chain type, and timestamps
+- **List Wallets**: Paginated wallet listing with metadata
+- **Create Wallets**: Generate wallets for users (Ethereum, Solana, Bitcoin, EVM-compatible chains)
+- **Wallet Balance**: Check current wallet balances
+- **Transaction History**: Retrieve wallet transaction history with pagination
+- **Update Wallets**: Modify wallet metadata and configuration
+
+### Statistics & Analytics
+- **User Statistics**: Comprehensive metrics including:
+  - Total user count
+  - Linked account types (email, phone, wallet, 15+ OAuth providers)
+  - MFA adoption rates
+  - Wallet creation metrics
+  - Guest user counts
+  - Terms acceptance rates
+
+- **Wallet Statistics**: Aggregated wallet data including:
+  - Total wallet count
+  - Distribution by chain type
+  - Export/import metrics
+
+## Installation
+
+### Prerequisites
+- Python 3.10 or higher
+- Privy.io account with API credentials
+
+### Setup
+
+1. **Clone the repository**:
+```bash
+git clone <repository-url>
+cd privy-mcp-server
+```
+
+2. **Create virtual environment**:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. **Install dependencies**:
+```bash
+pip install -e .
+```
+
+4. **Configure environment variables**:
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and add your Privy credentials:
+```env
+PRIVY_APP_ID=your_app_id_here
+PRIVY_APP_SECRET=your_app_secret_here
+```
+
+**Get your credentials**: Dashboard → App Settings → Basics on [Privy.io](https://dashboard.privy.io)
+
+## Usage
+
+### Running the Server
+
+Run directly with Python:
+```bash
+python -m privy_mcp
+```
+
+Or use the MCP inspector for testing:
+```bash
+npx @modelcontextprotocol/inspector python -m privy_mcp
+```
+
+For example, from the project directory:
+```bash
+npx @modelcontextprotocol/inspector python -m privy_mcp
+```
+
+### Configuring with Claude Desktop
+
+Add to your Claude Desktop configuration file:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "privy": {
+      "command": "python",
+      "args": ["-m", "privy_mcp"],
+      "env": {
+        "PRIVY_APP_ID": "your_app_id_here",
+        "PRIVY_APP_SECRET": "your_app_secret_here"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop after configuration.
+
+## Available Tools
+
+### User Management
+- `get_user` - Get user by Privy DID
+- `list_users` - List all users with pagination
+- `get_user_by_wallet` - Query user by wallet address
+- `create_user` - Create new user with linked accounts
+- `delete_user` - Delete user by Privy DID
+
+### Wallet Management
+- `get_wallet` - Get wallet details by ID
+- `list_wallets` - List all wallets with pagination
+- `create_wallet` - Create wallet for user
+- `get_wallet_balance` - Check wallet balance
+- `get_wallet_transactions` - Get transaction history
+- `update_wallet` - Update wallet metadata
+
+### Statistics & Analytics
+- `get_user_statistics` - Comprehensive user metrics
+- `get_wallet_statistics` - Comprehensive wallet metrics
+
+## Example Queries
+
+Once configured with Claude Desktop, you can ask:
+
+- "Show me user statistics from Privy"
+- "List all users in my Privy application"
+- "Get user details for DID did:privy:xxx"
+- "Find the user with wallet address 0x123..."
+- "Create a wallet for user did:privy:xxx on Solana"
+- "What's the MFA adoption rate across my users?"
+- "Show wallet distribution by blockchain"
+- "Get transaction history for wallet xyz"
+
+## API Rate Limits
+
+Privy.io enforces rate limits:
+- **User data endpoints**: 500 requests per 10 seconds
+- Contact Privy support for rate limit increases
+
+## Authentication
+
+This server uses **HTTP Basic Authentication** with custom headers:
+- `Authorization: Basic <base64(app_id:app_secret)>`
+- `privy-app-id: <app_id>`
+
+All requests are made over HTTPS to `https://api.privy.io/v1`.
+
+## Supported Blockchain Chains
+
+- Ethereum and all EVM-compatible chains
+- Solana
+- Bitcoin
+- Base, Polygon, Arbitrum, Optimism, and more
+
+## OAuth Providers Supported
+
+Users can link accounts from 15+ providers:
+- Apple
+- Discord
+- Farcaster
+- GitHub
+- Google
+- LinkedIn
+- Spotify
+- Telegram
+- TikTok
+- Twitter
+- And more
+
+## Development
+
+### Running Tests
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+### Project Structure
+```
+privy-mcp-server/
+├── src/
+│   └── privy_mcp/
+│       ├── __init__.py      # Package initialization
+│       ├── client.py        # Privy API client
+│       └── server.py        # MCP server implementation
+├── pyproject.toml           # Project dependencies
+├── .env.example             # Environment template
+└── README.md                # Documentation
+```
+
+## Security Considerations
+
+- **Never commit** `.env` file or expose API credentials
+- Store credentials securely using environment variables or secrets management
+- API credentials have full access to your Privy application
+- This is a **defensive security tool** - do not use for malicious purposes
+- Review Privy's security documentation: [docs.privy.io/security](https://docs.privy.io/security)
+
+## Troubleshooting
+
+### Authentication Errors
+- Verify `PRIVY_APP_ID` and `PRIVY_APP_SECRET` are correct
+- Check credentials at Dashboard → App Settings → Basics
+- Ensure environment variables are loaded
+
+### Rate Limit Errors
+- Reduce request frequency
+- Implement exponential backoff
+- Contact Privy support for limit increases
+
+### Connection Errors
+- Verify internet connectivity
+- Check Privy API status
+- Ensure firewall allows HTTPS requests
+
+## Resources
+
+- [Privy.io Documentation](https://docs.privy.io)
+- [Privy API Reference](https://docs.privy.io/reference/api)
+- [MCP Specification](https://modelcontextprotocol.io)
+- [Privy Dashboard](https://dashboard.privy.io)
+
+## License
+
+MIT License - See LICENSE file for details
+
+## Contributing
+
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## Support
+
+- **Privy Support**: hi@privy.io
+- **MCP Issues**: [GitHub Issues](https://github.com/anthropics/mcp)
+- **Documentation**: [docs.privy.io](https://docs.privy.io)
+
+## Disclaimer
+
+This is an unofficial MCP server implementation. Privy.io has identified MCP as an emerging technology and encourages collaboration. For production use cases, review Privy's official guidance and contact their team at hi@privy.io.
+
+## Acknowledgments
+
+Built on:
+- [Privy.io](https://privy.io) - Web3 wallet infrastructure
+- [Model Context Protocol](https://modelcontextprotocol.io) - Anthropic's MCP specification
+- [HTTPX](https://www.python-httpx.org) - Modern HTTP client for Python
