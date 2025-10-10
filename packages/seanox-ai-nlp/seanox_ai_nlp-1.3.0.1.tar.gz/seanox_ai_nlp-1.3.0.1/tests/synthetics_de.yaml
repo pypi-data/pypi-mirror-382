@@ -1,0 +1,122 @@
+segments:
+  text:
+    newline: '{{- "\r\n" -}}'
+
+templates:
+- name: Beispiel 01
+  condition: type != "Gesteinsplanet"
+  template: |
+    Ist {{ planet }} ein Gesteinsplanet?
+    @text:newline
+    Nein, {{ planet }} {{ ["ist ein", "gehört zur Gruppe"] | random }} {{ type }}.
+    @text:newline
+    {{ [
+      "Wusstest Du schon Folgendes dazu:",
+      "Er hat zudem interessante Merkmale:",
+      "Interessant dazu ist auch:",
+      "Dazu habe ich noch Folgendes gefunden:"
+    ] | random }}
+    @text:newline
+    {% for item in characteristics -%}
+      - {{ item }} @text:newline
+    {% endfor %}
+
+- name: Beispiel 02
+  condition: characteristics and moons != 1
+  template: |
+    {% set characteristic = characteristics | random %}
+    Was kannst Du mir zu "{{ characteristic }} in unserem {{ ["Planetensystem", "Sonnensystem"] | random }}" sagen?
+    @text:newline
+    {{ characteristic }} trifft auf{{ [" den Planeten", ""] | random }} {{ planet }} zu.
+    @text:newline
+    {{ ["Das ist ein", "Damit gehört der Planet zur Gruppe" ] | random }} {{ type }}.
+    @text:newline
+    {% set facts = [
+      "hat einen Durchmesser von " ~ diameter ~ " km",
+      "besitzt " ~ (moons == 0 and "keine" or moons) ~ " Monde",
+      "hat eine Umlaufzeit von " ~ turnover ~ " Tagen"
+    ] %}
+    {%- set facts = facts | random_set(2) -%}
+    {{ ["Er", "Der Planet"] | random }} {{ facts[0] }} und {{ facts[1] }}.
+
+- name: Beispiel 03
+  condition: moons != 1 and len(atmosphere) >= 2
+  template: |
+    {{ ["Der Planet", ""] | random }} {{ planet }} ist ein {{ type }}
+    {% set facts = [
+      "mit einem Durchmesser von " ~ diameter ~ " km",
+      "besitzt " ~ (moons == 0 and "keine" or moons) ~ " Monde",
+      "mit einer Umlaufzeit von " ~ turnover ~ " Tagen"
+    ] %}
+    {%- set facts = facts | random_set(2) -%}
+    {{ facts[0] }} und {{ facts[1] }}.
+    @text:newline
+    Die Atmosphäre {{ ["besteht", "setzt sich zusammen"] | random }} aus {{ atmosphere | random_range_join_phrase(", ", " und ") }}.
+    @text:newline
+    {{ ["Typisch", "Charakteristisch", "Markant"] | random }} für {{ planet }} sind Merkmale wie:
+    @text:newline
+    {% for item in characteristics -%}
+      - {{ item }} @text:newline
+    {% endfor %}
+
+- name: Beispiel 04
+  condition: turnover > 365
+  template: |
+    {% set turnover_diff = (turnover | default(0, true) | int) - 365 %}
+    Vorschläge zur Verbesserung der Meetings?
+    @text:newline
+    Ja -- Die Verlagerung auf den {{ planet }}.
+    @text:newline
+    Das Jahr hat {{ (turnover_diff ~ " Tage") }} mehr und wir Zeit für die Arbeit.
+
+- name: Beispiel 05
+  condition: moons > 2
+  template: |
+    Hat {{ planet }} mehrere Monde?
+    @text:newline
+    Ja und zwar genau {{ moons }}{{ [" davon", ""] | random }}.
+
+- name: Beispiel 06
+  condition: characteristics and len(characteristics) > 1
+  template: |
+    {% set facts = characteristics | random_set(2) %}
+    {{ facts[0] }}
+    {{ ["und", "sowie", "wie auch"] | random }}
+    {{ facts[1] }}
+    {{ ["sind charakteristisch für", "kennzeichnen"] | random }}
+    {{ planet }}.
+
+# During template validation, fields may be undefined if no data is provided.
+# This becomes problematic when those fields are used in functions rather than
+# just printed. To prevent errors during validation, default values are
+# assigned. These defaults ensure the template compiles correctly but are
+# ignored during actual rendering.
+- name: Beispiel 07
+  condition: turnover > 365
+  template: |
+    {% set turnover_diff = (turnover | default(0, true) | int) - 365 %}
+    Im Vergleich zur Erde
+    benötigt {{ planet }} {{ turnover_diff }} Tage länger für seine Umlaufbahn.
+
+# In addition to named entities, custom spans can be defined between entities
+# using regular expressions. Regex patterns should be applied to the text
+# between entities and must accurately match the desired span. This is useful
+# for extracting relational or contextual information not covered by standard
+# NER.
+- name: Beispiel 08
+  condition: True
+  spans:
+  - label: "PAIR"
+    pattern: (?<=[\"\'])\w+:\s.*?(?=[\"\'])
+  template: |
+    'planet: {{ planet }}',
+    'type: {{ type }}',
+    'diameter: {{ diameter }} km',
+    'turnover: {{ turnover }} Tage',
+    'moons: {{ moons }}'
+    {%- for item in atmosphere -%}
+      , 'atmosphere: {{ item }}'
+    {%- endfor -%}
+    {%- for item in characteristics -%}
+      , 'characteristics: {{ item }}'
+    {%- endfor -%}

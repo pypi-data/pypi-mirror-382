@@ -1,0 +1,187 @@
+# Segments are reusable, semantically annotated text fragments that can be
+# referenced within templates. These segments serve as modular building blocks
+# for the dynamic generation of content. The structure and depth below the
+# section segment is individual.
+segments:
+  term:
+    characteristics: '("characteristics" | annotate("term"))'
+    atmosphere: '("atmosphere" | annotate("term"))'
+    moons: '("moons" | annotate("term"))'
+    turnover: '("turnover" | annotate("term"))'
+    diameter: '("diameter" | annotate("term"))'
+    type: '("type" | annotate("term"))'
+    planet: '("planet" | annotate("term"))'
+    orbit: '("orbit" | annotate("term"))'
+    earth: '("Earth" | annotate("term"))'
+    orbital_period: '("orbital period" | annotate("term"))'
+  data:
+    moons: '(moons | annotate("moons"))'
+    turnover: '(turnover ~ " days" | annotate("turnover"))'
+    diameter: '(diameter ~ " km" | annotate("diameter"))'
+    type: '(type | annotate("type"))'
+    planet: '(planet | annotate("planet"))'
+    turnover_more_days: '((turnover ~ " more days") | annotate("turnover"))'
+    atmosphere_random: '(atmosphere | random_range_join_phrase(", ", " and "))'
+    characteristic: '(characteristic | annotate("characteristics"))'
+  text:
+    newline: '{{- "\r\n" -}}'
+  macros: |
+    {%- macro example_1(text="") -%}
+      {{ text }}
+    {%- endmacro -%}
+    {%- macro example_2(text="") -%}
+      {{ "_" ~ text ~ "_" }}
+    {%- endmacro -%}
+
+templates:
+- name: Example 01
+  condition: type != "terrestrial planet"
+  template: |
+    Is {{ @data:planet }} a {{ "terrestrial planet" | annotate("type") }}?
+    @text:newline
+    No, {{ @data:planet }} {{ ["is a", "belongs to the group of"] | random }} {{ @data:type }}.
+    @text:newline
+    {{ [
+      "Did you know this about it?",
+      "It also has some interesting features:",
+      "Here's something else that's fascinating:",
+      "I found the following details as well:"
+    ] | random }}
+    @text:newline
+    {% for item in characteristics -%}
+      - {{ item | annotate("characteristics") }} @text:newline
+    {% endfor %}
+
+- name: Example 02
+  condition: characteristics and moons != 1
+  template: |
+    {% set characteristic = characteristics | random %}
+    What can you tell me about "{{ @data:characteristic }}" in our {{ ["planetary system", "solar system"] | random | annotate("term") }}?
+    @text:newline
+    {{ @data:characteristic }} is a feature of{{ [" the planet", ""] | random }} {{ @data:planet }}.
+    @text:newline
+    {{ ["It is a", "This means the planet belongs to the group of"] | random }} {{ @data:type }}.
+    @text:newline
+    {% set facts = [
+      "has a " ~ @term:diameter ~ " of " ~ @data:diameter,
+      moons == 0 and "does not have any moons" or "has " ~ (moons ~ " moons" | annotate("moons")),
+      "has an " ~ @term:orbital_period ~ " of " ~ @data:turnover
+    ] %}
+    {%- set facts = facts | random_set(2) -%}
+    {{ ["It", "The planet"] | random }} {{ facts[0] }} and {{ facts[1] }}.
+
+# Annotating lists in templates requires a bit more effort, but it's not
+# technically complex. Two key aspects come into play: template validation and
+# the use of generator values.
+#
+# Every template is validated at load time to catch syntax errors early. This
+# validation uses an empty data object. If fields are only printed, this causes
+# no issues. However, if fields are used inside functions (e.g. map, join, len),
+# they are undefined during validation, which can lead to runtime errors. To
+# avoid this, default values are provided for validation purposes. These
+# defaults are not used during actual rendering and are simply placeholders to
+# ensure the template compiles.
+#
+# The second aspect involves generator values, which are often produced by
+# functions like map. While generators behave similarly to lists, they do not
+# support essential operations like len(). Attempting to use such operations on
+# a generator will result in errors. Therefore, generator values must be
+# explicitly converted into lists using list() before further processing.
+- name: Example 03
+  condition: moons != 1 and len(atmosphere) >= 2
+  template: |
+    {{ ["The planet ", ""] | random }}{{ @data:planet }} is a {{ @data:type }}
+    {% set facts = [
+      "with a " ~ @term:diameter ~ " of " ~ @data:diameter,
+      moons == 0 and "does not have any moons" or "has " ~ (moons ~ " moons" | annotate("moons")),
+      "with an " ~ @term:orbital_period ~ " of " ~ @data:turnover
+    ] %}
+    {%- set facts = facts | random_set(2) -%}
+    {{ facts[0] }} and {{ facts[1] }}.
+    {%- set atmosphere = atmosphere | default([]) | map('annotate', 'atmosphere') | list -%}
+    @text:newline
+    The {{ @term:atmosphere }} {{ ["consists of", "is composed of"] | random }} {{ @data:atmosphere_random }}.
+    {{ ["Typical", "Characteristic", "Striking"] | random }} features of {{ @data:planet }} include:
+    @text:newline
+    {% for item in characteristics -%}
+      - {{ item | annotate("characteristics") }} @text:newline
+    {% endfor %}
+
+- name: Example 04
+  condition: turnover > 365
+  template: |
+    {% set turnover = (turnover | default(0, true) | int) - 365 %}
+    Suggestions for improving meetings?
+    @text:newline
+    Yes -- Relocating them to {{ @data:planet }}.
+    @text:newline
+    The year has {{ @data:turnover_more_days }}, giving us time to work.
+
+- name: Example 05
+  condition: moons > 2
+  template: |
+    Does {{ @data:planet }} have multiple {{ @term:moons }}?
+    @text:newline
+    Yes, exactly {{ @data:moons }}{{ [" of them", ""] | random }}.
+
+- name: Example 06
+  condition: characteristics and len(characteristics) > 1
+  template: |
+    {% set facts = characteristics | random_set(2) %}
+    {{ facts[0] | annotate("characteristics") }}
+    {{ ["and", "as well as", "just like"] | random }}
+    {{ facts[1] | annotate("characteristics") }}
+    {{ ["are characteristic of", "define"] | random }}
+    {{ @data:planet }}.
+
+# During template validation, fields may be undefined if no data is provided.
+# This becomes problematic when those fields are used in functions rather than
+# just printed. To prevent errors during validation, default values are
+# assigned. These defaults ensure the template compiles correctly but are
+# ignored during actual rendering.
+- name: Example 07
+  condition: turnover > 365
+  template: |
+    {% set turnover = (turnover | default(0, true) | int) - 365 %}
+    Compared to {{ @term:earth }}, {{ @data:planet }} takes
+    {{ @data:turnover_more_days }} to complete its {{ @term:orbit }}.
+
+# In addition to named entities, custom spans can be defined between entities
+# using regular expressions. Regex patterns should be applied to the text
+# between entities and must accurately match the desired span. This is useful
+# for extracting relational or contextual information not covered by standard
+# NER.
+- name: Example 08
+  condition: True
+  spans:
+  - label: "PAIR"
+    pattern: (?<=[\"\'])\w+:\s.*?(?=[\"\'])
+  template: |
+    '{{ @term:planet }}: {{ @data:planet }}',
+    '{{ @term:type }}: {{ @data:type }}',
+    '{{ @term:diameter }}: {{ @data:diameter }}',
+    '{{ @term:turnover }}: {{ @data:turnover }}',
+    '{{ @term:moons }}: {{ @data:moons }}'
+    {%- for item in atmosphere -%}
+      , '{{ @term:atmosphere }}: {{ item | annotate("atmosphere") }}'
+    {%- endfor %}
+    {%- for item in characteristics -%}
+      , '{{ @term:characteristics }}: {{ item | annotate("characteristics") }}'
+    {%- endfor -%}
+
+# Deactivated example demonstrating the cross-template use and integration of
+# macros. The macros are defined in the "macros" segment and can be inserted
+# into any template as reusable building blocks. This example shows how macros
+# can be invoked within a template structure, and how their output can be
+# further processed or combined with other template logic. The macro definitions
+# can be moved to other segments or reorganized to improve reusability,
+# maintainability, and readability across multiple templates.
+- name: Example Macros
+  condition: False
+  template: |
+    @macros
+    {{ example_1("seanox-ai-nlp") }}
+    {% set text = example_2("seanox-ai-nlp") %}
+    {% if text %}
+      {{ text }}
+    {% endif %}

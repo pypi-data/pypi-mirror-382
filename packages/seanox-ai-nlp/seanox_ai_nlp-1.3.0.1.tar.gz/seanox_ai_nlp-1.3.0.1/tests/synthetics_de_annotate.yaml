@@ -1,0 +1,166 @@
+# Segments are reusable, semantically annotated text fragments that can be
+# referenced within templates. These segments serve as modular building blocks
+# for the dynamic generation of content. The structure and depth below the
+# section segment is individual.
+segments:
+  term:
+    atmosphäre: '("Atmosphäre" | annotate("term"))'
+    monde: '("Monde" | annotate("term"))'
+    characteristics: '("characteristics" | annotate("term"))'
+    atmosphere: '("atmosphere" | annotate("term"))'
+    moons: '("moons" | annotate("term"))'
+    turnover: '("turnover" | annotate("term"))'
+    diameter: '("diameter" | annotate("term"))'
+    type: '("type" | annotate("term"))'
+    planet: '("planet" | annotate("term"))'
+    umlaufbahn: '("Umlaufbahn" | annotate("term"))'
+    erde: '("Erde" | annotate("term"))'
+    durchmesser: '("Durchmesser" | annotate("term"))'
+    umlaufzeit: '("Umlaufzeit" | annotate("term"))'
+  data:
+    planet: '(planet | annotate("planet"))'
+    type: '(type | annotate("type"))'
+    characteristic: '(characteristic | annotate("characteristics"))'
+    moons: '(moons | annotate("moons"))'
+    diameter: '(diameter ~ " km" | annotate("diameter"))'
+    turnover: '(turnover ~ " Tagen" | annotate("turnover"))'
+    atmosphere_random: '(atmosphere | random_range_join_phrase(", ", " und "))'
+  text:
+    newline: '{{- "\r\n" -}}'
+
+templates:
+- name: Beispiel 01
+  condition: type != "Gesteinsplanet"
+  template: |
+    Ist {{ @data:planet }} ein {{ "Gesteinsplanet" | annotate("type") }}?
+    @text:newline
+    Nein, {{ @data:planet }} {{ ["ist ein", "gehört zur Gruppe"] | random }} {{ @data:type }}.
+    @text:newline
+    {{ [
+      "Wusstest Du schon Folgendes dazu:",
+      "Er hat zudem interessante Merkmale:",
+      "Interessant dazu ist auch:",
+      "Dazu habe ich noch Folgendes gefunden:"
+    ] | random }}
+    @text:newline
+    {% for item in characteristics -%}
+      - {{ item | annotate("characteristics") }} @text:newline
+    {% endfor %}
+
+- name: Beispiel 02
+  condition: characteristics and moons != 1
+  template: |
+    {% set characteristic = characteristics | random %}
+    Was kannst Du mir zu "{{ @data:characteristic }} in unserem {{ ["Planetensystem", "Sonnensystem"] | random | annotate("term") }}" sagen?
+    @text:newline
+    {{ @data:characteristic }} trifft auf{{ [" den Planeten", ""] | random }} {{ @data:planet }} zu.
+    @text:newline
+    {{ ["Das ist ein", "Damit gehört der Planet zur Gruppe"] | random }} {{ @data:type }}.
+    @text:newline
+    {% set facts = [
+      "hat einen " ~ @term:durchmesser ~ " von " ~ @data:diameter,
+      "besitzt " ~ ((moons == 0 and "keine" or moons) ~ " Monde" | annotate("moons")),
+      "hat eine " ~ @term:umlaufzeit ~ " von " ~ @data:turnover
+    ] %}
+    {%- set facts = facts | random_set(2) -%}
+    {{ ["Er", "Der Planet"] | random }} {{ facts[0] }} und {{ facts[1] }}.
+
+# Annotating lists in templates requires a bit more effort, but it's not
+# technically complex. Two key aspects come into play: template validation and
+# the use of generator values.
+#
+# Every template is validated at load time to catch syntax errors early. This
+# validation uses an empty data object. If fields are only printed, this causes
+# no issues. However, if fields are used inside functions (e.g. map, join, len),
+# they are undefined during validation, which can lead to runtime errors. To
+# avoid this, default values are provided for validation purposes. These
+# defaults are not used during actual rendering and are simply placeholders to
+# ensure the template compiles.
+#
+# The second aspect involves generator values, which are often produced by
+# functions like map. While generators behave similarly to lists, they do not
+# support essential operations like len(). Attempting to use such operations on
+# a generator will result in errors. Therefore, generator values must be
+# explicitly converted into lists using list() before further processing.
+- name: Beispiel 03
+  condition: moons != 1 and len(atmosphere) >= 2
+  template: |
+    {{ ["Der Planet", ""] | random }} {{ @data:planet }} ist ein {{ @data:type }}
+    {% set facts = [
+      "mit einem " ~ @term:durchmesser ~ " von " ~ ((diameter ~ " km") | annotate("diameter")),
+      "besitzt " ~ ((moons == 0 and "keine" or moons) ~ " Monde" | annotate("moons")),
+      "mit einer " ~ @term:umlaufzeit ~ " von " ~ @data:turnover
+    ] %}
+    {%- set facts = facts | random_set(2) -%}
+    {{ facts[0] }} und {{ facts[1] }}.
+    {%- set atmosphere = atmosphere | default([]) | map('annotate', 'atmosphere') | list -%}
+    @text:newline
+    Die {{ @term:atmosphäre }} {{ ["besteht", "setzt sich zusammen"] | random }} aus {{ @data:atmosphere_random }}.
+    @text:newline
+    {{ ["Typisch", "Charakteristisch", "Markant"] | random }} für {{ @data:planet }} sind Merkmale wie:
+    @text:newline
+    {% for item in characteristics -%}
+      - {{ item | annotate("characteristics") }} @text:newline
+    {% endfor %}
+
+- name: Beispiel 04
+  condition: turnover > 365
+  template: |
+    {% set turnover = (turnover | default(0, true) | int) - 365 %}
+    Vorschläge zur Verbesserung der Meetings?
+    @text:newline
+    Ja -- Die Verlagerung auf den {{ @data:planet }}.
+    @text:newline
+    Das Jahr hat {{ @data:turnover }} mehr und wir Zeit für die Arbeit.
+
+- name: Beispiel 05
+  condition: moons > 2
+  template: |
+    Hat {{ @data:planet }} mehrere {{ @term:monde }}?
+    @text:newline
+    Ja und zwar genau {{ @data:moons }}{{ [" davon", ""] | random }}.
+
+- name: Beispiel 06
+  condition: characteristics and len(characteristics) > 1
+  template: |
+    {% set facts = characteristics | random_set(2) %}
+    {{ facts[0] | annotate("characteristics") }}
+    {{ ["und", "sowie", "wie auch"] | random }}
+    {{ facts[1] | annotate("characteristics") }}
+    {{ ["sind charakteristisch für", "kennzeichnen"] | random }}
+    {{ @data:planet }}.
+
+# During template validation, fields may be undefined if no data is provided.
+# This becomes problematic when those fields are used in functions rather than
+# just printed. To prevent errors during validation, default values are
+# assigned. These defaults ensure the template compiles correctly but are
+# ignored during actual rendering.
+- name: Beispiel 07
+  condition: turnover > 365
+  template: |
+    {% set turnover = (turnover | default(0, true) | int) - 365 %}
+    Im Vergleich zur {{ @term:erde }}
+    benötigt {{ @data:planet }} {{ @data:turnover }} länger für seine {{ @term:umlaufbahn }}.
+
+# In addition to named entities, custom spans can be defined between entities
+# using regular expressions. Regex patterns should be applied to the text
+# between entities and must accurately match the desired span. This is useful
+# for extracting relational or contextual information not covered by standard
+# NER.
+- name: Beispiel 08
+  condition: True
+  spans:
+  - label: "PAIR"
+    pattern: (?<=[\"\'])\w+:\s.*?(?=[\"\'])
+  template: |
+    '{{ @term:planet }}: {{ @data:planet }}',
+    '{{ @term:type }}: {{ @data:type }}',
+    '{{ @term:diameter }}: {{ @data:diameter }}',
+    '{{ @term:turnover }}: {{ @data:turnover }}',
+    '{{ @term:moons }}: {{ @data:moons }}'
+    {%- for item in atmosphere -%}
+      , '{{ @term:atmosphere }}: {{ item | annotate("atmosphere") }}'
+    {%- endfor -%}
+    {%- for item in characteristics -%}
+      , '{{ @term:characteristics }}: {{ item | annotate("characteristics") }}'
+    {%- endfor -%}
