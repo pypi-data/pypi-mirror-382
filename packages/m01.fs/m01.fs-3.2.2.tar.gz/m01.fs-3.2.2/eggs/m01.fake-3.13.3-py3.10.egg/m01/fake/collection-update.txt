@@ -1,0 +1,116 @@
+========================
+collection update method
+========================
+
+Test the different usecases for update documents in a collection. Frist get a
+test client:
+
+  >>> import m01.fake.testing
+  >>> client = m01.fake.testing.getTestClient()
+  >>> client
+  MongoClient(host=['127.0.0.1:27017'])
+
+
+$set
+----
+
+Update the document using a $set operator:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs, ordered=True)
+
+  >>> filter = {'key': '11'}
+  >>> docs = {
+  ...     '$set':{
+  ...         'modified': True,
+  ...         }
+  ...     }
+
+  >>> result = collection.update_many(filter, docs, upsert=False)
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'nModified': 1, 'ok': 1.0, 'updatedExisting': True}
+
+
+$set, upsert=False
+-----------------
+
+Update the document using a $set operator:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs, ordered=True)
+
+  >>> filter = {'key': 'unknown'}
+  >>> docs = {
+  ...     '$set':{
+  ...         'modified': True,
+  ...         }
+  ...     }
+
+  >>> result = collection.update_many(filter, docs, upsert=False)
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 0, 'nModified': 0, 'ok': 1.0, 'updatedExisting': False}
+
+
+$set, upsert=True
+-----------------
+
+Update the document using a $set operator:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs, ordered=True)
+
+  >>> filter = {'key': 'unknown'}
+  >>> docs = {
+  ...     '$set':{
+  ...         'modified': True,
+  ...         }
+  ...     }
+
+  >>> result = collection.update_many(filter, docs, upsert=True)
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'nModified': 0, 'ok': 1.0, 'updatedExisting': False, 'upserted': ObjectId('...')}

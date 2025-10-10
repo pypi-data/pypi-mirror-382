@@ -1,0 +1,1400 @@
+==============
+Query Selector
+==============
+
+Test the different query selector and make sure our fake implementation returns
+the same results as the pymongo libarary. You can compare the test output by
+running the tests wit the --all option or with level 2 by using -a2.
+
+  >>> import datetime
+  >>> import bson
+  >>> import pymongo
+  >>> from m01.fake import pprint
+  >>> import m01.fake.testing
+
+First let's define a find helper method:
+
+  >>> def doFind(collection, filter=None, projection=None, skip=0, limit=0,
+  ...     sort=None, **kwargs):
+  ...     for data in collection.find(filter, projection=projection, skip=skip,
+  ...         limit=limit, sort=sort, **kwargs):
+  ...         m01.fake.reNormalizer.pprint(data)
+
+
+find
+----
+
+The collection find method allows to lookup documetns from a collection.
+Let's find some values. First use an empty collection:
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+and get a test client:
+
+  >>> client = m01.fake.testing.getTestClient()
+  >>> client
+  MongoClient(host=['127.0.0.1:27017'])
+
+The doFind method uses a collection and a filter query. Of corse the empty
+collection will not return a result:
+
+  >>> filter = {'key': '11'}
+  >>> doFind(collection, filter)
+
+So, let's insert some documents:
+
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'attr': 'foo',
+  ...     },{
+  ...     'key': '12',
+  ...     'attr': 'bar',
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+We can list all documents with an empty filter:
+
+  >>> filter = {}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'attr': 'foo', 'key': '11'}
+  {'_id': ObjectId('...'), 'attr': 'bar', 'key': '12'}
+
+  and we can filter by a key, value:
+
+  >>> filter = {'key': '11'}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'attr': 'foo', 'key': '11'}
+
+find and projection
+-------------------
+
+The find method allows to return partial document values by define a projection.
+As you can see, we will get the key, value defined for the defined field names
+in the projection list:
+
+  >>> filter = {}
+  >>> projection = ['key']
+  >>> doFind(collection, filter, projection=projection)
+  {'_id': ObjectId('...'), 'key': '11'}
+  {'_id': ObjectId('...'), 'key': '12'}
+
+  >>> filter = {}
+  >>> projection = ['attr', 'unknown']
+  >>> doFind(collection, filter, projection=projection)
+  {'_id': ObjectId('...'), 'attr': 'foo'}
+  {'_id': ObjectId('...'), 'attr': 'bar'}
+
+find and skip
+-------------
+
+We can also skip a number of results before we return them. The result without
+skip looks like:
+
+  >>> filter = {}
+  >>> doFind(collection, filter, skip=0)
+  {'_id': ObjectId('...'), 'attr': 'foo', 'key': '11'}
+  {'_id': ObjectId('...'), 'attr': 'bar', 'key': '12'}
+
+Let's skip the first document:
+
+  >>> filter = {}
+  >>> doFind(collection, filter, skip=1)
+  {'_id': ObjectId('...'), 'attr': 'bar', 'key': '12'}
+
+If we skip more then the total result, we don't get any document:
+
+  >>> filter = {}
+  >>> doFind(collection, filter, skip=2)
+
+
+find and sort
+-------------
+
+We can also sort the values. The pymongo offers some sort order helpers.
+You can sort ascending with:
+
+  >>> pymongo.ASCENDING
+  1
+
+or descending with:
+
+  >>> pymongo.DESCENDING
+  -1
+
+We need a tuple for each sort criteria:
+
+  >>> filter = {}
+  >>> sort = [('key', pymongo.ASCENDING)]
+  >>> doFind(collection, filter, sort=sort)
+  {'_id': ObjectId('...'), 'attr': 'foo', 'key': '11'}
+  {'_id': ObjectId('...'), 'attr': 'bar', 'key': '12'}
+
+  >>> filter = {}
+  >>> sort = [('key', pymongo.DESCENDING)]
+  >>> doFind(collection, filter, sort=sort)
+  {'_id': ObjectId('...'), 'attr': 'bar', 'key': '12'}
+  {'_id': ObjectId('...'), 'attr': 'foo', 'key': '11'}
+
+
+find, sort, limit and projection
+--------------------------------
+
+In batching, it's important to sort the result before limit. Let's test this
+including a projection:
+
+  >>> filter = {}
+  >>> projection = ['key']
+  >>> sort = [('key', pymongo.ASCENDING)]
+  >>> limit = 2
+  >>> doFind(collection, filter, projection=projection, sort=sort, limit=limit)
+  {'_id': ObjectId('...'), 'key': '11'}
+  {'_id': ObjectId('...'), 'key': '12'}
+
+  >>> filter = {}
+  >>> projection = ['key']
+  >>> sort = [('key', pymongo.ASCENDING)]
+  >>> limit = 1
+  >>> doFind(collection, filter, projection=projection, sort=sort, limit=limit)
+  {'_id': ObjectId('...'), 'key': '11'}
+
+  >>> filter = {}
+  >>> projection = ['key']
+  >>> sort = [('key', pymongo.DESCENDING)]
+  >>> limit = 1
+  >>> doFind(collection, filter, projection=projection, sort=sort, limit=limit)
+  {'_id': ObjectId('...'), 'key': '12'}
+
+
+find, sort and limit on cursor
+------------------------------
+
+We can also set sort on an existing cursor:
+
+  >>> filter = {}
+  >>> sort = [('key', pymongo.ASCENDING)]
+  >>> cursor = collection.find(filter)
+  >>> cursor = cursor.sort(sort)
+  >>> for data in cursor:
+  ...     m01.fake.reNormalizer.pprint(data)
+  {'_id': ObjectId('...'), 'attr': 'foo', 'key': '11'}
+  {'_id': ObjectId('...'), 'attr': 'bar', 'key': '12'}
+
+  >>> sort = [('key', pymongo.DESCENDING)]
+  >>> cursor = collection.find(filter)
+  >>> cursor = cursor.sort(sort)
+  >>> for data in cursor:
+  ...     m01.fake.reNormalizer.pprint(data)
+  {'_id': ObjectId('...'), 'attr': 'bar', 'key': '12'}
+  {'_id': ObjectId('...'), 'attr': 'foo', 'key': '11'}
+
+or we can limit the result on our cursor:
+
+  >>> filter = {}
+  >>> limit = 1
+
+  >>> cursor = collection.find(filter)
+  >>> cursor = cursor.limit(limit)
+  >>> for data in cursor:
+  ...     m01.fake.reNormalizer.pprint(data)
+  {'_id': ObjectId('...'), 'attr': 'foo', 'key': '11'}
+
+and we can return the last item by using limit and sort:
+
+  >>> filter = {}
+  >>> sort = [('key', pymongo.DESCENDING)]
+  >>> limit = 1
+
+  >>> cursor = collection.find(filter)
+  >>> cursor = cursor.sort(sort)
+  >>> cursor = cursor.limit(limit)
+  >>> for data in cursor:
+  ...     m01.fake.reNormalizer.pprint(data)
+  {'_id': ObjectId('...'), 'attr': 'bar', 'key': '12'}
+
+
+Comparison Query Selector
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For comparison of different BSON type values, see the specified BSON comparison order.
+
+
+$eq selector
+------------
+
+Matches values that are equal to a specified value. The $eq operator matches
+documents where the value of a field equals the specified value.
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'key': {'$eq': 1}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+
+  >>> filter = {'key': {'$eq': 3}}
+  >>> doFind(collection, filter)
+
+A document with a missing value can get compared with None:
+
+  >>> filter = {'key': {'$eq': None}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'modified': False}
+
+
+$gt selector
+------------
+
+Matches values that are greater than a specified value.
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'key': {'$eq': 1}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+
+  >>> filter = {'key': {'$eq': 0}}
+  >>> doFind(collection, filter)
+
+
+$gte selector
+-------------
+
+Matches values that are greater than or equal to a specified value:
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'key': {'$gt': 1}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+
+  >>> filter = {'key': {'$gt': 2}}
+  >>> doFind(collection, filter)
+
+
+$lt seletor
+-----------
+
+Matches values that are less than a specified value:
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'key': {'$lt': 1}}
+  >>> doFind(collection, filter)
+
+  >>> filter = {'key': {'$lt': 2}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+
+
+$lte selector
+-------------
+
+Matches values that are less than or equal to a specified value:
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'key': {'$lte': 1}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+
+  >>> filter = {'key': {'$lte': 2}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+
+
+$ne selector
+------------
+
+Matches all values that are not equal to a specified value:
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'key': {'$ne': 1}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+  >>> filter = {'key': {'$ne': 0}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+A document with a missing value can get compared with None:
+
+  >>> filter = {'key': {'$ne': None}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+
+
+$in selector
+------------
+
+Matches any of the values specified in an array:
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'key': {'$in': [1]}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+
+  >>> filter = {'key': {'$in': [1, 2]}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+
+  >>> filter = {'key': {'$in': []}}
+  >>> doFind(collection, filter)
+
+A document with a missing value can get included by using None:
+
+  >>> filter = {'key': {'$in': [1, 2, None]}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+  >>> filter = {'key': {'$in': [None]}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'modified': False}
+
+
+$nin selector
+-------------
+
+Matches none of the values specified in an array:
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'key': {'$nin': [1]}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+  >>> filter = {'key': {'$nin': [1, 2]}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'modified': False}
+
+  >>> filter = {'key': {'$nin': []}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+  >>> filter = {'key': {'$nin': [1, 2, '']}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'modified': False}
+
+A document with a missing value can get excluded by using None:
+
+  >>> filter = {'key': {'$nin': [1, 2, None]}}
+  >>> doFind(collection, filter)
+
+  >>> filter = {'key': {'$nin': [None]}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+
+
+
+Logical Query Selector
+~~~~~~~~~~~~~~~~~~~~~~
+
+The logical query operator descripbed at:
+
+  https://docs.mongodb.org/manual/reference/operator/query-logical/#logical-query-operators
+
+
+$and operator
+------------
+
+$and performs a logical AND operation on an array of two or more expressions
+(e.g. <expression1>, <expression2>, etc.) and selects the documents that
+satisfy all the expressions in the array. The $and operator uses short-circuit
+evaluation. If the first expression (e.g. <expression1>) evaluates to false,
+MongoDB will not evaluate the remaining expressions.
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 3,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'$and': [{'key': 1}, {'modified': False}]}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+
+  >>> filter = {'$and': [{'key': 1}, {'modified': True}]}
+  >>> doFind(collection, filter)
+
+  >>> filter = {'$and': [{'key': 0}, {'modified': False}]}
+  >>> doFind(collection, filter)
+
+  >>> filter = {'$and': [{'key': 0}, {'modified': True}]}
+  >>> doFind(collection, filter)
+
+
+$not operator
+-------------
+
+$not performs a logical NOT operation on the specified <operator-expression>
+and selects the documents that do not match the <operator-expression>. This
+includes documents that do not contain the field. Note: $not is not a top level
+operator. Use $nor (not this or that) for exclude more then one criteria.
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 3,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'key': {'$not': {'$gt': 3}}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 3, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+  >>> filter = {'key': {'$not': {'$gt': 1}}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+Note: $not and $eq does not include documents with missing values:
+
+  >>> filter = {'key': {'$not': {'$eq': 0}}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 3, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+  >>> filter = {'key': {'$not': {'$eq': 1}}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+    {'_id': ObjectId('...'), 'key': 3, 'modified': False}
+    {'_id': ObjectId('...'), 'modified': False}
+
+$not is not a top level operator. Use $nor for exclude more then one criteria:
+
+  >>> filter = {'$not': [{'key': 1}, {'modified': False}]}
+  >>> doFind(collection, filter)
+  ...
+  Traceback (most recent call last):
+  ...
+  OperationFailure: unknown top level operator: $not, full error: {'codeName': 'BadValue', 'code': 2, 'ok': 0.0, 'errmsg': 'unknown top level operator: $not'}
+
+
+$nor operator
+------------
+
+$nor performs a logical NOR operation on an array of one or more query
+expression and selects the documents that fail all the query expressions in the
+array.
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 3,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'$nor': [{'key': 1}, {'modified': False}]}
+  >>> doFind(collection, filter)
+
+  >>> filter = {'$nor': [{'key': 1}, {'modified': True}]}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 3, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+  >>> filter = {'$nor': [{'key': 0}, {'modified': False}]}
+  >>> doFind(collection, filter)
+
+  >>> filter = {'$nor': [{'key': 0}, {'modified': True}]}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 3, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+
+$or operator
+------------
+
+The $or operator performs a logical OR operation on an array of two or more
+<expressions> and selects the documents that satisfy at least one of the
+<expressions>. The $or has the following syntax:
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 3,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'$or': [{'key': 1}, {'modified': False}]}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 3, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+  >>> filter = {'$or': [{'key': 1}, {'modified': True}]}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+
+  >>> filter = {'$or': [{'key': 0}, {'modified': False}]}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 3, 'modified': False}
+  {'_id': ObjectId('...'), 'modified': False}
+
+  >>> filter = {'$or': [{'key': 0}, {'modified': True}]}
+  >>> doFind(collection, filter)
+
+Element Query Selector
+~~~~~~~~~~~~~~~~~~~~~~
+
+$exists selector
+----------------
+
+Matches documents that have the specified field:
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     },{
+  ...     'modified': False,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'key': {'$exists': 1}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+
+  >>> filter = {'key': {'$exists': 0}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'modified': False}
+
+You can also use True/False as boolean:
+
+  >>> filter = {'key': {'$exists': True}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+
+  >>> filter = {'key': {'$exists': False}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'modified': False}
+
+And even None will work as boolean:
+
+  >>> filter = {'key': {'$exists': None}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'modified': False}
+
+But a negative number does not get interpreted as boolean and will act as True:
+
+  >>> filter = {'key': {'$exists': -1}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False}
+
+This is because pymongo uses the eq operator and does not check for boolean:
+
+  >>> import operator
+  >>> operator.eq(True, 1)
+  True
+
+  >>> operator.eq(False, 0)
+  True
+
+  >>> operator.eq(False, -1)
+  False
+
+  >>> bool(-1)
+  True
+
+$type selector
+--------------
+
+Selects documents if a field is of the specified type:
+
+  Syntax: { field: { $type: <BSON type> } }
+
+$type selects the documents where the value of the field is an instance of the
+specified numeric BSON type. This is useful when dealing with highly
+unstructured data where data types are not predictable:
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> import bson.binary
+  >>> import bson.objectid
+  >>> import bson.regex
+  >>> import bson.code
+  >>> import bson.int64
+  >>> import bson.max_key
+  >>> import bson.min_key
+  >>> import bson.timestamp
+
+  >>> docs = [
+  ...     {
+  ...     'type': 'double',
+  ...     'value': 1.0,
+  ...     },{
+  ...     'type': 'string',
+  ...     'value': 'string',
+  ...     },{
+  ...     'type': 'object',
+  ...     'value': {},
+  ...     },{
+  ...     'type': 'object',
+  ...     'value': {
+  ...         'key': 'value',
+  ...         },
+  ...     },{
+  ...     'type': 'not an array but found as int32 and string',
+  ...     'value': [1, 2, 'foo'],
+  ...     },{
+  ...     'type': 'array',
+  ...     'value': [[1, 2], 42],
+  ...     },{
+  ...     'type': 'array',
+  ...     'value': [[]],
+  ...     },{
+  ...     'type': 'binary',
+  ...     'value':  bson.binary.Binary(b"\x01\x02\x03\x04"),
+  ...     },{
+  ...     'type': 'objectid',
+  ...     'value': bson.objectid.ObjectId(),
+  ...     },{
+  ...     'type': 'boolean',
+  ...     'value': True,
+  ...     },{
+  ...     'type': 'boolean',
+  ...     'value': False,
+  ...     },{
+  ...     'type': 'date',
+  ...     'value': datetime.datetime(215, 10,28),
+  ...     },{
+  ...     'type': 'null',
+  ...     'value': None,
+  ...     },{
+  ...     'type': 'regex',
+  ...     'value': bson.regex.Regex('*'),
+  ...     },{
+  ...     'type': 'javascript',
+  ...     'value': bson.code.Code('function foo(){return false}'),
+  ...     },{
+  ...     'type': 'javascript_with_scope',
+  ...     'value': bson.code.Code('function foo(scope){return false}',
+  ...                             scope={'x': 42}),
+  ...     },{
+  ...     'type': 'int32',
+  ...     'value': int(42),
+  ...     },{
+  ...     'type': 'integer',
+  ...     'value': 42,
+  ...     },{
+  ...     'type': 'double',
+  ...     'value': bson.timestamp.Timestamp(4, 20),
+  ...     },{
+  ...     'type': 'int64',
+  ...     'value': bson.int64.Int64(),
+  ...     },{
+  ...     'type': 'minkey',
+  ...     'value': bson.min_key.MinKey(),
+  ...     },{
+  ...     'type': 'maxkey',
+  ...     'value': bson.max_key.MaxKey(),
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> DOUBLE = 1
+  >>> STRING = 2
+  >>> OBJECT = 3
+  >>> ARRAY = 4
+  >>> BINARY = 5
+  >>> OBJECTID = 7
+  >>> BOOLEAN = 8
+  >>> DATE = 9
+  >>> NULL = 10
+  >>> REGEX = 11
+  >>> JAVASCRIPT = 13
+  >>> JAVASCRIPT_WITH_SCOPE = 15
+  >>> INT32 = 16
+  >>> TIMESTAMP = 17
+  >>> INT64 = 18
+  >>> MINKEY = -1
+  >>> MAXKEY = 127
+
+  >>> filter = {'value': {'$type': DOUBLE}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'double', 'value': 1.0}
+
+  >>> filter = {'value': {'$type': STRING}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'),
+   'type': 'string',
+   'value': 'string'}
+  {'_id': ObjectId('...'),
+   'type': 'not an array but found as int32 and string',
+   'value': [1, 2, 'foo']}
+
+  >>> filter = {'value': {'$type': OBJECT}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'object', 'value': {}}
+  {'_id': ObjectId('...'),
+   'type': 'object',
+   'value': {'key': 'value'}}
+
+  >>> filter = {'value': {'$type': ARRAY}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'),
+   'type': 'array',
+   'value': [[1, 2], 42]}
+  {'_id': ObjectId('...'),
+   'type': 'array',
+   'value': [[]]}
+
+  >>> filter = {'value': {'$type': BINARY}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'binary', 'value': ...'\x01\x02\x03\x04'...}
+
+  >>> filter = {'value': {'$type': OBJECTID}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'objectid', 'value': ObjectId('...')}
+
+  >>> filter = {'value': {'$type': BOOLEAN}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'boolean', 'value': True}
+  {'_id': ObjectId('...'), 'type': 'boolean', 'value': False}
+
+  >>> filter = {'value': {'$type': DATE}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'date', 'value': datetime.datetime(...)}
+
+  >>> filter = {'value': {'$type': NULL}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'null', 'value': None}
+
+  >>> filter = {'value': {'$type': REGEX}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'regex', 'value': Regex('*', 0)}
+
+  >>> filter = {'value': {'$type': JAVASCRIPT}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'javascript', 'value': Code('function foo(){return false}', None)}
+
+  >>> filter = {'value': {'$type': JAVASCRIPT_WITH_SCOPE}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'javascript_with_scope', 'value': Code('function foo(scope){return false}', {'x': 42})}
+
+  >>> filter = {'value': {'$type': INT32}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'not an array but found as int32 and string', 'value': [1, 2, 'foo']}
+  {'_id': ObjectId('...'), 'type': 'array', 'value': [[1, 2], 42]}
+  {'_id': ObjectId('...'), 'type': 'int32', 'value': 42}
+  {'_id': ObjectId('...'), 'type': 'integer', 'value': 42}
+
+  >>> filter = {'value': {'$type': TIMESTAMP}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'double', 'value': Timestamp('...')}
+
+  >>> filter = {'value': {'$type': INT64}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'int64', 'value': 0...}
+
+  >>> filter = {'value': {'$type': MINKEY}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'minkey', 'value': MinKey()}
+
+  >>> filter = {'value': {'$type': MAXKEY}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'type': 'maxkey', 'value': MaxKey()}
+
+
+Evaluation Query Selector
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+$mod selector
+-------------
+
+Performs a modulo operation on the value of a field and selects documents with
+a specified result.
+
+Select documents where the value of a field divided by a divisor has the
+specified remainder (i.e. perform a modulo operation to select documents).
+To specify a $mod expression, use the following syntax:
+
+  { field: { $mod: [ divisor, remainder ] } }
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [{
+  ...     '_id' : 1,
+  ...     'number' : 0,
+  ...     },{
+  ...     '_id' : 2,
+  ...     'number' : 5,
+  ...     },{
+  ...     '_id' : 3,
+  ...     'number' : 12,
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'number': {'$mod': [4, 0]}}
+  >>> doFind(collection, filter)
+  {'_id': 1, 'number': 0}
+  {'_id': 3, 'number': 12}
+
+
+$regex selector
+---------------
+
+Selects documents where values match a specified regular expression.
+
+Provides regular expression capabilities for pattern matching strings in queries. MongoDB uses Perl compatible regular expressions (i.e. “PCRE” ) version 8.36 with UTF-8 support.
+
+To use $regex, use one of the following syntax:
+
+    { <field>: { $regex: /pattern/, $options: '<options>' } }
+    { <field>: { $regex: 'pattern', $options: '<options>' } }
+    { <field>: { $regex: /pattern/<options> } }
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [{
+  ...     '_id' : 1,
+  ...     'text' : 'search text',
+  ...     },{
+  ...     '_id' : 2,
+  ...     'text' : 'some more text',
+  ...     },{
+  ...     '_id' : 3,
+  ...     'text' : 'lorem and more',
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'text': {'$regex': '^search', '$options': 'i'}}
+  >>> doFind(collection, filter)
+  {'_id': 1, 'text': 'search text'}
+
+  >>> filter = {'text': {'$regex': 'more', '$options': 'i'}}
+  >>> doFind(collection, filter)
+  {'_id': 2, 'text': 'some more text'}
+  {'_id': 3, 'text': 'lorem and more'}
+
+  >>> filter = {'text': {'$regex': 'mo*e', '$options': 'i'}}
+  >>> doFind(collection, filter)
+  {'_id': 2, 'text': 'some more text'}
+
+
+$text selector
+--------------
+
+$text performs a text search on the content of the fields indexed with a text
+index. A $text expression has the following syntax:
+
+  { $text: { $search: <string>, $language: <string> } }
+
+The $text operator accepts a text query document with the following fields:
+
+  $search
+  $language
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+Without a text index, we can't search for text values:
+
+  >>> docs = [{
+  ...     '_id': m01.fake.testing.getObjectId(1),
+  ...     'title' : 'search text',
+  ...     'description' : 'search text description',
+  ...     'locale': 'en',
+  ...     },{
+  ...     '_id': m01.fake.testing.getObjectId(2),
+  ...     'title' : 'some more text',
+  ...     'description' : 'some more text description',
+  ...     'locale': 'en',
+  ...     },{
+  ...     '_id': m01.fake.testing.getObjectId(3),
+  ...     'title' : 'lorem and more',
+  ...     'description' : 'lorem and more description',
+  ...     'locale': 'en',
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'$text': {'$search': 'text', '$language': 'en'}}
+  >>> ex = ''
+  >>> doFind(collection, filter)
+  Traceback (most recent call last):
+  ...rrors.OperationFailure(
+  pymongo.errors.OperationFailure: text index required for $text query, full error: {u'codeName': u'IndexNotFound', u'code': 27, u'ok': 0.0, u'errmsg': u'text index required for $text query'}
+
+Let's add a text index and try again:
+
+  >>> idx = pymongo.IndexModel([
+  ...     ('title', pymongo.TEXT),
+  ...     ('description', pymongo.TEXT),
+  ...     ],
+  ...     name='text',
+  ...     weights={
+  ...     'title': 20,
+  ...     'description': 10,
+  ...     },
+  ...     default_language='de',
+  ...     language_override='locale')
+
+  >>> collection.create_indexes([idx])
+  ['text']
+
+  >>> filter = {'$text': {'$search': 'text', '$language': 'en'}}
+  >>> doFind(collection, filter, sort=[('title', 1)])
+  {'_id': ObjectId('...'),
+   'description': 'search text description',
+   'locale': 'en',
+   'title': 'search text'}
+  {'_id': ObjectId('...'),
+   'description': 'some more text description',
+   'locale': 'en',
+   'title': 'some more text'}
+
+$where selector
+---------------
+
+Matches documents that satisfy a JavaScript expression.
+
+
+Geospatial Query Selector
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+https://docs.mongodb.org/manual/reference/operator/query/#geospatial
+
+$geoWithin selector
+-------------------
+
+Selects geometries within a bounding GeoJSON geometry. The 2dsphere and
+2d indexes support $geoWithin.
+
+$geoIntersects selector
+-----------------------
+
+Selects geometries that intersect with a GeoJSON geometry. The 2dsphere index
+supports $geoIntersects.
+
+$near selector
+--------------
+Returns geospatial objects in proximity to a point. Requires a geospatial
+index. The 2dsphere and 2d indexes support $near.
+
+$nearSphere selector
+--------------------
+
+Returns geospatial objects in proximity to a point on a sphere. Requires a
+geospatial index. The 2dsphere and 2d indexes support $nearSphere.
+
+
+Array Query Selector
+~~~~~~~~~~~~~~~~~~~~
+
+https://docs.mongodb.org/manual/reference/operator/query/#array
+
+$all selector
+-------------
+
+Matches arrays that contain all elements specified in the query.
+
+The $all operator selects the documents where the value of a field is an array that contains all the specified elements. To specify an $all expression, use the following prototype:
+
+  { <field>: { $all: [ <value1> , <value2> ... ] } }
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     '_id': 1,
+  ...     'value': 'foo',
+  ...     'marker': True,
+  ...     'tags': ['one']
+  ...     },{
+  ...     '_id': 2,
+  ...     'value': 'foo',
+  ...     'marker': False,
+  ...     'tags': ['one', 'two']
+  ...     },{
+  ...     '_id': 3,
+  ...     'value': 'bar',
+  ...     'marker': True,
+  ...     'tags': ['one', 'two', 'three']
+  ...     },{
+  ...     '_id': 4,
+  ...     'value': 'bar',
+  ...     'marker': False,
+  ...     'tags': ['one', 'two', 'three', 'four']
+  ...     },]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'tags': {'$all': ['one', 'two']}}
+  >>> doFind(collection, filter)
+  {'_id': 2, 'marker': False, 'tags': ['one', 'two'], 'value': 'foo'}
+  {'_id': 3, 'marker': True, 'tags': ['one', 'two', 'three'], 'value': 'bar'}
+  {'_id': 4, 'marker': False, 'tags': ['one', 'two', 'three', 'four'], 'value': 'bar'}
+
+The $all is equivalent to an $and operation of the specified values; i.e. the
+following statement:
+
+  >>> filter = {'tags': {'$all': ['one', 'two']}}
+  >>> doFind(collection, filter)
+  {'_id': 2, 'marker': False, 'tags': ['one', 'two'], 'value': 'foo'}
+  {'_id': 3, 'marker': True, 'tags': ['one', 'two', 'three'], 'value': 'bar'}
+  {'_id': 4, 'marker': False, 'tags': ['one', 'two', 'three', 'four'], 'value': 'bar'}
+
+  >>> filter = {'$and': [{'tags': 'one' }, {'tags': 'two'}]}
+  >>> doFind(collection, filter)
+  {'_id': 2, 'marker': False, 'tags': ['one', 'two'], 'value': 'foo'}
+  {'_id': 3, 'marker': True, 'tags': ['one', 'two', 'three'], 'value': 'bar'}
+  {'_id': 4, 'marker': False, 'tags': ['one', 'two', 'three', 'four'], 'value': 'bar'}
+
+
+$elemMatch selector
+-------------------
+
+Selects documents if element in the array field matches all the specified
+conditions.
+
+The $elemMatch operator matches documents that contain an array field with at least one element that matches all the specified query criteria.
+
+{ <field>: { $elemMatch: { <query1>, <query2>, ... } } }
+
+You cannot specify a $where expression as a query criterion for $elemMatch.
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'array': [ 82, 85, 88 ]
+  ...     },{
+  ...     'key': 2,
+  ...     'array': [ 75, 88, 89 ]
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'array': {'$elemMatch': {'$gte': 80, '$lt': 85}}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'array': [82, 85, 88], 'key': 1}
+
+You cannot specify a $where expression as a query criterion for $elemMatch.
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     '_id': 1,
+  ...      'array': [{'product': 'abc', 'score': 10},
+  ...               {'product': 'xyz', 'score': 5}]
+  ...     },{
+  ...     '_id': 2,
+  ...     'array': [{'product': 'abc', 'score': 8},
+  ...              {'product': 'xyz', 'score': 7}]
+  ...     },{
+  ...     '_id': 3,
+  ...     'array': [{'product': 'abc', 'score': 7},
+  ...              {'product': 'xyz', 'score': 8}]
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {
+  ...     'array': {'$elemMatch': {'product': 'xyz', 'score': {'$gte': 8}}}
+  ... }
+  >>> doFind(collection, filter)
+  {'_id': 3, 'array': [{'product': 'abc', 'score': 7}, {'product': 'xyz', 'score': 8}]}
+
+Single Query Condition; If you specify a single query predicate in the
+$elemMatch expression, $elemMatch is not necessary.
+
+For example, consider the following example where $elemMatch specifies only a single query predicate { product: "xyz" }:
+
+  >>> filter = {'array': {'$elemMatch': {'product': 'xyz'}}}
+  >>> doFind(collection, filter)
+  {'_id': 1, 'array': [{'product': 'abc', 'score': 10}, {'product': 'xyz', 'score': 5}]}
+  {'_id': 2, 'array': [{'product': 'abc', 'score': 8}, {'product': 'xyz', 'score': 7}]}
+  {'_id': 3, 'array': [{'product': 'abc', 'score': 7}, {'product': 'xyz', 'score': 8}]}
+
+Since the $elemMatch only specifies a single condition, the $elemMatch
+expression is not necessary, and instead you can use the following query:
+
+  >>> filter = {'array.product': 'xyz'}
+  >>> doFind(collection, filter)
+  {'_id': 1, 'array': [{'product': 'abc', 'score': 10}, {'product': 'xyz', 'score': 5}]}
+  {'_id': 2, 'array': [{'product': 'abc', 'score': 8}, {'product': 'xyz', 'score': 7}]}
+  {'_id': 3, 'array': [{'product': 'abc', 'score': 7}, {'product': 'xyz', 'score': 8}]}
+
+
+$size selector
+--------------
+
+Selects documents if the array field is a specified size.
+
+The $size operator matches any array with the number of elements specified by
+the argument. For example:
+
+  db.collection.find( { field: { $size: 2 } } );
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'list': [1]
+  ...     },{
+  ...     'key': 2,
+  ...     'list': [1, 2]
+  ...     },{
+  ...     'key': 3,
+  ...     'list': [1, 2, 3]
+  ...     },{
+  ...     'key': 4,
+  ...     'list': [1, 2, 3, 4]
+  ...     },{
+  ...     'key': 5,
+  ...     'list': ['foo']
+  ...     },{
+  ...     'key': 6,
+  ...     'list': ['foo', 'bar']
+  ...     },{
+  ...     'key': 7,
+  ...     'list': ['foo', 'bar', 'more']
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'list': {'$size': 1}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'list': [1]}
+  {'_id': ObjectId('...'), 'key': 5, 'list': ['foo']}
+
+  >>> filter = {'list': {'$size': 2}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 2, 'list': [1, 2]}
+  {'_id': ObjectId('...'), 'key': 6, 'list': ['foo', 'bar']}
+
+
+Nested document keys
+~~~~~~~~~~~~~~~~~~~~
+
+  >>> m01.fake.testing.dropTestCollection()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': 1,
+  ...     'modified': False,
+  ...     'nested': {
+  ...        'key': 11
+  ...        }
+  ...     },{
+  ...     'key': 2,
+  ...     'modified': False,
+  ...     'nested': {
+  ...        'key': 22
+  ...        }
+  ...     },{
+  ...     'key': 3,
+  ...     'modified': False,
+  ...     'nested': {
+  ...        'key': 33
+  ...        }
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> filter = {'nested': {'$exists': True}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False, 'nested': {'key': 11}}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False, 'nested': {'key': 22}}
+  {'_id': ObjectId('...'), 'key': 3, 'modified': False, 'nested': {'key': 33}}
+
+  >>> filter = {'nested.key': {'$exists': True}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False, 'nested': {'key': 11}}
+  {'_id': ObjectId('...'), 'key': 2, 'modified': False, 'nested': {'key': 22}}
+  {'_id': ObjectId('...'), 'key': 3, 'modified': False, 'nested': {'key': 33}}
+
+  >>> filter = {'nested.key': 11}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False, 'nested': {'key': 11}}
+
+  >>> filter = {'nested.key': {'$eq': 11}}
+  >>> doFind(collection, filter)
+  {'_id': ObjectId('...'), 'key': 1, 'modified': False, 'nested': {'key': 11}}

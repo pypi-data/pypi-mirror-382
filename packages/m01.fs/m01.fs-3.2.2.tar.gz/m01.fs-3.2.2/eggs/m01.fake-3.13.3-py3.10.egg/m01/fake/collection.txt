@@ -1,0 +1,1084 @@
+===================
+FakeMongoCollection
+===================
+
+Test the FakeMongoCollection:
+
+  >>> import m01.fake
+  >>> import m01.fake.testing
+
+First get the test client:
+
+  >>> client = m01.fake.testing.getTestClient()
+  >>> client
+  FakeMongoClient(host=['127.0.0.1:27017'])
+
+Let's setup some test data:
+
+  >>> collection = m01.fake.testing.setUpTestData()
+
+  >>> collection.count_documents({})
+  200
+
+
+__getattr__
+-----------
+
+Get a sub-collection of this collection by name (e.g. gridfs):
+
+  >>> collection.gridfs
+  Collection(Database(MongoClient(host=['127.0.0.1:27017']), u'm01_fake_database'), u'test.gridfs')
+
+The method raises an error if we try to access private attributes:
+
+  >>> collection._private
+  Traceback (most recent call last):
+  ... 
+  AttributeError: Collection has no attribute '_private'. To access the test._private collection, use database['test._private'].
+
+
+__getitem__
+-----------
+
+Get a sub-collection of this collection by name (e.g. gridfs):
+
+  >>> collection['gridfs']
+  Collection(Database(MongoClient(host=['127.0.0.1:27017']), u'm01_fake_database'), u'test.gridfs')
+
+This method allows ot use private sub collection names:
+
+  >>> collection['_private']
+  Collection(Database(MongoClient(host=['127.0.0.1:27017']), u'm01_fake_database'), u'test._private')
+
+
+__eq__
+------
+
+A collections is comparable:
+
+  >>> client['m01_fake_database']['test'] == client.m01_fake_database.test
+  True
+
+
+__ne__
+------
+
+A collections is comparable:
+
+  >>> collection != client.m01_fake_database.test.gridfs
+  True
+
+
+full_name
+---------
+
+The collection full name:
+
+  >>> collection.full_name
+  u'm01_fake_database.test'
+
+
+name
+----
+
+The collection name:
+
+  >>> collection.name
+  u'test'
+
+
+database
+--------
+
+The database reference:
+
+  >>> collection.database
+  Database(MongoClient(host=['127.0.0.1:27017']), u'm01_fake_database')
+
+
+with_options
+------------
+
+Get a clone of this collection changing the specified settings:
+
+  >>> collection.with_options()
+  Collection(Database(MongoClient(host=['127.0.0.1:27017']), u'm01_fake_database'), u'test')
+
+
+insert_one
+----------
+
+Insert some new documents one by one:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> doc2 = {
+  ...     'key': '11',
+  ...     'counter': 0,
+  ...     'update': 0,
+  ...     'many': False
+  ...     }
+
+  >>> result = collection.insert_one(doc2)
+  >>> 'InsertOneResult' in str(result)
+  True
+
+The result object provides the following attributes:
+
+  >>> result.acknowledged
+  True
+
+  >>> result.inserted_id
+  ObjectId('...')
+
+
+insert_many
+-----------
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': '21',
+  ...     'counter': 0,
+  ...     'update': 0,
+  ...     'many': True
+  ...     },{
+  ...     'key': '22',
+  ...     'counter': 0,
+  ...     'update': 0,
+  ...     'many': True
+  ...     }]
+
+  >>> result = collection.insert_many(docs, ordered=True)
+  >>> 'InsertManyResult' in str(result)
+  True
+
+The result object provides the following attributes:
+
+  >>> result.acknowledged
+  True
+
+  >>> result.inserted_ids
+  [ObjectId('...'), ObjectId('...')]
+
+
+replace_one
+-----------
+
+First insert a document:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> doc = {
+  ...     'key': '11',
+  ...     'replaced': False
+  ...     }
+
+  >>> result = collection.insert_one(doc)
+  >>> 'InsertOneResult' in str(result)
+  True
+
+Let's replace them with a new document:
+
+  >>> replacement = {
+  ...     'key': '22',
+  ...     'replaced': True
+  ...     }
+
+  >>> result = collection.replace_one(doc, replacement, upsert=False)
+  >>> 'UpdateResult' in str(result)
+  True
+
+  >>> result.acknowledged
+  True
+
+
+update_one
+----------
+
+Update a single document matching the filter. First insert a document:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> doc = {
+  ...     'key': '11',
+  ...     'counter': 0,
+  ...     'replaced': False,
+  ...     'existing': True,
+  ...     }
+
+  >>> result = collection.insert_one(doc)
+  >>> 'InsertOneResult' in str(result)
+  True
+
+As you can see, we can't update without the $set operator. Let's try again:
+
+  >>> update = {
+  ...     'key': 'missing',
+  ...     'replaced': True,
+  ...     'added': True,
+  ...     }
+  >>> collection.update_one(filter, update, upsert=True)
+  Traceback (most recent call last):
+  ... 
+  TypeError: filter must be an instance of dict, bson.son.SON, or any other type that inherits from collections.Mapping
+
+Let's replace them with a new document:
+
+  >>> filter = {'key': '11'}
+  >>> update = {
+  ...     '$set':{
+  ...         'key': '22',
+  ...         'replaced': True,
+  ...         'added': True,
+  ...         },
+  ...     '$inc': {
+  ...         'counter': 1,
+  ...         }
+  ...     }
+
+  >>> result = collection.update_one(filter, update)
+  >>> 'UpdateResult' in str(result)
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'nModified': 1, 'ok': 1.0, 'updatedExisting': True}
+
+  >>> result.matched_count
+  1
+
+  >>> result.modified_count
+  1
+
+  >>> result.upserted_id
+
+We can force to upsert with a missing document:
+
+  >>> filter = {'key': 'missing'}
+  >>> update = {
+  ...     '$set': {
+  ...         'key': 'missing',
+  ...         'replaced': True,
+  ...         'added': True,
+  ...         }
+  ...     }
+
+  >>> result = collection.update_one(filter, update, upsert=True)
+  >>> 'UpdateResult' in str(result)
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'nModified': 0, 'ok': 1.0, 'updatedExisting': False, 'upserted': ObjectId('...')}
+
+  >>> result.matched_count
+  0
+
+  >>> result.modified_count
+  0
+
+  >>> result.upserted_id is not None
+  True
+
+Let's test the inserted document:
+
+  >>> res = collection.find_one({'key': 'missing'})
+  >>> m01.fake.pprint(res)
+  {u'_id': ObjectId('...'),
+   u'added': True,
+   u'key': 'missing',
+   u'replaced': True}
+
+Or we can skip to upsert a missing document:
+
+  >>> filter = {'key': 'unknown'}
+  >>> update = {
+  ...     '$set':{
+  ...         'key': 'unknown',
+  ...         'replaced': True,
+  ...         'added': True,
+  ...         }
+  ...     }
+
+  >>> result = collection.update_one(filter, update, upsert=False)
+  >>> 'UpdateResult' in str(result)
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 0, 'nModified': 0, 'ok': 1.0, 'updatedExisting': False}
+
+  >>> result.matched_count
+  0
+
+  >>> result.modified_count
+  0
+
+  >>> result.upserted_id is None
+  True
+
+Let's test the inserted document:
+
+  >>> collection.find_one({'key': 'unknown'})
+
+There is an option for add additional data if we insert a new object on update.
+Additional data can get added to the object with $setOnInsert:
+
+  >>> filter = {'key': 'nada'}
+  >>> update = {
+  ...     '$set':{
+  ...         'key': 'nada',
+  ...         'replaced': False,
+  ...         'added': True,
+  ...         },
+  ...     '$setOnInsert':{
+  ...         'upserted': True,
+  ...         }
+  ...     }
+
+  >>> result = collection.update_one(filter, update, upsert=True)
+  >>> 'UpdateResult' in str(result)
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'nModified': 0, 'ok': 1.0, 'updatedExisting': False, 'upserted': ObjectId('...')}
+
+  >>> res = collection.find_one({'key': 'nada'})
+  >>> m01.fake.pprint(res)
+  {u'_id': ObjectId('...'),
+   u'added': True,
+   u'key': 'nada',
+   u'replaced': False,
+   u'upserted': True}
+
+If we update an existing document the $setOnInsert data will get ignored:
+
+  >>> filter = {'key': 'nada'}
+  >>> update = {
+  ...     '$set':{
+  ...         'replaced': True,
+  ...         'new': True
+  ...         },
+  ...     '$setOnInsert': {
+  ...         'upserted': 'IGNORED',
+  ...         }
+  ...     }
+
+  >>> result = collection.update_one(filter, update, upsert=True)
+  >>> 'UpdateResult' in str(result)
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'nModified': 1, 'ok': 1.0, 'updatedExisting': True}
+
+  >>> m01.fake.pprint(collection.find_one({'key': 'nada'}))
+  {'_id': ObjectId('...'), 'added': True, 'key': 'nada', 'new': True, 'replaced': True, 'upserted': True}
+
+
+update_many
+-----------
+
+Update one or more documents that match the filter. First insert some documents:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     'many': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs, ordered=True)
+  >>> 'InsertManyResult' in str(result)
+  True
+
+We can update many documents based on a filter:
+
+  >>> filter = {'many': True}
+  >>> docs = {
+  ...     '$set':{
+  ...         'key': 11,
+  ...         'modified': True,
+  ...         'updated': True,
+  ...         }
+  ...     }
+
+  >>> result = collection.update_many(filter, docs, upsert=False)
+  >>> 'UpdateResult' in str(result)
+  True
+
+  >>> result.acknowledged
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 2, 'nModified': 2, 'ok': 1.0, 'updatedExisting': True}
+
+  >>> result.matched_count
+  2
+
+  >>> result.modified_count
+  2
+
+  >>> result.upserted_id
+
+And we can update insert not existing documents with upsert=True:
+
+  >>> filter = {'updated': False}
+  >>> update = {
+  ...     '$set':{
+  ...         'key': 21,
+  ...         'added': True,
+  ...         'modified': False,
+  ...         'updated': False,
+  ...         }
+  ...     }
+
+  >>> result = collection.update_many(filter, update, upsert=True)
+  >>> 'UpdateResult' in str(result)
+  True
+
+  >>> result.acknowledged
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'nModified': 0, 'ok': 1.0, 'updatedExisting': False, 'upserted': ObjectId('...')}
+
+  >>> result.matched_count
+  0
+
+  >>> result.modified_count
+  0
+
+  >>> result.upserted_id
+  ObjectId('...')
+
+
+drop
+----
+
+Let's drop a collection:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> doc = {
+  ...     'key': '11',
+  ...     'counter': 0,
+  ...     'replaced': False,
+  ...     'existing': True,
+  ...     }
+
+  >>> result = collection.insert_one(doc)
+
+  >>> database = m01.fake.testing.getTestDatabase()
+  >>> database.list_collection_names()
+  [u'test']
+
+Drop the collection
+
+  >>> collection.drop()
+
+  >>> database.list_collection_names()
+  []
+
+
+delete_one
+----------
+
+Let's remove one document:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'many': True}
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     'many': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs)
+
+  >>> result = collection.delete_one(filter)
+  >>> 'DeleteResult' in str(result)
+  True
+
+  >>> result.acknowledged
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'ok': 1.0}
+
+  >>> result.deleted_count
+  1
+
+
+delete_many
+-----------
+
+Let's remove many document:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'many': True}
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     'many': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs)
+
+  >>> result = collection.delete_many(filter)
+  >>> 'DeleteResult' in str(result)
+  True
+
+  >>> result.acknowledged
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 2, 'ok': 1.0}
+
+  >>> result.deleted_count
+  2
+
+
+find_one
+--------
+
+Let's find one document:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'modified': False}
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     'many': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs)
+
+  >>> m01.fake.pprint(collection.find_one(filter))
+  {'_id': ObjectId('...'), 'key': '11', 'many': True, 'modified': False}
+
+
+find
+----
+
+Let's find many documents:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'many': True}
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     'many': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs)
+
+  >>> for data in collection.find(filter):
+  ...     m01.fake.pprint(data)
+  {'_id': ObjectId('...'), 'key': '11', 'many': True, 'modified': False}
+  {'_id': ObjectId('...'), 'key': '12', 'many': True, 'modified': False}
+
+
+count
+-----
+
+Let's count the document:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'many': True}
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     'many': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs)
+
+  >>> collection.count_documents(filter)
+  2
+
+
+rename
+------
+
+Let's rename the collection:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'key': '11'}
+  >>> docs = [{
+  ...     'key': '11',
+  ...     },{
+  ...     'key': '12',
+  ...     }]
+  >>> result = collection.insert_many(docs)
+
+  >>> collection.rename('foo')
+  {u'ok': 1.0}
+
+  >>> database = m01.fake.testing.getTestDatabase()
+  >>> database.list_collection_names()
+  ['foo']
+
+  >>> for data in database.foo.find():
+  ...     m01.fake.pprint(data)
+  {'_id': ObjectId('...'), 'key': '11'}
+  {'_id': ObjectId('...'), 'key': '12'}
+
+  >>> for data in database.client.m01_fake_database.foo.find():
+  ...     m01.fake.pprint(data)
+  {'_id': ObjectId('...'), 'key': '11'}
+  {'_id': ObjectId('...'), 'key': '12'}
+
+
+distinct
+--------
+
+Let's get a list of distinct values for `key` among all documents in this
+collection:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'many': True}
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     'many': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs)
+
+  >>> for data in sorted(collection.distinct('key', filter)):
+  ...     data
+  u'11'
+  u'12'
+
+
+find_one_and_delete
+-------------------
+
+Let's find one document and delete them:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'modified': False}
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     'many': False,
+  ...     }]
+
+  >>> result = collection.insert_many(docs)
+
+  >>> m01.fake.pprint(collection.find_one_and_delete(filter))
+  {'_id': ObjectId('...'), 'key': '11', 'many': True, 'modified': False}
+
+
+find_one_and_replace
+--------------------
+
+Let's find one document and replace them:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+  >>> import pymongo
+
+  >>> filter = {'modified': False}
+  >>> docs = [
+  ...    {
+  ...     '_id': m01.fake.testing.getObjectId(1),
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     '_id': m01.fake.testing.getObjectId(2),
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     '_id': m01.fake.testing.getObjectId(3),
+  ...     'key': '13',
+  ...     'modified': True,
+  ...     'many': False,
+  ...     }]
+  >>> replacement = {
+  ...     'key': '11',
+  ...     'modified': True,
+  ...     'replaced': True,
+  ...     }
+  >>> result = collection.insert_many(docs)
+
+  >>> m01.fake.pprint(collection.find_one_and_replace(filter, replacement))
+  {'_id': ObjectId('...'), 'key': '11', 'many': True, 'modified': False}
+
+  >>> m01.fake.pprint(collection.find_one({'key': '11'}))
+  {'_id': ObjectId('...'), 'key': '11', 'modified': True, 'replaced': True}
+
+The _id can not get changed:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'modified': False}
+  >>> docs = [
+  ...    {
+  ...     '_id': m01.fake.testing.getObjectId(1),
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     }]
+  >>> replacement = {
+  ...     '_id': m01.fake.testing.getObjectId(2),
+  ...     'key': '22',
+  ...     'modified': True,
+  ...     'replaced': False,
+  ...     }
+  >>> result = collection.insert_many(docs)
+
+  >>> try:
+  ...     collection.find_one_and_replace(filter, replacement)
+  ... except pymongo.errors.OperationFailure as e:
+  ...     print("pymongo.errors.OperationFailure")
+  pymongo.errors.OperationFailure
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'modified': False}
+  >>> docs = [
+  ...    {
+  ...     '_id': m01.fake.testing.getObjectId(1),
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     }]
+  >>> replacement = {
+  ...     '_id': m01.fake.testing.getObjectId(1),
+  ...     'key': '22',
+  ...     'modified': True,
+  ...     'replaced': False,
+  ...     }
+  >>> result = collection.insert_many(docs)
+
+  >>> m01.fake.pprint(collection.find_one_and_replace(filter, replacement))
+  {'_id': ObjectId('...'), 'key': '11', 'many': True, 'modified': False}
+
+
+find_one_and_update
+-------------------
+
+Let's find one document and update them:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'many': True}
+  >>> docs = [
+  ...    {
+  ...     'key': '11',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '12',
+  ...     'modified': False,
+  ...     'many': True,
+  ...     },{
+  ...     'key': '13',
+  ...     'modified': False,
+  ...     'many': False,
+  ...     }]
+  >>> update = {
+  ...     'modified': True,
+  ...     }
+  >>> result = collection.insert_many(docs)
+
+As you can see, we need to use a $ operator:
+
+  >>> collection.find_one_and_update(filter, update)
+  Traceback (most recent call last):
+  ... 
+  ValueError: update only works with $ operators
+
+Let's try again
+
+  >>> update = {
+  ...     '$set' : {
+  ...         'modified': True,
+  ...         }
+  ...     }
+  >>> result = collection.find_one_and_update(filter, update)
+
+save (deprecated)
+-----------------
+
+Save a single document:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> doc = {
+  ...     'key': '11',
+  ...     'counter': 0,
+  ...     'replaced': False,
+  ...     'existing': True,
+  ...     }
+
+  >>> result = collection.insert_one(doc)
+  >>> 'InsertOneResult' in str(result)
+  True
+
+  >>> result.inserted_id
+  ObjectId('...')
+
+
+insert (deprecated)
+-------------------
+
+Insert a single document:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> doc = {
+  ...     'key': '11',
+  ...     'counter': 0,
+  ...     'replaced': False,
+  ...     'existing': True,
+  ...     }
+
+  >>> result = collection.insert_one(doc)
+  >>> 'InsertOneResult' in str(result)
+  True
+
+  >>> result.inserted_id
+  ObjectId('...')
+
+
+update (deprecated)
+-------------------
+
+Update a single document matching the filter. First insert a document:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> doc = {
+  ...     'key': '11',
+  ...     'counter': 0,
+  ...     'replaced': False,
+  ...     'existing': True,
+  ...     }
+
+  >>> result = collection.insert_one(doc)
+  >>> 'InsertOneResult' in str(result)
+  True
+
+  >>> result.inserted_id
+  ObjectId('...')
+
+As you can see, we can't udate without the $set operator. Let's try again:
+
+  >>> update = {
+  ...     'key': 'missing',
+  ...     'replaced': True,
+  ...     'added': True,
+  ...     }
+  >>> collection.update_one(filter, update, upsert=True)
+  Traceback (most recent call last):
+  ... 
+  ValueError: update only works with $ operators
+
+Let's replace them with a new document:
+
+  >>> filter = {'key': '11'}
+  >>> update = {
+  ...     '$set':{
+  ...         'key': '22',
+  ...         'replaced': True,
+  ...         'added': True,
+  ...         },
+  ...     '$inc': {
+  ...         'counter': 1,
+  ...         }
+  ...     }
+
+  >>> result = collection.update_many(filter, update)
+  >>> 'UpdateResult' in str(result)
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'nModified': 1, 'ok': 1.0, 'updatedExisting': True}
+
+
+delete_many
+-----------
+
+Let's remove a document:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> filter = {'key': '11'}
+  >>> doc = {
+  ...     'key': '11',
+  ...     'counter': 0,
+  ...     'replaced': False,
+  ...     'existing': True,
+  ...     }
+
+  >>> result = collection.insert_one(doc)
+
+  >>> result = collection.delete_many(filter)
+  >>> 'DeleteResult' in str(result)
+  True
+
+  >>> result.acknowledged
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'ok': 1.0}
+
+
+__iter__
+--------
+
+A collection is not iterable:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> collection.__iter__()
+  Collection(Database(MongoClient(host=['127.0.0.1:27017']), u'm01_fake_database'), u'test')
+
+
+__next__
+--------
+
+A collection is not iterable:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> for item in collection:
+  ...     pass
+  Traceback (most recent call last):
+  ... 
+  TypeError: 'Collection' object is not iterable
+
+
+next
+----
+
+A collection is not iterable:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> next(collection)
+  Traceback (most recent call last):
+  ... 
+  TypeError: 'Collection' object is not iterable
+
+
+__call__
+--------
+
+A collection is not callable:
+
+  >>> m01.fake.testing.dropTestDatabase()
+  >>> collection = m01.fake.testing.getTestCollection()
+
+  >>> collection.__call__()
+  Traceback (most recent call last):
+  ... 
+  TypeError: 'Collection' object is not callable. If you meant to call the 'test' method on a 'Database' object it is failing because no such method exists.

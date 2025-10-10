@@ -1,0 +1,258 @@
+=================
+FakeMongoDatabase
+=================
+
+Test the FakeMongoDatabase:
+
+  >>> import m01.fake
+
+
+First get a client:
+
+  >>> host = '127.0.0.1'
+  >>> port = 45017
+  >>> client = m01.fake.FakeMongoClient(host, port)
+
+Now force to create a collection by access them:
+
+  >>> db = client.foo
+  >>> db
+  FakeDatabase(FakeMongoClient(host=['127.0.0.1:45017']), 'foo')
+
+
+client
+------
+
+Get the mongodb client:
+
+  >>> db.client
+  FakeMongoClient(host=['127.0.0.1:45017'])
+
+
+name
+----
+
+Get the database name:
+
+  >>> db.name
+  u'foo'
+
+
+__eq__
+-------
+
+Is another database equal:
+
+  >>> db == client['foo']
+  True
+
+
+__ne__
+-------
+
+Is another database not equal:
+
+  >>> db != client['bar']
+  True
+
+
+__getattr__
+-----------
+
+Get a collection:
+
+  >>> db.foofoo
+  Collection(Database(MongoClient(host=['127.0.0.1:45017']), u'foo'), u'foofoo')
+
+Accessing a private attribute:
+
+  >>> db._private
+  Traceback (most recent call last):
+  ... 
+  AttributeError: Database has no attribute '_private'. To access the _private collection, use database['_private'].
+
+  >>> db.list_collection_names()
+  ['foofoo']
+
+
+__getitem__
+-----------
+
+Same as __getattr__:
+
+  >>> db['foo']
+  Collection(Database(MongoClient(host=['127.0.0.1:45017']), u'foo'), u'foo')
+
+But accessing private collection names are allowed:
+
+  >>> db['_private']
+  Collection(Database(MongoClient(host=['127.0.0.1:45017']), u'foo'), u'_private')
+
+  >>> db.list_collection_names()
+  ['_private', 'foo', 'foofoo']
+
+
+get_collection
+--------------
+
+Get or create a collection with create=False:
+
+  >>> db.get_collection('foo')
+  Collection(Database(MongoClient(host=['127.0.0.1:45017']), u'foo'), u'foo')
+
+missing collection will not get created:
+
+  >>> db.get_collection('get')
+  Collection(Database(MongoClient(host=['127.0.0.1:45017']), u'foo'), u'get')
+
+private collection names are allowed:
+
+  >>> db.get_collection('_get')
+  Collection(Database(MongoClient(host=['127.0.0.1:45017']), u'foo'), u'_get')
+
+  >>> db.list_collection_names()
+  ['_get', '_private', 'foo', 'foofoo', 'get']
+
+
+create_collection
+-----------------
+
+Get and creat a collection create=True. This method raises an error if the
+collection alread exists:
+
+  >>> db.create_collection('create')
+  Collection(Database(MongoClient(host=['127.0.0.1:45017']), 'foo'), 'create')
+
+private collection names are allowed:
+
+  >>> db.create_collection('_create')
+  Collection(Database(MongoClient(host=['127.0.0.1:45017']), 'foo'), '_create')
+
+The method will raise an error if we try to create an existing collection:
+
+  >>> from pymongo.errors import CollectionInvalid
+  >>> try:
+  ...   db.create_collection('foo')
+  ... except CollectionInvalid as ex:
+  ...   "collection foo already exists" in str(ex)
+  True
+
+  >>> db.list_collection_names()
+  ['_create', '_get', '_private', 'create', 'foo', 'foofoo', 'get']
+
+
+list_collection_names
+---------------------
+
+Get a list of collection names:
+
+  >>> db.list_collection_names()
+  ['_create', '_get', '_private', 'create', 'foo', 'foofoo', 'get']
+
+
+drop_collection
+---------------
+
+Drop collection by name:
+
+  >>> db.drop_collection('foofoo')
+
+  >>> db.list_collection_names()
+  ['_create', '_get', '_private', 'create', 'foo', 'get']
+
+  >>> db.list_collection_names()
+  ['_create', '_get', '_private', 'create', 'foo', 'get']
+
+The method will silently fail if the collection doesn't exist:
+
+  >>> db.drop_collection('missing')
+
+  >>> db.list_collection_names()
+  ['_create', '_get', '_private', 'create', 'foo', 'get']
+
+
+__iter__
+---------
+
+A database object is not iterable:
+
+  >>> tuple(db)
+  Traceback (most recent call last):
+  ... 
+  TypeError: 'Database' object is not iterable
+
+  >>> iterable = db.__iter__()
+  >>> next(iterable)
+  Traceback (most recent call last):
+  ... 
+  TypeError: 'Database' object is not iterable
+
+
+__call__
+--------
+
+A database is not callable:
+
+  >>> db()
+  Traceback (most recent call last):
+  ... 
+  TypeError: 'Database' object is not callable. If you meant to call the 'foo' method on a 'FakeMongoClient' object it is failing because no such method exists.
+
+
+
+unsupported
+-----------
+
+The following methods are not supported yet and will raise a
+NotImplementedError:
+
+  >>> db.system_js
+  Traceback (most recent call last):
+  ... 
+  NotImplementedError
+
+  >>> db.validate_collection('foo', scandata=False, full=False)
+  Traceback (most recent call last):
+  ... 
+  NotImplementedError
+
+  >>> db.current_op(include_all=False)
+  Traceback (most recent call last):
+  ... 
+  NotImplementedError
+
+  >>> db.profiling_level()
+  Traceback (most recent call last):
+  ... 
+  NotImplementedError
+
+  >>> db.set_profiling_level('1', slow_ms=None)
+  Traceback (most recent call last):
+  ... 
+  NotImplementedError
+
+  >>> db.profiling_info()
+  Traceback (most recent call last):
+  ... 
+  NotImplementedError
+
+  >>> db.dereference('dbref')
+  Traceback (most recent call last):
+  ... 
+  NotImplementedError
+
+  >>> db.eval('code')
+  Traceback (most recent call last):
+  ... 
+  NotImplementedError
+
+The following methods are not supported yet but will silently fail:
+
+  >>> db.add_user('name')
+
+  >>> db.remove_user('name')
+
+  >>> db.authenticate('name')
+
+  >>> db.logout()
+

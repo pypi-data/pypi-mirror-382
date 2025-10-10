@@ -1,0 +1,309 @@
+=======
+Indexes
+=======
+
+Let's test our dummy index concept. We currently support create, list and drop
+indexes. We do not use them right now. But some usefull informations about
+indexes are available:
+
+  >>> import json
+  >>> from pymongo import IndexModel
+  >>> from pymongo import ASCENDING
+  >>> from pymongo import DESCENDING
+  >>> import m01.fake
+  >>> import m01.fake.testing
+
+Get a test client:
+
+  >>> client = m01.fake.testing.getTestClient()
+
+and get a collection:
+
+  >>> collection = m01.fake.testing.getTestCollection()
+
+
+create_indexes
+--------------
+
+Let's create some indexs:
+
+  >>> idx = IndexModel([
+  ...     ('key', ASCENDING),
+  ...     ('counter', DESCENDING),
+  ...     ])
+  >>> idx2 = IndexModel([
+  ...     ('two', ASCENDING),
+  ...     ])
+  >>> collection.create_indexes([idx, idx2])
+  [u'key_1_counter_-1', u'two_1']
+
+
+create_index
+------------
+
+Let's create an index:
+
+  >>> key_or_list = 'foo'
+  >>> kwargs = {}
+  >>> collection.create_index(key_or_list, **kwargs)
+  u'foo_1'
+
+  >>> key_or_list = [
+  ...     ('three', ASCENDING),
+  ...     ('another', DESCENDING),
+  ...     ]
+  >>> collection.create_index(key_or_list, **kwargs)
+  'three_1_another_-1'
+
+
+reindex
+-------
+
+Rebuilds all indexes on this collection:
+
+  >>> print(json.dumps(collection.reindex(), indent=4, sort_keys=True))
+  {
+      "indexes": [
+          {
+              "key": {
+                  "_id": 1
+              },
+              "name": "_id_",
+              "ns": "m01_fake_database.test",
+              "v": 2
+          },
+          {
+              "key": {
+                  "counter": -1,
+                  "key": 1
+              },
+              "name": "key_1_counter_-1",
+              "ns": "m01_fake_database.test",
+              "v": 2
+          },
+          {
+              "key": {
+                  "two": 1
+              },
+              "name": "two_1",
+              "ns": "m01_fake_database.test",
+              "v": 2
+          },
+          {
+              "key": {
+                  "foo": 1
+              },
+              "name": "foo_1",
+              "ns": "m01_fake_database.test",
+              "v": 2
+          },
+          {
+              "key": {
+                  "another": -1,
+                  "three": 1
+              },
+              "name": "three_1_another_-1",
+              "ns": "m01_fake_database.test",
+              "v": 2
+          }
+      ],
+      "nIndexes": 5,
+      "nIndexesWas": 5,
+      "ok": 1.0
+  }
+
+list_indexes
+------------
+
+Get a cursor over the index documents for this collection:
+
+  >>> for idx in collection.list_indexes():
+  ...     idx
+  SON([('v', 2), ('key', SON([('_id', 1)])), ('name', '_id_'), ('ns', 'm01_fake_database.test')])
+  SON([('v', 2), ('key', SON([('key', 1), ('counter', -1)])), ('name', 'key_1_counter_-1'), ('ns', 'm01_fake_database.test')])
+  SON([('v', 2), ('key', SON([('two', 1)])), ('name', 'two_1'), ('ns', 'm01_fake_database.test')])
+  SON([('v', 2), ('key', SON([('foo', 1)])), ('name', 'foo_1'), ('ns', 'm01_fake_database.test')])
+  SON([('v', 2), ('key', SON([('three', 1), ('another', -1)])), ('name', 'three_1_another_-1'), ('ns', 'm01_fake_database.test')])
+
+index_information
+-----------------
+
+Get information on this collection's indexes:
+
+  >>> information = collection.index_information()
+
+  >>> print(json.dumps(information, indent=4, sort_keys=True))
+  {
+      "_id_": {
+          "key": [
+              [
+                  "_id",
+                  1
+              ]
+          ],
+          "ns": "m01_fake_database.test",
+          "v": 2
+      },
+      "foo_1": {
+          "key": [
+              [
+                  "foo",
+                  1
+              ]
+          ],
+          "ns": "m01_fake_database.test",
+          "v": 2
+      },
+      "key_1_counter_-1": {
+          "key": [
+              [
+                  "key",
+                  1
+              ],
+              [
+                  "counter",
+                  -1
+              ]
+          ],
+          "ns": "m01_fake_database.test",
+          "v": 2
+      },
+      "three_1_another_-1": {
+          "key": [
+              [
+                  "three",
+                  1
+              ],
+              [
+                  "another",
+                  -1
+              ]
+          ],
+          "ns": "m01_fake_database.test",
+          "v": 2
+      },
+      "two_1": {
+          "key": [
+              [
+                  "two",
+                  1
+              ]
+          ],
+          "ns": "m01_fake_database.test",
+          "v": 2
+      }
+  }
+
+drop_index
+----------
+
+Drops the specified index on this collection
+
+  >>> index_or_name = 'key_1_counter_-1'
+  >>> collection.drop_index(index_or_name)
+
+  >>> index_or_name = 'three_1_another_-1'
+  >>> collection.drop_index(index_or_name)
+
+  >>> index_or_name = 'two_1'
+  >>> collection.drop_index(index_or_name)
+
+  >>> information = collection.index_information()
+  >>> print(json.dumps(information, indent=4, sort_keys=True))
+  {
+      "_id_": {
+          "key": [
+              [
+                  "_id",
+                  1
+              ]
+          ],
+          "ns": "m01_fake_database.test",
+          "v": 2
+      },
+      "foo_1": {
+          "key": [
+              [
+                  "foo",
+                  1
+              ]
+          ],
+          "ns": "m01_fake_database.test",
+          "v": 2
+      }
+  }
+
+and an error get raised if we drop an unknonw index:
+
+  >>> index_or_name = 'unknown'
+  >>> collection.drop_index(index_or_name)
+  Traceback (most recent call last):
+  ...
+  pymongo.errors.OperationFailure: index not found with name [unknown], full error: {'codeName': 'IndexNotFound', 'code': 27, 'ok': 0.0, 'errmsg': 'index not found with name [unknown]', 'nIndexesWas': 2}
+
+
+drop_indexes
+------------
+
+Drops all indexes on this collection
+
+  >>> collection.drop_indexes()
+
+As you can see, the _id index ist still intact:
+
+  >>> m01.fake.pprint(collection.index_information())
+  {'_id_': {'key': [('_id', 1)], 'ns': 'm01_fake_database.test', 'v': 2}}
+
+
+unique
+------
+
+Check default unique _id_ index concept:
+
+  >>> doc = {
+  ...     '_id': u'42',
+  ...     'key': u'1',
+  ... }
+  >>> result = collection.insert_one(doc)
+  >>> 'InsertOneResult' in str(result)
+  True
+
+  >>> result.inserted_id
+  '42'
+
+Another document with the same _id will raise an error:
+
+  >>> import pymongo
+  >>> doc = {
+  ...     '_id': u'42',
+  ...     'key': u'2',
+  ... }
+  >>> collection.insert_one(doc)
+  Traceback (most recent call last):
+  ...
+  DuplicateKeyError: E11000 duplicate key error collection: m01_fake_database.test index: _id_ dup key: { : "42" }, full error: {'index': 0, 'code': 11000, 'errmsg': 'E11000 duplicate key error collection: m01_fake_database.test index: _id_ dup key: { : "42" }'}
+
+Add another index and make a custom value unique:
+
+  >>> collection.create_index('custom', unique=True)
+  u'custom_1'
+
+  >>> doc = {
+  ...     '_id': u'43',
+  ...     'custom': u'1',
+  ... }
+  >>> result = collection.insert_one(doc)
+  >>> 'InsertOneResult' in str(result)
+  True
+
+  >>> result.inserted_id
+  '43'
+
+  >>> doc = {
+  ...     '_id': u'44',
+  ...     'custom': u'1',
+  ... }
+  >>> collection.insert_one(doc)
+  Traceback (most recent call last):
+  ...
+  DuplicateKeyError: E11000 duplicate key error collection: m01_fake_database.test index: custom_1 dup key: { : "1" }, full error: {'index': 0, 'code': 11000, 'errmsg': 'E11000 duplicate key error collection: m01_fake_database.test index: custom_1 dup key: { : "1" }'}

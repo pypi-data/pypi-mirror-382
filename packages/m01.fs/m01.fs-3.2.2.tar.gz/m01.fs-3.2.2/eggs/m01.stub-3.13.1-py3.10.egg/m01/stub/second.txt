@@ -1,0 +1,69 @@
+======
+second
+======
+
+This is a second test which makes sure we can tear down the previous server and
+start a new one:
+
+  >>> from pprint import pprint
+  >>> from pymongo.periodic_executor import _shutdown_executors
+  >>> import m01.stub.testing
+
+Let's test our mongodb stub setup:
+
+  >>> conn = m01.stub.testing.getTestClient()
+
+  >>> pprint(conn.server_info())
+  {...,
+   ...'ok': 1.0,
+   ...}
+
+  >>> sorted([i for i in conn.list_database_names()])
+  [...'admin', ...'local']
+
+setup an index:
+
+  >>> print(conn.m01_stub_testing.test.collection.create_index('dummy'))
+  dummy_1
+
+add an object:
+
+  >>> result = conn.m01_stub_testing.test.insert_one({'__name__': 'foo', 'dummy': 'object'})
+  >>> 'InsertOneResult' in str(result)
+  True
+
+  >>> _id = result.inserted_id
+  >>> _id
+  ObjectId('...')
+
+remove them:
+
+  >>> result = conn.m01_stub_testing.test.delete_one({'_id': _id})
+  >>> 'DeleteResult' in str(result)
+  True
+
+  >>> result.acknowledged
+  True
+
+  >>> m01.fake.pprint(result.raw_result)
+  {'n': 1, 'ok': 1.0}
+
+  >>> result.deleted_count
+  1
+
+and check the databsae names again:
+
+  >>> sorted([i for i in list(conn.list_database_names())])
+  [...'admin', ...'local', ...'m01_stub_testing']
+
+Let's drop the database:
+
+  >>> conn.drop_database("m01_stub_testing")
+  >>> sorted([i for i in conn.list_database_names()])
+  [...'admin', ...'local']
+
+
+Close client:
+
+  >>> conn.close()
+  >>> _shutdown_executors()

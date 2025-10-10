@@ -1,0 +1,61 @@
+==========
+fake mongo
+==========
+
+This is a fake mongo test which makes sure we can tear down the previous server
+and start a new one:
+
+  >>> import m01.fake.testing
+
+  >>> conn = m01.fake.testing.getTestClient()
+
+Let's test our mongodb fake setup:
+
+  >>> sorted([i for i in conn.list_database_names()])
+  [...'admin', ...'local']
+
+setup an index:
+
+  >>> print(conn.m01_stub_testing.test.collection.create_index('dummy'))
+  dummy_1
+
+add an object:
+
+  >>> result = conn.m01_stub_testing.test.insert_one({'__name__': 'foo', 'dummy': 'object'})
+  >>> result
+  <pymongo.results.InsertOneResult object at ...>
+
+  >>> _id = result.inserted_id
+  >>> _id
+  ObjectId('...')
+
+remove them:
+
+  >>> result = conn.m01_stub_testing.test.delete_one({'_id': _id})
+  >>> result
+  <pymongo.results.DeleteResult object at ...>
+
+  >>> result.acknowledged
+  True
+
+  >>> result.raw_result
+  {'ok': 1.0, 'n': 1}
+
+  >>> result.deleted_count
+  1
+
+and check the databsae names again:
+
+  >>> sorted([i for i in list(conn.list_database_names())])
+  [...'admin', ...'local', ...'m01_stub_testing']
+
+Let's drop the database:
+
+  >>> conn.drop_database("m01_stub_testing")
+  >>> sorted([i for i in conn.list_database_names()])
+  [...'admin', ...'local']
+
+
+Close client:
+
+  >>> conn.close()
