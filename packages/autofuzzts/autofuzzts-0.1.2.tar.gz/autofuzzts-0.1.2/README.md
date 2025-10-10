@@ -1,0 +1,119 @@
+# AutoFuzzTS
+
+Time series forecasting library using fuzzy logic and automated machine learning.  
+Build and evaluate time series models automatically using fuzzy logic and AutoML techniques.
+
+## Installation
+
+```bash
+pip install autofuzzts
+```
+
+## 🚀 Quick Start
+
+### Load and prepare your time series data
+```python
+import pandas as pd
+
+# Load dataset into a pandas DataFrame
+data = pd.read_csv("../clean_data/ADBE_yf_hourly_cleaned.csv").head(240)
+
+# Select the target column to forecast
+data_column_name = "close_price"
+df = data[[data_column_name]].copy()
+
+# Split into train, validation, and test sets
+test_len = len(df) // 5
+val_len = len(df) // 5
+train_len = len(df) - test_len - val_len
+
+df_train = df[:train_len]
+df_val = df[train_len:(train_len + val_len)]
+df_test = df[(train_len + val_len):]
+```
+
+---
+
+### Tune hyperparameters using Bayesian search
+```python
+from autofuzzts import pipeline
+
+# Run Bayesian optimization for fuzzy pipeline configuration
+best_config, best_rmse = pipeline.tune_hyperparameters_bayes(
+    train_set=df_train,
+    val_set=df_val,
+    n_trials=20,
+    metric="rmse"
+)
+
+print(f"Best configuration: {best_config}")
+```
+
+**Example output:**
+```
+Best configuration: {'n_clusters': 19, 'number_of_lags': 2, 'fuzzy_part_func': 'Triangle'}
+```
+
+---
+
+### Train, calibrate, and predict
+```python
+from autofuzzts import fit_calibrate_predict
+
+# Train model, calibrate, and make one-step-ahead predictions
+pred_set, pred_center_points, pred_test = fit_calibrate_predict(
+    train_set=df_train,
+    test_set=df_test,
+    config=best_config,
+    model_type="xgb"
+)
+```
+
+This returns:
+- `pred_set`: predicted fuzzy sets  
+- `pred_center_points`: corresponding fuzzy center values  
+- `pred_test`: crisp numeric predictions (one-step-ahead forecast)
+
+---
+
+##  Function Overview
+
+### `fit_calibrate_predict()`
+
+```python
+fit_calibrate_predict(
+    train_set: pd.DataFrame,
+    test_set: pd.DataFrame,
+    config: dict,
+    model_type: Literal['xgb', 'mlp', 'tpot'] = 'xgb',
+    number_cv_calib: int = 5,
+    diff_type: Literal['perc', 'abs'] = 'perc',
+    covariates: list[str] | None = None,
+    exclude_bool: bool = False
+) -> float
+```
+
+Trains and calibrates a fuzzy time series model on the training set using
+cross-validation, then predicts on the test set and returns performance metrics.
+
+---
+
+## Description
+
+AutoFuzzTS automates the process of fuzzy time series modeling by:
+- building and testing multiple fuzzy pipelines,  
+- tuning hyperparameters using Bayesian optimization, and  
+- integrating tuned classification models -  **XGBoost**, **MLP**, or **TPOT**.
+
+This allows for rapid experimentation and selection of optimal configurations 
+for forecasting tasks.
+
+---
+
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
