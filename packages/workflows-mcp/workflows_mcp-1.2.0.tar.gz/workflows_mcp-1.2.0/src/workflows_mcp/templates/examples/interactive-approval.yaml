@@ -1,0 +1,174 @@
+# Interactive Approval Workflow
+#
+# Demonstrates interactive blocks with pause/resume functionality:
+# - Automatic checkpoint creation at pause points
+# - Human-in-the-loop approval before critical operations
+# - Conditional execution based on approval response
+# - Resume workflow with LLM response
+#
+# This workflow simulates a deployment pipeline that requires
+# explicit human approval before deploying to production.
+#
+# Workflow steps:
+# 1. Run tests (automatic)
+# 2. Pause and request approval if tests pass
+# 3. Deploy only if approved
+# 4. Send notification of outcome
+#
+# Usage:
+#   # Execute workflow (will pause for approval)
+#   result = execute_workflow("interactive-approval", {"project": "my-app"})
+#
+#   # Workflow pauses with:
+#   # status: "paused"
+#   # checkpoint_id: "pause_abc123..."
+#   # prompt: "Confirm operation: Tests passed. Deploy to production? (yes/no)"
+#
+#   # Resume with approval
+#   result = resume_workflow("pause_abc123...", "yes")
+#
+#   # Or deny deployment
+#   result = resume_workflow("pause_abc123...", "no")
+
+name: interactive-approval
+description: Deployment workflow with human approval checkpoint
+version: "1.0"
+author: MCP Workflows Team
+tags: [interactive, approval, deployment, example, tutorial]
+
+inputs:
+  project:
+    type: string
+    description: Project name to deploy
+    default: "example-app"
+
+  environment:
+    type: string
+    description: Target environment
+    default: "production"
+
+  test_command:
+    type: string
+    description: Command to run tests
+    default: "pytest tests/ -v"
+
+blocks:
+  # Step 1: Run test suite
+  - id: run_tests
+    type: BashCommand
+    inputs:
+      command: "${test_command}"
+      timeout: 300
+      check_returncode: false  # Don't fail workflow if tests fail
+
+  # Step 2: Interactive approval - PAUSES WORKFLOW
+  # This block pauses execution and requests LLM input
+  # A checkpoint is automatically created at this point
+  - id: confirm_deploy
+    type: ConfirmOperation
+    inputs:
+      message: "Tests passed. Deploy ${project} to ${environment}?"
+      operation: "deploy_${project}_to_${environment}"
+      details:
+        project: "${project}"
+        environment: "${environment}"
+        test_exit_code: "${run_tests.exit_code}"
+        test_success: "${run_tests.success}"
+    depends_on:
+      - run_tests
+    condition: "${run_tests.exit_code} == 0"  # Only ask if tests passed
+
+  # Step 3: Deploy if approved
+  # This block only runs if:
+  # 1. Tests passed (run_tests.exit_code == 0)
+  # 2. User approved deployment (confirm_deploy.confirmed == true)
+  - id: deploy
+    type: BashCommand
+    inputs:
+      command: |
+        echo "Deploying ${project} to ${environment}..."
+        sleep 2
+        echo "Deployment complete!"
+        echo "deployed_at=$(date -Iseconds)" >> $GITHUB_OUTPUT
+      timeout: 600
+    depends_on:
+      - confirm_deploy
+    condition: "${confirm_deploy.confirmed} == true"
+
+  # Step 4: Send success notification
+  - id: notify_success
+    type: BashCommand
+    inputs:
+      command: |
+        echo "✅ SUCCESS: ${project} deployed to ${environment}"
+        echo "Deployment approved by LLM"
+        echo "Tests exit code: ${run_tests.exit_code}"
+      timeout: 60
+    depends_on:
+      - deploy
+    condition: "${deploy.success} == true"
+
+  # Step 5: Send cancellation notification
+  - id: notify_cancelled
+    type: BashCommand
+    inputs:
+      command: |
+        echo "❌ CANCELLED: Deployment of ${project} was not approved"
+        echo "LLM response: ${confirm_deploy.response}"
+      timeout: 60
+    depends_on:
+      - confirm_deploy
+    condition: "${confirm_deploy.confirmed} == false"
+
+  # Step 6: Send test failure notification
+  - id: notify_test_failure
+    type: BashCommand
+    inputs:
+      command: |
+        echo "⚠️  TEST FAILURE: Tests failed with exit code ${run_tests.exit_code}"
+        echo "Deployment skipped"
+      timeout: 60
+    depends_on:
+      - run_tests
+    condition: "${run_tests.exit_code} != 0"
+
+# Workflow outputs
+outputs:
+  test_success: "${run_tests.success}"
+  test_exit_code: "${run_tests.exit_code}"
+  deployment_approved: "${confirm_deploy.confirmed}"
+  deployment_success: "${deploy.success}"
+  approval_response: "${confirm_deploy.response}"
+  outcome: |
+    Tests: ${run_tests.success ? 'passed' : 'failed'}
+    Approved: ${confirm_deploy.confirmed ? 'yes' : 'no'}
+    Deployed: ${deploy.success ? 'yes' : 'no'}
+
+# How to use this workflow:
+#
+# 1. Execute the workflow:
+#    execute_workflow("interactive-approval", {"project": "my-app"})
+#
+# 2. Workflow will pause at confirm_deploy block:
+#    {
+#      "status": "paused",
+#      "checkpoint_id": "pause_abc123...",
+#      "prompt": "Confirm operation: Tests passed. Deploy my-app to production? (yes/no)"
+#    }
+#
+# 3. Resume with your decision:
+#    resume_workflow("pause_abc123...", "yes")  # Approve deployment
+#    OR
+#    resume_workflow("pause_abc123...", "no")   # Deny deployment
+#
+# 4. Workflow continues:
+#    - If approved: Deploys and sends success notification
+#    - If denied: Sends cancellation notification
+#    - If tests failed: Sends test failure notification
+#
+# Checkpoint behavior:
+# - Checkpoint created automatically when block pauses
+# - Workflow state saved (context, completed blocks, execution waves)
+# - Can resume anytime with checkpoint_id
+# - Paused checkpoints persist until explicitly deleted
+# - Use list_checkpoints() to see all paused workflows

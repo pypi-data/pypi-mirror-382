@@ -1,0 +1,104 @@
+name: setup-python-env
+description: Setup Python project environment with virtual environment and dependencies
+version: "1.0"
+author: Workflows MCP Team
+tags: [python, setup, environment, venv, dependencies]
+
+inputs:
+  python_version:
+    type: string
+    description: Python version to use (e.g., "3.12", "3.11")
+    default: "3.12"
+
+  project_path:
+    type: string
+    description: Project directory path
+    default: "."
+
+  requirements_file:
+    type: string
+    description: Requirements file path relative to project_path
+    default: "requirements.txt"
+
+  venv_name:
+    type: string
+    description: Virtual environment directory name
+    default: ".venv"
+
+  upgrade_pip:
+    type: boolean
+    description: Upgrade pip to latest version
+    default: true
+
+blocks:
+  # Check Python version availability
+  - id: check_python
+    type: BashCommand
+    inputs:
+      command: "python${python_version} --version"
+      working_dir: "${project_path}"
+      timeout: 10
+
+  # Create virtual environment
+  - id: create_venv
+    type: BashCommand
+    inputs:
+      command: "python${python_version} -m venv ${venv_name}"
+      working_dir: "${project_path}"
+      timeout: 60
+    depends_on:
+      - check_python
+    condition: "${check_python.exit_code} == 0"
+
+  # Upgrade pip if requested
+  - id: upgrade_pip
+    type: BashCommand
+    inputs:
+      command: "${venv_name}/bin/pip install --upgrade pip"
+      working_dir: "${project_path}"
+      timeout: 120
+    depends_on:
+      - create_venv
+    condition: "${upgrade_pip} and ${create_venv.exit_code} == 0"
+
+  # Check if requirements file exists
+  - id: check_requirements
+    type: BashCommand
+    inputs:
+      command: "test -f ${requirements_file} && echo 'exists' || echo 'missing'"
+      working_dir: "${project_path}"
+      timeout: 5
+    depends_on:
+      - create_venv
+
+  # Install dependencies
+  - id: install_deps
+    type: BashCommand
+    inputs:
+      command: "${venv_name}/bin/pip install -r ${requirements_file}"
+      working_dir: "${project_path}"
+      timeout: 600
+    depends_on:
+      - upgrade_pip
+      - check_requirements
+    condition: "${check_requirements.stdout} contains 'exists'"
+
+  # Verify installation
+  - id: verify_install
+    type: BashCommand
+    inputs:
+      command: "${venv_name}/bin/pip list"
+      working_dir: "${project_path}"
+      timeout: 30
+    depends_on:
+      - install_deps
+
+outputs:
+  success: "${verify_install.exit_code} == 0"
+  python_version: "${check_python.stdout}"
+  venv_path: "${project_path}/${venv_name}"
+  python_executable: "${project_path}/${venv_name}/bin/python"
+  pip_executable: "${project_path}/${venv_name}/bin/pip"
+  installed_packages: "${verify_install.stdout}"
+  requirements_found: "${check_requirements.stdout} contains 'exists'"
+  execution_summary: "Python ${python_version} environment created at ${project_path}/${venv_name}"

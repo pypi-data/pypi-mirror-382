@@ -1,0 +1,140 @@
+name: run-pytest
+description: Execute pytest with coverage reporting and configurable options (supports auto-install)
+version: "1.0"
+author: Workflows MCP Team
+tags: [python, testing, pytest, coverage, quality]
+
+inputs:
+  working_dir:
+    type: string
+    description: Project directory containing tests
+    default: "."
+
+  test_path:
+    type: string
+    description: Path to tests directory or specific test file
+    default: "tests/"
+
+  coverage_threshold:
+    type: integer
+    description: Minimum coverage percentage required (0-100)
+    default: 80
+
+  verbose:
+    type: boolean
+    description: Enable verbose pytest output
+    default: true
+
+  markers:
+    type: string
+    description: Pytest markers to select tests (e.g., 'not slow')
+    default: ""
+
+  generate_html_report:
+    type: boolean
+    description: Generate HTML coverage report
+    default: true
+
+  fail_on_coverage:
+    type: boolean
+    description: Fail workflow if coverage below threshold
+    default: true
+
+  venv_path:
+    type: string
+    description: Virtual environment path (will use ${venv_path}/bin/pytest if available)
+    default: ""
+
+  auto_install:
+    type: boolean
+    description: Automatically install pytest if not found
+    default: true
+
+blocks:
+  # Ensure pytest is installed (only if auto_install is enabled)
+  - id: ensure_pytest
+    type: ExecuteWorkflow
+    inputs:
+      workflow: ensure-tool
+      inputs:
+        tool_name: pytest
+        tool_type: python_package
+        version: ">=7.0.0"
+        venv_path: "${venv_path}"
+        auto_install: true
+    condition: "${auto_install}"
+
+  # Build pytest command dynamically using bash conditionals
+  - id: build_command
+    type: BashCommand
+    inputs:
+      command: |
+        # Determine pytest executable path (prefer venv if available)
+        if [ -n "${venv_path}" ] && [ -f "${venv_path}/bin/pytest" ]; then
+          PYTEST="${venv_path}/bin/pytest"
+        else
+          PYTEST="pytest"
+        fi
+
+        # Build command with options
+        CMD="$PYTEST ${test_path} --cov=src --cov-report=term-missing"
+        if [ "${generate_html_report}" = "true" ]; then
+          CMD="$CMD --cov-report=html"
+        fi
+        if [ "${fail_on_coverage}" = "true" ]; then
+          CMD="$CMD --cov-fail-under=${coverage_threshold}"
+        fi
+        if [ "${verbose}" = "true" ]; then
+          CMD="$CMD -v"
+        fi
+        if [ -n "${markers}" ]; then
+          CMD="$CMD -m ${markers}"
+        fi
+        echo "$CMD"
+      timeout: 5
+
+  # Run pytest with coverage
+  - id: run_pytest
+    type: BashCommand
+    inputs:
+      command: "${build_command.stdout}"
+      working_dir: "${working_dir}"
+      timeout: 600
+      check_returncode: false
+      env:
+        PYTEST_CURRENT_TEST: "true"
+    depends_on:
+      - build_command
+
+  # Determine test status
+  - id: get_test_status
+    type: BashCommand
+    inputs:
+      command: "test ${run_pytest.exit_code} -eq 0 && echo 'PASSED' || echo 'FAILED'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - run_pytest
+
+  # Generate test summary
+  - id: test_summary
+    type: EchoBlock
+    inputs:
+      message: |
+        Pytest Execution Summary:
+        - Tests executed: ${test_path}
+        - Exit code: ${run_pytest.exit_code}
+        - Status: ${get_test_status.stdout}
+        - Execution time: ${run_pytest.execution_time_ms}ms
+        - Coverage threshold: ${coverage_threshold}%
+    depends_on:
+      - get_test_status
+
+outputs:
+  success: "${run_pytest.exit_code} == 0"
+  exit_code: "${run_pytest.exit_code}"
+  stdout: "${run_pytest.stdout}"
+  stderr: "${run_pytest.stderr}"
+  execution_time_ms: "${run_pytest.execution_time_ms}"
+  summary: "${test_summary.echoed}"
+  command_executed: "${build_command.stdout}"

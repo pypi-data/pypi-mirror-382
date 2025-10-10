@@ -1,0 +1,419 @@
+name: parallel-processing
+description: Demonstrates parallel workflow execution with DAG convergence and dependency management
+version: "1.0"
+author: Workflows MCP Team
+tags: [test, examples, parallel, dag, performance, advanced]
+inputs:
+  project_path:
+    type: string
+    description: Project directory for processing
+    default: "."
+
+  enable_linting:
+    type: boolean
+    description: Enable linting in parallel
+    default: true
+
+  enable_testing:
+    type: boolean
+    description: Enable testing in parallel
+    default: true
+
+  enable_docs:
+    type: boolean
+    description: Enable documentation generation in parallel
+    default: true
+
+  convergence_timeout:
+    type: integer
+    description: Timeout for parallel operations (seconds)
+    default: 600
+
+blocks:
+  # Build initialization message
+  - id: build_init_message
+    type: BashCommand
+    inputs:
+      command: |
+        MSG="Initializing parallel processing demo with"
+        if [ "${enable_linting}" = "true" ]; then
+          MSG="$MSG linting"
+        fi
+        if [ "${enable_testing}" = "true" ]; then
+          MSG="$MSG testing"
+        fi
+        if [ "${enable_docs}" = "true" ]; then
+          MSG="$MSG docs"
+        fi
+        echo "$MSG"
+      timeout: 5
+
+  # Initialization (Wave 1)
+  - id: init_parallel_demo
+    type: EchoBlock
+    inputs:
+      message: "${build_init_message.stdout}"
+    depends_on:
+      - build_init_message
+
+  # Parallel Branch 1: Linting (Wave 2)
+  - id: parallel_linting
+    type: ExecuteWorkflow
+    inputs:
+      workflow: "lint-python"
+      inputs:
+        working_dir: "${project_path}"
+        src_path: "src/"
+        strict_mode: false
+        fix_issues: false
+    depends_on:
+      - init_parallel_demo
+    condition: "${enable_linting}"
+
+  # Parallel Branch 2: Testing (Wave 2)
+  - id: parallel_testing
+    type: ExecuteWorkflow
+    inputs:
+      workflow: "run-pytest"
+      inputs:
+        working_dir: "${project_path}"
+        test_path: "tests/"
+        coverage_threshold: 75
+        verbose: false
+    depends_on:
+      - init_parallel_demo
+    condition: "${enable_testing}"
+
+  # Parallel Branch 3: Documentation Generation (Wave 2)
+  - id: parallel_docs
+    type: ExecuteWorkflow
+    inputs:
+      workflow: "generate-readme"
+      inputs:
+        project_name: "Parallel Processing Demo"
+        description: "Demonstrates parallel workflow execution"
+        output_path: "${project_path}/PARALLEL_DEMO.md"
+        create_template_if_missing: true
+    depends_on:
+      - init_parallel_demo
+    condition: "${enable_docs}"
+
+  # Parallel Branch 4: Configuration Processing (Wave 2)
+  - id: parallel_config
+    type: BashCommand
+    inputs:
+      command: "echo '{\"parallel_execution\": true, \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}' > ${project_path}/parallel_config.json"
+      timeout: 30
+    depends_on:
+      - init_parallel_demo
+
+  # Get branch statuses
+  - id: get_linting_status
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${enable_linting}" = "true" ]; then
+          if [ "${parallel_linting.all_passed}" = "true" ]; then
+            echo '✓ PASSED'
+          else
+            echo '✗ FAILED'
+          fi
+        else
+          echo '⊘ DISABLED'
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - parallel_linting
+
+  - id: get_testing_status
+    type: BashCommand
+    inputs:
+      command: "echo '✓ PASSED'"
+      timeout: 5
+      check_returncode: false
+    condition: "${enable_testing} and ${parallel_testing.success}"
+    depends_on:
+      - parallel_testing
+
+  - id: get_testing_status_failed
+    type: BashCommand
+    inputs:
+      command: "echo '✗ FAILED'"
+      timeout: 5
+      check_returncode: false
+    condition: "${enable_testing} and not ${parallel_testing.success}"
+    depends_on:
+      - parallel_testing
+
+  - id: get_testing_status_disabled
+    type: BashCommand
+    inputs:
+      command: "echo '⊘ DISABLED'"
+      timeout: 5
+      check_returncode: false
+    condition: "not ${enable_testing}"
+    depends_on:
+      - parallel_testing
+
+  - id: get_docs_status
+    type: BashCommand
+    inputs:
+      command: "echo '✓ GENERATED'"
+      timeout: 5
+      check_returncode: false
+    condition: "${enable_docs} and ${parallel_docs.success}"
+    depends_on:
+      - parallel_docs
+
+  - id: get_docs_status_failed
+    type: BashCommand
+    inputs:
+      command: "echo '✗ FAILED'"
+      timeout: 5
+      check_returncode: false
+    condition: "${enable_docs} and not ${parallel_docs.success}"
+    depends_on:
+      - parallel_docs
+
+  - id: get_docs_status_disabled
+    type: BashCommand
+    inputs:
+      command: "echo '⊘ DISABLED'"
+      timeout: 5
+      check_returncode: false
+    condition: "not ${enable_docs}"
+    depends_on:
+      - parallel_docs
+
+  - id: get_config_status
+    type: BashCommand
+    inputs:
+      command: "test ${parallel_config.exit_code} -eq 0 && echo '✓ PROCESSED' || echo '✗ FAILED'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - parallel_config
+
+  # Consolidate status outputs
+  - id: consolidate_testing_status
+    type: BashCommand
+    inputs:
+      command: |
+        STATUS_PASSED="${get_testing_status.stdout}"
+        STATUS_FAILED="${get_testing_status_failed.stdout}"
+        STATUS_DISABLED="${get_testing_status_disabled.stdout}"
+        if [ -n "$STATUS_PASSED" ]; then
+          echo "$STATUS_PASSED"
+        elif [ -n "$STATUS_FAILED" ]; then
+          echo "$STATUS_FAILED"
+        else
+          echo "$STATUS_DISABLED"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - get_testing_status
+      - get_testing_status_failed
+      - get_testing_status_disabled
+
+  - id: consolidate_docs_status
+    type: BashCommand
+    inputs:
+      command: |
+        STATUS_PASSED="${get_docs_status.stdout}"
+        STATUS_FAILED="${get_docs_status_failed.stdout}"
+        STATUS_DISABLED="${get_docs_status_disabled.stdout}"
+        if [ -n "$STATUS_PASSED" ]; then
+          echo "$STATUS_PASSED"
+        elif [ -n "$STATUS_FAILED" ]; then
+          echo "$STATUS_FAILED"
+        else
+          echo "$STATUS_DISABLED"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - get_docs_status
+      - get_docs_status_failed
+      - get_docs_status_disabled
+
+  # Convergence Point: Collect parallel results (Wave 3)
+  - id: collect_results
+    type: EchoBlock
+    inputs:
+      message: |
+        Parallel Execution Results:
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Branch 1 (Linting):   ${get_linting_status.stdout}
+        Branch 2 (Testing):   ${consolidate_testing_status.stdout}
+        Branch 3 (Docs):      ${consolidate_docs_status.stdout}
+        Branch 4 (Config):    ${get_config_status.stdout}
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    depends_on:
+      - get_linting_status
+      - consolidate_testing_status
+      - consolidate_docs_status
+      - get_config_status
+
+  # Get performance displays
+  - id: get_linting_time
+    type: BashCommand
+    inputs:
+      command: "test '${enable_linting}' = 'true' && echo '${parallel_linting.total_execution_time_ms}ms' || echo 'N/A'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - collect_results
+
+  - id: get_testing_time
+    type: BashCommand
+    inputs:
+      command: "test '${enable_testing}' = 'true' && echo '${parallel_testing.execution_time_ms}ms' || echo 'N/A'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - collect_results
+
+  - id: get_docs_time
+    type: BashCommand
+    inputs:
+      command: "test '${enable_docs}' = 'true' && echo 'Complete' || echo 'N/A'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - collect_results
+
+  # Post-convergence analysis (Wave 4)
+  - id: analyze_performance
+    type: EchoBlock
+    inputs:
+      message: |
+        Performance Analysis:
+        - Linting time: ${get_linting_time.stdout}
+        - Testing time: ${get_testing_time.stdout}
+        - Docs time: ${get_docs_time.stdout}
+        - Config time: ${parallel_config.execution_time_ms}ms
+    depends_on:
+      - get_linting_time
+      - get_testing_time
+      - get_docs_time
+
+  # Conditional post-processing based on parallel results (Wave 5)
+  - id: post_process_if_all_pass
+    type: EchoBlock
+    inputs:
+      message: "All parallel branches passed! Proceeding with post-processing."
+    depends_on:
+      - analyze_performance
+    condition: "(not ${enable_linting} or ${parallel_linting.all_passed}) and (not ${enable_testing} or ${parallel_testing.success}) and (not ${enable_docs} or ${parallel_docs.success}) and ${parallel_config.exit_code} == 0"
+
+  # Get post-processing display
+  - id: get_post_processing_display
+    type: BashCommand
+    inputs:
+      command: "test -n '${post_process_if_all_pass.echoed}' && echo '✓ Executed' || echo '⊘ Skipped (failures detected)'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - post_process_if_all_pass
+
+  # Get overall status display (success)
+  - id: get_overall_status_display_success
+    type: BashCommand
+    inputs:
+      command: "echo '✓ SUCCESS'"
+      timeout: 5
+      check_returncode: false
+    condition: "(not ${enable_linting} or ${parallel_linting.all_passed}) and (not ${enable_testing} or ${parallel_testing.success}) and (not ${enable_docs} or ${parallel_docs.success}) and ${parallel_config.exit_code} == 0"
+    depends_on:
+      - post_process_if_all_pass
+      - analyze_performance
+
+  # Get overall status display (partial success)
+  - id: get_overall_status_display_partial
+    type: BashCommand
+    inputs:
+      command: "echo '⚠ PARTIAL SUCCESS'"
+      timeout: 5
+      check_returncode: false
+    condition: "not ((not ${enable_linting} or ${parallel_linting.all_passed}) and (not ${enable_testing} or ${parallel_testing.success}) and (not ${enable_docs} or ${parallel_docs.success}) and ${parallel_config.exit_code} == 0)"
+    depends_on:
+      - post_process_if_all_pass
+      - analyze_performance
+
+  # Consolidate overall status
+  - id: get_overall_status_display
+    type: BashCommand
+    inputs:
+      command: |
+        STATUS_SUCCESS="${get_overall_status_display_success.stdout}"
+        STATUS_PARTIAL="${get_overall_status_display_partial.stdout}"
+        if [ -n "$STATUS_SUCCESS" ]; then
+          echo "$STATUS_SUCCESS"
+        else
+          echo "$STATUS_PARTIAL"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - get_overall_status_display_success
+      - get_overall_status_display_partial
+
+  # Final summary with DAG statistics (Wave 6)
+  - id: final_summary
+    type: EchoBlock
+    inputs:
+      message: |
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Parallel Processing Demo Complete
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        DAG Structure:
+          - Initialization: 1 block (Wave 1)
+          - Parallel Execution: 4 branches (Wave 2)
+          - Convergence: 1 block (Wave 3)
+          - Analysis: 1 block (Wave 4)
+          - Post-processing: 1 block (Wave 5)
+          - Summary: 1 block (Wave 6)
+
+        Total Waves: 6
+        Parallel Branches: 4
+        Maximum Parallelism: 4 blocks/wave
+
+        Results:
+          ${collect_results.echoed}
+
+        Performance:
+          ${analyze_performance.echoed}
+
+        Post-Processing: ${get_post_processing_display.stdout}
+
+        Overall Status: ${get_overall_status_display.stdout}
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    depends_on:
+      - get_post_processing_display
+      - get_overall_status_display
+
+outputs:
+  success: "(not ${enable_linting} or ${parallel_linting.all_passed}) and (not ${enable_testing} or ${parallel_testing.success}) and (not ${enable_docs} or ${parallel_docs.success}) and ${parallel_config.exit_code} == 0"
+
+  # Parallel branch results
+  linting_enabled: "${enable_linting}"
+  linting_passed: "${parallel_linting.all_passed}"
+
+  testing_enabled: "${enable_testing}"
+  testing_passed: "${parallel_testing.success}"
+
+  docs_enabled: "${enable_docs}"
+  docs_generated: "${parallel_docs.success}"
+
+  config_processed: "${parallel_config.exit_code} == 0"
+
+  # DAG statistics
+  total_waves: "6"
+  parallel_branches: "4"
+  max_parallelism: "4"
+
+  # Summary
+  summary: "${final_summary.echoed}"
+  convergence_point_message: "${collect_results.echoed}"

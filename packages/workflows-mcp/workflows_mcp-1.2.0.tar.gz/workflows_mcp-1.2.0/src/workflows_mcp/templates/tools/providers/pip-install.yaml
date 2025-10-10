@@ -1,0 +1,146 @@
+name: pip-install
+description: Install Python package using pip with version constraints and venv support
+version: "1.0"
+author: Workflows MCP Team
+tags: [tools, provider, pip, python, installation]
+
+inputs:
+  package_name:
+    type: string
+    description: Package name to install (e.g., "pytest", "ruff")
+    required: true
+
+  version:
+    type: string
+    description: Version constraint (e.g., ">=7.0.0", "==7.4.3", "~=7.4")
+    default: ""
+
+  venv_path:
+    type: string
+    description: Virtual environment path (e.g., ".venv", "venv")
+    default: ""
+
+  extra_args:
+    type: string
+    description: Additional pip arguments (e.g., "--upgrade", "--no-cache-dir")
+    default: ""
+
+  extras:
+    type: string
+    description: Package extras to install (e.g., "testing,dev")
+    default: ""
+
+blocks:
+  # Build pip installation command
+  - id: build_install_command
+    type: BashCommand
+    inputs:
+      command: |
+        # Determine pip executable (prefer venv if available)
+        if [ -n "${venv_path}" ] && [ -f "${venv_path}/bin/pip" ]; then
+          PIP="${venv_path}/bin/pip"
+        else
+          PIP="pip"
+        fi
+
+        # Build package specification
+        PACKAGE="${package_name}"
+
+        # Add extras if provided
+        if [ -n "${extras}" ]; then
+          PACKAGE="${PACKAGE}[${extras}]"
+        fi
+
+        # Add version constraint if provided
+        if [ -n "${version}" ]; then
+          PACKAGE="${PACKAGE}${version}"
+        fi
+
+        # Build full command
+        CMD="$PIP install \"$PACKAGE\" ${extra_args}"
+        echo "$CMD"
+      timeout: 5
+      check_returncode: false
+
+  # Execute pip install
+  - id: install_package
+    type: BashCommand
+    inputs:
+      command: "${build_install_command.stdout}"
+      timeout: 300
+      check_returncode: false
+    depends_on:
+      - build_install_command
+
+  # Verify installation succeeded
+  - id: verify_installation
+    type: BashCommand
+    inputs:
+      command: |
+        # Determine python executable (prefer venv if available)
+        if [ -n "${venv_path}" ] && [ -f "${venv_path}/bin/python" ]; then
+          PYTHON="${venv_path}/bin/python"
+        else
+          PYTHON="python3"
+        fi
+
+        # Try to import the package
+        if $PYTHON -c "import ${package_name}" 2>/dev/null; then
+          # Get installed version
+          VERSION=$($PYTHON -c "import ${package_name}; print(getattr(${package_name}, '__version__', 'unknown'))" 2>/dev/null || echo "unknown")
+          echo "$VERSION"
+        else
+          echo "not_installed"
+        fi
+      timeout: 10
+      check_returncode: false
+    depends_on:
+      - install_package
+
+  # Determine installation location
+  - id: get_install_location
+    type: BashCommand
+    inputs:
+      command: |
+        # Determine python executable (prefer venv if available)
+        if [ -n "${venv_path}" ] && [ -f "${venv_path}/bin/python" ]; then
+          PYTHON="${venv_path}/bin/python"
+        else
+          PYTHON="python3"
+        fi
+
+        # Get package location
+        LOCATION=$($PYTHON -c "import ${package_name}; import os; print(os.path.dirname(${package_name}.__file__))" 2>/dev/null || echo "unknown")
+        echo "$LOCATION"
+      timeout: 10
+      check_returncode: false
+    depends_on:
+      - verify_installation
+
+  # Generate installation summary
+  - id: installation_summary
+    type: EchoBlock
+    inputs:
+      message: |
+        pip Installation Summary:
+        - Package: ${package_name}
+        - Version Constraint: ${version}
+        - Extras: ${extras}
+        - Exit Code: ${install_package.exit_code}
+        - Installed Version: ${verify_installation.stdout}
+        - Install Location: ${get_install_location.stdout}
+        - Command: ${build_install_command.stdout}
+    depends_on:
+      - install_package
+      - verify_installation
+      - get_install_location
+
+outputs:
+  success: "${install_package.exit_code} == 0"
+  installed_version: "${verify_installation.stdout}"
+  install_location: "${get_install_location.stdout}"
+  exit_code: "${install_package.exit_code}"
+  stdout: "${install_package.stdout}"
+  stderr: "${install_package.stderr}"
+  command_executed: "${build_install_command.stdout}"
+  summary: "${installation_summary.echoed}"
