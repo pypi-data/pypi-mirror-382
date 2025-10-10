@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project]
+name = "ons-metadata-validation"
+authors = [
+    {name="ONS Data Engineers"},
+]
+description = "automated metadata validation for ONS metadata templates"
+readme = "README.md"
+requires-python = ">=3.10"
+version = "1.2.8"
+dependencies = [
+    "attrs>=22.2.0",
+    "numpy>=1.19.5",
+    "openpyxl>=3.1.2",
+    "pandas>=1.5",
+    "pyspark==3.5.6",
+    "tqdm>=4.64.0",
+]
+
+[project.optional-dependencies]
+out_of_dap = [
+    "pyspark>3,<3.7",
+]
+test = [
+    "pytest",
+    "pytest-cov",   
+]
+lint = [
+    "pre-commit",
+    "ruff == 0.4.2",
+]
+dev = [
+    "bump2version==1.0.1",
+    "ons-metadata-validation[test,lint]",
+]
+
+[project.urls]
+homepage = "https://github.com/ONSdigital/automated-metadata-validation"
+
+[dependency-groups]
+out-of-dap = [
+    "pyspark>=3.5.5",
+]
+dev = [
+    "bump2version==1.0.1",
+    "ipykernel>=6.29.5",
+    "ons-metadata-validation[test,lint]",
+]
+test = [
+    "pytest",
+    "pytest-cov",   
+]
+lint = [
+    "pre-commit",
+    "ruff >= 0.4.2",
+]
+
+[tool.ruff]
+line-length = 88
+lint.extend-select = ["I", "W"]
+lint.ignore = ["E741", "F841"]
+format.quote-style = "double"
+format.indent-style = "space"
+format.skip-magic-trailing-comma = false
+format.line-ending = "auto"
+
+[tool.coverage.run]
+branch = true
+source = [
+    "./src"
+]
+omit = [
+    "*/__init__.py",
+    "*/lookups.py",
+    "*/__main__.py",
+    "*/logger.py",
+
+    # validation files are config, we don't need to explicitly test them
+    "*/validations.py",
+    "*/rowwise_validations.py",
+    "*/comparative_validations.py",
+    
+    # data structures and configs are constants too
+    "*/data_structures.py",
+    "*/constants.py",
+    "*/delta_table.py",
+    "*/role_configs.py",
+    "*/template.py",
+    "*/field_constants.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 50
+
+[tool.uv]
+allow-insecure-host = ["https://onsart-01.ons.statistics.gov.uk/artifactory/api/pypi/yr-python/simple"]
