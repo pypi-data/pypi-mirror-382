@@ -1,0 +1,125 @@
+herosdevices.core.gpio
+======================
+
+.. py:module:: herosdevices.core.gpio
+
+.. autoapi-nested-parse::
+
+   General drivers for GPIO pins which can be used with the gpiod library.
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:class:: GPIOOutput(gpiochip: int, pin: int, drive: str = 'PUSH_PULL')
+
+   Bases: :py:obj:`herosdevices.interfaces.atomiq.Switch`
+
+
+   A single GPIO configured as output.
+
+   The access to the GPIO is based on libgpiod and thus uses the standard linux kernel interface
+   (i.e. /dev/gpiochip* devices).
+
+   :param gpiochip: number of the gpiochip as exposed by the linux kernel.
+   :param pin: number of the GPIO pin
+   :param drive: how to drive the GPIO pin. Possible values: PUSH_PULL (default), OPEN_SOURCE, OPEN_DRAIN
+
+
+   .. py:attribute:: gpio_chip
+
+
+   .. py:attribute:: gpio
+
+
+   .. py:attribute:: pin
+
+
+   .. py:method:: on() -> None
+
+      Set GPIO pin to logically active state.
+
+      Default is that active means the pin is high, but the behavior can be changed.
+
+
+
+   .. py:method:: off() -> None
+
+      Set GPIO pin to logically inactive state.
+
+      Default is that inactive means the pin is low, but the behavior can be changed.
+
+
+
+   .. py:method:: is_on() -> bool
+
+      Return the current logical state of the GPIO pin (ACTIVE = True, INACTIVE = False).
+
+
+
+.. py:class:: GPIOInput(gpiochip: int, pin: int, drive: str = 'PUSH_PULL', bias: str = 'AS_IS', debounce_ms: int = 5, edge_detection: str = 'NONE', loop: asyncio.AbstractEventLoop | None = None)
+
+   Bases: :py:obj:`herosdevices.interfaces.atomiq.Measurable`
+
+
+   A single GPIO configured as input.
+
+   The access to the GPIO is based on libgpiod and thus uses the standard linux kernel interface
+   (i.e. /dev/gpiochip* devices).
+
+   :param gpiochip: number of the gpiochip as exposed by the linux kernel.
+   :param pin: number of the GPIO pin
+   :param bias: bis to apply to the GPIO pin. Possible values: AS_IS (default), DISABLED, PULL_DOWN, PULL_UP, UNKNOWN
+   :param debounce_ms: debouncing time in milliseconds.
+   :param edge_detection: If given it performs the specified edge detection an issues an edge event. Valid values are
+                          BOTH, FALLING, NONE, RISING. For this to work, an asyncio loop has to given as well.
+   :param loop: asyncio loop in which the edge detection task can be performed. This is required if edge detection is
+                set.
+   :param drive: Currently unused.
+
+
+   .. py:attribute:: gpio_chip
+
+
+   .. py:attribute:: gpio
+
+
+   .. py:attribute:: pin
+
+
+   .. py:attribute:: debounce_ms
+      :value: 5
+
+
+
+   .. py:method:: status() -> bool
+
+      Get the current input level of the GPIO pin. (True = ACTIVE, False = INACTIVE).
+
+      Default is that active means the pin is high, but the behavior can be changed.
+
+
+
+   .. py:method:: is_on() -> bool
+
+      Alias for :py:meth:`status`.
+
+
+
+   .. py:method:: measure(channel: str = '') -> bool
+
+      Alias for :py:meth:`status`.
+
+
+
+   .. py:method:: edge_event(edge: gpiod.EdgeEvent) -> dict
+
+      Emit an HEROS event with the edge event data.
+
+      :returns: A dict with the  keys `type` and `timestamp`.
+
+
+
