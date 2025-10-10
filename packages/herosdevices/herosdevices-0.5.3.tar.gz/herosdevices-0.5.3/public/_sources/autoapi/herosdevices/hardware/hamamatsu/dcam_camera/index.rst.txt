@@ -1,0 +1,319 @@
+herosdevices.hardware.hamamatsu.dcam_camera
+===========================================
+
+.. py:module:: herosdevices.hardware.hamamatsu.dcam_camera
+
+.. autoapi-nested-parse::
+
+   Implementation of the CameraTemplate for Hamamatsu DCAM cameras.
+
+   Also see the corresponding section in the documentation.
+
+
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:data:: EXAMPLE_CONFIG_DICT
+
+.. py:function:: generate_dcam_error_dict() -> dict
+
+   Get a dictionary that maps numerical error code against human-readable string.
+
+   :returns: Dictionary of error codes -> error descriptions
+
+
+.. py:function:: get_prop_or_val(prop_str: str = 'DCAMPROP.TRIGGERSOURCE.SOFTWARE') -> int | float
+
+   Get a dictionary that maps numerical error code against human-readable string.
+
+   :param prop_str: Property of interest
+
+   :returns: Value of the property of interest
+
+
+.. py:function:: validate_roi(val: int, binning: int = 1) -> int
+
+   Calculate a valid ROI size of position with a given binning setting.
+
+   :param val: ROI size or position value
+   :param binning: number of pixels to bin in one direction (1, 2, 4)
+
+   :returns: Valid ROI size or position correwcted with binning
+
+
+.. py:class:: DcamCompatibleCamera
+
+   Bases: :py:obj:`herosdevices.core.templates.CameraTemplate`
+
+
+   Camera object for Hamamatsu DCAM cameras.
+
+   In particular, this code has been tested with the C15550-20UP.
+
+
+   .. py:attribute:: default_config_dict
+      :type:  dict
+
+
+   .. py:method:: set_property(prop: str, value: str) -> bool
+
+      Set a single property on the device.
+
+      :param prop: Property of interest
+      :param value: Target value
+
+      :returns: True if setting the property was successful
+
+      :raises RuntimeError: last error in case the API call returned False
+
+
+
+   .. py:method:: get_property(prop: str) -> int | float | None
+
+      Read a single property from the device and reports its value.
+
+      :param prop: Property of interest
+
+      :returns: Value of the property
+
+      :raises RuntimeError: last error in case the API call returned False
+
+
+
+   .. py:method:: get_propperty_dict(prop_dict: dict | None = None) -> dict
+
+      Read a dictionary of properties and report their value.
+
+      :param prop_dict: A dict of properties (as strings)
+
+      :returns: A dict oft property values
+
+      :raises RuntimeError: last error in case the API call returned False
+
+
+
+   .. py:method:: get_temperature() -> dict
+
+      Get cooling and temperature properties.
+
+      :returns: A dict of sensor temperature, cooler status
+
+      :raises RuntimeError: last error in case the API call returned False
+
+
+
+   .. py:method:: get_acquisition_mode() -> dict
+
+      Get SENSORMODE, READOUTSPEED and BINNING properties.
+
+      :returns: A dict of SENSORMODE, READOUTSPEED and BINNING
+
+      :raises RuntimeError: last error in case the API call returned False
+
+
+
+   .. py:method:: get_timing_infos() -> dict
+
+      Get trigger timing properties.
+
+      :returns: A dict of trigger timing properties
+
+      :raises RuntimeError: last error in case the API call returned False
+
+
+
+   .. py:method:: get_all_properties() -> list[tuple]
+
+      Dump all properties from the device.
+
+      Copied from demo scripts.
+
+      :returns: A list with all camera properties known to DCAM.
+
+
+
+   .. py:attribute:: get_camera
+
+
+   .. py:attribute:: acquisition_running
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: payload_metadata
+      :type:  dict
+
+
+   .. py:attribute:: keep_device_open
+      :value: True
+
+
+
+   .. py:attribute:: default_config
+      :type:  str
+
+
+   .. py:method:: get_device() -> collections.abc.Iterator[None]
+
+      Yield a device handle.
+
+      .. code-block:: python
+
+          # use the device in a with statement
+          with self.get_device() as camera:
+              camera.do_something()
+
+
+
+   .. py:method:: open() -> Any
+
+      Open the device handler and assign it to `self._device`.
+
+
+
+   .. py:method:: teardown() -> None
+
+      Release the device handler and potentially de-initialize the API.
+
+
+
+   .. py:method:: start() -> bool
+
+      Fire a software trigger.
+
+      :returns: True if successful
+
+
+
+   .. py:method:: stop() -> bool
+
+      Abort the exposure and release queued buffers.
+
+      :returns: True if successful
+
+
+
+   .. py:method:: reset() -> None
+
+      Reset the device by aborting any ongoing exposure, closing and re-opening the handler.
+
+
+
+   .. py:method:: get_status() -> dict
+
+      Get a dict with the current device status.
+
+      :returns: A dict with the device status
+
+
+
+   .. py:property:: config_dict
+      :type: dict
+
+
+      Get a copy of the configuration dict.
+
+      :returns: Copy of the configuration dict
+
+
+   .. py:method:: update_configuration(new_config_dict: dict, merge: bool = True) -> None
+
+      Update the configuration dict with new configuration.
+
+      Each dict key corresponds a (new) configuration name.
+      Each value is a dict with config property -> config value.
+
+      :param new_config_dict: A dict of configurations where the keys are the configuration names
+      :param merge: If ``True``, the new dict is recursively merged with the current set config dict. If ``False`` the
+                    old configurations with the provided names (keys) are overwritten.
+
+
+
+   .. py:method:: get_configuration() -> dict
+
+      Get the currently active configuration.
+
+      :returns: The currently active configuration.
+
+
+
+   .. py:method:: configure(config: str = '', metadata: dict | None = None) -> bool
+
+      Configure the device with the known configuration `config`.
+
+      To add a configuration to the device, use :meth:`update_configuration`.
+
+      :param config: Key (name) of the configuration
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+
+
+
+   .. py:attribute:: set_configuration
+
+
+   .. py:method:: update_payload_metadata(metadata: dict, merge: bool = True) -> None
+
+      Update metadata dict send with every emitted frame by the :code:`acquisition_data` event method.
+
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+      :param merge: If ``True``, the new dict is merged with the current set metadata dict. If ``False`` the old
+                    metadata is overwritten by the given dict.
+
+
+
+   .. py:method:: arm(metadata: dict | None = None, kill_running: bool = False) -> bool
+
+      Arm the device with the currently active configuration.
+
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+      :param kill_running: If ``True`` any running acquisition will be stopped. If ``False`` and an acquisition is
+      :param already running:
+      :param an error will be raised.:
+
+      :returns: True if arming was successful else False
+
+
+
+   .. py:method:: acquisition_data(frame: numpy.ndarray, metadata: dict | None = None) -> tuple
+
+      Event to emit new frames.
+
+      .. note::
+          The dtype of the frame is not changed here.
+
+      :param frame: The frame payload data (for example an image or an scope trace)
+      :param metadata: The metadata which is passed along the payload. This argument takes precedence over the
+                       :code:`payload_metadata` attribute (for example set by the :code:`update_payload_metadata` method)
+                       while merging the two dicts.
+
+      :returns: A tuple of image and metadata(-dict)
+
+
+
+   .. py:method:: acquisition_started(metadata: dict | None = None) -> dict
+
+      Event emitted when the acquisition thread starts.
+
+      :returns: A dict with acquisition metadata
+
+
+
+   .. py:method:: acquisition_stopped(metadata: dict | None = None) -> dict
+
+      Event emitted when the acquisition thread stops.
+
+      :returns: A dict with acquisition metadata
+
+
+

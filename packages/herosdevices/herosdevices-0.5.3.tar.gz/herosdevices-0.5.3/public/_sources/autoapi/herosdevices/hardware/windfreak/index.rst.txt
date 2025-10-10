@@ -1,0 +1,300 @@
+herosdevices.hardware.windfreak
+===============================
+
+.. py:module:: herosdevices.hardware.windfreak
+
+.. autoapi-nested-parse::
+
+   Drivers for Windfreak Technologies devices.
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:class:: SynthUSB(address: str, timeout: float = 1.0)
+
+   Bases: :py:obj:`herosdevices.interfaces.atomiq.RFSource`, :py:obj:`herosdevices.core.templates.SerialDeviceTemplate`
+
+
+   Base class for Windfreak Synth USB RF generators.
+
+   Not for standalone use, use :py:class:`herosdevice.device.windfreak.SynthUSB2` or
+   :py:class:`herosdevice.device.windfreak.SynthUSB3` instead.
+
+
+   .. py:attribute:: amplitude
+      :type:  float
+      :value: 0
+
+
+
+   .. py:attribute:: freq_max
+      :type:  float
+      :value: 6400000000.0
+
+
+
+   .. py:attribute:: freq_min
+      :type:  float
+      :value: 12500000.0
+
+
+
+   .. py:attribute:: status
+
+
+   .. py:attribute:: frequency
+      :type:  float
+      :value: 1000000.0
+
+
+
+   .. py:attribute:: phase
+      :type:  float
+      :value: 0.0
+
+
+
+   .. py:attribute:: amp_max
+      :type:  float
+      :value: 1.0
+
+
+
+   .. py:attribute:: amp_min
+      :type:  float
+      :value: 0.0
+
+
+
+   .. py:attribute:: default_ramp_steps
+      :type:  int
+      :value: 30
+
+
+
+   .. py:attribute:: blind
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: address
+
+
+   .. py:attribute:: connection
+
+
+.. py:class:: SynthUSBII(address: str, timeout: float = 1.0)
+
+   Bases: :py:obj:`SynthUSB`
+
+
+   Windfreak SynthUSB2 RF generator driver.
+
+
+   .. py:attribute:: amp_max
+      :type:  float
+      :value: 3
+
+
+
+   .. py:attribute:: amp_min
+      :type:  float
+      :value: 0
+
+
+
+   .. py:attribute:: on
+      :type:  int
+
+
+   .. py:attribute:: high_rf
+      :type:  int
+
+
+   .. py:attribute:: amplitude
+      :type:  int
+
+
+   .. py:attribute:: frequency
+
+
+   .. py:attribute:: freq_max
+      :type:  float
+      :value: 6400000000.0
+
+
+
+   .. py:attribute:: freq_min
+      :type:  float
+      :value: 12500000.0
+
+
+
+   .. py:attribute:: status
+
+
+   .. py:attribute:: phase
+      :type:  float
+      :value: 0.0
+
+
+
+   .. py:attribute:: default_ramp_steps
+      :type:  int
+      :value: 30
+
+
+
+   .. py:attribute:: blind
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: address
+
+
+   .. py:attribute:: connection
+
+
+.. py:class:: SynthUSBIII(address: str, timeout: float = 1.0)
+
+   Bases: :py:obj:`SynthUSB`
+
+
+   Windfreak SynthUSB3 RF generator driver.
+
+
+   .. py:attribute:: amp_max
+      :type:  float
+      :value: 10
+
+
+
+   .. py:attribute:: amp_min
+      :type:  float
+      :value: -50
+
+
+
+   .. py:attribute:: frequency
+
+
+   .. py:attribute:: amplitude
+
+
+   .. py:attribute:: doubler
+
+
+   .. py:attribute:: frequency_ramp_lower
+
+
+   .. py:attribute:: frequency_ramp_upper
+
+
+   .. py:attribute:: ramp_step_size
+
+
+   .. py:attribute:: ramp_step_time
+
+
+   .. py:attribute:: amplitude_ramp_lower
+
+
+   .. py:attribute:: amplitude_ramp_upper
+
+
+   .. py:attribute:: ramp_direction
+
+
+   .. py:attribute:: run_sweep
+
+
+   .. py:attribute:: sweep_cont
+
+
+   .. py:method:: ramp(duration: float, frequency_start: float = float('nan'), frequency_end: float = float('nan'), amplitude_start: float = float('nan'), amplitude_end: float = float('nan'), ramp_timestep: float = float('nan'), ramp_steps: int = -1) -> None
+
+      Ramp frequency and amplitude over a given duration.
+
+      Parameters default to ``-1`` or ``nan`` to indicate no change. If the start frequency/amplitude is set
+      to ``nan``, the ramp starts from the last frequency/amplitude which was set.
+      This method advances the timeline by `duration`
+
+      :param duration: ramp duration [s]
+      :param frequency_start: initial frequency [Hz]
+      :param frequency_end: end frequency [Hz]
+      :param amplitude_start: initial amplitude [0..1]
+      :param amplitude_end: end amplitude [0..1]
+      :param ramp_timesteps: time between steps in the ramp [s]
+      :param ramp_steps: number of steps the whole ramp should have. This takes precedence over `ramp_timesteps`
+
+
+
+   .. py:method:: arb(duration: float, samples_amp: list[float], samples_freq: list[float], samples_phase: list[float], repetitions: int = 1, prepare_only: bool = False, run_prepared: bool = False, transform_amp: collections.abc.Callable[[float], float] = lambda x: x, transform_freq: collections.abc.Callable[[float], float] = lambda x: x, transform_phase: collections.abc.Callable[[float], float] = lambda x: x) -> Never
+      :abstractmethod:
+
+
+      Play Arbitrary Samples from a List.
+
+      This method is currently not implemented on the Windfreak SynthUSB3. The device would be capable of this and
+      drivers can be extended.
+
+      :param samples_amp: List of amplitude samples. If this list is empty (default), the amplitude is not modified.
+      :param samples_freq: List of frequency samples. If this list is empty (default), the frequency is not modified.
+      :param samples_phase: List of phase samples. If this list is empty (default), the phase is not modified.
+      :param duration: The time in which the whole sequence of samples should be played back [s].
+      :param repetitions: Number of times the sequence of all samples should be played. (default 1)
+      :param prepare_only: Only write the sequence to RAM, don't play it.
+      :param run_prepared: Play arb sequence previously prepared with :code:`prepare_only`.
+      :param transform_amp: Function to transform amplitude samples, must take a single argument of type
+                            :type:`float` and return a single :type:`float`.
+      :param transform_freq: Function to transform frequency samples (see :code:`transform_amp`).
+      :param transform_phase: Function to transform phase samples (see :code:`transform_amp`).
+
+
+
+   .. py:attribute:: freq_max
+      :type:  float
+      :value: 6400000000.0
+
+
+
+   .. py:attribute:: freq_min
+      :type:  float
+      :value: 12500000.0
+
+
+
+   .. py:attribute:: status
+
+
+   .. py:attribute:: phase
+      :type:  float
+      :value: 0.0
+
+
+
+   .. py:attribute:: default_ramp_steps
+      :type:  int
+      :value: 30
+
+
+
+   .. py:attribute:: blind
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: address
+
+
+   .. py:attribute:: connection
+
+

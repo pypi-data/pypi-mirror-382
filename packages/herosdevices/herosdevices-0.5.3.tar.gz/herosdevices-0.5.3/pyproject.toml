@@ -1,0 +1,148 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "herosdevices"
+dynamic = ["version"]
+description = "Python representations (think drivers) of frequently used lab equipment."
+readme = "README.md"
+license = {text = "LGPL-3.0-or-later"}
+keywords = ["remote object", "zenoh", "pub/sub", "rpc"]
+authors = [
+    {name = "Thomas Niederprüm", email = "t.niederpruem@rptu.de"},
+    {name = "Suthep Pomjaksilp", email = "suthep.pomjaksilp@uni-hamburg.de"},
+    {name = "Christian Hölzl", email = "choelzl@pi5.physik.uni-stuttgart.de"},
+    {name = "Tobias Ebert", email = "tobias.ebert@uni-hamburg.de"},
+]
+maintainers = [
+    {name = "Thomas Niederprüm", email = "t.niederpruem@rptu.de"},
+    {name = "Suthep Pomjaksilp", email = "suthep.pomjaksilp@uni-hamburg.de"},
+]
+requires-python = ">=3.10"
+
+dependencies = [
+    "heros>=0.7",
+    "pyftdi",
+    "ftd3xx",
+    "pyserial",
+    "python-dateutil",
+    "toptica-lasersdk==3.2.0",
+    "gpiod; sys_platform == 'linux'",
+    "spidev; sys_platform == 'linux'",
+    "pyvisa",
+    "pyvisa-py"
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Communications",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only"
+]
+
+[project.urls]
+Homepage = "https://gitlab.com/atomiq-project/herosdevices"
+Repository = "https://gitlab.com/atomiq-project/herosdevices"
+"Bug Tracker" = "https://gitlab.com/atomiq-project/herosdevices/issues"
+
+[project.optional-dependencies]
+rpi = [
+    "gpiozero",
+    "RPi.GPIO",
+    "lgpio",
+    "adafruit-circuitpython-dht",
+    "pigpio"
+]
+dev = [
+    "pytest>=8",
+    "ruff>=0.12",
+    "pre-commit>=4",
+    "pytest-cov>=4.0",
+    "mypy",
+    "types-RPi.GPIO",
+    "types-pyserial",
+    "types-python-dateutil",
+]
+docs = [
+    "hatch",
+    "sphinx>=8 ; python_version >= '3.11'",
+    "sphinx-autoapi>=3",
+    "sphinx-autodoc-typehints>=3 ; python_version >= '3.11'",
+    "sphinx-argparse",
+    "furo>=2024",
+    "toml"
+]
+
+[tool.ruff]
+fix = true
+show-fixes = true
+
+line-length = 120
+target-version = "py310"
+extend-exclude = ["./src/herosdevices/core/bus/telnet/telnetlib.py", "tests", "docs"] #TODO: also make tests and docs nice
+
+[tool.ruff.lint]
+select = ["ALL"]
+extend-ignore = [
+  "COM812",  # (missing-trailing-comma) incompatible with ruff format
+  "FIX",  # Disallow TODOs, FIXMEs, etc.; enforcing this is a bit too strict
+  "TD",  # Linting TODOs; we dont need this
+  "FBT",  # Boolean arguments ...
+  "D107", # We have a lot of args described in class doc string, changing this is too much work.
+  "S101", # Disallow asserts
+  "SIM102", # Disallow nested if. Can have performance impact
+  "SIM105", # Disallow except:pass, but alternative is slower
+  "SIM108", # nested if/else
+  "SLF001", # private member access. We use this a lot because of how heros works and because of vendor libraries.
+  "UP015", # redundant open modes
+  "PT003", # remove function scope in fixtures (Default)
+  "PERF203", # Only relevant for Py <3.11, not worth to obey
+  "ANN002","ANN003", # required typing for *args, **kwargs; straight out impossible for some libraries...
+  "ANN401", # Disallow Any type
+  "ISC002", # \ connect multiline strings
+  "EM101", # No raw strings in exceptions
+  "RET506", # else/elif after return statement. I think this makes code less readable.
+  "PGH003", # No unspecific typ:ignore. I think this is too much.
+  "TRY003", # Tries to enforce a lot of custom exception classes. If someone wants to implement this, go for it.
+  "RUF012", # mutable class vars TODO: https://gitlab.com/atomiq-project/heros/-/issues/18
+  "N801", # CamelCase classnames. TODO: currently broken for enums: https://github.com/astral-sh/ruff/issues/2964
+]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*" = ["INP001","T201"]
+
+[tool.ruff.lint.pydocstyle]
+# Use Google-style docstrings.
+convention = "pep257"
+
+[tool.ruff.lint.pylint]
+
+max-args = 10
+max-branches = 25
+max-returns = 15
+max-statements = 50
+
+[tool.ruff.format]
+# Force Linux/macOS line endings
+line-ending = "lf"
+
+[tool.codespell]
+# explicit is misspelled in the iTunes API
+ignore-words-list = "heros"
+skip = "*.svg,*/telnetlib.py"
+
+[tool.hatch.version]
+path = "src/herosdevices/__init__.py"
+
+[tool.mypy]
+follow_untyped_imports = true

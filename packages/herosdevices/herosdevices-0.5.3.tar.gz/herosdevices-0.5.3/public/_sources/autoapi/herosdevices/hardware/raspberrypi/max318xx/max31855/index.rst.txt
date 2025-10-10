@@ -1,0 +1,174 @@
+herosdevices.hardware.raspberrypi.max318xx.max31855
+===================================================
+
+.. py:module:: herosdevices.hardware.raspberrypi.max318xx.max31855
+
+.. autoapi-nested-parse::
+
+   Uses Superclass MAX318xx for communication methods and implements MAX31855 specific functions.
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:function:: temperature_NIST(t_remote: float, t_ambient: float) -> float
+
+   Correct temperature for ambient effects according to the Adafruit library.
+
+   https://github.com/adafruit/Adafruit_CircuitPython_MAX31855/blob/main/adafruit_max31855.py
+   This function applies a correction to the remote thermocouple temperature reading based
+   on the ambient temperature, using the polynomial approximations from the Adafruit MAX31855
+   library.
+
+   :param t_remote: The remote thermocouple junction temperature in Celsius.
+   :type t_remote: float
+   :param t_ambient: The ambient (cold junction) temperature in Celsius.
+   :type t_ambient: float
+
+   :returns: Corrected temperature in Celsius.
+   :rtype: float
+
+   :raises RuntimeError: If the total thermoelectric voltage is out of the expected range.
+
+
+.. py:class:: MAX31855(cs_pins: dict, miso_pin: int = 5, clk_pin: int = 7, invert_sign: bool = False)
+
+   Bases: :py:obj:`herosdevices.hardware.raspberrypi.max318xx.max318xx.MAX318xx`
+
+
+   Class to interface with MAX31855 thermocouple-to-digital converter.
+
+   :param cs_pin: Chip select GPIO pin. Default is 24.
+   :type cs_pin: int
+   :param miso_pin: MISO GPIO pin. Default is 5.
+   :type miso_pin: int
+   :param clk_pin: CLK GPIO pin. Default is 7.
+   :type clk_pin: int
+   :param invert_sign: Whether to invert the sign of the temperature reading (default: False).
+   :type invert_sign: bool
+
+   .. method:: read_temperature()
+
+      Returns the temperature in Celsius.
+      
+
+
+   .. py:attribute:: invert_sign
+      :value: False
+
+
+
+   .. py:method:: convert_bits(data: list) -> tuple[int, int]
+      :staticmethod:
+
+
+      Convert raw bits from sensor to temperature readings.
+
+      :param data: List of integers representing raw bits.
+      :type data: list
+
+      :returns:
+
+                (t_tc, t_ref) where:
+                    t_tc (float): Thermocouple temperature.
+                    t_ref (float): Cold junction (reference) temperature.
+      :rtype: tuple
+
+
+
+   .. py:method:: transform_bytes(data: list) -> tuple[int, int]
+
+      Extract temperature data from raw byte list.
+
+      :param data: List of bytes received from sensor.
+      :type data: list
+
+      :returns:
+
+                (t_tc, t_ref)
+                    t_tc (float): Thermocouple temperature.
+                    t_ref (float): Cold junction (reference) temperature.
+      :rtype: tuple
+
+
+
+   .. py:method:: read_temp(cs_pin: int, num_registers: int, convert: collections.abc.Callable[[float, float], float]) -> float
+
+      Read temperature on port `cs_pin`.
+
+
+
+   .. py:attribute:: cs_pins
+
+
+   .. py:attribute:: miso_pin
+      :value: 9
+
+
+
+   .. py:attribute:: mosi_pin
+      :value: 10
+
+
+
+   .. py:attribute:: clk_pin
+      :value: 11
+
+
+
+   .. py:method:: write_register(reg_num: int, data_byte: int) -> None
+
+      Write a byte to a specified register.
+
+      :param regNum: Register number to write to.
+      :type regNum: int
+      :param dataByte: Data byte to write.
+      :type dataByte: int
+
+
+
+   .. py:method:: read_register(cs_pin: int, num_registers: int, reg_num_start: int | None = None) -> list[int]
+
+      Read one or more bytes starting from a specified register.
+
+      :param cs_pin: Chip select GPIO pin number.
+      :type cs_pin: int
+      :param numRegisters: Number of bytes to read.
+      :type numRegisters: int
+      :param regNumStart: Starting register number for the read operation.
+      :type regNumStart: int, optional
+
+      :returns: List of bytes read from the device.
+      :rtype: list
+
+
+
+   .. py:method:: send_byte(byte: int) -> None
+
+      Send a byte via SPI by bit-banging.
+
+      :param byte: Byte value to send.
+      :type byte: int
+
+
+
+   .. py:method:: recv_byte() -> int
+
+      Receive a byte via SPI by bit-banging.
+
+      :returns: Byte received.
+      :rtype: int
+
+
+
+   .. py:method:: create_dict(values: list[float], observable: str, unit: str) -> dict
+
+      Build dictionary of observables to be returned by the sensor.
+
+
+

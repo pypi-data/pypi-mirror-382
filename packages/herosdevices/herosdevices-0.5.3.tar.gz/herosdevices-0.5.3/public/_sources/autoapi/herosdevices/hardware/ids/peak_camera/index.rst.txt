@@ -1,0 +1,281 @@
+herosdevices.hardware.ids.peak_camera
+=====================================
+
+.. py:module:: herosdevices.hardware.ids.peak_camera
+
+.. autoapi-nested-parse::
+
+   Driver for cameras based on the ids peak library.
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:data:: ids_peak
+   :value: None
+
+
+.. py:data:: DEFAULT_CONFIG
+
+.. py:class:: PeakCompatibleCamera(cam_id: str, config_dict: dict, default_config: str | None = None, lib_path: str | None = None)
+
+   Bases: :py:obj:`herosdevices.core.templates.camera.CameraTemplate`
+
+
+   A class to interface with IDS Peak cameras.
+
+   The class provides functionality to control and capture images from IDS Peak cameras.
+   It manages camera configuration, acquisition, and data streaming.
+
+   .. note::
+
+      To access the camera as non-root user, you need to add the following udev rule
+      to :code:`/etc/udev/rules.d/99-ids.rules`::
+      
+          ATTRS{idVendor}=="1409", MODE="666"
+      
+      The vendor library must be obtained from the [official website](https://en.ids-imaging.com/download-peak.html).
+      Download the `IDS peak archive file`, unpack it at move the content of `idspeak/ids/cti/` to a place where
+      the user running the driver can access it. This path then needs to be specified via the `lib_path` argument
+      (see example below)
+
+   .. note::
+
+      The :code:`node_map` attribute provides access to the camera node map. If you need to set some special
+      nodes you can use that.
+      You can find the available nodes in the official API manuals:
+      
+      - https://en.ids-imaging.com/manuals/ids-peak/ids-peak-api-documentation/2.16.0/en/index.html
+      - https://en.ids-imaging.com/manuals/ids-peak/ids-peak-user-manual/1.3.0/en/preface.html
+
+   .. rubric:: Example
+
+   The class can be started with BOSS with the following example JSON dict::
+
+       {
+         "_id": "my_camera",
+         "classname": "herosdevices.hardware.ids.PeakCompatibleCamera",
+         "arguments": {
+           "cam_id": "1410d4e7c3b5",
+           "lib_path": "/opt/idspeak/ids/cti/",
+           "default_config": "default",
+           "config_dict": {
+             "default": {
+               "ExposureTime": 1000,
+               "TriggerSelector": "ExposureStart",
+               "TriggerMode": "On",
+               "TriggerSource": "Software",
+               "frame_count": 5,
+             }
+           }
+         }
+       }
+
+
+   The keys in the config dictionary starting with a capital letter are nodes in the camera node map.
+
+
+   .. py:attribute:: node_map
+      :type:  ids_peak.ids_peak.NodeMap | None
+      :value: None
+
+
+
+   .. py:attribute:: cam_id
+
+
+   .. py:attribute:: default_config_dict
+
+
+   .. py:method:: get_config_nodes(only_implemented: bool = True) -> dict
+
+      Get all nodes from the camera in form of a dict including information about if they can be set/read.
+
+      :param only_implemented: Shows only nodes that are implemented on the attached camera. If False, returns
+                               all nodes the driver library knows
+
+
+
+   .. py:attribute:: get_camera
+
+
+   .. py:attribute:: acquisition_running
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: payload_metadata
+      :type:  dict
+
+
+   .. py:attribute:: keep_device_open
+      :value: True
+
+
+
+   .. py:attribute:: default_config
+      :type:  str
+
+
+   .. py:method:: get_device() -> collections.abc.Iterator[None]
+
+      Yield a device handle.
+
+      .. code-block:: python
+
+          # use the device in a with statement
+          with self.get_device() as camera:
+              camera.do_something()
+
+
+
+   .. py:method:: open() -> Any
+
+      Open the device handler and assign it to `self._device`.
+
+
+
+   .. py:method:: teardown() -> None
+
+      Release the device handler and potentially de-initialize the API.
+
+
+
+   .. py:method:: start() -> bool
+
+      Fire a software trigger.
+
+      :returns: True if successful
+
+
+
+   .. py:method:: stop() -> bool
+
+      Abort the exposure and release queued buffers.
+
+      :returns: True if successful
+
+
+
+   .. py:method:: reset() -> None
+
+      Reset the device by aborting any ongoing exposure, closing and re-opening the handler.
+
+
+
+   .. py:method:: get_status() -> dict
+
+      Get a dict with the current device status.
+
+      :returns: A dict with the device status
+
+
+
+   .. py:property:: config_dict
+      :type: dict
+
+
+      Get a copy of the configuration dict.
+
+      :returns: Copy of the configuration dict
+
+
+   .. py:method:: update_configuration(new_config_dict: dict, merge: bool = True) -> None
+
+      Update the configuration dict with new configuration.
+
+      Each dict key corresponds a (new) configuration name.
+      Each value is a dict with config property -> config value.
+
+      :param new_config_dict: A dict of configurations where the keys are the configuration names
+      :param merge: If ``True``, the new dict is recursively merged with the current set config dict. If ``False`` the
+                    old configurations with the provided names (keys) are overwritten.
+
+
+
+   .. py:method:: get_configuration() -> dict
+
+      Get the currently active configuration.
+
+      :returns: The currently active configuration.
+
+
+
+   .. py:method:: configure(config: str = '', metadata: dict | None = None) -> bool
+
+      Configure the device with the known configuration `config`.
+
+      To add a configuration to the device, use :meth:`update_configuration`.
+
+      :param config: Key (name) of the configuration
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+
+
+
+   .. py:attribute:: set_configuration
+
+
+   .. py:method:: update_payload_metadata(metadata: dict, merge: bool = True) -> None
+
+      Update metadata dict send with every emitted frame by the :code:`acquisition_data` event method.
+
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+      :param merge: If ``True``, the new dict is merged with the current set metadata dict. If ``False`` the old
+                    metadata is overwritten by the given dict.
+
+
+
+   .. py:method:: arm(metadata: dict | None = None, kill_running: bool = False) -> bool
+
+      Arm the device with the currently active configuration.
+
+      :param metadata: Metadata that is merged into the current payload metadata dict which is send with every emitted
+                       :code:`acquisition_data` event.
+      :param kill_running: If ``True`` any running acquisition will be stopped. If ``False`` and an acquisition is
+      :param already running:
+      :param an error will be raised.:
+
+      :returns: True if arming was successful else False
+
+
+
+   .. py:method:: acquisition_data(frame: numpy.ndarray, metadata: dict | None = None) -> tuple
+
+      Event to emit new frames.
+
+      .. note::
+          The dtype of the frame is not changed here.
+
+      :param frame: The frame payload data (for example an image or an scope trace)
+      :param metadata: The metadata which is passed along the payload. This argument takes precedence over the
+                       :code:`payload_metadata` attribute (for example set by the :code:`update_payload_metadata` method)
+                       while merging the two dicts.
+
+      :returns: A tuple of image and metadata(-dict)
+
+
+
+   .. py:method:: acquisition_started(metadata: dict | None = None) -> dict
+
+      Event emitted when the acquisition thread starts.
+
+      :returns: A dict with acquisition metadata
+
+
+
+   .. py:method:: acquisition_stopped(metadata: dict | None = None) -> dict
+
+      Event emitted when the acquisition thread stops.
+
+      :returns: A dict with acquisition metadata
+
+
+

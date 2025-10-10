@@ -1,0 +1,140 @@
+herosdevices.core
+=================
+
+.. py:module:: herosdevices.core
+
+.. autoapi-nested-parse::
+
+   Includes core functionalities relevant to all/many hardware driver implementations.
+
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /autoapi/herosdevices/core/bus/index
+   /autoapi/herosdevices/core/gpio/index
+   /autoapi/herosdevices/core/templates/index
+
+
+
+
+
+
+
+
+Package Contents
+----------------
+
+.. py:data:: FieldType
+
+.. py:function:: any__new__(cls, *_args, **_kwargs) -> Any
+
+   Monkey patch for https://github.com/python/cpython/pull/117111.
+
+   Debian and Ubuntu (and possibly other distros with a slow release cycle) ship a version of python with the
+   aforementioned bug.
+
+
+.. py:class:: DeviceCommandQuantity(command_set: str | None = None, command_get: str | None = None, return_check: None | str = None, unit: str = '', dtype: type[FieldType] | None = None, format_fun: collections.abc.Callable[[str], Any] = lambda x: x.rstrip(), value_check_fun: collections.abc.Callable[[Any], bool | str] = lambda _: True, poll_interval_limit: float = 1.0, transform_fun: collections.abc.Callable[[Any, bool], Any] = lambda x, _=False: x, read_line: bool = True)
+
+   Bases: :py:obj:`Any`, :py:obj:`Generic`\ [\ :py:obj:`FieldType`\ ]
+
+
+   Descriptor for attaching getting/setting configuration of hardware directly to class attributes exposed to HEROs.
+
+   This class provides functionality to define a class attribute of the host object based on certain set and get
+   commands of a device on a given interface. Defining an attribute this way makes it directly accessible to HEROS.
+
+   :param command_set: Command to send to the remote device to set the quantity. Must include a single input
+   :param placeholder in f-string format for the value to be set.:
+   :param command_get: Command to send to the remote device to get the quantity.
+   :param return_check: Return value to check for success
+   :param unit: Unit of the quantity.
+   :param dtype: Data type of the quantity values.
+   :param format_fun: Function to format the raw device return value to obtain the quantity in the correct unit.
+                      For example if the device returns a complicated string, this function could use a regex to extract
+                      the target value.
+   :param value_check_fun: Function to check if a set value is valid. Can be used in combination with for example
+                           `:py:func:`herosdevices.core.utils.limits` to check if the value is within a certain range.
+   :param poll_interval_limit: When getting the value of this quantity, the value is only read from the device if the
+                               last read operation was longer ago than the value of :code:`poll_interval_limit`. If it is shorter, the
+                               cached value is returned.
+   :param read_line: If true, the value is read from the device as a single line until the line termination set in the
+                     device connection occurs. If false, all waiting data is read, this is typically slower as one needs a
+                     longer delay, however it must be used if the return value is multiline.
+
+   Info:
+       The host instance must provide :code:`read()->str` and
+       :code:`write(message: str, read_echo: bool) -> None | str` methods. For an example implementation see
+       :py:class:`herosdevices.core.templates.serial.SerialDeviceTemplate`.
+
+   .. warning::
+
+      This mechanism stores values in the device object with the name :code:`instance._{attr_name}` and
+      :code:`_{attr_name}_last_poll`, where `attr_name` is the class attribute name (`frequency` in the example
+      below). This means you can not implement attributes with these names in you device driver class.
+
+   .. rubric:: Example
+
+   .. code-block:: python
+
+       class SomeRFSource(RFSource):
+           frequency = DeviceCommandQuantity(
+               command_set="f{:.3f}",
+               command_get="f?",
+               dtype=float,
+               unit="base",
+               value_check_fun=limits(12.5e6, 5.4e9),
+               transform_fun=transform_unit("base", "MHz"),
+               format_fun=lambda x: float(x)*1e-3,
+           )  # Frequency in Hz
+
+
+   .. py:attribute:: command_set
+      :value: None
+
+
+
+   .. py:attribute:: command_get
+      :value: None
+
+
+
+   .. py:attribute:: return_check
+      :value: None
+
+
+
+   .. py:attribute:: unit
+      :value: ''
+
+
+
+   .. py:attribute:: dtype
+      :value: None
+
+
+
+   .. py:attribute:: format_fun
+
+
+   .. py:attribute:: value_check_fun
+
+
+   .. py:attribute:: poll_interval_limit
+      :value: 1.0
+
+
+
+   .. py:attribute:: transform_fun
+
+
+   .. py:attribute:: read_line
+      :value: True
+
+
+

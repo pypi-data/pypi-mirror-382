@@ -1,0 +1,120 @@
+herosdevices.core.bus.serial
+============================
+
+.. py:module:: herosdevices.core.bus.serial
+
+.. autoapi-nested-parse::
+
+   Primitive functions and classes representing serial connections.
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:data:: SERIAL_DELAYS_DEFAULT
+   :type:  dict
+
+.. py:data:: serial
+   :value: None
+
+
+.. py:class:: SerialConnection(address: str, baudrate: int = 115200, line_termination: bytes = b'\n', keep_alive: bool = True, delays: dict | None = None, **kwargs)
+
+   A class to manage serial communication connections.
+
+   This class provides functionality to handle serial connections including opening/closing connections, reading
+   data, and writing data. It inherits from the base class Connection.
+
+   :param address: The address of the serial socket, something like /dev/ttyUSB0.
+   :param baudrate: The baud rate for the serial communication.
+   :param line_termination: character that terminates a line in the communication.
+   :param keep_alive: Flag indicating whether to keep the connection open between operations.
+   :param delays: Dictionary containing delay times for in between serial operations.
+                  Default serial delays for serial devices. Available keys are:
+
+                      * "write": Time to wait after writing a command to the device.
+                      * "read_echo": Time to wait before reading a response from the device.
+                      * "flush": Time to wait after flushing the device.
+
+                  :py:data:`herosdevices.core.bus.SERIAL_DELAYS_DEFAULT` sets the default delays.
+   :param \*\*kwargs: Keyword arguments passed to :code:`serial.serial_for_url`
+
+
+   .. py:attribute:: address
+
+
+   .. py:attribute:: baudrate
+      :value: 115200
+
+
+
+   .. py:attribute:: line_termination
+      :value: b'\n'
+
+
+
+   .. py:attribute:: connection
+
+
+   .. py:attribute:: keep_alive
+      :value: True
+
+
+
+   .. py:attribute:: delays
+
+
+   .. py:method:: operation() -> collections.abc.Iterator[None]
+
+      Context manager for handling serial connection operations.
+
+      Ensures the serial connection is open before performing operations and closes it afterward
+      if :code:`self.keep_alive` is False.
+
+      :Yields: Yields control back to the caller for performing operations within the context.
+
+
+
+   .. py:method:: wait(operation: str) -> None
+
+      Introduce a (synchronous) delay based on the specified operation type.
+
+      :param operation: The operation type. For possible types see :code:`SERIAL_DELAYS_DEFAULT`.
+
+
+
+   .. py:method:: read() -> str | None
+
+      Read all available data from the serial connection and decodes it into a string.
+
+      :returns: The decoded data as string, or None if an error occurs.
+
+
+
+   .. py:method:: read_line() -> str | None
+
+      Read a single line from the serial connection.
+
+      :returns: The decoded line as string, or None if an error occurs.
+
+
+
+   .. py:method:: write(message: str, flush: bool = True, read_echo: bool = False, read_line: bool = False) -> None | str
+
+      Write a message to the serial connection.
+
+      :param message: The message to be written to the serial connection.
+      :param flush: If True, flushes the written data immediately. Defaults to True.
+      :param read_echo: If True, reads back the echo after writing. Defaults to False.
+      :param read_line: If True, data is read until `self.line_termination` occurs in the data. Otherwise all available
+                        data is read.
+
+      :returns: If read_echo is True, returns the echo read from the connection as string; otherwise returns None.
+
+
+
