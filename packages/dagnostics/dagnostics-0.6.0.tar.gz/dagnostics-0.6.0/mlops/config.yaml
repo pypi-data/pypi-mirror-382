@@ -1,0 +1,240 @@
+# MLOps Configuration for DAGnostics
+# Production-grade configuration with environment-specific overrides
+
+# Experiment Tracking Configuration
+experiment_tracking:
+  mlflow:
+    tracking_uri: "sqlite:///mlops/experiments.db"
+    experiment_name: "dagnostics-production"
+    artifact_location: "./mlops/artifacts"
+    
+  wandb:
+    project: "dagnostics-mlops"
+    entity: null  # Set your W&B entity
+    mode: "online"  # online, offline, disabled
+    
+  enable_wandb: false
+
+# Data Validation Configuration
+data_validation:
+  min_samples: 50
+  max_input_length: 2048
+  max_output_length: 512
+  min_input_length: 10
+  min_output_length: 1
+  max_class_imbalance: 10.0
+  quality_threshold: 0.3
+  
+  # Drift detection settings
+  drift_detection:
+    statistical_threshold: 0.05
+    vocabulary_threshold: 0.7
+
+# Hyperparameter Optimization Configuration
+hyperparameter_optimization:
+  enable: false
+  
+  optuna:
+    n_trials: 20
+    timeout: 7200  # 2 hours
+    pruner: "median"  # median, hyperband, successive_halving
+    storage_type: "sqlite"
+    
+  search_space:
+    learning_rate:
+      min: 1e-6
+      max: 1e-3
+      log: true
+    batch_size:
+      choices: [1, 2, 4, 8]
+    epochs:
+      min: 1
+      max: 8
+    max_length:
+      choices: [256, 512, 1024]
+    optimizer:
+      choices: ["adamw_torch", "adafactor", "adamw_torch_fused"]
+    weight_decay:
+      min: 1e-6
+      max: 1e-2
+      log: true
+
+# Model Training Configuration
+model_training:
+  # Default training parameters
+  defaults:
+    model_name: "microsoft/DialoGPT-small"
+    learning_rate: 5e-6
+    batch_size: 2
+    epochs: 3
+    max_length: 512
+    use_quantization: false
+    force_cpu: true
+    
+  # Resource constraints
+  resources:
+    max_epochs_per_trial: 5
+    max_time_per_trial: 3600  # 1 hour
+    memory_limit_gb: 8
+    cpu_cores: 4
+    
+  # Early stopping
+  early_stopping:
+    patience: 3
+    threshold: 0.01
+    monitor: "val_loss"
+
+# Model Validation Configuration
+model_validation:
+  # Validation metrics
+  metrics:
+    - "perplexity"
+    - "bleu_score"
+    - "rouge_score"
+    - "accuracy"
+    
+  # Quality gates
+  quality_gates:
+    min_accuracy: 0.7
+    max_perplexity: 10.0
+    min_bleu_score: 0.3
+    
+  # Model size constraints
+  model_constraints:
+    max_size_mb: 2048  # 2GB
+    min_compression_ratio: 0.1
+
+# Monitoring and Alerting Configuration
+monitoring:
+  # Metrics collection
+  metrics:
+    collection_interval: 300  # 5 minutes
+    retention_days: 30
+    
+  # Performance monitoring
+  performance:
+    latency_threshold_ms: 1000
+    throughput_threshold_qps: 10
+    error_rate_threshold: 0.05
+    
+  # Data drift monitoring
+  drift_monitoring:
+    check_interval_hours: 24
+    alert_threshold: 0.1
+    
+  # Alerts
+  alerts:
+    email_notifications: false
+    slack_webhook: null
+    webhook_url: null
+
+# Infrastructure Configuration
+infrastructure:
+  # Storage configuration
+  storage:
+    artifacts_path: "./mlops/artifacts"
+    models_path: "./mlops/models"
+    data_path: "./data"
+    logs_path: "./mlops/logs"
+    
+  # Database configuration
+  database:
+    experiments_db: "sqlite:///mlops/experiments.db"
+    metadata_db: "sqlite:///mlops/metadata.db"
+    
+  # Container configuration
+  containers:
+    training_image: "dagnostics-training:latest"
+    serving_image: "dagnostics-serving:latest"
+    registry: null  # Set your container registry
+
+# Development Configuration
+development:
+  # Debugging
+  debug_mode: false
+  verbose_logging: true
+  
+  # Testing
+  test_mode: false
+  mock_training: false
+  
+  # Development tools
+  enable_profiling: false
+  enable_memory_tracking: false
+
+# Production Configuration
+production:
+  # Security
+  encrypt_artifacts: false
+  secure_communications: true
+  audit_logging: true
+  
+  # Scalability
+  distributed_training: false
+  auto_scaling: false
+  
+  # Reliability
+  backup_models: true
+  model_versioning: true
+  rollback_capability: true
+
+# Logging Configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  handlers:
+    console:
+      enable: true
+      level: "INFO"
+    file:
+      enable: true
+      level: "DEBUG"
+      filename: "mlops/training_pipeline.log"
+      max_bytes: 10485760  # 10MB
+      backup_count: 5
+    
+  # Specific logger levels
+  loggers:
+    mlflow: "WARNING"
+    optuna: "INFO"
+    transformers: "WARNING"
+    urllib3: "WARNING"
+
+# Environment-specific Overrides
+environments:
+  development:
+    experiment_tracking:
+      wandb:
+        mode: "offline"
+    model_training:
+      defaults:
+        epochs: 1
+        batch_size: 1
+    development:
+      debug_mode: true
+      test_mode: true
+      
+  staging:
+    hyperparameter_optimization:
+      optuna:
+        n_trials: 10
+        timeout: 3600
+    model_training:
+      defaults:
+        epochs: 2
+        batch_size: 2
+        
+  production:
+    experiment_tracking:
+      wandb:
+        mode: "online"
+    hyperparameter_optimization:
+      enable: true
+      optuna:
+        n_trials: 50
+        timeout: 14400  # 4 hours
+    production:
+      encrypt_artifacts: true
+      backup_models: true
+      audit_logging: true

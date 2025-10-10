@@ -1,0 +1,202 @@
+filter_rules:
+  # Basic log level filters (regex-based for flexibility)
+  - pattern: ".*\\b(Starting|starting|started)\\b.*"
+    type: "regex"
+    description: "Startup messages"
+
+  - pattern: ".*\\b(Finished|finished|completed|done)\\b.*"
+    type: "regex"
+    description: "Completion messages"
+
+  # Airflow-specific filters (using substring for better performance)
+  - pattern: "Marking task as SUCCESS"
+    type: "substring"
+    description: "Airflow success messages"
+
+  - pattern: "Task exited with return code 0"
+    type: "substring"
+    description: "Successful task completion"
+
+  - pattern: "Dependencies all met for"
+    type: "substring"
+    description: "Airflow dependency checks"
+
+  - pattern: "Airflow task starting"
+    type: "substring"
+    description: "Airflow task initialization"
+
+  - pattern: "Job completed successfully"
+    type: "substring"
+    description: "Job success messages"
+
+  - pattern: "Task:<Task[^>]*> dag:<DAG:[^>]*> dagrun:<DagRun[^>]*state:[^>]*>"
+    type: "regex"
+    description: "Airflow tasinstance info"
+
+  - pattern: "downstream tasks scheduled"
+    type: "substring"
+    description: "Airflow taskinstance scheduled check"
+
+  # Warning types that are usually not critical
+  - pattern: "UserWarning"
+    type: "substring"
+    description: "Non-critical user warnings"
+
+  - pattern: "DeprecationWarning"
+    type: "substring"
+    description: "Deprecation warnings"
+
+  - pattern: "PendingDeprecationWarning"
+    type: "substring"
+    description: "Pending deprecation warnings"
+
+  - pattern: "FutureWarning"
+    type: "substring"
+    description: "Future compatibility warnings"
+
+  # TPT (Teradata Parallel Transporter) specific filters - from your original list
+  - pattern: "YAHOOOOOOOOOOOOOOOOOOOOOOO"
+    type: "substring"
+    description: "TPT celebration message"
+
+  - pattern: "Task failed with exception"
+    type: "substring"
+    description: "TPT generic failure message - often not the real error"
+
+  - pattern: "Running TPT command:"
+    type: "starts_with"
+    description: "TPT command execution"
+
+  - pattern: "Teradata Parallel Transporter Version"
+    type: "substring"
+    description: "TPT version information"
+
+  - pattern: "Total processor time used"
+    type: "substring"
+    description: "TPT performance stats"
+
+  - pattern: "sending SQL requests"
+    type: "substring"
+    description: "TPT SQL activity"
+
+  - pattern: "Elapsed time"
+    type: "substring"
+    description: "TPT timing information"
+
+  - pattern: "(status 12)"
+    type: "substring"
+    description: "TPT status codes"
+
+  - pattern: "private log not specified"
+    type: "substring"
+    description: "TPT configuration message"
+
+  - pattern: "TPT Exit code set to"
+    type: "substring"
+    description: "TPT exit status"
+
+  - pattern: "Running: "
+    type: "starts_with"
+    description: "Command execution messages"
+
+  - pattern: "no error details were provided."
+    type: "substring"
+    description: "TPT generic error message"
+
+  - pattern: "Details of the failure can be found"
+    type: "substring"
+    description: "TPT error reference message"
+
+  # Database and connection success messages
+  - pattern: "Connection established"
+    type: "substring"
+    description: "Database connection success"
+
+  - pattern: "Connected to"
+    type: "starts_with"
+    description: "Connection success messages"
+
+  - pattern: "Login successful"
+    type: "substring"
+    description: "Authentication success"
+
+  # Length-based filters
+  - pattern: "10"
+    type: "length_threshold"
+    description: "Messages shorter than 10 characters"
+
+  # Custom function filters - leveraging the registered functions
+  # - pattern: "tpt_info_line"
+  #   type: "custom_function"
+  #   description: "TPT informational messages (comprehensive check)"
+
+  # - pattern: "java_stack_continuation"
+  #   type: "custom_function"
+  #   description: "Java stack trace continuation lines"
+
+  # - pattern: "airflow_success_message"
+  #   type: "custom_function"
+  #   description: "Various Airflow success patterns"
+
+  # Progress and status messages
+  - pattern: "Progress:"
+    type: "starts_with"
+    description: "Progress update messages"
+
+  - pattern: "Status:"
+    type: "starts_with"
+    description: "Status update messages"
+
+  - pattern: "\\d+%\\s+(complete|done|finished)"
+    type: "regex"
+    description: "Percentage completion messages"
+
+# Error candidate classification settings
+classifier:
+  error_indicators:
+    - "error"
+    - "exception"
+    - "failed"
+    - "failure"
+    - "fatal"
+    - "critical"
+    - "traceback"
+    - "stack trace"
+    - "connection refused"
+    - "timeout"
+    - "permission denied"
+    - "not found"
+    - "invalid"
+    - "corrupt"
+    - "null pointer"
+    - "out of memory"
+    - "access denied"
+    - "authentication failed"
+    - "authorization failed"
+    - "sql error"
+    - "database error"
+    - "network error"
+    - "file not found"
+    - "cannot connect"
+    - "connection lost"
+    - "unexpected"
+    - "aborted"
+    - "cancelled"
+    - "interrupted"
+
+  error_levels:
+    - "ERROR"
+    - "CRITICAL"
+    - "FATAL"
+    - "SEVERE"
+    - "WARN"  # Sometimes warnings are actual errors in disguise
+
+  # Lower threshold since we have good filtering
+  min_confidence_score: 0.2
+
+# Advanced settings for future enhancements
+advanced:
+  enable_caching: true
+  cache_size: 1000
+  enable_metrics: true
+  rule_priority_enabled: false  # Future feature for rule ordering
