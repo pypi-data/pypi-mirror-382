@@ -1,0 +1,322 @@
+# Session-Driven Development (SDD)
+
+> A comprehensive framework for AI-augmented software development with perfect context continuity
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+## What is Session-Driven Development?
+
+Session-Driven Development (SDD) is a methodology that enables AI coding assistants (like Claude Code) to work on software projects across multiple sessions with:
+
+- ✅ **Perfect context continuity** - No context loss between sessions
+- ✅ **Enforced quality standards** - Automated validation gates
+- ✅ **Accumulated institutional knowledge** - Learnings, patterns, and decisions captured
+- ✅ **Dependency-driven workflow** - Logical work ordering
+- ✅ **Living documentation** - Always current, never stale
+
+## The Problem SDD Solves
+
+**Without SDD:**
+```
+Session 1: Builds feature A, makes decisions, learns patterns
+  ↓ [Context lost]
+Session 2: Doesn't know what was built, why, or what was learned
+  ↓ [Quality degrades]
+Session 3: Rediscovers same issues, makes inconsistent decisions
+```
+
+**With SDD:**
+```
+Session 1: Work + Documentation → Status/Learnings/Stack updates
+  ↓ [Perfect handoff]
+Session 2: Reads briefing, understands context, continues seamlessly
+  ↓ [Quality maintained]
+Session 3: Builds on patterns, references learnings, consistent decisions
+```
+
+## Quick Start
+
+### Installation
+
+```bash
+pip install session-dev
+```
+
+### Initialize in Your Project
+
+```bash
+cd your-project
+session-dev init
+```
+
+This creates:
+- `.session/` directory with tracking files
+- `.sessionrc.json` configuration
+- `CLAUDE.md` AI instructions
+- Script automation files
+
+### Define Your First Work Item
+
+```bash
+session-dev work-item create
+```
+
+### Start Your First Session
+
+In Claude Code:
+```
+@session-start
+```
+
+Claude will automatically:
+1. Run initialization script
+2. Read generated briefing
+3. Understand context and objectives
+4. Begin implementation
+
+### Complete Your Session
+
+When done:
+```
+@session-end
+```
+
+Claude will:
+1. Run tests
+2. Check code quality
+3. Update documentation
+4. Create git commit
+5. Generate session summary
+
+## Key Features
+
+### 🎯 Dependency-Driven Workflow
+
+Work items are ordered by dependency satisfaction, not arbitrary sequences:
+
+```json
+{
+  "feature_profile": {
+    "dependencies": ["feature_oauth", "feature_user_model"],
+    "status": "not_started"
+  }
+}
+```
+
+SDD automatically finds the next available work item where all dependencies are satisfied.
+
+### 🧪 Quality Gates
+
+Every session completion runs:
+- ✅ Test suite (with coverage requirements)
+- ✅ Linting (auto-fix when possible)
+- ✅ Code formatting
+- ✅ Type checking (optional)
+- ✅ Documentation updates
+- ✅ Library documentation verification (Context7 integration)
+
+### 📚 Learning Accumulation
+
+Capture and organize project knowledge:
+- Architecture patterns
+- Best practices
+- Gotchas and solutions
+- Technical debt tracking
+- Performance insights
+
+### 🔄 Perfect Context Handoffs
+
+Every session starts with a comprehensive briefing:
+- Work item objectives
+- Dependency status
+- Previous session notes
+- Relevant learnings
+- Architecture context
+- Implementation checklist
+
+## Project Structure
+
+When SDD is initialized:
+
+```
+your-project/
+├── .sessionrc.json              # Configuration
+├── CLAUDE.md                    # AI instructions
+├── .session/
+│   ├── tracking/
+│   │   ├── work_items.json      # Work tracking
+│   │   ├── status_update.json   # Latest summary
+│   │   ├── stack.txt            # Tech stack
+│   │   ├── learnings.json       # Knowledge base
+│   │   └── project_tree.txt     # Structure
+│   ├── briefings/               # Session instructions
+│   ├── history/                 # Session summaries
+│   ├── specs/                   # Work item specs
+│   └── scripts/                 # Automation
+└── docs/                        # Documentation
+    ├── vision.md
+    ├── architecture.md
+    └── development_plan.md
+```
+
+## CLI Commands
+
+```bash
+# Initialize
+session-dev init [--preset web_app|library|pipeline]
+
+# Work Items
+session-dev work-item create
+session-dev work-item list [--status in_progress]
+session-dev work-item show <id>
+session-dev work-item update <id> --status completed
+session-dev work-item graph
+
+# Sessions
+session-dev session start [--next|--item <id>]
+session-dev session complete
+session-dev session validate
+session-dev session status
+
+# Documentation
+session-dev docs update
+session-dev docs stack-scan
+
+# Learning Management
+session-dev learnings curate
+session-dev learnings show
+```
+
+## Configuration
+
+Edit `.sessionrc.json` to customize:
+
+```json
+{
+  "project": {
+    "name": "my-awesome-app",
+    "type": "web_application"
+  },
+  "validation_rules": {
+    "post_session": {
+      "tests_pass": true,
+      "linting_pass": true,
+      "test_coverage_min": 80
+    }
+  },
+  "runtime_standards": {
+    "linting": {
+      "enabled": true,
+      "auto_fix": true
+    }
+  }
+}
+```
+
+## When to Use SDD
+
+### ✅ Ideal For:
+- Solo developers building complex products
+- Long-running projects (weeks to months)
+- Projects requiring team-level quality
+- AI-augmented development workflows
+- Projects with 50+ development sessions
+
+### ⚠️ Not Necessary For:
+- Simple scripts or one-off tools
+- Projects < 5 sessions
+- Throwaway prototypes
+
+## Real-World Example
+
+After 40 sessions using SDD:
+
+```
+Project: taskmaster (SaaS task management)
+Total sessions: 40
+Duration: 8 weeks
+Milestones: 3/3 completed
+
+Work items: 24 (all completed)
+Quality: 85% avg test coverage
+Documentation: 100% up-to-date
+
+Learnings: 47 captured
+- Architecture patterns: 12
+- Best practices: 8
+- Gotchas: 15
+Technical debt: 7 (4 resolved, 3 planned)
+
+Outcome: Functional MVP shipped on schedule ✅
+```
+
+## Comparison with Other Methodologies
+
+### SDD vs Traditional Agile
+
+| Aspect | Traditional Agile | Session-Driven Development |
+|--------|------------------|---------------------------|
+| **Team Size** | 5-9 developers | Solo or small team with AI |
+| **Sprint Length** | 1-2 weeks | N/A (continuous sessions) |
+| **Planning** | Sprint planning meetings | Work item dependency graph |
+| **Standup** | Daily team sync | Session briefings |
+| **Retrospective** | End of sprint | Continuous learning capture |
+| **Documentation** | Often minimal | Comprehensive, automated |
+| **Context** | Tribal knowledge | Explicit, documented |
+
+### SDD vs Kanban
+
+| Aspect | Kanban | Session-Driven Development |
+|--------|--------|---------------------------|
+| **Work Units** | User stories | Work items |
+| **Flow** | Pull-based | Dependency-driven |
+| **WIP Limits** | Explicit column limits | 1 work item per session |
+| **Quality Gates** | Definition of Done | Automated validation |
+| **Visualization** | Kanban board | work_items.json + dependency graph |
+| **Metrics** | Lead time, cycle time | Sessions per work item, learning rate |
+
+### SDD vs Traditional Solo Development
+
+| Aspect | Solo Ad-Hoc | Session-Driven Development |
+|--------|-------------|---------------------------|
+| **Context Continuity** | Memory/notes | Automated briefings |
+| **Quality Enforcement** | Manual discipline | Automated gates |
+| **Knowledge Capture** | None/minimal | Systematic learning accumulation |
+| **Documentation** | Outdated quickly | Always current |
+| **Onboarding** | Weeks/months | Days |
+| **Technical Debt** | Hidden, accumulates | Visible, tracked, prioritized |
+
+## Documentation
+
+- [Testing Guide](TESTING_GUIDE.md) - Complete guide to using SDD
+- [Best Practices](docs/best_practices.md) - Effective workflows and guidelines
+- [Configuration](docs/configuration.md) - Advanced configuration options
+- [Extending SDD](docs/extending.md) - Custom validation, plugins, CI/CD
+- [Metrics](docs/metrics.md) - Success metrics and KPIs
+- [Migration Guide](docs/migration.md) - Adding SDD to existing projects
+- [Examples](docs/examples/) - JSON structure examples
+- [Roadmap](ROADMAP.md) - Future development plans
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Community
+
+- **GitHub**: https://github.com/session-dev/session-dev
+- **Issues**: https://github.com/session-dev/session-dev/issues
+- **Discussions**: https://github.com/session-dev/session-dev/discussions
+
+## Acknowledgments
+
+Built for AI-augmented development workflows, optimized for Claude Code.
+
+---
+
+**Session-Driven Development**: Enabling solo developers to achieve team-level quality and continuity.
