@@ -1,0 +1,227 @@
+[tool.poetry]
+name = "aletheia-base"
+version = "0.0.1"
+description = "Aletheia Base Structures"
+license = "Software License Agreement"
+authors = ["Abhishek Kapoor <kapoor.abhishek@outlook.com>"]
+packages = [{include = "aletheia/base"}]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+poetry-core = "^2.2.1"
+tomegathericon-utils-exceptions = "^0.0.2"
+checkov = { version = "^3.2.471", optional = true}
+sphinx = { version = "^8.2.3", optional = true}
+pytest = {version = "^8.4.2", optional = true}
+pytest-mock = {version = "^3.15.1", optional = true}
+pytest-html = {version = "^4.1.1", optional = true}
+pylint = {version = "^3.3.8", optional = true}
+isort = {version = "^6.0.1", optional = true}
+mypy = {version = "^1.18.2", optional = true}
+ruff = {version = "^0.13.2", optional = true}
+pre-commit = {version = "^4.3.0", optional = true}
+pytest-cov = {version = "^7.0.0", optional = true}
+pyfakefs = {version = "^5.9.3", optional = true}
+bandit = {version = "^1.8.6", optional = true}
+vulture = {version = "^2.14", optional = true}
+
+[tool.poetry.extras]
+docs = ["sphinx"]
+tests = ["pytest", "pytest-mock", "pytest-html", "pytest-cov"]
+lint = ["pylint", "ruff", "isort", "vulture"]
+type_check= ["mypy"]
+security_check = ["checkov", "bandit"]
+
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+exclude = [
+    ".git",
+    "__pycache__",
+    "_deployment",
+    "venv",
+    "_output",
+    "public",
+    "dist",
+    "logs"
+]
+cache-dir = ".ruff/cache"
+fix = true
+output-format = "full"
+preview = true
+respect-gitignore = true
+show-fixes = true
+unsafe-fixes = true
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "C", "B"]
+preview = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-line-length = 150
+preview = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["aletheia-base"]
+
+[tool.mypy]
+files = ["aletheia/base"]
+strict = true
+disallow_untyped_defs = true
+disallow_any_unimported = true
+no_implicit_optional = true
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+show_error_codes = true
+namespace_packages = true
+verbosity = 1
+show_error_context = true
+show_column_numbers = true
+show_error_end = true
+pretty = true
+
+[tool.pytest-html]
+report-title = "Test Report"
+
+[tool.pytest.ini_options]
+addopts = [
+  "--cov=aletheia.base",
+  "--cov-branch",
+  "--cov-report=xml:_output/coverage/coverage.xml",
+  "--junitxml=_output/coverage/junit.xml",
+  "-o junit_family=legacy",
+  "-vvv",
+  "-s",
+  "--show-capture=all", "--html=_output/tests/tests_report.html",
+  "--self-contained-html",
+  "--cov-report=html:_output/coverage",
+  "--cov-fail-under=70",
+  "--cov-context=test"
+]
+
+[tool.coverage.report]
+show_missing = true
+precision = 4
+
+[tool.coverage.run]
+data_file = "_output/coverage/.coverage"
+
+[tool.coverage.html]
+show_contexts = true
+
+[tool.bandit]
+targets = ["aletheia/base"]
+
+[tool.vulture]
+paths = ["aletheia/base"]
+verbose = true
+sort_by_size = true
+min_confidence = 100
+ignore_names = ["kwargs"]
+
+[tool.tox]
+requires = ["tox>=4"]
+env_list = ["security_check", "tests", "lint", "type_check"]
+
+[tool.tox.env_run_base]
+set_env = {PIP_CACHE_DIR="{envdir}/.pip/cache-dir"}
+
+[tool.tox.env.security_check]
+description = "Run Security Checks"
+skip_install = true
+parallel_show_output = true
+deps = [
+  ".[security_check]"
+]
+
+commands = [
+  ["python", "-c", "import shutil; shutil.copytree('{toxinidir}/.github', '{envtmpdir}/.github')"],
+  ["checkov", "-d", "{envtmpdir}/.github/workflows"],
+  ["bandit", "-r", "aletheia/base", "-c", "pyproject.toml"]
+]
+
+[tool.tox.env.tests]
+description = "Run Unit Tests"
+skip_install = true
+deps = [
+  ".[tests]"
+]
+parallel_show_output = true
+commands = [
+  ["pytest", "./tests"]
+]
+
+[tool.tox.env.lint]
+description = "Run Linter"
+skip_install = true
+deps = [
+  ".[lint]"
+]
+parallel_show_output = true
+commands = [
+  ["ruff", "check", "aletheia/base", "--verbose"],
+  ["vulture"]
+]
+
+[tool.tox.env.type_check]
+description = "Run Type Check"
+skip_install = true
+deps = [
+  ".[type_check]"
+]
+parallel_show_output = true
+commands = [
+  ["mypy"]
+]
+
+[tool.tox.env.build]
+description = "Build Package"
+deps = [
+  "."
+]
+allowlist_externals = [
+  "./.venv/bin/poetry"
+]
+commands = [
+  ["./.venv/bin/poetry", "build", "-o", "_output"]
+]
+
+[tool.tox.env.publish]
+description = "Build and Publish Package to PyPi"
+deps = [
+  "."
+]
+allowlist_externals = [
+  "./.venv/bin/poetry"
+]
+passenv = [
+  "POETRY_PYPI_TOKEN_PYPI"
+]
+commands = [
+  ["./.venv/bin/poetry", "publish", "--build", "-n", "--dist-dir=_output"]
+]
+
+[tool.tox.env.test_publish]
+description = "Build and Publish Package to Test PyPi"
+deps = [
+  "."
+]
+allowlist_externals = [
+  "./.venv/bin/poetry"
+]
+passenv = [
+  "POETRY_PYPI_TOKEN_TESTPYPI"
+]
+commands = [
+  ["./.venv/bin/poetry", "publish", "--build", "-n", "--dist-dir=_output", "--repository", "testpypi"]
+]
+
