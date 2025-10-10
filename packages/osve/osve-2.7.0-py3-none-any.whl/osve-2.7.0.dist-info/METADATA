@@ -1,0 +1,173 @@
+Metadata-Version: 2.1
+Name: osve
+Version: 2.7.0
+Summary: Python package for OSVE
+Home-page: https://gitlab.esa.int/juice-soc/juice-uplink/spm/phs/osve
+Author: Ricardo Valles, Marc Costa
+Author-email: juice_soc@sciops.esa.int
+License: UNKNOWN
+Keywords: esa,Juice,AGM,EPS,planetary,space,metrics,trajectory,assessment,crema
+Platform: Linux
+Platform: MacOS
+Classifier: Development Status :: 3 - Alpha
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+﻿# Operations Simulation & Validation Engine (OSVE)
+
+## Introduction
+
+OSVE is Python package that incorporates a `C/C++` library to assist the 
+development and implementation of the science operations by the JUICE Science 
+Operations Center (SOC).
+
+Its main functionality is to simulate and validate the S/C pointing timeline,
+instrument timeline and to perform operational constraint checks and assessment
+of Power and Data Volume resources.
+
+### AGM & EPS Libraries
+
+OSVE's core includes the Experiment Planning System (EPS) and the Attitude
+Generator Module (AGM) `C/C++` software applications developed by TEC (ESTEC)
+and PSS (ESAC) that have been used to implement the science planning and conduct
+in-flight science operations for ESA's Venus Express, Mars Express, Rosetta,
+Solar Orbiter, and BepiColombo missions.
+
+## Documentation
+
+A detailed documentation is available with a thorough description of OSVE, the API
+documentation is also included and is automatically generated from the content of 
+the [docs directory](./docs) and from the docstrings of the public signatures of the source code.
+
+Additional documentation is available at the 
+[JUICE SOC Toolkit Help](https://juicesoc.esac.esa.int/help/osve/).
+
+
+### Building the Documentation
+
+```shx
+pip install sphinx
+pip install sphinx sphinx_rtd_theme
+```
+
+```shx
+cd docs
+sphinx-build -b html source build
+```
+
+
+## Installation
+
+OSVE is available from the Python Package Index repository. Install it by running the
+following command:
+
+```shx
+pip install osve
+```
+
+## Using the Library
+
+After installing the library can be used with the Python Shell or with its CLI.
+
+### Python Shell
+
+A basic test of the library contents can be done as follows:
+
+```python
+from osve import osve
+sim = osve.osve()
+version = sim.get_app_version()
+print(version)
+```
+
+### Command line Interface
+
+The package has a CLI entry point:
+
+```shx
+usage: osve [-h] -r ROOTPATH -s SESSIONFILE
+
+JUICE Operations Simulation & Validation Engine (OSVE) command line interface
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -r ROOTPATH, --RootPath ROOTPATH
+                        Top level path of the scenario file_path to be used to resolve the relative paths
+  -s SESSIONFILE, --SessionFile SESSIONFILE
+                        Location and name of the session file containing all the scenarios files
+
+```
+
+### JUICE SOC Tools using OSVE
+
+There are a number of JUICE SOC tools that make usage of OSVE. The most remarkable
+public ones are listed hereunder:
+
+- [`PTWrapper`](https://gitlab.esa.int/juice-soc-public/python/ptwrapper) Acts as a wrapper to simplify the usage of OSVE to simulate a 
+  Pointing Timeline and generate the Attitude as a SPICE CK to assist the 
+  Pointing Timeline Harmonisation of the Detailed Scenario process.
+- [`juice-phs`](https://gitlab.esa.int/juice-soc-public/python/juice-phs) Exploits and uses the OSVE capabilities to assist the Instrument 
+  Timeline Harmonisation of the Detailed Scenario process.
+
+
+## OSVE Session File
+
+The OSVE Session File is a text file in JSON format intended to specify to OSVE
+the settings or parameters to use during initialisation, simulation and
+reporting steps.
+
+The JSON file is structured with the following objects:
+
+- `sessionConfiguration` Main session object containing the specified OSVE settings.
+  - `source` Defines the source or the origin of the data used for this OSVE execution.
+  - `simulationConfiguration` Defines the simulation settings for the OSVE execution. 
+  - `attitudeSimulationConfiguration` Defines the attitude simulation settings used by AGM during the OSVE execution. 
+    If not specified, OSVE will run the simulation without using AGM.
+    - `kernelsList` Defines SPICE kernels settings for being used by AGM during the OSVE execution. 
+  - `instrumentSimulationConfiguration` Defines the instrument simulation settings for being used by EPS during 
+    the OSVE execution. In not specified, OSVE will run the simulation without EPS.
+  - `inputFiles` Defines the input files for the OSVE execution.
+    - `modellingConfiguration` Defines the Experiment modelling files for being used by EPS.
+  - `outputFiles` Defines the output files that OSVE will generate after the execution.
+  - `logging` Defines the logging parameters of OSVE.
+
+A template of the Session file with a description of each parameter is available at
+[session-file](session-file.json). In the JSON file keywords are mandatory unless specified as `[OPTIONAL]`.
+Some keywords are labeled as `[NOT_USED]`, this just remarks that this keyword is not used by 
+OSVE itself but can be used for traceability purposes.
+
+An example of a session file with all the available OSVE overlays is available at 
+[session-file-example](session-file-example.json). More examples of Session files are provided in the test directories. 
+E.g.: [Minor Moons test scenario](validation/osve/osve-if/pt-if-test-0001-minor-moons/session_file.json).
+
+
+## OSVE `C++/C` Library
+
+The `C++/C` library for which the current Python package works as a wrapper
+for can also be directly used and linked with other applications. If this path is chosen it is recommended to inspect the source code of the Python Package  to understand how to use it.
+
+## Running EPS Regression tests
+
+There are two kind of regression tests in MAPPS / EPS, the first on are the legacy ones, in order to run them execute these commands:
+Note: Depending on your building setup you would need to replace all occurrences of <compilerarg if="gcc" value="-std=c++20"/> by <compilerarg if="gcc" value="-std=c++17"/> in the
+      mapps-jui/EPS/EPSNG/build/build.xml file.
+
+  cd mapps-jui/EPS/EPSNG/build
+  ant clean
+  ant
+  ant runEPSTests
+
+In order to run the EPS Python regression tests, do the following:
+
+  cd mapps-jui/EPS/EPSNG/build
+  ./buildTests.sh
+  cd ../../../..
+  cp mapps-jui/EPS/EPSNG/delivery/* mappsjui_tests/EPSShell/bin
+  cd mappsjui_tests/EPSShell
+  ./runTests.sh
+
+
+
+
+
+
