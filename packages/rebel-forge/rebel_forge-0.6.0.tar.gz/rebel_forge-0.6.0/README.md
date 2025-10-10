@@ -1,0 +1,145 @@
+# rebel-forge
+
+`rebel-forge` is a config-driven QLoRA/LoRA fine-tuning toolkit that runs smoothly on the Nebius GPU stack. It wraps the Hugging Face Transformers + PEFT workflow so teams can fine-tune hosted or user-provided models with a single command.
+
+## Installation
+
+`rebel-forge` targets Python 3.9 and newer. The base install ships just the configuration and dataset tooling so you can bring the exact PyTorch build you need.
+
+### Minimal install
+
+```bash
+pip install rebel-forge
+```
+
+This installs the config/CLI plumbing plus `transformers`, `peft`, and `datasets`. Choose a runtime extra (or your own PyTorch wheel) when you know whether you need CPU-only or CUDA acceleration.
+
+### Optional extras
+
+```bash
+# CPU-only wheels from PyPI
+pip install rebel-forge[cpu]
+
+# CUDA wheels (use the official PyTorch index if desired)
+pip install rebel-forge[cuda] --extra-index-url https://download.pytorch.org/whl/cu121
+```
+
+### From source
+
+```bash
+git clone <repo-url>
+cd rebel-forge
+pip install -e .
+```
+
+### Export installed sources
+
+`pip install rebel-forge` automatically drops a read-only copy to `~/rebel-forge`. Use the helper below to duplicate it elsewhere or refresh the snapshot.
+
+```bash
+rebel-forge source --dest ./rebel-forge-src
+```
+
+This copies the installed Python package into `./rebel-forge-src` so you can inspect or version-control the exact training scripts. Pass `--force` to overwrite an existing export.
+
+
+## First run onboarding
+
+Running `rebel-forge` launches a guided onboarding banner, exports the workspace into `~/rebel-forge`, and opens the Clerk portal at `http://localhost:3000/cli?token=…` (configurable via `.env.local`). The CLI now auto-starts `npm run dev` when it cannot detect a local Next.js portal, unlocks automatically after Clerk sign-in, and writes `~/.rebel-forge/onboarding.done` so future runs skip the flow. Automation helpers: set `REBEL_FORGE_SKIP_ONBOARDING=1` to bypass entirely or `REBEL_FORGE_AUTO_UNLOCK=1` (optionally `REBEL_FORGE_HANDSHAKE_USER`) to create the handshake file non-interactively.
+
+## Usage
+
+Prepare an INI/`.conf` file that names your base model, datasets, and training preferences. Then launch training with:
+
+```bash
+rebel-forge --config path/to/run.conf
+```
+
+The CLI infers sensible defaults (epochs, LoRA hyperparameters, dataset splits, etc.) and stores summaries plus adapter checkpoints inside the configured `output_dir`.
+
+## Example configuration
+
+```ini
+[model]
+base_model = meta-llama/Llama-3.1-8B
+output_dir = /mnt/checkpoints/llama-3.1-chat
+quant_type = nf4
+
+[data]
+format = plain
+train_data = /mnt/datasets/fta/train.jsonl
+eval_data = /mnt/datasets/fta/val.jsonl
+text_column = text
+
+[training]
+batch_size = 2
+epochs = 3
+learning_rate = 2e-4
+warmup_ratio = 0.05
+save_steps = 250
+
+[lora]
+lora_r = 64
+lora_alpha = 16
+lora_dropout = 0.05
+```
+
+## Key features
+
+- Optional 4-bit QLoRA via bitsandbytes (install `rebel-forge[cuda]` or add `bitsandbytes` manually)
+- Dataset auto-loading for JSON/JSONL/CSV/TSV/local directories and Hugging Face Hub references
+- Configurable LoRA target modules, quantization type, and training hyperparameters
+- Summary JSON + adapter checkpoints emitted for downstream pipelines (Convex sync, artifact uploads, etc.)
+
+## Development
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
+```
+
+## Nebius Remote Execution
+
+Run `python -m rebel_forge.sample` after installation to push a Torch demo onto Nebius GPUs.
+
+
+### Quick GPU smoke test
+
+After `pip install rebel-forge`, run the packaged sampler:
+
+```bash
+python -m rebel_forge.sample
+```
+
+The helper syncs your project (using `forge.ensure_remote()`), relaunches on Nebius, and trains a tiny Torch model on CUDA.
+
+`rebel-forge` ships a remote orchestrator so any Python project can offload execution to the Nebius GPU VM with a single helper call.
+
+```python
+import rebel_forge as forge
+
+forge.ensure_remote()  # syncs and re-runs the script remotely on Nebius
+
+# your existing training code stays untouched below this line
+```
+
+Configuration relies on the `FORGE_REMOTE_*` variables (falling back to the existing `NEBIUS_*` keys):
+
+- `FORGE_REMOTE_HOST` / `NEBIUS_HOST`
+- `FORGE_REMOTE_USER` / `NEBIUS_USERNAME`
+- `FORGE_REMOTE_PORT` / `NEBIUS_PORT`
+- `FORGE_REMOTE_KEY_PATH` or a `.nebius_key` file for the SSH identity
+- `FORGE_REMOTE_VENV` (defaults to `~/venvs/rebel-forge`)
+- `FORGE_REMOTE_ROOT` (defaults to `~/forge_runs`)
+
+`forge.ensure_remote()` rsyncs the project tree (excluding caches, build artefacts, and virtualenvs), copies optional `.env` secrets, and relaunches the entrypoint on Nebius while streaming logs back to STDOUT. Once on the VM the helper is a no-op because the flag `FORGE_REMOTE_ACTIVE=1` is auto-set.
+
+Need bespoke orchestration? Build a config and invoke commands directly:
+
+```python
+import rebel_forge as forge
+
+cfg = forge.RemoteConfig.from_env()
+forge.run_remote_command(cfg, ["python", "-m", "torch.utils.collect_env"])
+```
