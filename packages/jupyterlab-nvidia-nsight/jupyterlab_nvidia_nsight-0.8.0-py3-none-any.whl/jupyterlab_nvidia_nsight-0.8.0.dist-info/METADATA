@@ -1,0 +1,550 @@
+Metadata-Version: 2.4
+Name: jupyterlab_nvidia_nsight
+Version: 0.8.0
+Summary: A JupyterLab extension for profiling cells execution using NVIDIA Nsight tools.
+Project-URL: Homepage, https://pypi.org/project/jupyterlab-nvidia-nsight
+Project-URL: Bug Tracker, https://forums.developer.nvidia.com/c/developer-tools/nsight-systems/profiling-linux-targets
+Author-email: NVIDIA Corporation <devtools-support@nvidia.com>
+License: NVIDIA Proprietary Software
+License-File: License.txt
+Keywords: jupyter,jupyterlab,jupyterlab-extension
+Classifier: Framework :: Jupyter
+Classifier: Framework :: Jupyter :: JupyterLab
+Classifier: Framework :: Jupyter :: JupyterLab :: 4
+Classifier: Framework :: Jupyter :: JupyterLab :: Extensions
+Classifier: Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt
+Classifier: License :: Other/Proprietary License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.9
+Requires-Dist: docker
+Requires-Dist: jupyter-server<3,>=2.4.0
+Description-Content-Type: text/markdown
+
+# NVIDIA Nsight Tools JupyterLab Extension
+
+A JupyterLab extension for profiling cells execution using NVIDIA Nsight tools.
+
+## Demo
+
+Click on the image to launch the video
+
+[![Demo](https://img.youtube.com/vi/e_km8B3v_qI/maxresdefault.jpg)](https://www.youtube.com/embed/e_km8B3v_qI)
+
+## Requirements
+
+- JupyterLab >= 4.0.0
+- Docker (optional, for GUI support)
+- [nvtx](https://pypi.org/project/nvtx/) (For Nsight Compute support, required to be installed on the profiled Python)
+
+Nsight tools are not bundled with this extension. The required tool(s) should be installed separately on the JupyterLab server machine.
+
+## Install and setup
+
+- To install the extension, execute:
+
+```bash
+pip install jupyterlab-nvidia-nsight
+```
+
+- Install [Nsight Systems](https://developer.nvidia.com/nsight-systems) and/or [Nsight Compute](https://developer.nvidia.com/nsight-compute) (these tools are not shipped with this extension).
+
+- Set Nsight Systems and/or Nsight Compute installation location in the extension settings.
+  - Example: If Nsight Systems installation location is set to `/opt/nvidia/nsight-systems/<version>`,
+    then the extension will look for nsys executable in `/opt/nvidia/nsight-systems/<version>/target-linux-x64`
+  - If not set, `PATH` environment variable should contain the locations of the tool's executables.
+
+## Profile JupyterLab cells
+
+1. Enable Nsight tool by using the _Profiling with Nsight Systems/Compute..._ command
+   under the _NVIDIA Nsight_ menu, or by using the command palette.
+   - **Note**: This restarts the JupyterLab kernel.
+2. Profile cells execution by using the _Run and profile selected cells..._ command.
+3. The cell's profiling info is displayed in the cell output area.
+
+## Analyzing the profile session in Nsight tools GUI
+
+- Open Nsight tools report files in a tab inside JupyterLab.
+- Display of Nsight tools GUI requires [NVIDIA Nsight Streamer](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/devtools/resources/nsight-streamer-resources).
+- When JupyterLab is running inside a Docker container, displaying Nsight tools UI requires to have
+  the Docker daemon socket mounted
+  (i.e., `docker run -v /var/run/docker.sock:/var/run/docker.sock ...`).
+  - **SECURITY ALERT:** The Docker daemon socket should not be mounted when using untrusted sources because it may provide root access to the host system.
+  - See also the Docker Example section below.
+
+- Nsight Streamer requires two communication ports for HTTP and media.
+  By default, the extension picks two random free ports per each open report.
+  Use "Allowed HTTP ports" and "Allowed media ports" to restrict the pool of the ports used for this purpose.
+- For systems where the Jupyter server is not directly reachable from the client,
+  and Jupyter is behind nginx, the following is typically required:
+  - Expose the HTTP port with nginx.
+  - Use a TURN server for the media communication channel.
+  - See "NGINX Example" and "TURN Server Example" sections below.
+
+## Supported Tools
+
+### Nsight Systems
+
+- Supports Nsight Systems release 2024.1.1 or later. It is recommended to use the [latest release](https://developer.nvidia.com/nsight-systems).
+- Use `--stats=true` when profiling cells execution to see textual output of `nsys stats`.
+
+<details>
+<summary>NSYS CLI flags that can't be used within the extension</summary>
+
+- `--help`, `-h`
+- `--hotkey-capture`
+- `--output`, `-o`
+- `--session-new`
+- `--session`
+- `--stop-on-exit`, `-x`
+
+</details>
+
+### Nsight Compute
+
+- Supports Nsight Compute release 2024.3 or later. It is recommended to use the [latest release](https://developer.nvidia.com/nsight-compute).
+- Requires [nvtx](https://pypi.org/project/nvtx/) to be installed on the profiled Python.
+
+<details>
+<summary>NCU CLI flags that can't be used within the extension</summary>
+
+- `--app-replay-buffer`
+- `--app-replay-match`
+- `--app-replay-mode`
+- `--check-exit-code`
+- `--chips`
+- `--config-file-path`
+- `--config-file`
+- `--export`, `-o`
+- `--force-overwrite`, `-f`
+- `--help`, `-h`
+- `--hostname`
+- `--import`, `-i`
+- `--kill`
+- `--list-chips`
+- `--list-metrics`
+- `--list-rules`
+- `--list-sections`
+- `--list-sets`
+- `--log-file`
+- `--mode`
+- `--null-stdin`
+- `--open-in-ui`
+- `--profile-from-start`
+- `--query-metrics-collection`
+- `--query-metrics-mode`
+- `--query-metrics`
+- `--quiet`
+- `--range-filter`
+- `--range-replay-options`
+- `--rename-kernels-export`
+- `--replay-mode`
+- `--section-folder-restore`
+- `--version`, `-v`
+
+</details>
+
+<details>
+<summary>NCU CLI flags that can be used only when enabling NCU</summary>
+
+- `--apply-rules`
+- `--cache-control`
+- `--call-stack-type`
+- `--call-stack`
+- `--clock-control`
+- `--disable-profiler-start-stop`
+- `--graph-profiling`
+- `--import-source`
+- `--injection-path-32`
+- `--injection-path-64`
+- `--max-connections`
+- `--metrics`
+- `--pm-sampling-buffer-size`
+- `--pm-sampling-interval`
+- `--pm-sampling-max-passes`
+- `--port`, `-p`
+- `--preload-library`
+- `--rule`
+- `--section-folder-recursive`
+- `--section-folder`
+- `--section`
+- `--set`
+- `--source-folders`
+- `--support-32bit`
+- `--target-processes-filter`
+- `--target-processes`
+- `--verbose`
+- `--warp-sampling-buffer-size`
+- `--warp-sampling-interval`
+- `--warp-sampling-max-passes`
+
+</details>
+
+<details>
+<summary>NCU CLI flags that can be used only when profiling cells</summary>
+
+- `--csv`
+- `--devices`
+- `--disable-extra-suffixes`
+- `--filter-mode`
+- `--kernel-id`
+- `--kernel-name-base`
+- `--kernel-name`, `-k`
+- `--launch-count`, `-c`
+- `--launch-skip-before-match`
+- `--launch-skip`, `-s`
+- `--nvtx-exclude`
+- `--nvtx-include`
+- `--page`
+- `--print-details`
+- `--print-fp`
+- `--print-kernel-base`
+- `--print-metric-attribution`
+- `--print-metric-instances`
+- `--print-metric-name`
+- `--print-nvtx-rename`
+- `--print-rule-details`
+- `--print-source`
+- `--print-summary`
+- `--print-units`
+- `--rename-kernels-path`
+- `--rename-kernels`
+- `--resolve-source-file`
+
+</details>
+
+## Docker Example
+
+This example demonstrates how to use the extension in a [Jupyter Docker Stacks](https://jupyter-docker-stacks.readthedocs.io/en/latest/) image.
+
+The following Dockerfile defines a Docker image based on `pytorch-notebook` with CUDA 12,
+and includes the extension and cuda-toolkit.\
+**It is recommended to use the latest cuda-toolkit** - https://developer.nvidia.com/cuda-downloads
+
+<details>
+<summary>Dockerfile</summary>
+
+```dockerfile
+FROM quay.io/jupyter/pytorch-notebook:cuda12-python-3.11.8
+
+# Install cuda-toolkit
+ADD https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb /tmp/
+USER root
+RUN dpkg -i /tmp/cuda-keyring_1.1-1_all.deb && apt-get -y update && \
+    apt-get -y install cuda-toolkit-12-9
+USER ${NB_UID}
+
+# Install jupyterlab-nvidia-nsight and set the default settings
+ARG HOST_IP
+RUN pip install --no-cache-dir jupyterlab-nvidia-nsight nvtx && \
+    fix-permissions "${CONDA_DIR}" && fix-permissions "/home/${NB_USER}" && \
+    mkdir -p /home/${NB_USER}/.jupyter/lab/user-settings/jupyterlab-nvidia-nsight && echo ' \
+{ \
+    "ui": { \
+        "enabled": true, \
+        "suppressServerAddressWarning": true, \
+        "dockerHost": "'"$HOST_IP"'" \
+    }, \
+    "nsys": { \
+        "installationPath": "/opt/nvidia/nsight-systems/2025.1.3", \
+        "args": "--trace=cuda,nvtx,osrt --python-sampling=true --python-backtrace=cuda --cudabacktrace=all" \
+    }, \
+    "ncu": { \
+        "installationPath": "/opt/nvidia/nsight-compute/2025.2.1" \
+    } \
+}' > /home/${NB_USER}/.jupyter/lab/user-settings/jupyterlab-nvidia-nsight/plugin.jupyterlab-settings
+```
+
+</details>
+
+### Build the image:
+
+```bash
+docker build --rm --tag <your-image-name> --build-arg HOST_IP="$(hostname -i | cut -d' ' -f1)" .
+```
+
+### Run the container:
+
+```bash
+# SECURITY ALERT: Remove `-v /var/run/docker.sock:/var/run/docker.sock` when using untrusted sources
+docker run -it --rm --group-add $(getent group docker | cut -d: -f3) --runtime=nvidia -p 8888:8888 -v /var/run/docker.sock:/var/run/docker.sock <your-image-name>
+```
+
+Note: Using `--runtime=nvidia` requires [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/).
+
+## NGINX Example
+
+`jupyterlab-nvidia-nsight` uses [NVIDIA Nsight Streamer](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/devtools/resources/nsight-streamer-resources)
+for displaying Nsight tools UI inside JupyterLab. Hence, when JupyterLab is proxied via nginx,
+in order to properly display the UI, the HTTP port that is used for the streamer must be properly
+exposed by nginx. This example demonstrates a minimal nginx configuration for proxying JupyterLab,
+and the modifications required for properly displaying Nsight tools UI.
+
+JupyterLab is started with the following command, allowing remote access:
+
+```bash
+jupyter lab --no-browser --ServerApp.allow_remote_access=True
+```
+
+Below is a basic nginx configuration file for exposing only the JupyterLab server over HTTPS.
+Commonly saved at `/etc/nginx/sites-available/` and soft linked to `/etc/nginx/sites-enabled/`.
+
+<details>
+<summary>nginx configuration file without Nsight extension settings (/etc/nginx/sites-available/jupyter)</summary>
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name my-server-hostname;
+
+    ssl_certificate /path/to/mycert.pem;
+    ssl_certificate_key /path/to/mykey.key;
+
+    # The location path should match the JupyterLab `ServerApp.base_url` ('/' by default).
+    location / {
+        proxy_pass http://127.0.0.1:8888/; # Replace with the actual JupyterLab server address
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+</details>
+
+<br>
+
+After reloading nginx with `sudo systemctl reload nginx`, it is possible to open JupyterLab
+from a browser via `https://my-server-hostname/`,
+(assuming the used SSL certificate is valid, and trusted by the browser).
+But displaying Nsight tools UI inside JupyterLab doesn't work because
+the ports used by Nsight Streamer are not exposed by nginx.
+
+Change the `jupyterlab-nvidia-nsight` settings as follows:
+
+1. Set "Proxy domain".
+   - This example uses "NsightStreamer", any name can be chosen.
+   - The location path for exposing Nsight Streamer in nginx should match this setting.
+     See inline comment in the configuration example snippet below.
+2. Set "Allowed HTTP ports".
+   - This example arbitrarily uses "9001-9003", any set of free ports can be chosen.
+   - The number of ports sets the maximum number of report files that can be opened simultaneously
+     in the extension.
+
+Add a "location" block inside the nginx conf for properly exposing the Nsight Streamer.
+Here is the updated configuration file.
+
+<details>
+<summary>nginx configuration file with Nsight extension settings (/etc/nginx/sites-available/jupyter)</summary>
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name my-server-hostname;
+
+    ssl_certificate /path/to/mycert.pem;
+    ssl_certificate_key /path/to/mykey.key;
+
+    # The location path should match the JupyterLab `ServerApp.base_url` ('/' by default).
+    location / {
+        proxy_pass http://127.0.0.1:8888/; # Replace with the actual JupyterLab server address
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # The location path should contain the JupyterLab `ServerApp.base_url`, and the Proxy domain
+    # defined in the extension settings.
+    # For example, if `ServerApp.base_url == 'my_base_url'`, then the location path would be:
+    # ^/my_base_url/NsightStreamer/(\d+)/(.*)
+    location ~ ^/NsightStreamer/(\d+)/(.*) {
+        set $port $1;
+        set $rest $2;
+
+        if ($is_nsight_streamer_port = INVALID) {
+            return 403 "Port not allowed";
+        }
+
+        # Replace "0.0.0.0" with the Jupyter server address
+        set $target "http://0.0.0.0:$port/$rest$is_args$args";
+
+        proxy_pass $target;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+map $port $is_nsight_streamer_port {
+    default INVALID;
+    9001 OK;
+    9002 OK;
+    9003 OK;
+}
+```
+
+</details>
+
+<br>
+
+After reloading nginx, displaying Nsight UI inside JupyterLab works.
+If the display is stuck on "Waiting for stream", it indicates that the media communication
+channel is broken. First, make sure that the media port that is used by Nsight streamer is not
+blocked by Firewall or NAT. If a direct peer-to-peer communication is not possible,
+see next section "TURN server Example" for a possible solution.
+
+## TURN Server Example
+
+This section provide a solution for when a direct peer-to-peer communication is not possible between
+the client and the Jupyter server via the media port
+(use "Allowed media ports" setting to control which media ports are used by the extension).
+In such case, the Nsight UI display is stuck on "Waiting for stream".
+This is commonly needed in corporate environments or when the Jupyter server is behind strict
+network policies.
+
+The solution is to run and use a TURN server that is reachable from both the client (browser)
+and the Jupyter server, typically the TURN server runs on the same host that runs nginx.
+
+The following example demonstrates how to set up a TURN server using
+[coturn](https://github.com/coturn/coturn), and how to configure the extension appropriately.
+
+### Save a coturn configuration file
+
+**Note**: The coturn configuration requirements may vary on different environments.
+See this [example](https://github.com/coturn/coturn/blob/master/examples/etc/turnserver.conf)
+for more information about coturn configuration.
+
+<details>
+<summary>turnserver.conf</summary>
+
+```ini
+# Should be set as the "Turn port" extension setting
+listening-port=3478
+
+# This port range should be set as the "Allowed media ports" setting
+# One media port is required per each opened report (in addition to the http port)
+min-port=49152
+max-port=49154
+
+# Should match the "JupyterLab server address" setting
+allowed-peer-ip=<jupyter-server-ip>
+
+# Must be set, the value is usually arbitrary.
+realm=nsightstreamer
+
+# Default is username=nvidia, password=nvidia
+# For non-default, set the "TURN username" and "TURN password" accordingly
+lt-cred-mech
+fingerprint
+user=nvidia:nvidia
+```
+
+</details>
+
+### Run coturn
+
+```bash
+docker run -d --rm --network=host -v /path/to/turnserver.conf:/etc/turnserver.conf coturn/coturn -c /etc/turnserver.conf
+```
+
+### Set the extension settings
+
+- "Turn server address" - The IP address (or hostname) of the TURN server.
+- "Turn port" - The `listening-port` as set in the coturn configuration above.
+- "Allowed media ports" - The `<min-port>:<max-port>` range as set in the coturn configuration above.
+- "TURN username" and "TURN password" - The user credentials as set in the coturn configuration above.
+
+If Nsight UI display still doesn't work,
+adding `verbose` and `log-file=stdout` to `turnserver.conf` and inspecting
+coturn logs (using `docker logs` command) are a good starting point to understand what went wrong.
+
+## Uninstall
+
+To remove the extension, execute:
+
+```bash
+pip uninstall jupyterlab-nvidia-nsight
+```
+
+## Troubleshooting
+
+If you are seeing the frontend extension, but it is not working, check
+that the server extension is enabled:
+
+```bash
+jupyter server extension list
+```
+
+If the server extension is installed and enabled, but you are not seeing
+the frontend extension, check the frontend extension is installed:
+
+```bash
+jupyter labextension list
+```
+
+## Known Issues
+
+- While Nsight Compute is enabled, interrupting the JupyterLab kernel with the "Interrupt Kernel" command (by using the command palette, kernel menu or the stop-button) causes the kernel to terminate and restart.
+
+## Release Notes
+
+### 0.8.0
+
+- New setting for configuring the allowed media ports to be used for displaying Nsight UI.
+- Support displaying Nsight UI when JupyterLab is running on a private network
+  using an external TURN server.
+  - Introduces new settings for configuring the TURN server that is used -
+    Turn server address, Turn port, and Turn username and password.
+
+### 0.7.1
+
+- Support Linux SBSA.
+- Support displaying Nsight UI when JupyterLab is running over HTTPS.
+- Support displaying Nsight UI when JupyterLab is proxied via nginx.
+- Support displaying Nsight UI when JupyterLab is using a remote file system.
+- New setting for configuring the allowed HTTP ports to be used for displaying Nsight UI.
+- New setting for configuring the maximum resolution of Nsight Streamer.
+- New command for refreshing a Nsight UI display tab.
+  - By right-clicking a tab and selecting "Refresh Tab".
+- Register report files in Jupyter DocumentRegistry with Nsight UI display as the default file
+  opener (e.g., double-clicking a report file will display it with Nsight UI).
+
+### 0.7.0
+
+- New setting for configuring the location of the generated reports.
+- Support displaying Nsight UI when running inside a docker container.
+- Use (and pull if required) the latest NVIDIA Nsight Streamer for displaying Nsight UI.
+  - See [Nsight Streamer for Nsight Systems](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/devtools/containers/nsight-streamer-nsys) and [Nsight Streamer for Nsight Compute](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/devtools/containers/nsight-streamer-ncu).
+- Support displaying an external WebRTC streamer.
+
+### 0.6.0
+
+- Support displaying Nsight Compute UI inside JupyterLab.
+- Fix keyboard interaction with Nsight tools UI.
+
+### 0.5.2
+
+- Added Nsight Compute section in the project description.
+- Verify server connection on extension load.
+
+### 0.5.1
+
+- Initial release.
