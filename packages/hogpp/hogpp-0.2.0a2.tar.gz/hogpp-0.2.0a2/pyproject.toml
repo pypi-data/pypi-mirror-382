@@ -1,0 +1,114 @@
+[build-system]
+requires = [
+    'pybind11>=2.13.0',
+    'scikit-build-core>=0.10.7',
+]
+build-backend = 'scikit_build_core.build'
+
+[tool.scikit-build]
+minimum-version = 'build-system.requires'
+ninja.version = ">=1.11"
+build.targets = ['pyhogpp']
+sdist.exclude = [
+    '*',
+    '!/CMakeLists.txt',
+    '!/data/**',
+    '!/docs/**',
+    '!/include/**',
+    '!/LICENSE',
+    '!/pyproject.toml',
+    '!/python/**',
+    '!/README.md',
+    '!/tests/**',
+]
+
+[tool.scikit-build.cmake]
+version = "CMakeLists.txt"
+build-type = "Release"
+
+[tool.scikit-build.cmake.define]
+BUILD_TESTING = false
+CMAKE_DISABLE_FIND_PACKAGE_OpenCV = true
+CMAKE_DISABLE_FIND_PACKAGE_Sphinx = true
+CMAKE_REQUIRE_FIND_PACKAGE_pybind11 = true
+
+[tool.cibuildwheel]
+enable = [
+    'cpython-freethreading',
+    'pypy',
+]
+test-requires = [
+    "Pillow>=11.0.0",
+    "pytest",
+]
+test-command = 'pytest -W error {project}/tests/python/module'
+
+[project]
+name = 'hogpp'
+dynamic = ['version']
+readme = 'README.md'
+description = 'Fast computation of rectangular histogram of oriented gradients (R-HOG) features using integral histogram'
+authors = [
+  {name = "Sergiu Deitsch", email = "sergiu.deitsch@gmail.com"},
+]
+dependencies = [
+  "numpy",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: End Users/Desktop",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+license = {text = "Apache License (2.0)"}
+requires-python = ">=3.9"
+
+[tool.scikit-build.metadata.version]
+provider = 'scikit_build_core.metadata.regex'
+input = 'python/hogpp/__init__.py'
+
+[project.urls]
+Documentation = "https://hogpp.readthedocs.io"
+Issues = "https://github.com/sergiud/hogpp/issues"
+Source = "https://github.com/sergiud/hogpp"
+
+[tool.coverage.run]
+omit = [
+    'tests/python/**',
+]
+source = [
+    'python/'
+]
+
+[tool.black]
+skip-string-normalization = true
+
+[tool.isort]
+profile = 'black'
+force_single_line = true
+from_first = true
+no_sections = true
+order_by_type = false
+src_paths = ['tests/python']
+skip = ['.env/']
+
+[tool.pytest.ini_options]
+norecursedirs = 'internal'
+testpaths = ['tests/python']
+xfail_strict = true
+addopts = [
+    '--import-mode=importlib',
+]
