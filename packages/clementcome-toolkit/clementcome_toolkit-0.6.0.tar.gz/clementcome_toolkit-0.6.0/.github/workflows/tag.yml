@@ -1,0 +1,55 @@
+name: Version Bump
+
+on:
+  pull_request:
+    branches:
+      - main*
+    types:
+      - closed
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR Title and Determine Version Bump
+        id: check-pr-title
+        if: github.event.pull_request.merged == true
+        run: |
+          PR_TITLE=$(jq -r .pull_request.title "$GITHUB_EVENT_PATH")
+          echo "PR Title: $PR_TITLE"
+          lowercase_title=$(echo "$PR_TITLE" | tr '[:upper:]' '[:lower:]')
+          if [[ $lowercase_title =~ (patch|minor|major) ]]; then
+            echo "Version bump keyword found: ${BASH_REMATCH[0]}"
+            echo "bump_version=${BASH_REMATCH[0]}" >> $GITHUB_OUTPUT
+          else
+            echo "No version bump keyword (patch, minor, or major) found in the PR title."
+            exit 1
+          fi
+        shell: bash
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Bump Version and tag
+        if: steps.check-pr-title.outputs.bump_version
+        run: |
+          VERSION_BUMP="${{ steps.check-pr-title.outputs.bump_version }}"
+          uv version --bump "$VERSION_BUMP"
+          RELEASE_VERSION=$(uv version --short)
+          git config --global user.email "clement.come98@gmail.com"
+          git config --global user.name "CI/CD"
+          git commit -m "Bump version to $RELEASE_VERSION" pyproject.toml
+          git push -f origin HEAD:${{ github.base_ref }}
+          git tag -a "v$RELEASE_VERSION" -m "Version $RELEASE_VERSION"
+          git push -f origin "v$RELEASE_VERSION"

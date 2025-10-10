@@ -1,0 +1,65 @@
+name: Release Control
+
+on:
+    pull_request:
+        branches:
+            - main
+
+jobs:
+    check_title:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check title
+              run: |
+                title="${{ github.event.pull_request.title }}"
+                lowercase_title=$(echo "$title" | tr '[:upper:]' '[:lower:]')
+
+                if [[ "$lowercase_title" =~ (patch|minor|major) ]]; then
+                    echo "Title is valid"
+                else
+                    echo "Title is invalid"
+                    exit 1
+                fi
+
+
+    check_version:
+        runs-on: ubuntu-latest
+        outputs:
+            base_branch_version: ${{ steps.get-version.outputs.base_branch_version }}
+            head_branch_version: ${{ steps.get-version.outputs.head_branch_version }}
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+
+          - name: Install uv
+            uses: astral-sh/setup-uv@v4
+            with:
+              version: "latest"
+
+          - name: Set up Python 3.12
+            run: uv python install 3.12
+
+          - name: Get version of base and head branch
+            id: get-version
+            run: |
+              git fetch --prune --unshallow
+              VERSION=$(uv version --short)
+              echo "Head branch version: $VERSION"
+              echo "head_branch_version=$VERSION" >> $GITHUB_OUTPUT
+              git checkout ${{ github.base_ref }}
+              VERSION=$(uv version --short)
+              echo "Base branch version: $VERSION"
+              echo "base_branch_version=$VERSION" >> $GITHUB_OUTPUT
+          - name: Compare versions
+            id: compare-versions
+            run: |
+              BASE_BRANCH_VERSION="${{ steps.get-version.outputs.base_branch_version }}"
+              HEAD_BRANCH_VERSION="${{ steps.get-version.outputs.head_branch_version }}"
+              echo "Base branch version: $BASE_BRANCH_VERSION"
+              echo "Head branch version: $HEAD_BRANCH_VERSION"
+              if [[ "$BASE_BRANCH_VERSION" == "$HEAD_BRANCH_VERSION" ]]; then
+                echo "Base branch version and head branch version are the same."
+              else
+                echo "Base branch version and head branch version are different."
+                exit 1
+              fi
