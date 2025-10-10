@@ -1,0 +1,28 @@
+#	listenwicht - Flexible Python-based mailing list daemon
+#	Copyright (C) 2025-2025 Johannes Bauer
+#
+#	This file is part of listenwicht.
+#
+#	listenwicht is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; this program is ONLY licensed under
+#	version 3 of the License, later versions are explicitly excluded.
+#
+#	listenwicht is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License
+#	along with listenwicht; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#	Johannes Bauer <JohannesBauer@gmx.de>
+
+from .LWBaseAction import LWBaseAction
+
+class ActionDisplay(LWBaseAction):
+	def run(self):
+		self._received_mail_parsing_loglvl = 2
+		for mailfile in self.args.mailfile:
+			self._process_received_mail(mailfile)
