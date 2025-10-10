@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HKJC Race Info</title>
+    <link rel="icon" href="https://hkjc.com/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="tabs">
+            <img src="https://consvc.hkjc.com//consvc.hkjc.com/-/media/Sites/JCBW/MenuIcons/eWinLogo/horse_svg/Racing/horse/horse.svg" alt="Horse Icon" class="horse-icon">
+            <div class="tabs-buttons">
+                {% for race_num in race_info.Races.keys()|sort|map('int')|sort %}
+                <button class="tab-btn {% if loop.first %}active{% endif %}" onclick="showRace('{{ race_num }}')"
+                    id="tab-{{ race_num }}">
+                    {{ race_num }}
+                </button>
+                {% endfor %}
+            </div>
+            <div class="race-header-info">
+                <span class="race-date"> {{ race_info.Date }}</span>
+                <span class="race-venue">{{ race_info.Venue }}</span>
+            </div>
+        </div>
+
+        {% for race_num, race in race_info.Races.items()|sort %}
+        <div class="race-content {% if loop.first %}active{% endif %}" id="race-{{ race_num }}">
+            <div class="race-info">
+                <div class="race-info-item">
+                    <span class="race-info-label">Race Name</span>
+                    <span class="race-info-value">{{ race.Name }}</span>
+                </div>
+                <div class="race-info-item">
+                    <span class="race-info-label">Class</span>
+                    <span class="race-info-value">{{ race.Class }}</span>
+                </div>
+                <div class="race-info-item">
+                    <span class="race-info-label">Distance</span>
+                    <span class="race-info-value">{{ race.Dist }}m</span>
+                </div>
+                <div class="race-info-item">
+                    <span class="race-info-label">Course</span>
+                    <span class="race-info-value">{{ race.Course }}</span>
+                </div>
+                <div class="race-info-item">
+                    <span class="race-info-label">Track</span>
+                    <span class="race-info-value">{{ race.Track }}</span>
+                </div>
+                <div class="race-info-item">
+                    <span class="race-info-label">Going</span>
+                    <span class="race-info-value">{{ race.Going }}</span>
+                </div>
+                <div class="race-info-item">
+                    <button class="track-workout-btn" onclick="openTrackWorkoutVideo('{{ race_info.Date }}', '{{ race_num }}')">
+                        🎥 Track Workout
+                    </button>
+                </div>
+            </div>
+
+            <div class="race-visual-container">
+                <div class="speedmap-section">
+                    <div class="speedmap-container">
+                        <img id="speedmap-{{ race_num }}" class="speedmap-image" alt="Race {{ race_num }} Speed Map" />
+                    </div>
+                </div>
+                <div class="fav-style-chart-section">
+                    <div class="fav-style-chart-container">
+                        <canvas id="fav-style-chart-{{ race_num }}"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="expand-all-container">
+                <button class="expand-all-btn" onclick="toggleAllRunners('{{ race_num }}', this)">
+                    <span class="expand-all-icon">▼</span>
+                    <span class="expand-all-text">Expand All</span>
+                </button>
+            </div>
+
+            <table class="runners-table">
+                <thead>
+                    <tr>
+                        <th width="30"></th>
+                        <th>No</th>
+                        <th>Draw</th>
+                        <th>Horse No</th>
+                        <th>Name</th>
+                        <th>Wt (lbs)</th>
+                        <th>Handicap Wt (lbs)</th>
+                        <th class="sortable" onclick="sortTable('{{ race_num }}', 7, 'number')">
+                            Rating <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="sortable" onclick="sortTable('{{ race_num }}', 8, 'number')">
+                            Fitness <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="sortable" onclick="sortTable('{{ race_num }}', 9, 'number')">
+                            Energy Diff <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th>Fav Style</th>
+                        <th class="sortable" onclick="sortTable('{{ race_num }}', 11, 'number')">
+                            WIN <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="sortable" onclick="sortTable('{{ race_num }}', 12, 'number')">
+                            WIN (fit) <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="sortable" onclick="sortTable('{{ race_num }}', 13, 'number')">
+                            PLA <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="sortable" onclick="sortTable('{{ race_num }}', 14, 'number')">
+                            PLA (fit) <span class="sort-arrow">⇅</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for runner in race.Runners %}
+                    <tr class="runner-row" 
+                        data-race="{{ race_num }}"
+                        data-horse="{{ runner.HorseNo }}"
+                        data-going="{{ race.Going }}"
+                        data-track="{{ race.Track }}"
+                        data-dist="{{ race.Dist }}"
+                        onclick="toggleRunnerHistory(this, '{{ race_num }}', '{{ runner.HorseNo }}', '{{ race.Going }}', '{{ race.Track }}', '{{ race.Dist }}')">
+                        <td>
+                            <span class="expand-icon">▶</span>
+                        </td>
+                        <td>{{ runner.No }}</td>
+                        <td>{{ runner.Dr if runner.Dr else '-' }}</td>
+                        <td class="horse-no">
+                            <a href="https://racing.hkjc.com/racing/information/Chinese/Horse/Horse.aspx?HorseNo={{ runner.HorseNo }}"
+                                target="_blank" onclick="event.stopPropagation();"> {{ runner.HorseNo }} </a>
+                        </td>
+                        <td>{{ runner.Name }}</td>
+                        <td>{{ runner.Wt }}</td>
+                        <td>{{ runner.Handicap }}</td>
+                        <td>{{ runner.Rtg }}</td>
+                        <td>{{ runner.Fitness }}</td>
+                        <td>{{ runner.SPEnergy }}</td>
+                        <td class="fav-style" data-race="{{ race_num }}" data-horse="{{ runner.HorseNo }}">Unknown</td>
+                        <td class="odds-win" data-race="{{ race_num }}" data-horse="{{ runner.No }}">-</td>
+                        <td class="odds-win-fit" data-race="{{ race_num }}" data-horse="{{ runner.No }}">-</td>
+                        <td class="odds-pla" data-race="{{ race_num }}" data-horse="{{ runner.No }}">-</td>
+                        <td class="odds-pla-fit" data-race="{{ race_num }}" data-horse="{{ runner.No }}">-</td>
+                    </tr>
+                    <tr class="runner-details-row" id="runner-details-{{ race_num }}-{{ runner.HorseNo }}">
+                        <td colspan="15" class="runner-details-cell">
+                            <div class="runner-details-content" id="runner-details-content-{{ race_num }}-{{ runner.HorseNo }}">
+                                <div class="details-loading">Loading details...</div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>
