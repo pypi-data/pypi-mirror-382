@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="form-page">
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <h3 id="loadingTitle">Uploading...</h3>
+            <div class="progress-bar-container">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+            <div id="progressText" class="progress-text">0%</div>
+        </div>
+    </div>
+
+    <div class="container"> 
+        <div class="form-page"> 
+            <h1>{{ title }}</h1>
+            <form id="form" novalidate>
+                {% for field in fields %}
+                    {% if field.type == 'checkbox' %}
+                        <div class="field checkbox-field">
+                            <input type="checkbox" 
+                                   name="{{ field.name }}" 
+                                   id="{{ field.name }}"
+                                   {% if field.default %}checked{% endif %}>
+                            <label for="{{ field.name }}">{{ field.name }}</label>
+                        </div>
+                    {% elif field.type == 'select' %}
+                        <div class="field {% if field.is_optional %}optional-field{% endif %}">
+                            <label for="{{ field.name }}">
+                                {{ field.name }}
+                                {% if not field.required %}<span class="optional-badge">optional</span>{% endif %}
+                            </label>
+                            {% if field.is_optional %}
+                            <div class="optional-toggle-container">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" 
+                                           name="{{ field.name }}_optional_toggle" 
+                                           data-optional-toggle="{{ field.name }}"
+                                           {% if field.optional_enabled %}checked{% endif %}>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label">Enable field</span>
+                            </div>
+                            {% endif %}
+                            <select name="{{ field.name }}" 
+                                    id="{{ field.name }}" 
+                                    {% if field.required %}required{% endif %}
+                                    {% if field.is_optional and not field.optional_enabled %}disabled{% endif %}>
+                                {% for option in field.options %}
+                                    <option value="{{ option }}" 
+                                            {% if field.default == option %}selected{% endif %}>
+                                        {{ option }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="field-error" id="error-{{ field.name }}"></div>
+                        </div>
+                    {% elif field.type == 'color' %}
+                        <div class="field {% if field.is_optional %}optional-field{% endif %}">
+                            <label for="{{ field.name }}">
+                                {{ field.name }}
+                                {% if not field.required %}<span class="optional-badge">optional</span>{% endif %}
+                            </label>
+                            {% if field.is_optional %}
+                            <div class="optional-toggle-container">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" 
+                                           name="{{ field.name }}_optional_toggle" 
+                                           data-optional-toggle="{{ field.name }}"
+                                           {% if field.optional_enabled %}checked{% endif %}>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label">Enable field</span>
+                            </div>
+                            {% endif %}
+                            <div class="color-input-wrapper">
+                                <input type="text" 
+                                       name="{{ field.name }}" 
+                                       id="{{ field.name }}"
+                                       {% if field.required %}required{% endif %}
+                                       {% if field.get('pattern') %}pattern="{{ field.pattern }}"{% endif %}
+                                       {% if field.default is not none %}value="{{ field.default }}"{% endif %}
+                                       placeholder="#000000"
+                                       data-color-input
+                                       {% if field.is_optional and not field.optional_enabled %}disabled{% endif %}>
+                                <input type="color" 
+                                       class="color-picker-hidden"
+                                       data-color-picker="{{ field.name }}"
+                                       {% if field.default is not none %}value="{{ field.default }}"{% endif %}
+                                       {% if field.is_optional and not field.optional_enabled %}disabled{% endif %}>
+                                <div class="color-preview" 
+                                     data-color-preview="{{ field.name }}"
+                                     style="background-color: {{ field.default or '#000000' }}"
+                                     title="Click to pick color"></div>
+                            </div>
+                            <div class="field-error" id="error-{{ field.name }}"></div>
+                        </div>
+                    {% elif field.type == 'file' %}
+                        <div class="field {% if field.is_optional %}optional-field{% endif %}">
+                            <label for="{{ field.name }}">
+                                {{ field.name }}
+                                {% if not field.required %}<span class="optional-badge">optional</span>{% endif %}
+                            </label>
+                            {% if field.is_optional %}
+                            <div class="optional-toggle-container">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" 
+                                           name="{{ field.name }}_optional_toggle" 
+                                           data-optional-toggle="{{ field.name }}"
+                                           {% if field.optional_enabled %}checked{% endif %}>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label">Enable field</span>
+                            </div>
+                            {% endif %}
+                            <input type="file" 
+                                   name="{{ field.name }}" 
+                                   id="{{ field.name }}"
+                                   {% if field.required %}required{% endif %}
+                                   {% if field.get('accept') %}accept="{{ field.accept }}"{% endif %}
+                                   class="file-input"
+                                   {% if field.is_optional and not field.optional_enabled %}disabled{% endif %}>
+                            <div class="field-error" id="error-{{ field.name }}"></div>
+                        </div>
+                    {% else %}
+                        <div class="field {% if field.is_optional %}optional-field{% endif %}">
+                            <label for="{{ field.name }}">
+                                {{ field.name }}
+                                {% if not field.required %}<span class="optional-badge">optional</span>{% endif %}
+                            </label>
+                            {% if field.is_optional %}
+                            <div class="optional-toggle-container">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" 
+                                           name="{{ field.name }}_optional_toggle" 
+                                           data-optional-toggle="{{ field.name }}"
+                                           {% if field.optional_enabled %}checked{% endif %}>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label">Enable field</span>
+                            </div>
+                            {% endif %}
+                            <input type="{{ field.type }}" 
+                                   name="{{ field.name }}" 
+                                   id="{{ field.name }}"
+                                   {% if field.required %}required{% endif %}
+                                   {% if field.get('min') is not none %}min="{{ field.min }}"{% endif %}
+                                   {% if field.get('max') is not none %}max="{{ field.max }}"{% endif %}
+                                   {% if field.get('step') %}step="{{ field.step }}"{% endif %}
+                                   {% if field.get('minlength') %}minlength="{{ field.minlength }}"{% endif %}
+                                   {% if field.get('maxlength') %}maxlength="{{ field.maxlength }}"{% endif %}
+                                   {% if field.get('pattern') %}pattern="{{ field.pattern }}"{% endif %}
+                                   {% if field.default is not none %}value="{{ field.default }}"{% endif %}
+                                   {% if field.is_optional and not field.optional_enabled %}disabled{% endif %}>
+                            <div class="field-error" id="error-{{ field.name }}"></div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+                <button type="submit" id="submitBtn">Submit</button>
+            </form>
+            
+            <div id="result"></div>
+            <div id="error"></div>
+        </div>
+    </div> 
+    
+    <script src="/static/form.js"></script>
+    <script>
+        initializeForm('{{ submit_url }}');
+    </script>
+</body>
+</html>
