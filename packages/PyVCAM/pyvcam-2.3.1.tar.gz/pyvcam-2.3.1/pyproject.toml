@@ -1,0 +1,110 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PyVCAM"
+dynamic = ["version"]  # Taken form pyvcam/__init__.py
+description = "Python wrapper for PVCAM functionality"
+authors = [
+    {name = "Teledyne Photometrics", email = "photometrics.support@teledyne.com"},
+    {name = "Steve Bellinger"},
+    {name = "Cameron Smith"},
+    {name = "Lubomír Walder"},
+    {name = "Vojtěch Ondřej"},
+    {name = "Tomáš Hanák"},
+]
+keywords = [
+    "PVCAM",
+    "microscopy",
+]
+readme = "README.md"
+license = "MIT"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.9"
+
+dependencies = [
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "validate-pyproject[all]",
+    "Flake8-pyproject",
+    "flake8-typing-imports",
+    "pylint",
+]
+
+[project.urls]
+# Home page doesn't show up with 'pip show', used a workaround via setup.cfg or setup.py
+homepage = "https://github.com/Photometrics/PyVCAM"
+source = "https://github.com/Photometrics/PyVCAM"
+download = "https://pypi.org/project/PyVCAM/#files"
+tracker = "https://github.com/Photometrics/PyVCAM/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = [
+    "pyvcam",
+]
+exclude = []
+
+[tool.setuptools.dynamic]
+version = {attr = "pyvcam.__version__"}
+
+# Thanks to Flake8-pyproject, we can configure flake8 here
+[tool.flake8]
+max-line-length = 100
+#max-complexity = 7
+exclude = [
+    "src/pyvcam/constants.py",
+]
+
+[tool.pylint.MASTER]
+ignore-paths = [
+    "src/pyvcam/constants.py",
+]
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+    "fixme",
+    "missing-docstring",
+    "c-extension-no-member",
+    "duplicate-code",
+    "no-name-in-module",  # No name 'pvc' in module 'pyvcam'
+    "too-many-instance-attributes",
+    "too-many-lines",
+    "R0917",  #"too-many-positional-arguments",
+    "too-many-public-methods",
+]
+[tool.pylint.typecheck]
+generated-members = "cv2"
+[tool.pylint.FORMAT]
+max-args=10
+max-attributes=30
+max-branches=30
+max-line-length=100
+max-locals=50
+max-statements=100
+
+# During development install optional dependencies:
+#   python -m pip install .[dev]
+# Before every commit check the code:
+#   python -m validate_pyproject pyproject.toml
+#   python -m flake8 src tests --count --statistics
+#   python -m pylint src
+# Or run GitHub tests locally in Docker via 'act' (https://nektosact.com/):
+#   act -j check
