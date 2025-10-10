@@ -1,0 +1,502 @@
+Metadata-Version: 2.4
+Name: kiarina-lib-google-auth
+Version: 1.5.0
+Summary: Google Cloud client library for kiarina namespace
+Project-URL: Homepage, https://github.com/kiarina/kiarina-python
+Project-URL: Repository, https://github.com/kiarina/kiarina-python
+Project-URL: Issues, https://github.com/kiarina/kiarina-python/issues
+Project-URL: Changelog, https://github.com/kiarina/kiarina-python/blob/main/packages/kiarina-lib-google-auth/CHANGELOG.md
+Project-URL: Documentation, https://github.com/kiarina/kiarina-python/tree/main/packages/kiarina-lib-google-auth#readme
+Author-email: kiarina <kiarinadawa@gmail.com>
+Maintainer-email: kiarina <kiarinadawa@gmail.com>
+License-Expression: MIT
+Keywords: client,cloud,gcp,google,google-cloud,pydantic,settings
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.12
+Requires-Dist: google-api-python-client>=2.184.0
+Requires-Dist: pydantic-settings-manager>=2.1.0
+Requires-Dist: pydantic-settings>=2.10.1
+Description-Content-Type: text/markdown
+
+# kiarina-lib-google-auth
+
+A Python client library for Google Cloud authentication with configuration management and support for multiple credential types.
+
+## Features
+
+- **Multiple Authentication Methods**: Support for default credentials, service accounts, and user accounts
+- **Service Account Impersonation**: Impersonate service accounts for delegated access
+- **Configuration Management**: Use `pydantic-settings-manager` for flexible configuration
+- **Credentials Caching**: Cache and refresh user account credentials automatically
+- **Self-Signed JWT**: Generate self-signed JWTs for service accounts
+- **Type Safety**: Full type hints and Pydantic validation
+
+## Installation
+
+```bash
+pip install kiarina-lib-google-auth
+```
+
+## Quick Start
+
+### Basic Usage with Default Credentials
+
+```python
+from kiarina.lib.google.auth import get_credentials
+
+# Get default credentials (ADC, service account, or compute engine)
+credentials = get_credentials()
+```
+
+### Service Account Authentication
+
+```python
+from kiarina.lib.google.auth import get_credentials, GoogleAuthSettings
+
+# From service account key file
+credentials = get_credentials(
+    settings=GoogleAuthSettings(
+        type="service_account",
+        service_account_file="~/path/to/service-account-key.json"
+    )
+)
+
+# From service account key data (JSON string)
+import json
+credentials = get_credentials(
+    settings=GoogleAuthSettings(
+        type="service_account",
+        service_account_data=json.dumps({
+            "type": "service_account",
+            "project_id": "your-project",
+            "private_key_id": "...",
+            "private_key": "...",
+            "client_email": "...",
+            # ... other fields
+        })
+    )
+)
+```
+
+### User Account Authentication
+
+```python
+from kiarina.lib.google.auth import get_credentials, GoogleAuthSettings
+
+# From authorized user file (OAuth2 credentials)
+credentials = get_credentials(
+    settings=GoogleAuthSettings(
+        type="user_account",
+        authorized_user_file="~/path/to/authorized-user.json",
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
+)
+
+# From authorized user data (JSON string)
+credentials = get_credentials(
+    settings=GoogleAuthSettings(
+        type="user_account",
+        authorized_user_data=json.dumps({
+            "type": "authorized_user",
+            "client_id": "...",
+            "client_secret": "...",
+            "refresh_token": "..."
+        }),
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
+)
+```
+
+### Service Account Impersonation
+
+```python
+from kiarina.lib.google.auth import get_credentials, GoogleAuthSettings
+
+# Impersonate a service account using source credentials
+credentials = get_credentials(
+    settings=GoogleAuthSettings(
+        type="service_account",
+        service_account_file="~/path/to/source-sa-key.json",
+        impersonate_service_account="target-sa@project.iam.gserviceaccount.com",
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+)
+
+# Note: Source principal requires roles/iam.serviceAccountTokenCreator role
+```
+
+### Credentials Caching
+
+```python
+from kiarina.lib.google.auth import get_credentials, GoogleAuthSettings, CredentialsCache
+
+# Implement a cache (e.g., in-memory, Redis, file-based)
+class InMemoryCache(CredentialsCache):
+    def __init__(self):
+        self._cache: str | None = None
+    
+    def get(self) -> str | None:
+        return self._cache
+    
+    def set(self, value: str) -> None:
+        self._cache = value
+
+cache = InMemoryCache()
+
+# Use cache for user account credentials
+credentials = get_credentials(
+    settings=GoogleAuthSettings(
+        type="user_account",
+        authorized_user_file="~/path/to/authorized-user.json",
+        scopes=["https://www.googleapis.com/auth/drive"]
+    ),
+    cache=cache
+)
+```
+
+### Self-Signed JWT
+
+```python
+from kiarina.lib.google.auth import get_self_signed_jwt, GoogleAuthSettings
+
+# Generate a self-signed JWT for service account
+jwt_token = get_self_signed_jwt(
+    settings=GoogleAuthSettings(
+        type="service_account",
+        service_account_file="~/path/to/service-account-key.json"
+    ),
+    audience="https://your-service.example.com/"
+)
+```
+
+## Configuration
+
+This library uses [pydantic-settings-manager](https://github.com/kiarina/pydantic-settings-manager) for flexible configuration management.
+
+### Environment Variables
+
+Configure authentication using environment variables:
+
+```bash
+# Authentication type
+export KIARINA_LIB_GOOGLE_AUTH_TYPE="service_account"
+
+# Service account configuration
+export KIARINA_LIB_GOOGLE_AUTH_SERVICE_ACCOUNT_FILE="~/path/to/sa-key.json"
+export KIARINA_LIB_GOOGLE_AUTH_SERVICE_ACCOUNT_EMAIL="sa@project.iam.gserviceaccount.com"
+
+# User account configuration
+export KIARINA_LIB_GOOGLE_AUTH_AUTHORIZED_USER_FILE="~/path/to/authorized-user.json"
+export KIARINA_LIB_GOOGLE_AUTH_USER_ACCOUNT_EMAIL="user@example.com"
+
+# Impersonation
+export KIARINA_LIB_GOOGLE_AUTH_IMPERSONATE_SERVICE_ACCOUNT="target-sa@project.iam.gserviceaccount.com"
+
+# Scopes (comma-separated)
+export KIARINA_LIB_GOOGLE_AUTH_SCOPES="https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/drive"
+
+# Project ID
+export KIARINA_LIB_GOOGLE_AUTH_PROJECT_ID="your-project-id"
+```
+
+### Programmatic Configuration
+
+```python
+from kiarina.lib.google.auth import settings_manager, get_credentials
+
+# Configure multiple environments
+settings_manager.user_config = {
+    "development": {
+        "type": "user_account",
+        "authorized_user_file": "~/.config/gcloud/application_default_credentials.json",
+        "scopes": ["https://www.googleapis.com/auth/cloud-platform"]
+    },
+    "production": {
+        "type": "service_account",
+        "service_account_file": "/secrets/prod-sa-key.json",
+        "scopes": ["https://www.googleapis.com/auth/cloud-platform"]
+    }
+}
+
+# Switch to production configuration
+settings_manager.active_key = "production"
+credentials = get_credentials()
+```
+
+## API Reference
+
+### Main Functions
+
+#### `get_credentials(config_key=None, *, settings=None, scopes=None, cache=None)`
+
+Get Google Cloud credentials based on configuration.
+
+**Parameters:**
+- `config_key` (str | None): Configuration key for multi-config setup
+- `settings` (GoogleAuthSettings | None): Settings object (overrides config_key)
+- `scopes` (list[str] | None): OAuth2 scopes (overrides settings.scopes)
+- `cache` (CredentialsCache | None): Credentials cache for user accounts
+
+**Returns:**
+- `Credentials`: Google Cloud credentials object
+
+**Supported credential types:**
+- `google.auth.compute_engine.credentials.Credentials` (Compute Engine)
+- `google.oauth2.service_account.Credentials` (Service Account)
+- `google.oauth2.credentials.Credentials` (User Account)
+- `google.auth.impersonated_credentials.Credentials` (Impersonated)
+
+#### `get_self_signed_jwt(config_key=None, *, settings=None, audience)`
+
+Generate a self-signed JWT for service account authentication.
+
+**Parameters:**
+- `config_key` (str | None): Configuration key for multi-config setup
+- `settings` (GoogleAuthSettings | None): Settings object (overrides config_key)
+- `audience` (str): JWT audience (target service URL)
+
+**Returns:**
+- `str`: Self-signed JWT token
+
+### Utility Functions
+
+#### `get_default_credentials()`
+
+Get default Google credentials using Application Default Credentials (ADC).
+
+**Returns:**
+- `Credentials`: Default credentials (ADC, service account, or compute engine)
+
+#### `get_service_account_credentials(*, service_account_file=None, service_account_data=None)`
+
+Get service account credentials from file or data.
+
+**Parameters:**
+- `service_account_file` (str | PathLike | None): Path to service account key file
+- `service_account_data` (dict | None): Service account key data
+
+**Returns:**
+- `google.oauth2.service_account.Credentials`: Service account credentials
+
+#### `get_user_account_credentials(*, authorized_user_file=None, authorized_user_data=None, scopes, cache=None)`
+
+Get user account credentials from file or data.
+
+**Parameters:**
+- `authorized_user_file` (str | PathLike | None): Path to authorized user file
+- `authorized_user_data` (dict | None): Authorized user data
+- `scopes` (list[str]): OAuth2 scopes
+- `cache` (CredentialsCache | None): Credentials cache
+
+**Returns:**
+- `google.oauth2.credentials.Credentials`: User account credentials
+
+### Configuration Classes
+
+#### `GoogleAuthSettings`
+
+Pydantic settings model for Google Cloud authentication.
+
+**Fields:**
+- `type` (Literal["default", "service_account", "user_account"]): Authentication type (default: "default")
+- `service_account_email` (str | None): Service account email
+- `service_account_file` (str | None): Path to service account key file
+- `service_account_data` (str | None): Service account key data (JSON string)
+- `user_account_email` (str | None): User account email
+- `client_secret_file` (str | None): Path to client secret file
+- `client_secret_data` (str | None): Client secret data (JSON string)
+- `authorized_user_file` (str | None): Path to authorized user file
+- `authorized_user_data` (str | None): Authorized user data (JSON string)
+- `impersonate_service_account` (str | None): Target service account email for impersonation
+- `scopes` (list[str]): OAuth2 scopes (default: cloud-platform, drive, spreadsheets)
+- `project_id` (str | None): GCP project ID
+
+**Methods:**
+- `get_service_account_data()`: Parse service_account_data JSON string
+- `get_client_secret_data()`: Parse client_secret_data JSON string
+- `get_authorized_user_data()`: Parse authorized_user_data JSON string
+
+#### `CredentialsCache` (Protocol)
+
+Protocol for implementing credentials cache.
+
+**Methods:**
+- `get() -> str | None`: Retrieve cached credentials (JSON string)
+- `set(value: str) -> None`: Store credentials in cache (JSON string)
+
+## Authentication Types
+
+### 1. Default Credentials
+
+Uses Application Default Credentials (ADC) in the following priority:
+
+1. `GOOGLE_APPLICATION_CREDENTIALS` environment variable (service account key file)
+2. `gcloud auth application-default login` credentials (user account)
+3. Compute Engine metadata server (compute engine credentials)
+
+```python
+credentials = get_credentials(
+    settings=GoogleAuthSettings(type="default")
+)
+```
+
+### 2. Service Account
+
+Authenticates using a service account key file or data.
+
+```python
+# From file
+credentials = get_credentials(
+    settings=GoogleAuthSettings(
+        type="service_account",
+        service_account_file="~/sa-key.json"
+    )
+)
+
+# From data
+credentials = get_credentials(
+    settings=GoogleAuthSettings(
+        type="service_account",
+        service_account_data='{"type": "service_account", ...}'
+    )
+)
+```
+
+### 3. User Account
+
+Authenticates using OAuth2 user credentials (authorized user file).
+
+```python
+credentials = get_credentials(
+    settings=GoogleAuthSettings(
+        type="user_account",
+        authorized_user_file="~/.config/gcloud/application_default_credentials.json",
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
+)
+```
+
+**Note:** User account credentials support automatic refresh and caching.
+
+### 4. Service Account Impersonation
+
+Impersonate a target service account using source credentials.
+
+```python
+credentials = get_credentials(
+    settings=GoogleAuthSettings(
+        type="service_account",
+        service_account_file="~/source-sa-key.json",
+        impersonate_service_account="target-sa@project.iam.gserviceaccount.com",
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+)
+```
+
+**Required IAM Role:** The source principal must have the `roles/iam.serviceAccountTokenCreator` role on the target service account.
+
+## Default Scopes
+
+The library includes the following default scopes:
+
+- `https://www.googleapis.com/auth/cloud-platform` - All GCP resources
+- `https://www.googleapis.com/auth/drive` - Google Drive resources
+- `https://www.googleapis.com/auth/spreadsheets` - Google Sheets resources
+
+You can override these by specifying custom scopes in the configuration or function call.
+
+## Error Handling
+
+```python
+from kiarina.lib.google.auth import get_credentials, GoogleAuthSettings
+
+try:
+    credentials = get_credentials(
+        settings=GoogleAuthSettings(
+            type="service_account",
+            service_account_file="~/sa-key.json"
+        )
+    )
+except ValueError as e:
+    print(f"Configuration error: {e}")
+except FileNotFoundError as e:
+    print(f"Key file not found: {e}")
+except Exception as e:
+    print(f"Authentication failed: {e}")
+```
+
+## Development
+
+### Prerequisites
+
+- Python 3.12+
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/kiarina/kiarina-python.git
+cd kiarina-python
+
+# Setup development environment
+mise run setup
+```
+
+### Running Tests
+
+```bash
+# Run format, lint, type checks and tests
+mise run package kiarina-lib-google-auth
+
+# Coverage report
+mise run package:test kiarina-lib-google-auth --coverage
+```
+
+### Test Configuration
+
+Some tests require actual GCP credentials. Set the following environment variables:
+
+```bash
+# Service account key file
+export KIARINA_LIB_GOOGLE_AUTH_TEST_GCP_SA_KEY_FILE="~/path/to/sa-key.json"
+
+# Service account key data (JSON string)
+export KIARINA_LIB_GOOGLE_AUTH_TEST_GCP_SA_KEY_DATA='{"type": "service_account", ...}'
+
+# Authorized user file
+export KIARINA_LIB_GOOGLE_AUTH_TEST_GCP_AUTHORIZED_USER_FILE="~/.config/gcloud/application_default_credentials.json"
+
+# Authorized user data (JSON string)
+export KIARINA_LIB_GOOGLE_AUTH_TEST_GCP_AUTHORIZED_USER_DATA='{"type": "authorized_user", ...}'
+
+# Target service account for impersonation tests
+export KIARINA_LIB_GOOGLE_AUTH_TEST_GCP_IMPERSONATE_SA="target-sa@project.iam.gserviceaccount.com"
+```
+
+Tests will be skipped (xfail) if these environment variables are not set.
+
+## Dependencies
+
+- [google-api-python-client](https://github.com/googleapis/google-api-python-client) - Google API client library
+- [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) - Settings management
+- [pydantic-settings-manager](https://github.com/kiarina/pydantic-settings-manager) - Advanced settings management
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details.
+
+## Contributing
+
+This is a personal project, but contributions are welcome! Please feel free to submit issues or pull requests.
+
+## Related Projects
+
+- [kiarina-python](https://github.com/kiarina/kiarina-python) - The main monorepo containing this package
+- [pydantic-settings-manager](https://github.com/kiarina/pydantic-settings-manager) - Configuration management library used by this package
