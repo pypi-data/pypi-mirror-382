@@ -1,0 +1,150 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DOCKER_GEN" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.docker_gen \- Manage configuration files using Docker data
+.SH SYNOPSIS
+.sp
+\fBdebops run service/docker_gen\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%docker\-gen\fP <\fBhttps://github.com/jwilder/docker-gen\fP> generates configuration files for host services to make the
+Dockerized services accessible to them.
+For example this role can create the required configuration
+for publishing a Dockerized web\-service via the host\(aqs web\-server.
+The configuration is
+based on available Docker container metadata.
+.sp
+This role creates a service and configuration to generate \fBnginx\fP upstream
+service definitions, which can be used by \fBdebops.nginx\fP role to configure
+Dockerized services, either local or remote, behind an \fBnginx\fP reverse proxy.
+Other services and templates might be provided in the future.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+The \fBdebops.docker_gen\fP role generates by default \fBnginx\fP configuration,
+based on \fI\%Romke van der Meulen blog entry\fP <\fBhttps://romkevandermeulen.nl/2015/02/19/docker-gen-automatic-nginx-config-with-a-human-touch.html\fP>
+Nginx upstreams defined this way can then be used in \fBdebops.nginx\fP role to
+automatically enable or disable upstream Docker containers in a given
+configuration.
+.sp
+Due to how \fBnginx\fP configuration works, upstreams need to be defined at the
+start or reload of \fBnginx\fP daemon, otherwise it will fail. And because of how
+\fBdocker\-gen\fP configuration works, it cannot generate the correct \fBnginx\fP
+configuration without Docker containers already present. Thus, the order of the
+various things to be set up correctly is:
+.INDENT 0.0
+.IP 1. 3
+Create and start the Docker containers with environment variable
+\fBNGINX_UPSTREAM\fP specifying the wanted upstream name, for example:
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+docker run \-e NGINX_UPSTREAM=docker_upstream \-d ...
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP 2. 3
+Install and start \fBdocker\-gen\fP will generate \fBnginx\fP configuration
+with all Docker upstreams specified.
+.IP 3. 3
+Install and start \fBnginx\fP with templated configuration, and if upstream
+definitions are present, they will be immediately available and used.
+.UNINDENT
+.sp
+When you are adding new services to \fBdocker\-gen\fP, remember that at least one
+needs to have \fB\-watch\fP option enabled for the service to stay daemonized.
+.SS Useful variables
+.sp
+This is a list of role variables which your most likely want to define in
+Ansible inventory to customize \fBdocker\-gen\fP:
+.INDENT 0.0
+.TP
+.B \fBdocker_gen__remote\fP
+Enable support for remote Docker containers, accessed through Docker API over
+TLS.
+.TP
+.B \fBdocker_gen__remote_host\fP
+Hostname or IP address of the remote Docker host. Without setting this remote
+connections are disabled.
+.UNINDENT
+.SS Example inventory
+.sp
+To configure \fBdocker\-gen\fP on a given remote host, it need to be added to
+\fB[debops_service_docker_gen]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_docker_gen]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook that can be used to manage \fBdocker\-gen\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage docker\-gen service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_docker_gen\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: docker_gen
+      tags: [ \(aqrole::docker_gen\(aq, \(aqskip::docker_gen\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

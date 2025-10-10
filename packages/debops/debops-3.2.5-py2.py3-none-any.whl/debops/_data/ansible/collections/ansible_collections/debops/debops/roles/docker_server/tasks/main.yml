@@ -1,0 +1,81 @@
+---
+# Copyright (C) 2015-2023 Maciej Delmanowski <drybjed@gmail.com>
+# Copyright (C) 2019      Imre Jonk <mail@imrejonk.nl>
+# Copyright (C) 2015-2023 DebOps <https://debops.org/>
+# SPDX-License-Identifier: GPL-3.0-only
+
+- name: Import DebOps global handlers
+  ansible.builtin.import_role:
+    name: 'global_handlers'
+
+- name: Install required packages
+  ansible.builtin.apt:
+    name: '{{ (docker_server__base_packages
+               + docker_server__packages) | flatten }}'
+    state: 'present'
+    install_recommends: False
+  notify: [ 'Refresh host facts' ]
+  register: docker_server__register_packages
+  until: docker_server__register_packages is succeeded
+
+- name: Add specified users to 'docker' group
+  ansible.builtin.user:
+    name: '{{ item }}'
+    groups: 'docker'
+    append: True
+  loop: '{{ docker_server__admins }}'
+  tags: [ 'role::docker_server:config', 'role::docker_server:admins' ]
+
+- name: Make sure that Ansible local facts directory exists
+  ansible.builtin.file:
+    path: '/etc/ansible/facts.d'
+    state: 'directory'
+    mode: '0755'
+
+- name: Save docker_server local facts
+  ansible.builtin.template:
+    src: 'etc/ansible/facts.d/docker_server.fact.j2'
+    dest: '/etc/ansible/facts.d/docker_server.fact'
+    mode: '0755'
+  notify: [ 'Refresh host facts' ]
+  tags: [ 'meta::facts' ]
+
+- name: Update Ansible facts if they were modified
+  ansible.builtin.meta: 'flush_handlers'
+
+- name: Generate Docker configuration file
+  ansible.builtin.template:
+    src: 'etc/docker/daemon.json.j2'
+    dest: '/etc/docker/daemon.json'
+    mode: '0644'
+  notify: [ 'Restart docker' ]
+  tags: [ 'role::docker_server:config' ]
+
+- name: Install ferm post hook
+  ansible.builtin.template:
+    src: 'etc/ferm/hooks/post.d/restart-docker.j2'
+    dest: '/etc/ferm/hooks/post.d/restart-docker'
+    mode: '0755'
+  when: docker_server__ferm_post_hook | bool
+
+- name: Create resolved.conf.d override directory
+  ansible.builtin.file:
+    path: '/etc/systemd/resolved.conf.d'
+    state: 'directory'
+    mode: '0755'
+  when: docker_server__resolved_integration | bool
+
+- name: Remove systemd-resolved integration
+  ansible.builtin.file:
+    path: '/etc/systemd/resolved.conf.d/docker.conf'
+    state: 'absent'
+  notify: [ 'Restart systemd-resolved service' ]
+  when: not docker_server__resolved_integration | bool
+
+- name: Configure systemd-resolved integration
+  ansible.builtin.template:
+    src: 'etc/systemd/resolved.conf.d/docker.conf.j2'
+    dest: '/etc/systemd/resolved.conf.d/docker.conf'
+    mode: '0644'
+  notify: [ 'Restart systemd-resolved service' ]
+  when: docker_server__resolved_integration | bool

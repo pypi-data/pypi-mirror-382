@@ -1,0 +1,230 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.APPARMOR" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.apparmor \- Install and configure AppArmor
+.SH SYNOPSIS
+.sp
+\fBdebops run service/apparmor\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%AppArmor\fP <\fBhttps://apparmor.net/\fP> is a Linux kernel Security Module (\fILSM\fP) which provides
+\fI\%mandatory access control\fP <\fBhttps://en.wikipedia.org/wiki/Mandatory_access_control\fP>\&.
+.sp
+Programs are restricted on the basis of \fIprofiles\fP, which are traditionally
+stored under \fB/etc/apparmor.d/\fP, using filenames which correspond to
+the path to the binary being protected by the profile
+(\fB/usr/bin/foobar\fP → \fB/etc/apparmor.d/usr.bin.foobar\fP).
+.sp
+Profiles can be configured in different modes: \fBenforce\fP, \fBdisabled\fP, or
+\fBcomplain\fP (log, but don\(aqt enforce).
+.sp
+This role is primarily geared towards allowing other roles to perform
+customizations of existing profiles, and allowing administrators to
+selectively enable/disable profiles.
+.SH GETTING STARTED
+.SS Using debops.apparmor from other roles
+.sp
+One common use case for \fBdebops.apparmor\fP is to use it from other roles
+to perform customizations to the AppArmor profiles shipped with various
+packages and stored under the \fB/etc/apparmor.d/\fP directory.
+.sp
+To do this, you can define the desired AppArmor modifications in your
+\fBdefaults/main.yml\fP file. For example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Configuration for the \(ga\(gadebops.apparmor\(ga\(ga role, customizing the system
+# profile for slapd to work in a DebOps environment.
+slapd__apparmor__dependent_locals:
+
+   \- name: \(aqusr.sbin.slapd\(aq
+     options:
+
+       \- name: \(aq/etc/pki/**\(aq
+         value: \(aqr\(aq
+         comment: \(aqAllow slapd access to DebOps PKI data\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+And then in the playbook for this role, pass the
+\fBslapd__apparmor__dependent_locals\fP variable over to the \fBdebops.apparmor\fP
+role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage OpenLDAP service
+  ...
+  hosts: [ \(aqdebops_service_slapd\(aq]
+  ...
+
+  roles:
+
+    \- role: debops.apparmor
+      tags: [ \(aqrole::apparmor\(aq, \(aqskip::apparmor\(aq ]
+      apparmor__dependent_locals:
+        \- \(aq{{ slapd__apparmor__dependent_locals }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+There are three different variables which can be used to perform customizations
+of the local AppArmor configuration via role dependencies
+(\fI\%apparmor__dependent_profiles\fP, \fI\%apparmor__dependent_locals\fP
+and \fI\%apparmor__dependent_tunables\fP), see \fI\%apparmor__profiles\fP,
+\fI\%apparmor__locals\fP and \fI\%apparmor__tunables\fP for more details,
+including the syntax of each variable.
+.SS Containers
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+Note that AppArmor will not necessarily work properly inside
+containers and may cause issues with applications running in
+a containerized environment.
+.UNINDENT
+.UNINDENT
+.sp
+As an example, if you setup a \fI\%systemd\-nspawn(1)\fP <\fBhttps://manpages.debian.org/systemd-nspawn(1)\fP> container/guest and
+AppArmor is enabled on the host system, the AppArmor profiles from the host
+will be enforced inside the container, even though they are not configured
+inside the container and tools such as \fBaa\-enabled\fP will, if executed
+inside the container, report that AppArmor is \fInot\fP enabled.
+.sp
+Any changes to an AppArmor profile that interferes with the proper running of
+a given service would therefore have to be performed on the host, rather than
+the container/guest.
+.sp
+Your mileage might vary depending on the container technology used and its
+level (and maturity) of support for AppArmor.
+.SS Example inventory
+.sp
+\fBdebops.apparmor\fP is included by default in the \fBcommon.yml\fP DebOps
+playbook; you don\(aqt need to do anything to have it executed.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.apparmor\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# SPDX\-License\-Identifier: GPL\-3.0\-or\-later
+
+\- name: Install and configure AppArmor
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_apparmor\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: apparmor
+      tags: [ \(aqrole::apparmor\(aq, \(aqskip::apparmor\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::apparmor\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::apparmor:pkg\fP
+Tasks related to the installation of packages.
+.TP
+.B \fBrole::apparmor:grub\fP
+Tasks related to the configuration of kernel parameters via GRUB.
+.TP
+.B \fBrole::apparmor:tunables\fP
+Tasks related to the management of AppArmor tunables (i.e. files under
+\fB/etc/apparmor.d/tunables/\fP).
+.TP
+.B \fBrole::apparmor:locals\fP
+Tasks related to the management of local modifications to AppArmor
+profiles (i.e. files under \fB/etc/apparmor.d/local/\fP).
+.TP
+.B \fBrole::apparmor:profiles\fP
+Tasks related to the management of whether profiles should be
+in the enabled/disabled/complain state.
+.TP
+.B \fBrole::apparmor:service\fP
+Tasks related to starting/stopping/enabling/disabling the AppArmor
+service.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.apparmor\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%apparmor(7)\fP <\fBhttps://manpages.debian.org/apparmor(7)\fP>, \fI\%apparmor.d(5)\fP <\fBhttps://manpages.debian.org/apparmor.d(5)\fP> and the manpages for
+the various \fBaa\-*\fP utilities (like \fI\%aa\-status(8)\fP <\fBhttps://manpages.debian.org/aa-status(8)\fP>,
+\fI\%aa\-enabled(1)\fP <\fBhttps://manpages.debian.org/aa-enabled(1)\fP>, \fI\%aa\-disable(8)\fP <\fBhttps://manpages.debian.org/aa-disable(8)\fP>, \fI\%aa\-complain(8)\fP <\fBhttps://manpages.debian.org/aa-complain(8)\fP> and
+\fI\%aa\-enforce(8)\fP <\fBhttps://manpages.debian.org/aa-enforce(8)\fP>)
+.IP \(bu 2
+The website of the \fI\%AppArmor Project\fP <\fBhttps://apparmor.net/\fP>
+.IP \(bu 2
+The \fI\%Ubuntu Wiki Page\fP <\fBhttps://wiki.ubuntu.com/AppArmor\fP>
+.IP \(bu 2
+The \fI\%Ubuntu Documentation\fP <\fBhttps://help.ubuntu.com/community/AppArmor\fP>
+.IP \(bu 2
+The \fI\%Debian Wiki Page\fP <\fBhttps://wiki.debian.org/AppArmor\fP>, including the \fI\%HowToUse\fP <\fBhttps://wiki.debian.org/AppArmor/HowToUse\fP> subpage
+.UNINDENT
+.SH AUTHOR
+Robin Schneider, David Härdeman
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

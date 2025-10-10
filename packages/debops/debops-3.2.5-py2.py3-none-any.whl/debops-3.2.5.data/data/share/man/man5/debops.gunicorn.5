@@ -1,0 +1,453 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.GUNICORN" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.gunicorn \- Manage Gunicorn using Debian packages via Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/gunicorn\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%Green Unicorn\fP <\fBhttp://gunicorn.org/\fP> is a Python WSGI HTTP Server for
+UNIX. It uses a pre\-fork worker model ported from Ruby\(aqs Unicorn project. The
+Gunicorn server is broadly compatible with various web frameworks, simply
+implemented, light on server resources, and fairly speedy.
+.sp
+The \fBdebops.gunicorn\fP Ansible role uses the \fI\%Debian package configuration structure\fP <\fBhttps://chris-lamb.co.uk/posts/sysadmin-friendly-deployment-gunicorn-debian\fP> on older Debian and Ubuntu releases
+to manage multiple \fBgunicorn\fP applications as a single service. This can be
+used to deploy applications that use either a system Python installation, or
+a \fBvirtualenv\fP Python environment.
+.sp
+From Debian Stretch upwards, the role configures a custom set of
+\fBsystemd\fP units to support Green Unicorn service instances.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To enable Green Unicorn service on a host, that host should be added to to
+a specific Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_gunicorn]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.gunicorn\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Green Unicorn service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_gunicorn\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ gunicorn__logrotate__dependent_config }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::gunicorn\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ gunicorn__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ gunicorn__python__dependent_packages2 }}\(aq
+
+    \- role: gunicorn
+      tags: [ \(aqrole::gunicorn\(aq, \(aqskip::gunicorn\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH SUPPORT FOR VIRTUALENV ENVIRONMENTS
+.sp
+The role can be used to run WSGI applications deployed in a \fI\%virtualenv\fP <\fBhttp://virtualenv.org/\fP>
+environment. To do this, you need to install a \fBgunicorn\fP Python module
+inside the environment at the same version as the Debian package. Below you can
+find instructions for doing that with Ansible.
+.sp
+The \fBdebops.gunicorn\fP role deploys an Ansible local facts script which
+returns the version of the system \fBgunicorn\fP package. This fact can be
+accessed as:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ansible_local.gunicorn.version
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In your role, you can define a YAML list which specifies what Python modules
+should be present in the \fBvirtualenv\fP environment:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+application__virtualenv_pip_packages:
+
+  # Install compatible \(aqgunicorn\(aq module inside the virtualenv
+  \- name: \(aqgunicorn\(aq
+    version: \(aq{{ ansible_local.gunicorn.version | d(omit) }}\(aq
+
+  # Install \(aqsetproctitle\(aq for nice process names
+  # (You\(aqll need gcc and the python\-dev or python3\-dev package for this)
+  \- \(aqsetproctitle\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Next, in your role task list, include set of tasks that will create the
+\fBvirtualenv\fP environment and install the required modules inside:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+\- name: Install additional Python modules for gunicorn support
+  pip:
+    name:    \(aq{{ item.name    | d(item) }}\(aq
+    version: \(aq{{ item.version | d(omit) }}\(aq
+    virtualenv: \(aq/path/to/virtualenv\(aq
+  with_flattened: \(aq{{ application__virtualenv_pip_packages }}\(aq
+  become_user: \(aqapp\-user\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above steps should ensure that the application deployed in the
+\fBvirtualenv\fP environment can be started by the \fBgunicorn\fP service
+installed from the Debian packages.
+To do that, you can define the application using the role dependent variables
+in your role\(aqs \fBdefaults/main.yml\fP file, like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+application__gunicorn__dependent_applications:
+
+  \- name: \(aqvirtualenv\-app\(aq
+    working_dir: \(aq/path/to/virtualenv/app/src\(aq
+    python: \(aq/path/to/virtualenv/bin/python\(aq
+    mode: \(aqwsgi\(aq
+    user: \(aqapp\-user\(aq
+    group: \(aqapp\-group\(aq
+    args: [ \(aq\-\-bind=unix:/run/gunicorn/virtualenv\-app.sock\(aq,
+            \(aq\-\-workers={{ ansible_processor_vcpus | int + 1 }}\(aq,
+            \(aq\-\-timeout=10\(aq \(aqvirtualenv\-app.wsgi\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+And the corresponding playbook which uses \fBdebops.gunicorn\fP as a dependent
+role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Deploy the application
+  hosts: [ \(aqapplication\-hosts\(aq ]
+  become: True
+
+  roles:
+
+    \- role: gunicorn
+      gunicorn__dependent_applications:
+        \- \(aq{{ application__gunicorn__dependent_applications }}\(aq
+
+    \- role: application\-role
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Currently there\(aqs no way to request that the \fBgunicorn\fP service should be
+restarted apart from specifying the \fBRestart gunicorn\fP Ansible handler
+directly in your role, for example like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Generate the application configuration
+  template:
+    src: \(aqpath/to/virtualenv/app/src/config.j2\(aq
+    dest: \(aq/path/to/virtualenv/app/src/config.j2\(aq
+    owner: \(aqapp\-user\(aq
+    group: \(aqapp\-group\(aq
+    mode: \(aq0644\(aq
+  notify: [ \(aqRestart gunicorn\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This requires that the \fBdebops.gunicorn\fP role is included in the playbook
+that manages your application. This restriction will be changed in the future,
+when Ansible handlers will be able to listen for notifications.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.gunicorn\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS gunicorn__applications
+.sp
+The \fI\%gunicorn__applications\fP and
+\fI\%gunicorn__dependent_applications\fP lists manage the information about
+the WSGi\-compatible applications served by Gunicorn. Each entry is a YAML
+dictionary with specific parameters. Most of the parameters are passed directly
+to the configuration file after some processing.
+.sp
+List of known parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the application server to use, it will be used as the
+configuration file name in the \fB/etc/gunicorn.d/\fP directory, as well as the
+process name.
+.TP
+.B \fBcomment\fP
+Optional. Additional comments added to the beginning of the configuration
+file; can be specified as a string or a YAML text block.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration file will be
+generated. If \fBabsent\fP, the configuration file will be removed.
+.UNINDENT
+.sp
+The rest of the parameters specified in a given entry should be dictionary keys
+with either a string, a YAML list or a YAML dictionary as values.
+.INDENT 0.0
+.TP
+.B \fBworking_dir\fP
+Required, string. Path to the working directory of a given application.
+.TP
+.B \fBpython\fP
+Optional, string. Path to the Python executable to use. If not specified, the
+system Python version will be used.
+.TP
+.B \fBbinary\fP
+Optional, string. Either \fBgunicorn\fP (default) or \fBgunicorn3\fP to run Python 3
+compatible applications.
+.TP
+.B \fBmode\fP
+Optional, string. What mode to use for the application, usually \fBwsgi\fP or
+\fBdjango\fP\&. This is only relevant on the older OS releases.
+.TP
+.B \fBuser\fP
+Optional, string. UNIX user account which will be used to run the application
+processes. If not specified, \fBwww\-data\fP user account will be used. The role
+will create the user account if it doesn\(aqt exist, as long as the \fBhome\fP
+parameter is also specified.
+.TP
+.B \fBgroup\fP
+Optional, string. UNIX group which will be used to run the application
+processes. If not specified, \fBwww\-data\fP group will be used. The role will
+create the group if it doesn\(aqt exist.
+.TP
+.B \fBhome\fP
+Optional, string. The absolute path of the application account home
+directory. Required for automatic account creation.
+.TP
+.B \fBsystem\fP
+Optional, boolean. If not specified or \fBTrue\fP, the created UNIX account and
+group will be a system variant, with UID/GID <1000, which is typical for UNIX
+services.
+.TP
+.B \fBenvironment\fP
+Optional. YAML dictionary with environment variables to set for a given
+application. Each dictionary key should be the variable name, and dictionary
+value will be its value.
+.TP
+.B \fBargs\fP
+Required. YAML list of arguments to pass to the \fBgunicorn\fP daemon. The last
+element of the list should be an application \(dqentry point\(dq module.
+.UNINDENT
+.sp
+The next set of dictionary keys contains less used parameters, which can be
+used to modify the internal service configuration.
+.INDENT 0.0
+.TP
+.B \fBbind\fP
+Optional. Specify either a UNIX socket path as \fBunix:/path/to/socket\fP, or
+a TCP socket in the form of \fBipaddr:port\fP (the role does not configure
+firewall).
+.sp
+If not specified, the role will configure an UNIX socket in the path:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/run/gunicorn\-<name>/<name>.sock
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The socket directory will be created with the \fBitem.user\fP parameter as the
+UNIX account owner, and \fBitem.group\fP as the UNIX account group.
+.sp
+On older OS releases, the socket will be created as:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/run/gunicorn/<name>.sock
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBbind_mode\fP
+Optional. Specify the file mode of the UNIX socket directory. If not
+specified, \fB0755\fP is used by default
+.TP
+.B \fBpidfile\fP
+Optional. Specify an absolute path to the file with the PID of the main Green
+Unicorn process.
+.sp
+If not specified, the role will create a PID file in the path:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/run/gunicorn\-<name>/<name>.pid
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+On older OS releases, the PID file will be created as:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/run/gunicorn/<name>.pid
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBbacklog\fP
+Optional. Maximum number of clients that are allowed to connect, usually
+between 64\-2048. Clients that exceed this number will receive a connection
+error.
+.UNINDENT
+.SS Examples
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# Manage Green Unicorn applications
+gunicorn__applications:
+
+  # Deploy a system\-wide WSGI application with Python 3
+  \- name: \(aqsystem\-app\(aq
+    working_dir: \(aq/path/to/deploy/dir\(aq
+    binary: \(aqgunicorn3\(aq
+    user: \(aqworker\-user\(aq
+    group: \(aqworker\-group\(aq
+    args: [ \(aq\-\-bind=0.0.0.0:8000\(aq,
+            \(aq\-\-workers={{ ansible_processor_vcpus | int + 1 }}\(aq,
+            \(aq\-\-timeout=10\(aq, \(aqsystem\-app.wsgi\(aq ]
+
+  # Deploy a virtualenv WSGI application (requires gunicorn of the same version
+  # to be installed inside the virtualenv)
+  \- name: \(aqvirtualenv\-app\(aq
+    comment: \(aqThis application is deployed in a virtualenv\(aq
+    working_dir: \(aq/path/to/virtualenv/app/src\(aq
+    python: \(aq/path/to/virtualenv/bin/python\(aq
+    mode: \(aqwsgi\(aq
+    user: \(aqcustom\-user\(aq
+    group: \(aqcustom\-group\(aq
+    args: [ \(aq\-\-bind=unix:/run/gunicorn/virtualenv\-app.sock\(aq,
+            \(aq\-\-workers={{ ansible_processor_vcpus | int + 1 }}\(aq,
+            \(aq\-\-timeout=10\(aq, \(aqvirtualenv\-app.wsgi\(aq ]
+
+  # Remove an old application configuration
+  \- name: \(aqold\-app\(aq
+    state: \(aqabsent\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,296 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DOCKER_SERVER" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.docker_server \- Manage Docker server using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/docker_server\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Docker\fP <\fBhttps://docker.com/\fP> is a lightweight virtualization platform based on Linux kernel
+features that allow creation and management of isolated application
+environments.
+.sp
+The \fBdebops.docker_server\fP role can be used to install and configure Docker
+service on Debian/Ubuntu hosts. To role supports installation of Docker from OS
+distribution repositories, as well as from the upstream repository.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+By default Docker is installed from Debian repositories. Users can enable
+upstream Docker APT repositories using the \fI\%docker_server__upstream\fP
+boolean variable. When it\(aqs set to \fBTrue\fP, the \fI\%debops.extrepo\fP Ansible
+role will be used to configure the repository. Upstream and Debian versions can
+be downgraded and upgraded as needed, but the role doesn\(aqt remove packages that
+are no longer needed by either version.
+.sp
+The \fBdocker\-compose\fP command doesn\(aqt exist when upstream Docker is
+installed. Users can use the \fBdocker compose\fP subcommand instead,
+since Compose is implemented as a Go plugin.
+.sp
+The role can configure \fBsystemd\-resolved\fP service on the host to
+listen for DNS queries on the \fBdocker0\fP interface. This way, Docker
+containers can utilize the host\(aqs DNS resolver to resolve hostnames and FQDNs.
+This works with the default network configuration used by Docker.
+.sp
+The role can configure the firewall (via the \fI\%debops.ferm\fP role) to allow
+connections to ports used in \fI\%Docker Swarm\fP <\fBhttps://docs.docker.com/engine/swarm/admin_guide/\fP> mode; this is disabled by
+default. Currently, Swarm setup is not implemented and needs to be performed
+manually.
+.SS Docker and \fBsystemd\fP integration
+.sp
+Some of the Docker configuration options need to be configured via
+\fBsystemd\fP units, to override command line arguments (for example the
+\fB\-H\fP or \fB\-\-host\fP option cannot be modified using the daemon configuration
+file) or define environment variables for the daemon (for example HTTP/HTTPS
+proxy which should be used to access external sites). This can be done using
+the \fI\%debops.systemd\fP Ansible role, which is included in the
+\fBservice/docker_server.yml\fP playbook.
+.sp
+The \fI\%docker_server__systemd__dependent_units\fP variable can be used to
+add \fBsystemd\fP configuration which will be applied to the host when the
+Docker service is configured. For example, to add HTTP proxy configuration,
+define this in the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+docker_server__systemd__dependent_units:
+
+  \- name: \(aqdocker.service.d/proxy.conf\(aq
+    comment: \(aqProxy configuration for Docker\(aq
+    raw: |
+      [Service]
+      Environment=\(dqhttp_proxy=http://proxy.example.com:3128\(dq
+      Environment=\(dqhttps_proxy=http://proxy.example.com:3128\(dq
+      Environment=\(dqno_proxy=localhost,127.0.0.1,docker\-registry.example.com,.corp\(dq
+    state: \(aqpresent\(aq
+    restart: \(aqdocker.service\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will add the \fB/etc/systemd/system/docker.service.d/proxy.conf\fP unit
+on the host and restart the \fBdocker.service\fP unit after the playbook is
+finished.
+.SS Example inventory
+.sp
+To configure Docker on a given remote host, it needs to be added to the
+\fB[debops_service_docker_server]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_docker_server]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook that can be used to manage Docker:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Docker server
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_docker_server\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: extrepo
+      tags: [ \(aqrole::extrepo\(aq, \(aqskip::extrepo\(aq ]
+      extrepo__dependent_sources:
+        \- \(aq{{ docker_server__extrepo__dependent_sources }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq, \(aqrole::ferm\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ docker_server__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ docker_server__ferm__dependent_rules }}\(aq
+
+    \- role: docker_server
+      tags: [ \(aqrole::docker_server\(aq, \(aqskip::docker_server\(aq ]
+
+    \- role: systemd
+      tags: [ \(aqrole::systemd\(aq, \(aqskip::systemd\(aq ]
+      systemd__dependent_units:
+        \- \(aq{{ docker_server__systemd__dependent_units }}\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::docker_server\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::docker_server:config\fP
+Run tasks related to Docker configuration.
+.TP
+.B \fBrole::docker_server:admins\fP
+Manage access to Docker daemon by UNIX accounts.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.docker_server\fP Ansible
+role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%docker(1)\fP <\fBhttps://manpages.debian.org/docker(1)\fP>, \fI\%docker\-run(1)\fP <\fBhttps://manpages.debian.org/docker-run(1)\fP>, \fI\%Dockerfile(5)\fP <\fBhttps://manpages.debian.org/Dockerfile(5)\fP>,
+\fI\%docker\-compose(1)\fP <\fBhttps://manpages.debian.org/docker-compose(1)\fP>
+.IP \(bu 2
+\fI\%Docker\fP <\fBhttps://wiki.debian.org/Docker\fP> page on Debian Wiki
+.IP \(bu 2
+\fI\%Docker\fP <\fBhttps://wiki.archlinux.org/index.php/Docker\fP> page on Arch Linux Wiki
+.IP \(bu 2
+\fI\%Docker documentation page\fP <\fBhttps://docs.docker.com/\fP>
+.IP \(bu 2
+\fI\%Docker guide for Ansible\fP <\fBhttps://docs.ansible.com/ansible/latest/scenario_guides/guide_docker.html\fP>
+.IP \(bu 2
+Official DebOps image in the Docker Hub: \fI\%debops/debops\fP <\fBhttps://hub.docker.com/r/debops/debops\fP> (see also
+\fI\%Quick start with Docker\fP)
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.docker_server\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation
+and examples for them.
+.SS docker_server__configuration
+.sp
+The \fBdocker_server__*_configuration\fP variables contain the contents of the
+\fB/etc/docker/daemon.json\fP configuration file in the form of YAML
+dictionary entries in a list. These entries are merged into a complete JSON
+file during configuration file generation. The \fI\%Universal Configuration\fP
+system is used to manage the file contents and can be used to easily set up all
+needed Docker configuration options.
+.sp
+Users can read the \fI\%Docker documentation\fP <\fBhttps://docs.docker.com/config/daemon/\fP> about the
+\fB/etc/docker/daemon.json\fP configuration file to learn more details about
+it and what can be set using this file.
+.SS Examples
+.sp
+Change the default data directory of the Docker daemon (directory must be
+created separately, for example with the \fI\%debops.resources\fP role):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+docker_server__configuration:
+
+  \- name: \(aqrootdir\(aq
+    config:
+      \(aqdata\-root\(aq: \(aq/srv/data/docker\(aq
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Set custom \fI\%object labels\fP <\fBhttps://docs.docker.com/config/labels-custom-metadata/\fP> on the Docker daemon:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+docker_server__configuration:
+
+  \- name: \(aqcustom\-labels\(aq
+    config:
+      \(aqlabels\(aq:
+        \- \(aqcom.example.environment=production\(aq
+        \- \(aqcom.example.storage=extfs\(aq
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Users can check the \fI\%docker_server__default_configuration\fP for the
+default configuration options included in the role.
+.SS Syntax
+.sp
+Configuration entries are defined as YAML dictionaries with specific syntax:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. An identifier for a particular section of the configuration, not
+used otherwise. Entries with the same \fBname\fP parameter are merged together
+and can affect each other in order of appearance.
+.TP
+.B \fBconfig\fP
+Required. YAML dictionary with Docker configuration options, which will be
+merged recursively during generation of the \fB/etc/docker/daemon.json\fP
+configuration file.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration will be
+included in the generated configuration file. If \fBabsent\fP, a given
+configuration will not be included in the generated file (this cannot be used
+to remove existing configuration entries if they are specified in an entry
+with a different \fBname\fP). If \fBignore\fP, a given configuration entry will
+not be evaluated during role execution.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider, Imre Jonk
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

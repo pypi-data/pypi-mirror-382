@@ -1,0 +1,1156 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.RAILS_DEPLOY" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.rails_deploy \- Deploy Rails applications using Ansible
+.SH DEBOPS.RAILS_DEPLOY DEFAULT VARIABLES
+.sp
+\-\-\-\- System \-\-\-\-
+.INDENT 0.0
+.TP
+.B rails_deploy_dependencies
+.UNINDENT
+.sp
+Should certain services/envs be setup for you automatically?
+Redis will only be setup if you enable background worker support.
+.sp
+Keep in mind that if you remove ruby then you will be expected to put
+ruby on the system and ensure its binaries are on the system path.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_dependencies: [\(aqdatabase\(aq, \(aqredis\(aq, \(aqnginx\(aq, \(aqruby\(aq, \(aqmonit\(aq]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_packages
+.UNINDENT
+.sp
+Which packages do you want installed?
+Add as many packages as you want, the database_package will automatically
+pick libpq\-dev or libmysqlclient\-dev depending on what database you picked.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_packages: [\(aq{{ rails_deploy_database_package }}\(aq]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_user_groups
+.UNINDENT
+.sp
+A list of additional groups that this app\(aqs user belongs to.
+If you want to be able to ssh into the server then you must include \(aqsshusers\(aq.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_user_groups: []
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_user_sshkey
+.UNINDENT
+.sp
+Where should the public ssh key be read in from? This is only used when you
+have included \(aqsshusers\(aq in the user_groups list.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_user_sshkey: \(dq{{ lookup(\(aqfile\(aq, \(aq~/.ssh/id_rsa.pub\(aq) }}\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Hosts \-\-\-\-
+.INDENT 0.0
+.TP
+.B rails_deploy_hosts_group
+.UNINDENT
+.sp
+What inventory group does your app belong to?
+If you want to have multiple apps then make this group gather up all sub\-groups
+such as debops_rails_deploy_myapp and debops_rails_deploy_anotherapp.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_hosts_group: \(aqdebops_rails_deploy\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_hosts_master
+.UNINDENT
+.sp
+Which application server should run database related tasks?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_hosts_master: \(aq{{ groups[rails_deploy_hosts_group][0] }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Git \-\-\-\-
+.INDENT 0.0
+.TP
+.B rails_deploy_git_location
+.UNINDENT
+.sp
+The location repo which will get cloned during each deploy. You can use a
+remote or local repo.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_git_location: \(aq\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_git_version
+.UNINDENT
+.sp
+Which branch or tag should be used?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_git_version: \(aqmaster\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_git_remote
+.UNINDENT
+.sp
+Which remote should be used?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_git_remote: \(aqorigin\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Supply your git provider\(aqs api token to automatically set deploy keys.
+If False you will have to manually add deploy keys for each app server.
+.INDENT 0.0
+.TP
+.B rails_deploy_git_access_token
+.UNINDENT
+.sp
+Supports github and gitlab for now:
+Github: \fI\%https://github.com/settings/applications\fP
+Under personal access tokens, check off \(aqwrite:public_key\(aq.
+You may want to enable other access limits for repo/public_repo, etc..
+.sp
+Gitlab: \fI\%https://yourgitlabhost.com/profile/account\fP
+Your private token should already be there.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_git_access_token: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Deploy \-\-\-\-
+.INDENT 0.0
+.TP
+.B rails_deploy_service
+.UNINDENT
+.sp
+What should the service be named?
+The default value plucks out your repo name (without .git) from your location.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_service: \(dq{{ rails_deploy_git_location | basename | replace(\(aq.git\(aq, \(aq\(aq) }}\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_home
+.UNINDENT
+.sp
+Where should the user\(aqs home directory be?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_home: \(aq/var/local/{{ rails_deploy_service }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_src
+.UNINDENT
+.sp
+Where should the git repository be cloned to?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_src: \(aq{{ rails_deploy_home }}/{{ rails_deploy_nginx_domains[0] }}/{{ rails_deploy_service }}/src\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_system_env
+.UNINDENT
+.sp
+What should the system environment be set to?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_system_env: \(aqproduction\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_bundle_without
+.UNINDENT
+.sp
+A list of environments to skip, it will remove your system env from the list
+during the deploy phase automatically.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_bundle_without: [\(aqdevelopment\(aq, \(aqstaging\(aq, \(aqproduction\(aq, \(aqtest\(aq]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_service_timeout
+.UNINDENT
+.sp
+Timeout for service and worker startup, in seconds
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_service_timeout: \(aq60\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Backend \-\-\-\-
+.INDENT 0.0
+.TP
+.B rails_deploy_backend
+.UNINDENT
+.sp
+Which backend type are you using? \(aqunicorn\(aq and \(aqpuma\(aq are supported so far.
+You can also disable the backend by setting it to False in case you use passenger.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_backend: \(aqunicorn\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_backend_bind
+.UNINDENT
+.sp
+What do you want to listen on? You can choose a tcp addr:port or unix socket.
+Do not bother to include the socket/tcp prefix, that will be handled for you.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_backend_bind: \(aq{{ rails_deploy_service_socket }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_backend_state
+.UNINDENT
+.sp
+What state should the backend be in?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_backend_state: \(aqstarted\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_backend_enabled
+.UNINDENT
+.sp
+FIXME(yaml4rst): Describe what this variable is doing.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_backend_enabled: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_backend_always_restart
+.UNINDENT
+.sp
+When set to true the backend will always restart instead of reload but it
+will only restart if the repo changed. This makes for hands free deployment
+at the cost of a few seconds+ of downtime per deploy.
+.sp
+You may want to combine this with force migrate in which case all you ever have
+to do is push your app and you don\(aqt have to wonder whether or not the code
+you\(aqre changing requires a full restart or not.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_backend_always_restart: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Database \-\-\-\-
+.INDENT 0.0
+.TP
+.B rails_deploy_database_create
+.UNINDENT
+.sp
+Should the database be created by default?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_database_create: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_database_prepare
+.UNINDENT
+.sp
+Should the database get a db:schema:load and db:seed in an idempotent way?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_database_prepare: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_database_migrate
+.UNINDENT
+.sp
+Should the database get automatically migrated in an idempotent way?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_database_migrate: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_database_force_migrate
+.UNINDENT
+.sp
+Should the database get migrated no matter what?
+You may want to do this as a 1 off command with \-\-extra\-vars in case your
+schema file\(aqs checksum somehow gets out of sync and you need to migrate.
+.sp
+Another use case would be if you have automatic migrations turned off and
+you just deployed but now you want to do an isolated migration.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_database_force_migrate: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_database_adapter
+.UNINDENT
+.sp
+It supports \(aqpostgresql\(aq or \(aqmysql\(aq for now.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_database_adapter: \(aqpostgresql\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_postgresql_cluster
+.UNINDENT
+.sp
+Make sure this matches your pg cluster info, ignore it if you use mysql.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_postgresql_cluster: \(aq9.1/main\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_database_host
+.UNINDENT
+.sp
+Where is your database hosted?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_database_host: \(aq{{ ansible_fqdn }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_database_port
+.UNINDENT
+.sp
+FIXME(yaml4rst): Describe what this variable is doing.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_database_port: \(aq5432\(aq  # 3306 for mysql
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_postgresql_super_username
+.UNINDENT
+.sp
+What are your super user names?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_postgresql_super_username: \(aqpostgres\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_mysql_super_username
+.UNINDENT
+.sp
+FIXME(yaml4rst): Describe what this variable is doing.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_mysql_super_username: \(aqmysql\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_database_user_role_attrs
+.UNINDENT
+.sp
+What are the roles that should be applied to the app postgres user?
+See \fI\%https://docs.ansible.com/postgresql_user_module.html\fP for available options
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_database_user_role_attrs: \(aq\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_database_pool
+.UNINDENT
+.sp
+What should some of the configuration options be set to?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_database_pool: 25
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_database_timeout
+.UNINDENT
+.sp
+FIXME(yaml4rst): Describe what this variable is doing.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_database_timeout: 5000
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Background Worker \-\-\-\-
+.INDENT 0.0
+.TP
+.B rails_deploy_worker_enabled
+.UNINDENT
+.sp
+Enable background worker support. This will create an init.d service, register
+it with monit and add it into the deploy life cycle.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_worker_enabled: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_worker_state
+.UNINDENT
+.sp
+FIXME(yaml4rst): Describe what this variable is doing.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_worker_state: \(aqstarted\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_worker
+.UNINDENT
+.sp
+At the moment it only supports sidekiq but resque could happen in the future.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_worker: \(aqsidekiq\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_worker_host
+.UNINDENT
+.sp
+Where is your worker hosted?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_worker_host: \(aq{{ ansible_fqdn }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_worker_port
+.UNINDENT
+.sp
+FIXME(yaml4rst): Describe what this variable is doing.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_worker_port: \(aq6379\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_worker_url
+.UNINDENT
+.sp
+How should the connection be made to the redis server?
+If your server has a password you must add it here.
+Example: redis://:mypassword@{{ rails_deploy_worker_host }}:{{ rails_deploy_worker_port }}/0\(aq
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_worker_url: \(aqredis://{{ rails_deploy_worker_host }}:{{ rails_deploy_worker_port }}/0\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Commands \-\-\-\-
+.sp
+Execute shell commands at various points in the deploy life cycle.
+They are executed in the context of the root directory of your app
+and are also only ran when your repo has changed.
+.INDENT 0.0
+.TP
+.B rails_deploy_pre_migrate_shell_commands
+.UNINDENT
+.sp
+Shell commands to run before migration
+They will still run even if you have migrations turned off.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_pre_migrate_shell_commands: []
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_post_migrate_shell_commands
+.UNINDENT
+.sp
+Shell commands to run after migration
+They will still run even if you have migrations turned off.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_post_migrate_shell_commands:
+  \- \(aqbundle exec rake assets:precompile\(aq
+  \- \(aqrm \-rf tmp/cache\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_post_restart_shell_commands
+.UNINDENT
+.sp
+Shell commands to run after the backend was started
+Let\(aqs say you wanted to execute whenever after your app reloads/restarts:
+.INDENT 0.0
+.IP \(bu 2
+\(aqbundle exec whenever \-\-clear\-crontab {{ rails_deploy_service }}\(aq
+.UNINDENT
+.sp
+This is the absolute last thing that happens during a deploy.
+They will still run even if you have no backend.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_post_restart_shell_commands: []
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Services \-\-\-\-
+.sp
+Add 1 or more custom services related to the app, they will have
+their state changed on each deploy. The changed_state is the action to
+take when the state of the git repo has changed.
+.INDENT 0.0
+.TP
+.B rails_deploy_extra_services
+.UNINDENT
+.sp
+They will get restarted/reloaded at the end of the deploy.
+Everything is optional except for the name.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ rails_deploy_extra_services: []
+
+
+ #rails_deploy_extra_services:
+
+\- name: \(aq\(aq
+  changed_state: \(aqreloaded\(aq
+  state: \(aqstarted\(aq
+  enabled: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Log rotation \-\-\-\-
+.INDENT 0.0
+.TP
+.B rails_deploy_logrotate_interval
+.UNINDENT
+.sp
+How often should they be rotated?
+Accepted values: hourly, daily, weekly, monthly and yearly
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_logrotate_interval: \(aqweekly\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_logrotate_rotation
+.UNINDENT
+.sp
+Log files are rotated N times before being removed.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_logrotate_rotation: 24
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Environment settings \-\-\-\-
+.sp
+Both the default and custom environment variables will get added together
+and be written to /etc/default/{{ rails_deploy_service }}.
+.INDENT 0.0
+.TP
+.B rails_deploy_default_env
+.UNINDENT
+.sp
+Default environment variables added to each app.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_default_env:
+  RAILS_ENV: \(aq{{ rails_deploy_system_env }}\(aq
+
+  DATABASE_URL: \(dq{{ rails_deploy_database_adapter }}://{{ rails_deploy_service }}:{{ rails_deploy_database_user_password }}@{{ rails_deploy_database_host }}:{{ rails_deploy_database_port }}/{{ rails_deploy_service }}_{{ rails_deploy_system_env }}?pool={{ rails_deploy_database_pool }}&timeout={{ rails_deploy_database_timeout }}\(dq
+
+  # Application variables, they are used in the backend/worker variables below.
+  SERVICE: \(aq{{ rails_deploy_service }}\(aq
+  LOG_FILE: \(aq{{ rails_deploy_log }}/{{ rails_deploy_service }}.log\(aq
+  RUN_STATE_PATH: \(aq{{ rails_deploy_run }}\(aq
+
+  # Backend variables, they work in conjunction with the example
+  # server configs. Check docs/examples/rails/config/puma.rb|unicorn.rb.
+  LISTEN_ON: \(aq{{ rails_deploy_backend_bind }}\(aq
+
+  THREADS_MIN: 0
+  THREADS_MAX: 16
+  WORKERS: 2
+
+  # Background worker variables. Check docs/examples/rails/config/sidekiq.yml
+  # and initializers/sidekiq.rb on how use this in your application.
+  BACKGROUND_URL: \(aq{{ rails_deploy_worker_url }}\(aq
+  BACKGROUND_THREADS: \(aq{{ rails_deploy_database_pool }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_env
+.UNINDENT
+.sp
+Custom environment variables added to a specific app.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_env: {}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Nginx settings \-\-\-\-
+.INDENT 0.0
+.TP
+.B rails_deploy_nginx_server_enabled
+.UNINDENT
+.sp
+Should nginx be enabled?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_nginx_server_enabled: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_nginx_domains
+.UNINDENT
+.sp
+What domain names should the app be associated to?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_nginx_domains: [\(aq{{ ansible_fqdn }}\(aq]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you want to edit any of the values for nginx below, you will need to copy
+the whole variable over even if you need to edit 1 value.
+.sp
+Consult the debops.nginx documentation if needed.
+.INDENT 0.0
+.TP
+.B rails_deploy_nginx_upstream
+.UNINDENT
+.sp
+Configure the upstream.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_nginx_upstream:
+  enabled: \(aq{{ rails_deploy_nginx_server_enabled }}\(aq
+  name: \(aq{{ rails_deploy_service }}\(aq
+  server: \(dq{{ \(aqunix:\(aq + rails_deploy_backend_bind if not \(aq:\(aq in rails_deploy_backend_bind else rails_deploy_backend_bind }}\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B rails_deploy_nginx_server
+.UNINDENT
+.sp
+Configure the sites\-available.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rails_deploy_nginx_server:
+  enabled: \(aq{{ rails_deploy_nginx_server_enabled }}\(aq
+  name: \(aq{{ rails_deploy_nginx_domains }}\(aq
+  root: \(aq{{ rails_deploy_src }}/public\(aq
+  webroot_create: False
+
+  error_pages:
+    \(aq404\(aq: \(aq/404.html\(aq
+    \(aq422\(aq: \(aq/422.html\(aq
+    \(aq500\(aq: \(aq/500.html\(aq
+    \(aq502 503 504\(aq: \(aq/502.html\(aq
+
+  location_list:
+    \- pattern: \(aq/\(aq
+      options: |
+        try_files $uri $uri/index.html $uri.html @{{ rails_deploy_nginx_upstream.name }};
+    \- pattern: \(aq~ ^/(assets|system)/\(aq
+      options: |
+        gzip_static on;
+        expires max;
+        add_header Cache\-Control public;
+        add_header Last\-Modified \(dq\(dq;
+        add_header ETag \(dq\(dq;
+    \- pattern: \(aq@{{ rails_deploy_nginx_upstream.name }}\(aq
+      options: |
+        gzip off;
+        proxy_set_header   X\-Forwarded\-Proto $scheme;
+        proxy_set_header   Host              $http_host;
+        proxy_set_header   X\-Real\-IP         $remote_addr;
+        proxy_set_header   X\-Forwarded\-For   $proxy_add_x_forwarded_for;
+        proxy_redirect     off;
+        proxy_pass         http://{{ rails_deploy_nginx_upstream.name }};
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Usage examples:
+.sp
+\-\-\-\- Bare minimum \-\-\-\-
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#rails_deploy_git_location: \(aqgit@github.com:yourname/mycoolapp.git\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Use a custom service name \-\-\-\-
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#rails_deploy_service: \(aqmyawesomeapp\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Use a tag or branch instead of master \-\-\-\-
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#rails_deploy_git_version: \(aqv0.1.0\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Use mysql instead of postgres \-\-\-\-
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#rails_deploy_database_adapter: \(aqmysql\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Use puma instead of unicorn \-\-\-\-
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#rails_deploy_backend: \(aqpuma\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Enable the background worker \-\-\-\-
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#rails_deploy_worker_enable: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Listen on a tcp port instead of a socket \-\-\-\-
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#rails_deploy_backend_bind: \(aq{{ ansible_fqdn }}:8080\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\-\-\-\- Deploy to staging instead of production \-\-\-\-
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#rails_deploy_system_env: \(aqstaging\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH COPYRIGHT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops.rails_deploy \- Deploy Rails applications using Ansible
+
+Copyright (C) 2014      Nick Janetakis <nickjanetakis@gmail.com>
+Copyright (C) 2014\-2019 Maciej Delmanowski <drybjed@gmail.com>
+Copyright (C) 2015\-2019 DebOps Project <http://debops.org/>
+SPDX\-License\-Identifier: GPL\-3.0\-only
+
+This Ansible role is part of DebOps.
+
+DebOps is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License version 3, as
+published by the Free Software Foundation.
+
+DebOps is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with DebOps. If not, see https://www.gnu.org/licenses/.
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Nick Janetakis, Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

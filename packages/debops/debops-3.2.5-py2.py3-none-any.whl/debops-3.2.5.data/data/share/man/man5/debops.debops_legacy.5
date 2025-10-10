@@ -1,0 +1,247 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DEBOPS_LEGACY" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.debops_legacy \- Clean up legacy content using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/debops_legacy\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.debops_legacy\fP Ansible role can be used to clean up legacy files,
+directories, APT packages or \fBdpkg\-divert\fP diversions created by
+DebOps but no longer used.
+.sp
+The role is not included in the main DebOps playbook to not cause data
+destruction by mistake. You are advised to use it with caution \- it will
+destroy data on your DebOps hosts. To check the changes that will be done
+before implementing them, you can run the role against DebOps hosts with:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run service/debops_legacy \-l <host> \-\-diff \-\-check
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Any changes that the role will create on the hosts can be overridden via the
+Ansible inventory if needed.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The \fBdebops.debops_legacy\fP role doesn\(aqt need to be enabled in Ansible
+inventory, since its playbook by default works against the hosts in the
+\fB[debops_all_hosts]\fP Ansible inventory group. However the role is not
+included in the \fBsite.yml\fP playbook and needs to be executed specifically by
+the system administrator to perform work.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.debops_legacy\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Clean up legacy configuration
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: debops_legacy
+      tags: [ \(aqrole::debops_legacy\(aq, \(aqskip::debops_legacy\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::debops_legacy\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.debops_legacy\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS debops_legacy__remove_diversions
+.sp
+The \fBdebops_legacy__remove_*_diversions\fP variables define the
+\fBdpkg\-divert\fP diversions that will be removed by the role. The
+existing files will be deleted and the original files diverted by DebOps will
+be moved back into place.
+.sp
+The variables are list with YAML dictionaries, each dictionary defines one file
+with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Absolute path of the file that will be reverted. This parameter is
+used as a key for merging different configuration entries together.
+.TP
+.B \fBdiversion\fP
+Optional. Absolute path of the diverted file to revert into its original
+place. If not specified, the filename is defined as:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{{ item.name }}.dpkg\-divert
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the existing diversion will be
+kept in place. If \fBabsent\fP, the diversion will be removed.
+.sp
+If \fBignore\fP, a given configuration entry will not be evaluated by the role
+during execution, allowing conditional activation of the tasks.
+.UNINDENT
+.SS Examples
+.sp
+Remove existing diversion of a configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops_legacy__remove_diversions:
+
+  \- name: \(aq/etc/default/application\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS debops_legacy__remove_packages
+.sp
+The \fBdebops_legacy__remove_*_packages\fP variables define the
+APT packages which should be removed by the role. The variables are list of
+YAML entries, each entry defines one APT package to remove using specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the APT package to remove.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the existing APT package will be
+kept in place, or installed if it\(aqs not present. If \fBabsent\fP, existing APT
+package will be removed.
+.sp
+If \fBignore\fP, a given configuration entry will not be evaluated by the role
+during execution, allowing conditional activation of the task.
+.UNINDENT
+.SS Examples
+.sp
+Remove existing package conditionally, else leave the existing state
+(installed/uninstalled) as is:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops_legacy__remove_packages:
+
+  \- name: \(aqapplication\(aq
+    state: \(aq{{ \(dqabsent\(dq
+               if (ansible_hostname == \(dqexample\(dq)
+               else \(dqignore\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS debops_legacy__remove_files
+.sp
+The \fBdebops_legacy__remove_*_files\fP variables define the files or directories
+which should be removed by the role. The variables are list of YAML entries,
+each entry defines one file or directory to remove using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Absolute path of the file or directory to remove.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the existing file will be left in
+place. Non\-existent files or directories will result in an error. If
+\fBabsent\fP, existing file or directory will be removed.
+.sp
+If \fBignore\fP, a given configuration entry will not be evaluated by the role
+during execution, allowing conditional activation of the task.
+.UNINDENT
+.SS Examples
+.sp
+Remove existing file conditionally based on Ansible facts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops_legacy__remove_files:
+
+  \- name: \(aq/etc/default/application\(aq
+    state: \(aq{{ \(dqabsent\(dq
+               if (ansible_hostname == \(dqexample\(dq)
+               else \(dqignore\(dq }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

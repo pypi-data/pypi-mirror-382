@@ -1,0 +1,654 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.KIBANA" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.kibana \- Install and manage Kibana dashboard using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/kibana\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Kibana\fP <\fBhttps://en.wikipedia.org/wiki/Kibana\fP> is a web interface which
+can be used to display and analyze data stored in an Elasticsearch cluster. It
+is a part of the Elastic Stack. The software is
+developed by \fI\%Elastic\fP <\fBhttps://www.elastic.co/\fP>\&.
+.sp
+The \fBdebops.kibana\fP Ansible role can be used to deploy Kibana behind an
+\fBnginx\fP reverse proxy which connects to a local or remote Elasticsearch
+cluster. The role can be used as a dependency by other Ansible roles to allow
+control over their configuration options in the Kibana configuration file.
+.SH GETTING STARTED
+.SS Upstream package is used by default
+.sp
+The \fI\%debops.kibana\fP role depends on the \fI\%debops.extrepo\fP
+Ansible role to configure access to the Elastic.co APT repository. This means
+that usually the latest available Kibana release will be installed by
+default. If you require older releases, you can use the
+\fI\%debops.apt_preferences\fP role to select the desired package version.
+.sp
+Alternatively, you can \(dqmask\(dq the
+\fI\%kibana__extrepo__dependent_sources\fP variable in the Ansible
+inventory and configure the APT repositories yourself via the \fI\%debops.apt\fP
+role.
+.SS Kibana is insecure by default
+.sp
+The Kibana dashboard relies on Elasticsearch to ensure secure communication
+between cluster nodes. The default configuration expects an Elasticsearch
+instance installed on the same host, preferably in a \(dqload balancer\(dq mode, that
+is with no master possibility, no data or ingest functions enabled on the node.
+.sp
+Kibana by default does not include any authentication or ACL support; however
+the role by default does not configure any access restrictions. If you want to
+have a simple security solution, you can use \fBkibana__webserver_*\fP variables
+to configure HTTP Basic Auth in the \fBnginx\fP frontend. Keep in mind
+that once a user is authenticated using this method, he/she has full access to
+the Elasticsearch cluster.
+.sp
+If the first host used for connections to the Elasticsearch cluster uses
+a \fBhttps://\fP connection, Kibana will try to use the \fBkibana_system\fP
+Elasticsearch user account and password stored in the
+\fBsecret/elasticsearch/credentials/<cluster_name>/built\-in/kibana_system/password\fP
+file (managed by the \fI\%debops.secret\fP role) to authorize itself with the
+cluster and set up its own configuration. After that, you can use other users
+(notably \fBelastic\fP superuser account) to access the web interface.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Make sure that the Elasticsearch cluster name specified via the
+\fI\%elasticsearch__cluster_name\fP variable is synchronized with
+the \fI\%kibana__elasticsearch_cluster_name\fP variable in the
+inventory. Otherwise, the \fI\%debops.kibana\fP role might not find
+the correct password file and will not connect with the Elasticsearch
+cluster.
+.sp
+The reason for doing it this way is that Kibana can be installed
+separately from Elasticsearch (on separate hosts), and there\(aqs no way
+for the \fI\%debops.kibana\fP role to find out the correct cluster
+name on its own, if it\(aqs not the default.
+.UNINDENT
+.UNINDENT
+.sp
+You can install additional plugins that provide encrypted connections,
+authentication, authorization and access control:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%X\-Pack\fP <\fBhttps://www.elastic.co/products/x-pack\fP>, an Elastic
+commercial plugin with free trial period. Supports encryption,
+authentication, access control, integrates with Elasticsearch and Logstash.
+Since the plugin is developed by the same team, its releases are in parallel
+with Kibana.
+.IP \(bu 2
+\fI\%Search Guard\fP <\fBhttp://floragunn.com/searchguard/\fP>, an open source third
+party plugin with commercial support. Has features comparable with X\-Pack,
+with more basic features like HTTP and transport encryption, basic
+authentication and access control available free of charge.
+.UNINDENT
+.SS Use as a role dependency
+.sp
+The Kibana main configuration file
+\fI\%does not support an include statement or conf.d directory\fP <\fBhttps://github.com/elastic/elasticsearch/issues/11362\fP>\&.
+To mitigate that and allow multiple Kibana configuration sources from other
+Ansible roles, the \fBdebops.kibana\fP role supports operation as a dependent
+role. This functionality can be used by other Ansible roles to better manage
+Kibana plugins or extend the configuration without the need to implement the
+entire role again and with preserved idempotency.
+.sp
+See the \fI\%Usage as a role dependency\fP for more details.
+.SS Example inventory
+.sp
+To deploy Kibana, you can add the host to the
+\fB[debops_service_kibana]\fP Ansible inventory group. By default Kibana expects
+an Elasticsearch instance on the same host to leverage the cluster load
+balancing. To install an ES node in a load balancer configuration, include the
+host in the \fB[debops_service_elasticsearch_lb]\fP inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_kibana]
+hostname
+
+[debops_service_elasticsearch_lb]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+See the documentation of the \fBdebops.elasticsearch\fP role about different
+Ansible inventory group types and their usage.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.kibana\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Kibana service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_kibana\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare kibana environment
+      ansible.builtin.import_role:
+        name: \(aqkibana\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::kibana\(aq, \(aqrole::secret\(aq, \(aqrole::kibana:config\(aq ]
+
+  roles:
+
+    \- role: extrepo
+      tags: [ \(aqrole::extrepo\(aq, \(aqskip::extrepo\(aq, \(aqrole::kibana\(aq ]
+      extrepo__dependent_sources:
+        \- \(aq{{ kibana__extrepo__dependent_sources }}\(aq
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::nginx\(aq, \(aqrole::elastic_co\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::kibana\(aq, \(aqrole::kibana:config\(aq ]
+      secret__directories:
+        \- \(aq{{ kibana__secret__directories }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ kibana__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ kibana__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ kibana__nginx__dependent_upstreams }}\(aq
+
+    \- role: kibana
+      tags: [ \(aqrole::kibana\(aq, \(aqskip::kibana\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::kibana\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::kibana:config\fP
+Generate the Kibana configuration taking into account different configuration
+sources.
+.UNINDENT
+.SH USAGE AS A ROLE DEPENDENCY
+.sp
+The \fBdebops.kibana\fP role can be used as a dependency by other Ansible roles
+to manage Kibana main configuration file idempotently.  Configuration options
+from multiple roles can be merged together and included in the configuration
+file, or removed conditionally.
+.SS Dependent role variables
+.sp
+The role exposes three default variables that can be used by other Ansible
+roles as dependent variables:
+.INDENT 0.0
+.TP
+.B \fBkibana__dependent_name\fP
+Required. Name of the role that uses the \fBdebops.kibana\fP as a dependency.
+This will be used to store the configuration in its own YAML dictionary. The
+selected name shouldn\(aqt be changed, otherwise configuration will be
+desynchronized.
+.TP
+.B \fBkibana__dependent_configuration\fP
+Required. List of the Kibana configuration options defined in the same format
+as the main configuration. See \fI\%kibana__configuration\fP for more
+details.
+.TP
+.B \fBkibana__dependent_state\fP
+Optional. If not specified or \fBpresent\fP, the configuration will be included
+in the \fB/etc/kibana/kibana.yml\fP configuration file and stored in the
+\fBsecret/\fP directory on the Ansible Controller. if \fBabsent\fP, the
+configuration will be removed from the generated configuration file.
+.UNINDENT
+.SS Dependent configuration storage and retrieval
+.sp
+The dependent configuration from other roles is stored in the \fBsecret/\fP
+directory on the Ansible Controller (see \fI\%debops.secret\fP for more details) in
+a JSON file, with each role configuration in a separate dictionary. The
+\fBdebops.kibana\fP role reads this file when Ansible local facts indicate that
+the Kibana service is installed, otherwise a new empty file is created.  This
+ensures that the stale configuration is not present on a new or re\-installed
+host.
+.sp
+The YAML dictionaries from different roles are be merged with the main
+configuration in the \fI\%kibana__combined_configuration\fP variable that is
+used to generate the final configuration. The merge order of the different
+\fBkibana__*_configuration\fP variables allows to further affect the dependent
+configuration through Ansible inventory if necessary, therefore the Ansible
+roles that use this method don\(aqt need to provide additional variables for this
+purpose themselves.
+.SS Example role variables
+.sp
+This file shows an example set of default variables included in a role that
+uses the \fBdebops.kibana\fP role as a dependency:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# State of the application deployment
+application__deploy_state: \(aqpresent\(aq
+
+# Kibana configuration for application
+application__kibana__dependent_configuration:
+
+  \- name: \(aqapplication.option\(aq
+    value: True
+
+  \- \(aqapplication.other.option\(aq: False
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example role playbook
+.sp
+This file shows an example playbook for a role that uses the
+\fBdebops.kibana\fP role as a dependency:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage application
+  collections: [ \(aqdebops.debops\(aq ]
+  hosts: [ \(aqdebops_service_kibana_application\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare kibana environment
+      ansible.builtin.import_role:
+        name: \(aqkibana\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::kibana\(aq, \(aqrole::secret\(aq, \(aqrole::kibana:config\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::kibana\(aq, \(aqrole::kibana:config\(aq ]
+      secret__directories:
+        \- \(aq{{ kibana__secret__directories }}\(aq
+
+    \- role: kibana
+      tags: [ \(aqrole::kibana\(aq ]
+      kibana__dependent_role: \(aqapplication\(aq
+      kibana__dependent_state: \(aq{{ application__deploy_state }}\(aq
+      kibana__dependent_configuration:
+        \- \(aq{{ application__kibana__dependent_configuration }}\(aq
+
+    \- role: application
+      tags: [ \(aqrole::application\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.kibana\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS kibana__configuration
+.sp
+The \fBkibana__*_configuration\fP variables define the Kibana configuration
+options that are set in the \fB/etc/kibana/kibana.yml\fP configuration file.
+.sp
+The main Kibana configuration file format is YAML.
+The \fI\%reference documentation\fP <\fBhttps://www.elastic.co/guide/en/kibana/current/settings.html\fP>
+defines two YAML formats recognized by Kibana, hierarchical (YAML dictionary
+keys are indented), or flat (YAML dictionary keys are separated by dots). This
+role focuses only on the latter, flat format since it\(aqs used everywhere in the
+Kibana documentation and seems to be the preferred method for majority of the
+configuration options.
+.sp
+For quick reference, Kibana configuration file contains options in the
+following format (similar to Elasticsearch):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cluster.name: example\-cluster
+node.name: node\-1
+network.host: [ _local_, _site_ ]
+bootstrap.memory_lock: true
+discovery.zen.minimum_master_nodes: 3
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBkibana__*_configuration\fP variables are a YAML lists of dictionaries.
+Each YAML dictionary defines an option, or redefines a previously defined
+option (the variables are flattened and then processed in order).
+.sp
+The first YAML dictionary key of each option (in above case, \fBcluster\fP,
+\fBnode\fP, \fBnetwork\fP, \fBbootstrap\fP, \fBdiscovery\fP is significant, and is used
+to separate configuration options into sections defined by the
+\fI\%kibana__configuration_sections\fP variable.
+.sp
+Configuration options can be defined as YAML dictionaries directly, with the
+key being the name of the option, and value being its value:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+kibana__configuration:
+  \- \(aqcluster.name\(aq: \(aqexample\-cluster\(aq
+  \- \(aqnode.name\(aq: \(aqnode\-1\(aq
+  \- \(aqnetwork.host\(aq: [ \(aq_local_\(aq, \(aq_site_\(aq ]
+  \- \(aqbootstrap.memory_lock\(aq: True
+  \- \(aqdiscovery.zen.minimum_master_nodes\(aq: 3
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The extended YAML dictionary format is detected if a YAML dictionary contains
+a \fBname\fP key. The dictionaries support specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+String. The name of the Kibana option.
+.TP
+.B \fBvalue\fP
+The value of the Kibana option. Can be a string, a number, a boolean or
+a YAML list.
+.TP
+.B \fBcomment\fP
+An optional comment added to the option, either as a string or a YAML text
+block.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the option will be included in the
+configuration. If \fBabsent\fP, the option will not be included. If
+\fBcomment\fP, the option will be present but commented out (it\(aqs an internal
+feature and may not work reliably for all cases).
+.TP
+.B \fBraw\fP
+Optional, a YAML text block. The name of the configuration option will be
+discarded and used only as a marker for these parameters. The contents of the
+\fBraw\fP key will be added as\-is to the configuration file. You can use this
+to include more extensive configuration defined as a hierarchical YAML
+structure. An example configuration which should be equivalent to the
+previous example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+kibana__configuration:
+  \- name: \(aqnode.meta.host_type\(aq
+    raw: |
+      # Node type
+      node.master: true
+      node.data: true
+      node.ingest: true
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+You should make sure that the indentation of the YAML parameters is consistent
+through the configuration file.
+.SS kibana__configuration_sections
+.sp
+The \fB/etc/kibana/kibana.yml\fP configuration file is structured in informal
+\(aqsections\(dq, each section contains configuration options from a specific group
+(\fBnode\fP, \fBcluster\fP, etc.). The \fI\%kibana__configuration_sections\fP
+contains a YAML list of sections and option types to associate with them. The
+order of the entries on the list determines the order of the sections in the
+finished configuration file.
+.sp
+Each section definition is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Name of the section, stored as a comment.
+.TP
+.B \fBpart\fP or \fBparts\fP
+A string or a YAML list of configuration option prefixes (first YAML
+dictionary key of a given configuration option). Only the parts defined for
+a given section will be included in that section.
+.UNINDENT
+.sp
+After all of the sections are processed, any left over configuration options
+not matched with a particular section will be added at the end of the
+configuration file.
+.SS kibana__plugins
+.sp
+The \fBkibana__*_plugins\fP variables are YAML lists that can be used to
+install or remove Kibana plugins. Support for plugin management using
+these variables is minimalistic; you can install plugins known by the Elastic
+\fI\%plugin repository\fP <\fBhttps://www.elastic.co/guide/en/kibana/current/kibana-plugins.html\fP>,
+or from an URL. More involved management can be done by creating a separate
+role and using \fBdebops.kibana\fP as a role dependency to manage
+configuration if necessary. See \fI\%Usage as a role dependency\fP for more
+details.
+.sp
+Each element of the list is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the plugin that shows up in the output of the
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+bin/kibana\-plugin list
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+command, without the version information included. This parameter will be
+used to check the state of the plugin.
+.TP
+.B \fBurl\fP
+Optional. If the plugin is distributed via an URL, you can provide it here
+for the plugin management script to use instead of the plugin name.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the plugin and its configuration
+will be installed. If \fBabsent\fP the plugin and its configuration will be
+removed.
+.TP
+.B \fBstate\fP
+Optional. The system user used for plugin management. Defaults to \fI\%kibana__user\fP\&.
+Certain plugins like X\-Pack generate files on installation which Kibana needs
+to have write permissions to.
+.TP
+.B \fBconfiguration\fP or \fBconfig\fP
+Optional. Custom configuration for a given plugin, in the format recognized
+by the main configuration template.
+.sp
+See \fI\%kibana__configuration\fP for more details.
+.UNINDENT
+.SS Examples
+.sp
+Install a LogTrail plugin:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+kibana__plugins:
+  \- name: \(aqlogtrail\(aq
+    url: \(aqhttps://github.com/sivasamyk/logtrail/releases/download/0.1.13/logtrail\-5.4.0\-0.1.13.zip\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS kibana__keys
+.sp
+The \fBkibana__*_keys\fP variables define the contents of the \fI\%Kibana keystore\fP <\fBhttps://www.elastic.co/guide/en/kibana/current/secure-settings.html\fP>
+used to keep confidential data like passwords or access tokens. The keys can be
+referenced in the Kibana configuration files using the \fB${secret_key}\fP
+syntax.
+.SS Examples
+.sp
+Add an Elasticsearch password used for access over a secure connection. The
+password is retrieved from the \fBsecret/\fP directory on the Ansible
+Controller, managed by the \fI\%debops.secret\fP Ansible role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+kibana__keys:
+
+  \- ELASTIC_PASSWORD: \(aq{{ lookup(\(dqfile\(dq, secret + \(dq/elastic\-stack/elastic/password\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Update an existing key with new content (presence of the \fBforce\fP parameter
+will update the key on each Ansible run):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+kibana__keys:
+
+  \- name: \(aqELASTIC_PASSWORD\(aq
+    value: \(aqnew\-elasticsearch\-password\(aq
+    force: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Remove a key from the Kibana keystore:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+kibana__keys:
+
+  \- name: \(aqELASTIC_PASSWORD\(aq
+    state: \(aqabsent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each key entry is defined by a YAML dictionary. The keys can be defined using
+a simple format, with dictionary key being the secret key name, and its value
+being the secret value. In this case you should avoid the \fBname\fP or \fBvalue\fP
+as the secret keys.
+.sp
+Alternatively, secret keys can be defined using YAML dictionaries with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the secret key to store in the Kibana keystore.
+.TP
+.B \fBvalue\fP
+Optional. A string with the value which should be stored under a given key.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the key will be inserted into the
+keystore. If \fBabsent\fP, the key will be removed from the keystore.
+.TP
+.B \fBforce\fP
+Optional, boolean. If present and \fBTrue\fP, the specified key will be updated
+in the keystore.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

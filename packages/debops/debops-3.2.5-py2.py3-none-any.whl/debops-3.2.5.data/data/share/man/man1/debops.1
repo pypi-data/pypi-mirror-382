@@ -1,0 +1,175 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS" "1" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops \- Your Debian-based data center in a box
+.SH SYNOPSIS
+.sp
+\fBdebops\fP [\-\-version] [\-h|\-\-help] <section> [<command>] [<args>]
+.SH DESCRIPTION
+.sp
+The DebOps project is a set of Ansible playbooks, roles, and optional scripts
+which can be used to manage IT infrastructure based on Debian or Ubuntu
+operating systems, from singhle hosts to entire data centers. The project can
+be used to bootstrap bare metal environment, set up local DNS, DHCP, PXEboot
+services and from there install and configure Debian or Ubuntu hardware and
+virtual machines, as well as LXC and Docker containers.
+.sp
+DebOps includes a set of Python scripts which provide a wrapper around Ansible
+and other tools. The scripts can be used to create and maintain \(dqproject
+directories\(dq which contain Ansible inventory, any installed Ansible Collections
+and other data related to a given environment. You can also execute Ansible
+playbooks from DebOps or other Ansible Collections as well as your own
+playbooks using simple commands against the current environment.
+.SH THE DEBOPS COMMAND
+.sp
+The \fBdebops\fP command provides multiple sub\-commands, some of which are
+split into sections.
+.INDENT 0.0
+.TP
+\fBdebops project\fP
+This section includes commands used to create and maintain the \(dqproject
+directories\(dq which contain one or multiple Ansible inventories, PKI
+infrastructure, GPG keyring, and other resources used in a particular
+environment.
+.TP
+\fBdebops exec\fP
+This command can be used to execute Ansible modules ad\-hoc against a given
+environment. You can use any arguments accepted by the \fBansible\fP
+command \- they will be executed in the DebOps project context, including the
+runtime environment variables and with the \fBansible/secret/\fP directory
+unlocked if necessary.
+.TP
+\fBdebops run\fP
+This command can be used to execute Ansible playbooks against a given
+environment. The playbooks used can come either from the DebOps Python
+package (included by default), from an Ansible Collection, or from the
+\fBansible/playbooks/\fP directory in a given project. You can also specify
+all \fBansible\-playbook\fP arguments to affect the Ansible execution;
+.TP
+\fBdebops check\fP
+This command is the same as the \fBdebops run\fP command above, but
+automatically adds the \fB\-\-diff\fP and \fB\-\-check\fP \fBansible\-playbook\fP
+options to ensure that the playbooks are executed in a check mode;
+.TP
+\fBdebops env\fP
+This command can be used to inspect the environment variables which will be
+present when various DebOps commands are executed. It can also be used to run
+shell commands in DebOps environment, which is a handy shortcut for using
+Ansible ecosystem with DebOps project directories.
+.TP
+\fBdebops config\fP
+This command allows the user to inspect and manipulate the DebOps
+configuration options in various formats;
+.UNINDENT
+.sp
+You can find more information about these subcommands in the DebOps
+documentation, \fBdebops\-*\fP manual pages or by running them with the \fB\-\-help\fP
+option.
+.SS Options
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-\-version\fP
+Display the version of the \fBdebops\fP scripts
+.UNINDENT
+.SS Verbose mode and logging
+.sp
+The \fBdebops\fP script can send log messages about its operation to the
+\fBsyslog\fP service. Using configuration options, users can specify where
+to send the log messages, default log level and facility.
+.sp
+Users can specify the \fB\-\-verbose\fP or \fB\-v\fP flag in the \fBdebops\fP
+subcommands to increase the script verbosity. The flag enables log output to the
+standard error (stderr) stream. Multiple uses of the flag increase the log level
+from the default \fBWARNING\fP to \fBNOTICE\fP, \fBINFO\fP and \fBDEBUG\fP with \fB\-vvv\fP
+respectively.
+.sp
+To view the logs from \fBdebops\fP using \fBjournald\fP service, run the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+journalctl \-f _COMM=debops
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Environment variables
+.sp
+These environment variables can be used to affect the environment during script
+execution:
+.INDENT 0.0
+.TP
+.B \fBDEBOPS_CMD_ANSIBLE\fP
+Path to the \fBansible\fP binary used by DebOps. Can be overridden by
+configuration files.
+.TP
+.B \fBDEBOPS_CMD_ANSIBLE_PLAYBOOK\fP
+Path to the \fBansible\-playbook\fP binary used by DebOps. Can be
+overridden by configuration files.
+.TP
+.B \fBDEBOPS_CMD_GPG\fP
+Path to the \fBgpg\fP binary used by DebOps. Can be overridden by
+configuration files.
+.TP
+.B \fBDEBOPS_CMD_ENCFS\fP
+Path to the \fBencfs\fP binary used by DebOps. Can be overridden by
+configuration files.
+.TP
+.B \fBDEBOPS_CMD_UMOUNT\fP
+Path to the \fBumount\fP binary used by DebOps on Darwin\-based hosts.
+Can be overridden by configuration files.
+.TP
+.B \fBDEBOPS_CMD_FUSERMOUNT\fP
+Path to the \fBfusermount\fP binary used by DebOps. Can be overridden by
+configuration files.
+.UNINDENT
+.SH SEE ALSO
+.INDENT 0.0
+.TP
+.B Manual pages for debops subcommands
+debops\-project(1), debops\-exec(1), debops\-run(1), debops\-check(1), debops\-env(1), debops\-config(1)
+.TP
+.B Manual pages for Ansible roles included in DebOps
+debops.ansible(5), debops.apt(5), ... debops.<role_name>(5)
+.TP
+.B Full DebOps documentation in the HTML format
+\fI\%https://docs.debops.org/\fP
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

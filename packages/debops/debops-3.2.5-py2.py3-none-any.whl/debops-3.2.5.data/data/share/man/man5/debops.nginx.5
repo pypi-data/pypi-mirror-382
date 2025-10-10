@@ -1,0 +1,1242 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.NGINX" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.nginx \- Manage nginx webserver using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/nginx\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Nginx\fP <\fBhttps://nginx.org/\fP> is a fast and light webserver with extensible
+configuration.
+.sp
+The \fBdebops.nginx\fP role can be used to install and manage \fInginx\fP configuration
+for multiple websites at the same time. The server is configured using
+inventory variables. This role can also be used as a dependency of another role
+to configure a webserver for that role using dependency variables.
+.SH GETTING STARTED
+.SS Security defaults
+.sp
+Following \fI\%Mozilla intermediate level recommendations\fP <\fBhttps://ssl-config.mozilla.org/#server=nginx&version=1.17.7&config=intermediate&openssl=1.1.1d&guideline=5.6\fP>, this role
+configures nginx with only TLSv1.2 and TLSv1.3 enabled. All modern
+browsers are supported with the default cipher suite. If you need
+support for older clients, see \fBnginx_default_ssl_ciphers\fP and
+\fBnginx_default_tls_protocols\fP\&. To follow modern level
+recommendation, enable only TLSv1.3 in
+\fBnginx_default_tls_protocols\fP\&. Note that there is still limited
+client support for TLSv1.3.
+.sp
+Only one curve (ECC) is enabled by default: \fBsecp256r1\fP\&. While the
+\fI\%NCSC\-NL TLS Guidelines\fP <\fBhttps://english.ncsc.nl/publications/publications/2019/juni/01/it-security-guidelines-for-transport-layer-security-tls\fP> recommend three other curves, these are not supported
+by openssl (in Debian Buster, as checked on 2020\-08\-06).
+.sp
+If TLSv1.3 is the only protocol in use, clients are allowed to choose
+ciphers, because they know best if they have support for
+hardware\-accelerated AES. If TLSv1.2 or lower is used, server ciphers
+are preferred, because those protocols allow downgrade attacks.
+.sp
+No dhparam is set if the only protocol is TLSv1.3, because that
+protocol uses \fI\%Ephemeral Diffie\-Hellman key exchange\fP <\fBhttps://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange\fP>, which employs
+one\-time keys for the current network session. Omitting the option is
+purely cosmetic, resulting in a cleaner configuration file.
+.sp
+If \fI\%HTTP Strict Transport Security\fP <\fBhttps://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security\fP> (see also: \fI\%HSTS Cheat Sheet\fP <\fBhttps://cheatsheetseries.owasp.org/cheatsheets/HTTP_Strict_Transport_Security_Cheat_Sheet.html\fP>) is enabled,
+the default age is 2 years.
+.SS Example inventory
+.sp
+To manage Nginx on a given host or set of hosts, they need to be added
+to the \fB[debops_service_nginx]\fP Ansible group in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_nginx]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.nginx\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage nginx webserver
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_nginx\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::nginx\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::nginx\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBtype::dependency\fP
+This tag specifies which tasks are defined in role dependencies. You can use
+this to omit them using \fB\-\-skip\-tags\fP parameter.
+.TP
+.B \fBdepend\-of::nginx\fP
+Execute all \fBdebops.nginx\fP role dependencies in its context.
+.TP
+.B \fBdepend::secret:nginx\fP
+Run \fI\%debops.secret\fP dependent role in \fBdebops.nginx\fP context.
+.TP
+.B \fBdepend::apt_preferences:nginx\fP
+Run \fI\%debops.apt_preferences\fP dependent role in \fBdebops.nginx\fP context.
+.TP
+.B \fBdepend::ferm:nginx\fP
+Run \fI\%debops.ferm\fP dependent role in \fBdebops.nginx\fP context.
+.TP
+.B \fBrole::nginx:servers\fP
+Configure nginx servers configuration as configured by the \fBnginx_servers\fP
+variable.
+.UNINDENT
+.SH AUTOMATED CERTIFICATE MANAGEMENT ENVIRONMENT (ACME)
+.sp
+ACME is an initiative designed by Internet Security Research Group for the
+\fI\%Let\(aqs Encrypt\fP <\fBhttps://letsencrypt.org/\fP> service. It can be used to
+provision trusted X.509 certificates in a fully automated way.
+.sp
+One of the challenges to prove control over a domain to an ACME CA server is
+called \fBhttp\-01\fP , which uses a well\-known path on the client web server to
+serve files which can then be validated by the CA server. This should be
+sufficient to prove that a given domain is controlled by the entity that
+requests the certificate.
+.sp
+The \fBdebops.nginx\fP Ansible role includes support for the \fBhttp\-01\fP challenge.
+They are enabled by default for all server configurations and can be used to
+prove control over specified domains using a ACME client.
+.SS Ansible local facts
+.sp
+The following ACME related Ansible local facts are exposed by the role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ansible_local.nginx.acme
+ansible_local.nginx.acme_root
+ansible_local.nginx.acme_server
+ansible_local.nginx.acme_domain
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS How ACME support works
+.sp
+By default, all servers that have enabled ACME support, will answer queries
+on URL:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+http://<domain>/.well\-known/acme\-challenge/xxxxxxxxxxxxxxxx
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+These queries will be answered over HTTP. Files will be served from the
+particular server \fBroot\fP directory, for example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/srv/www/sites/<domain>/public/.well\-known/acme\-challenge/
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If the challenge file is not found at the server location, \fBnginx\fP will
+switch the request to the \(dqglobal\(dq server \fBroot\fP directory, by default:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/srv/www/sites/acme/public/.well\-known/acme\-challenge/
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This directory can be configured in the \fBdebops.nginx\fP default variables, and
+is not managed by the role itself. Other Ansible roles are expected to create
+it and secure it using UNIX permissions as necessary.
+.sp
+If the requested file is not found on the \(dqglobal\(dq server \fBroot\fP directory,
+the ACME challenge will be redirected over the same protocol (HTTP or HTTPS) to
+a different host on configured domain, by default:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$scheme://acme.{{ nginx_acme_domain }}$request_uri?redirect=yes
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The redirected host should provide a configured webserver to respond to the
+ACME challenges. A default server is provided in the \fBdebops.nginx\fP
+configuration and can be enabled on a given host (see below). The additional
+parameter \fBredirect=yes\fP is used by the \fBnginx\fP server to detect and
+terminate redirect loops.
+.SS Manual nginx configuration
+.sp
+The above steps are configured in a separate file on the webserver host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/nginx/snippets/acme\-challenge.conf
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To enable a given \fBnginx\fP server to respond to ACME challenges, all you
+need to do is to include that file in the \fBserver {}\fP section, for example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+server {
+        listen [::]:80
+
+        server_name example.org;
+
+        root /srv/www/sites/example.org/public;
+
+        include snippets/acme\-challenge.conf;
+
+        location / {
+                try_files $uri $uri/ /index.html =404;
+        }
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Above configuration should be sufficient to satisfy local or remote ACME
+challenges. Similar configuration can be done on HTTPS server to achieve the
+same results.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.nginx\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS nginx__servers
+.SS Common role options
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required, string or list of strings.
+Domain names for the \fI\%Nginx server_name option documentation\fP <\fBhttps://nginx.org/en/docs/http/server_names.html\fP>\&.
+.sp
+The first element is used to create the name of the nginx configuration
+file and must be a normal domain name, other elements can include
+wildcards and regexp matches.
+.sp
+The list can also be empty (but needs to be defined) in which case the
+configuration it is included in will be named \fBdefault\fP\&.
+.TP
+.B \fBfilename\fP
+Optional, string.
+Alternative name of the nginx configuration file under the
+\fB/etc/nginx/sites\-available/\fP directory. The suffix \fB\&.conf\fP will be
+added automatically. This can be used to distinguish different server
+configurations for the same \fBitem.name\fP\&. For example separate
+configuration for HTTP and HTTPS.
+.TP
+.B \fBhostname\fP
+Optional. String or a list of hostnames or subdomain names without dots. If
+it\(aqs defined, the role will generate \fBserver { }\fP blocks that support
+redirecting the short hostnames or subdomains in the \fB*.local\fP domain
+managed by Avahi/mDNS to their corresponding FQDNs. For example:
+.INDENT 7.0
+.IP \(bu 2
+\fBhost/\fP \-> \fBhost.example.com\fP
+.IP \(bu 2
+\fBhost.local\fP \-> \fBhost.example.com\fP
+.UNINDENT
+.sp
+The \fBexample.com\fP domain will be based on the \fBhostname_domain\fP
+parameter, or if not specified on the first value of the \fBname\fP parameter.
+Users can use the short hostnames in browsers by appending \fB/\fP character
+after the short name. Specifying directories or arguments is also supported.
+.sp
+This allows the \fBnginx\fP webserver to correctly handle short
+subdomains passed to it via DNS suffixes defined in \fB/etc/resolv.conf\fP,
+or subdomains reachable via Avahi \fB*.local\fP domain.
+.sp
+If the \fBhostname\fP parameter is not specified, the role will automatically
+generate subdomains based on the value of the \fBname\fP parameter; only
+alphanumeric subdomains with optional dashes and underscores are supported in
+this mode. To tell the role to not autogenerate the redirection, set the
+\fBhostname\fP parameter to \fBFalse\fP\&.
+.TP
+.B \fBhostname_domain\fP
+Optional. Specify the base DNS domain to use for short hostnames and
+subdomains. You can use this to set the base domain in multi\-subdomain
+environments. For example, setting it to \fBexample.com\fP will result in
+redirects:
+.INDENT 7.0
+.IP \(bu 2
+\fBhost/\fP \-> \fBhost.example.com\fP
+.IP \(bu 2
+\fBsub.host/\fP \-> \fBsub.host.example.com\fP
+.UNINDENT
+.sp
+Supporting more than one level of subdomains with DNS suffixes on the clients
+depends on the \fI\%resolv.conf(5)\fP <\fBhttps://manpages.debian.org/resolv.conf(5)\fP> configuration, the \fBndots\fP parameter.
+.sp
+If this parameter is not specified, the role will check the list in the
+\fI\%nginx__hostname_domains\fP for possible domain suffixes and use the
+first one found there that matches the current server subdomain.
+.TP
+.B \fBenabled\fP
+Optional, boolean. Defaults to \fBTrue\fP\&.
+Specifies if the configuration should be enabled by creating a symlink in
+\fB/etc/nginx/sites\-enabled/\fP\&.
+.TP
+.B \fBstate\fP
+Optional, string. Defaults to \fBpresent\fP\&.
+Whether the Nginx server should be \fBpresent\fP or \fBabsent\fP\&.
+.TP
+.B \fBwhen\fP
+Deprecated, optional, boolean. Use \fBstate: \(aqpresent\(aq\fP instead.
+.TP
+.B \fBdelete\fP
+Deprecated, optional, boolean. Use \fBstate: \(aqabsent\(aq\fP instead.
+.TP
+.B \fBby_role\fP
+Optional, string. Name of a Ansible role in the format \fBROLE_OWNER.ROLE_NAME\fP which is
+responsible for the server configuration.
+.TP
+.B \fBtype\fP
+Optional. Specify name of the template to use to generate nginx server
+configuration. Templates can extend other templates.
+.TP
+.B \fBwebroot_create\fP
+Optional, boolean. Whether the role will create a server\(aqs root directory.
+Overrides \fBnginx_webroot_create\fP\&.
+.TP
+.B \fBowner\fP
+Optional, string. Sets the owner of the server root.
+Overrides \fBnginx_webroot_owner\fP\&.
+.sp
+If specified, nginx will configure the server root to
+\fB/srv/www/<owner>/sites/<name[0]>/public/\fP\&.
+.sp
+If not specified, nginx will configure the server root to
+\fB/srv/www/sites/<name[0]>/public/\fP\&.
+.sp
+If it is set and no \fBgroup\fP is specified, the group is set to \fBowner\fP\&.
+.TP
+.B \fBgroup\fP
+Optional, string. Explicitly sets the group of the server root.
+Overrides \fBowner\fP and \fBnginx_webroot_group\fP\&.
+.TP
+.B \fBmode\fP
+Optional, string. The permissions of the server root directory.
+Overrides \fBnginx_webroot_mode\fP\&.
+.UNINDENT
+.SS Common webserver options
+.INDENT 0.0
+.TP
+.B \fBindex\fP
+Optional, string or boolean (\fBFalse\fP).
+Space separated list of index filenames.
+The directive will be omitted if set to \fBFalse\fP\&.
+.TP
+.B \fBroot\fP
+Optional, string.
+Absolute path to server root to use for this server configuration.
+Defaults to \fB/srv/www/sites/<name[0]>/public/\fP\&.
+See also \fBowner\fP parameter.
+The directive will be omitted if set to \fBFalse\fP\&.
+.TP
+.B \fBpublic_dir_name\fP
+Optional, string.
+Folder name witch will be concatenated to \fB/srv/www/sites/<name[0]>/\fP
+Defaults to \fBpublic\fP\&.
+.TP
+.B \fBroot_suffix\fP
+Optional, string.
+Used in scenario when the site root is in another subfoder.
+Example. The files are stored in \fB/srv/www/sites/<name[0]>/public\fP,
+but in nginx the root needs to be \fB/srv/www/sites/<name[0]>/public/current/pub\fP\&.
+Defaults to empty string.
+.TP
+.B \fBtry_files\fP
+Optional, string. Defaults to \fBnginx_default_try_files\fP\&.
+Checks for the existence of files in order, and returns the
+first file that is found for location /.
+Refer to the \fINginx try_files directive\fP for details.
+.TP
+.B \fBkeepalive\fP
+Optional, integer. Defaults to \fBnginx_default_keepalive_timeout\fP\&.
+Set custom KeepAlive timeout for this server, in seconds.
+.TP
+.B \fBdeny_hidden\fP
+Optional, boolean. Defaults to \fBTrue\fP\&.
+If \fBTrue\fP deny access to all hidden files.
+.TP
+.B \fBfavicon\fP
+Optional, boolean. Defaults to \fBTrue\fP\&.
+Ignore \fB/favicon.ico\fP requests in server logs to reduce noise if
+\fBTrue\fP\&.
+.TP
+.B \fBlisten\fP
+Optional, list of strings/integers or boolean (\fBFalse\fP).
+Defaults to \fBnginx_listen_port\fP\&.
+List of ports, IP addresses or sockets this server configuration should
+listen on for HTTP connections.
+.TP
+.B \fBlisten_ssl\fP
+Optional, list of strings/integers or boolean (\fBFalse\fP).
+Defaults to \fBnginx_listen_ssl_port\fP\&.
+List of ports, IP addresses or sockets this server configuration should
+listen on for HTTPS connections.
+.TP
+.B \fBinclude_files_begin\fP
+Optional, list of strings.
+List of files that will be included at the beginning of the server
+configuration using \fIinclude\fP\&.
+.TP
+.B \fBinclude_files_end\fP
+Optional, list of strings.
+List of files that will be included at the end of the server
+configuration using \fIinclude\fP\&.
+.TP
+.B \fBtoplevel_options\fP
+Optional, String or YAML text block with top\-level options (i.e. before any
+\fBserver\fP blocks in the generated configuration) for this server
+configuration. Semicolons at the end of each line are required.
+.TP
+.B \fBoptions\fP
+Optional, String or YAML text block with options (included inside the
+relevant \fBserver\fP block) for this server configuration. Semicolons at the
+end of each line are required.
+.UNINDENT
+.SS Redirects
+.INDENT 0.0
+.TP
+.B \fBredirect\fP
+Optional, string.
+Redirect incoming requests on the HTTP port to the given URL.
+FIXME: Rename to redirect_http
+.TP
+.B \fBredirect_ssl\fP
+Optional, string.
+Redirect incoming requests on the HTTPS port to the given URL.
+FIXME: Rename to redirect_https
+.TP
+.B \fBredirect_code\fP
+Optional, string. Specify HTTP code used in the redirect response, by default
+307 Temporary Redirect.
+FIXME: Rename to redirect_http_code
+.TP
+.B \fBredirect_code_ssl\fP
+Optional, string. Specify HTTP code used in the redirect response from HTTP to
+HTTPS, by default 301 Moved Permanently.
+FIXME: Rename to redirect_https_code
+.TP
+.B \fBredirect_from\fP
+Optional, list of strings or boolean.
+Create a separate \fI\%Nginx server block documentation\fP <\fBhttps://nginx.org/en/docs/http/ngx_http_core_module.html#server\fP> which will automatically redirect
+requests from specified list of server names (or all but the first name in
+the \fBname\fP list if \fBredirect_from\fP is set to \fBTrue\fP) to the first
+server name specified in the \fBname\fP list.
+.TP
+.B \fBredirect_to\fP
+Optional, string. Create separate \fI\%Nginx server block documentation\fP <\fBhttps://nginx.org/en/docs/http/ngx_http_core_module.html#server\fP> which redirects all
+requests on servers specified in the \fBname\fP list to the server
+specified in \fBredirect_to\fP\&. The specified server name will be used as
+the only name in subsequent HTTP and HTTPS configuration.
+.TP
+.B \fBredirect_to_ssl\fP
+Optional, boolean. Defaults to \fBTrue\fP
+If \fBTrue\fP, redirect connection from HTTP to the HTTPS version of the site.
+Set to \fBFalse\fP to allow to serve the website via HTTP and HTTPS and don\(aqt
+redirect HTTP to HTTPS.
+FIXME: Rename to redirect_to_https
+.UNINDENT
+.SS HTTPS and TLS
+.INDENT 0.0
+.TP
+.B \fBacme\fP
+Optional, boolean. Defaults to \fBnginx_acme\fP\&.
+Enable or disable support for Automated Certificate Management Environment
+challenge queries for this server.
+.TP
+.B \fBssl\fP
+Optional, boolean. Defaults to \fBnginx_pki\fP\&.
+Enable or disable HTTPS for this server configuration.
+FIXME: Rename to https_enabled
+.TP
+.B \fBssl_crt\fP
+Optional, string. Absolute path to a custom X.509 certificate to use. If not
+supplied, a certificate managed by \fI\%debops.pki\fP will be used.
+FIXME: Rename to tls_cert
+.TP
+.B \fBssl_key\fP
+Optional, string. Absolute path to custom private key to use. If not
+supplied \fBpki_key\fP will be used instead.
+FIXME: Rename to tls_key
+.TP
+.B \fBssl_ca\fP
+Optional, string. Specifies the absolute path to the client CA certificate
+used to authenticate clients. If not specified, \fBpki_ca\fP will be used
+instead.
+.TP
+.B \fBssl_trusted\fP
+Optional, string. Specifies the absolute path to the intermediate+root CA server
+certificates which will be used for OCSP stapling verification. If not
+specified, the value of \fBpki_trusted\fP will be used instead.
+.TP
+.B \fBssl_dhparam\fP
+Optional, string. Absolute path to custom DHE parameters to use. If not supplied,
+\fBnginx_ssl_dhparam\fP will be used instead.
+FIXME: Rename to tls_dhparam_file
+.TP
+.B \fBssl_ciphers\fP
+Optional, strings. Defaults to \fBnginx_default_ssl_ciphers\fP\&.
+Name of the list of preferred server ciphers defined in \fBnginx_ssl_ciphers\fP to use.
+.TP
+.B \fBssl_curve\fP
+Optional, string. Defaults to \fBnginx_default_ssl_curve\fP\&.
+ECC curve enabled for this server.
+.TP
+.B \fBssl_verify_client\fP
+Optional, boolean. Requests the client certificate and verifies it if the
+certificate is present.
+.TP
+.B \fBssl_client_certificate\fP
+Optional, string. Specifies a file with trusted CA certificates in the PEM
+format used to verify client certificates.
+.TP
+.B \fBssl_crl\fP
+Optional. Specifies a file with revoked certificates (CRL) in PEM
+format used to verify client certificates.
+.TP
+.B \fBpki_realm\fP
+Optional, string. Overwrites the default PKI realm used by nginx for this
+server configuration. See the \fI\%debops.pki\fP role for more information, as well
+as the \fB/etc/pki/realms\fP directory on remote hosts for a list of
+available realms.
+.TP
+.B \fBpki_crt\fP
+Optional, string. Path to custom X.509 certificate to use, relative to the
+currently enabled PKI realm.
+.TP
+.B \fBpki_key\fP
+Optional, string. Path to custom private key to use, relative to the
+currently enabled PKI realm.
+.TP
+.B \fBpki_ca\fP
+Optional, string. Path to custom client CA certificate to use for client
+authentication, relative the to currently enabled PKI realm.
+.TP
+.B \fBpki_trusted\fP
+Optional, string. Path to custom intermediate+root CA certificate to use for
+OCSP stapling verification, relative to currently enabled PKI realm.
+.TP
+.B \fBocsp\fP
+Optional, boolean. Defaults to \fBnginx_ocsp\fP\&.
+Enable or disable OCSP stapling for a given server.
+FIXME: Rename to ocsp_stapling_enabled
+.TP
+.B \fBocsp_verify\fP
+Optional, boolean. Defaults to \fBnginx_ocsp_verify\fP
+Enable or disable OCSP stapling verification for a given server. An
+intermediate+root CA certificate is required for this.
+FIXME: Rename to ocsp_stapling_verify
+.TP
+.B \fBnginx_ocsp_resolvers\fP
+Optional, string.  List of DNS servers used to for resolving. Among other things
+used to resolve OCSP stapling but in general all dns queries (e.g. for proxy_path).
+If it\(aqs empty, nginx role will try to use the nameservers from /etc/resolv.conf.
+Currently only the first nameserver is used
+.TP
+.B \fBhsts_enabled\fP
+Optional, boolean. Defaults to \fBTrue\fP\&. If this is set to \fBTrue\fP and HTTPS
+is enabled for this item, the \fI\%HTTP Strict Transport Security\fP <\fBhttps://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security\fP> header is set
+in the server\(aqs responses.  If this is set to \fBFalse\fP, the header will not
+be set in the server\(aqs responses.
+.TP
+.B \fBhsts_preload\fP
+Optional, boolean. Defaults to \fBnginx_hsts_preload\fP\&.
+Add a \(dqpreload\(dq parameter to the HSTS header which can be used with the
+\fI\%https://hstspreload.appspot.com/\fP site to configure HSTS preloading for a
+given website.
+.UNINDENT
+.SS User authentication
+.INDENT 0.0
+.TP
+.B \fBauth_basic\fP
+Optional, boolean. Enable HTTP Basic Authentication for this server.
+.TP
+.B \fBauth_basic_realm\fP
+Optional. String which will be displayed to the user in the HTTP Basic Auth
+dialog box.
+Defaults to \fBnginx_default_auth_basic_realm\fP\&.
+.TP
+.B \fBauth_basic_name\fP
+Optional, string. Required with \fBauth_basic\fP\&. Specifies the name of the
+htpasswd file used for this server authentication. htpasswd files are
+stored in \fB/etc/nginx/private/\fP directory.
+.sp
+You can use \fBauth_basic_filename\fP and specify the full path to the
+htpasswd file to use; file needs to be readable by nginx system user.
+.UNINDENT
+.SS Locations
+.INDENT 0.0
+.TP
+.B \fBlocation\fP
+Optional. Dict of location sections to include in this server configuration,
+in YAML text block format (semicolons at end of each configuration line
+required). Each key defines a string used as \(dqlocation\(dq option, values are
+strings or text blocks to be included inside each location section.
+Examples:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ location:
+   \(aq/\(aq: \(aqtry_files $uri $uri/ /index.html =404;\(aq
+
+   \(aq~ ^/doc$\(aq: |
+     alias /usr/share/doc;
+     autoindex on;
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBlocation_allow\fP
+Optional. Dict which adds \(dqallow\(dq entries to each location section defined
+above from a list. Each location needs to have a corresponding entry in
+\fBlocation\fP dict. If \fBitem.location_deny\fP is not defined, \(aqdeny all;\(aq is
+added at the end. Examples:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ location_allow:
+   \(aq~ ^/doc$\(aq: [ \(aq127.0.0.1\(aq, \(aq::1\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBlocation_deny\fP
+Optional. Dict which adds \(dqdeny\(dq entries to each location section
+defined above from a list. Each location needs to have corresponding
+entry in \fBlocation\fP dict. Examples:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ location_deny:
+   \(aq/\(aq: [ \(aq192.168.0.1/24\(aq ]
+   \(aq~ ^/doc$\(aq: [ \(aqall\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBlocation_referers\fP
+Optional. Dict with lists of valid referrers accepted for a given
+location, all other referrers will be blocked by nginx. Each location
+needs to have corresponding entry in \fBlocation\fP dict. Examples:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ location_referers:
+   \(aq/\(aq: [ \(aq{{ ansible_fqdn }}\(aq, \(aqwww.{{ ansible_fqdn }}\(aq, \(aq*.{{ ansible_domain }}\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBlocation_list\fP
+Optional, list of dicts. This is an alternative syntax of \fBlocation_*\fP
+entries; instead of using text blocks directly, it uses dict keys and values
+to configure each location, which allows for greater control and nesting.
+List of known keys and their descriptions:
+.INDENT 7.0
+.TP
+.B \fBpattern\fP
+Location string pattern, for example: \fB/\fP or \fB~ ^/doc$\fP or \fBgitlab\fP
+.TP
+.B \fBpattern_prefix\fP
+String prepended to the location pattern, for example: \fB@\fP which will
+create the named location \fB@gitlab\fP
+.TP
+.B \fBenabled\fP
+Boolean value specifying if the location should be included in
+configuration, defaults to \fBTrue\fP\&.
+.TP
+.B \fBreferers\fP
+List of allowed valid referer strings.
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ referers: [ \(aq{{ ansible_fqdn }}\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBaccess_policy\fP
+Optional, string. Specify a named \(dqaccess policy\(dq to use for this location.
+Refer to \fBnginx_access_policy_allow_map\fP and similar variables for more
+information.
+.TP
+.B \fBsatisfy\fP
+Optional, string. Defaults to \fBnginx_default_satisfy\fP\&.
+Set the location behaviour to either accept any of \fBallow, auth\fP
+configuration restrictions, or require all of them to match.  By default, any
+restriction by itself will match.  Choices: \fBany\fP, \fBall\fP
+.TP
+.B \fBallow\fP
+Optional, string or list of strings.
+IP addresses or CIDR networks which can access the given location.
+Automatically adds \fBdeny: all\fP at the end of the list.
+.TP
+.B \fBauth_basic\fP
+Optional, boolean. Enable HTTP Basic Authentication for this location.
+.TP
+.B \fBauth_basic_realm\fP
+Optional. String which will be displayed to the user in the HTTP Basic Auth
+dialog box.
+Defaults to \fBnginx_default_auth_basic_realm\fP\&.
+.TP
+.B \fBauth_basic_name\fP
+Optional, string. Required with \fBauth_basic\fP\&. Specifies the name of the
+htpasswd file used for this location authentication. htpasswd files are
+stored in \fB/etc/nginx/private/\fP directory.
+.sp
+You can use \fBauth_basic_filename\fP and specify the full path to the
+htpasswd file to use; file needs to be readable by nginx system user.
+.TP
+.B \fBoptions\fP
+String or YAML text block with options for this location block, semicolons
+at the end of each line are required.
+.TP
+.B \fBlocations\fP
+Nested list of locations to create in this location section.
+.UNINDENT
+.UNINDENT
+.SS HTTP security headers
+.INDENT 0.0
+.TP
+.B \fBcontent_type_options\fP
+Optional, string. Defaults to \fBnosniff\fP, which indicates to browsers that
+MIME types advertised in the Content\-Type headers should not be changed and be
+followed. This prevents MIME type sniffing and is the reason why site security
+testers usually expect this header to be set. Set this variable to
+\fB{{ omit }}\fP to exclude the header from all responses.
+.TP
+.B \fBcsp\fP
+Optional, string. Defaults to: \fBdefault\-src https: ;\fP (force all assets to be loaded over HTTPS).
+Sets the first part of the \fBContent\-Security\-Policy\fP header.
+The string MUST end with a semicolon but MUST NOT begin with one.
+Make sure that you only use single quotes and no double quotes in the string.
+If no \fBitem.csp_report\fP is given, it also determines the first part of the
+\fBContent\-Security\-Policy\-Report\-Only\fP header.
+Which headers are actually enabled is defined by \fBitem.csp_enabled\fP
+and \fBitem.csp_report_enabled\fP\&.
+Refer to the \fI\%Content Security Policy Reference\fP <\fBhttps://content-security-policy.com/\fP>\&.
+.TP
+.B \fBcsp_report\fP
+Optional, string. This allows to set a different/potentially experimental
+\fBContent\-Security\-Policy\-Report\-Only\fP header than defined by \fBitem.csp\fP\&.
+.TP
+.B \fBcsp_append\fP
+Optional, string. Defaults to: \fI\%nginx__http_csp_append\fP\&.
+CSP directives to append to all policies (\fBitem.csp\fP and \fBitem.csp_report\fP).
+This can be used to overwrite the default \fI\%nginx__http_csp_append\fP as needed.
+The string MUST end with a semicolon but MUST NOT begin with one.
+.TP
+.B \fBcsp_enabled\fP
+Optional, boolean. Defaults to \fBFalse\fP\&.
+If set to \fBTrue\fP and HTTPS is enabled for this item, the
+\fBContent\-Security\-Policy\fP header is set in server responses.
+.TP
+.B \fBcsp_report_enabled\fP
+Optional, boolean. Defaults to \fBFalse\fP\&.
+If this is set to \fBTrue\fP and HTTPS is enabled for this item, the
+\fBContent\-Security\-Policy\-Report\-Only\fP header is set in the server responses.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBxss_protection\fP
+Optional, string. Value of the \fBX\-XSS\-Protection\fP HTTP header field. Set to
+\fB{{ omit }}\fP to not send the header field. Defaults to \fI\%nginx__http_xss_protection\fP\&.
+.INDENT 7.0
+.TP
+.B \fB1\fP
+Browsers should enable there build in cross\-site scripting protection.
+.TP
+.B \fBmode=block\fP
+In case a cross\-site scripting attack is detected, block the page from rendering.
+.sp
+Note that the this option might create
+\fIa vulnerability in old versions of Internet Explorer
+<https://github.com/helmetjs/helmet#xss\-filter\-xssfilter>\fP\&.
+.UNINDENT
+.sp
+For more details and discussion see \fI\%What is the http\-header
+“X\-XSS\-Protection”?\fP <\fBhttps://stackoverflow.com/questions/9090577/what-is-the-http-header-x-xss-protection\fP>\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBhttp_referrer_policy\fP
+Optional, string. Value of the \fBReferrer\-Policy\fP HTTP header field. Set to
+\fB{{ omit }}\fP to not send the header field. Defaults to \fI\%nginx__http_referrer_policy\fP\&.
+Refer to \fI\%Referrer Policy\fP <\fBhttps://www.w3.org/TR/referrer-policy/\fP> for more details. Note that this header is a
+draft as of 2016\-10\-11 but it is already supported by the majority of web
+browsers.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBpermitted_cross_domain_policies\fP
+Optional, string. Value of the \fBX\-Permitted\-Cross\-Domain\-Policies\fP HTTP header field. Set to
+\fB{{ omit }}\fP to not send the header field. Defaults to
+\fI\%nginx__http_permitted_cross_domain_policies\fP\&.
+.sp
+Should cross domain policies be permitted?
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \fBframe_options\fP
+Optional, string. Value of the \fBX\-Frame\-Options\fP HTTP header field. Set to \fB{{ omit }}\fP
+to not send the header field. Defaults to \fBSAMEORIGIN\fP\&.
+.UNINDENT
+.SS Search engine optimization
+.INDENT 0.0
+.TP
+.B \fBrobots_tag\fP
+Optional, list of strings or string. Value of the \fBX\-Robots\-Tag\fP HTTP header field. Set to
+\fB{{ omit }}\fP to not send the header field. Defaults to
+\fI\%nginx__http_robots_tag\fP\&.
+.sp
+This allows you to give search engine bots hints how they should handle the
+website. For example, when you don’t want that search engines don’t \(dqindex\(dq
+your website, you can set this variable to \fBnone\fP\&.
+.sp
+\fBNOTE:\fP
+.INDENT 7.0
+.INDENT 3.5
+This header field is merely a hint for the search engine bot,
+nothing more and they might ignore it. For example, Google sets this
+straight in their first sentence in the documentation which says \(dqThis
+document details how the page\-level indexing settings allow you to control
+how Google \fImakes content available through search results\fP\&.\(dq
+So you will need to prevent the search engine bots from crawling the site
+in the first place in case you want to prevent that.
+.UNINDENT
+.UNINDENT
+.sp
+Refer to \fI\%robots meta tag and X\-Robots\-Tag HTTP header specifications\fP <\fBhttps://developers.google.com/webmasters/control-crawl-index/docs/robots_meta_tag\fP>
+for more details.
+.UNINDENT
+.SS Access control
+.INDENT 0.0
+.TP
+.B \fBaccess_policy\fP
+Optional, string. Specify a named \(dqaccess policy\(dq to use for this server. Refer to
+\fBnginx_access_policy_allow_map\fP and similar variables for more
+information.
+.TP
+.B \fBsatisfy\fP
+Optional, string. Defaults to \fBnginx_default_satisfy\fP\&.
+Set the server behaviour to either accept any of \fBallow, auth\fP
+configuration restrictions, or require all of them to match.  By default, any
+restriction by itself will match.  Choices: \fBany\fP, \fBall\fP
+.TP
+.B \fBallow\fP
+Optional, string or list of strings.
+IP addresses or CIDR networks which can access the given server.
+Automatically adds \fBdeny: all\fP at the end of the list.
+.TP
+.B \fBoptions\fP
+Optional, string. Add custom options to this server configuration using a
+YAML text block (semicolons at the end of each line are required).
+.UNINDENT
+.SS Logging and monitoring
+.INDENT 0.0
+.TP
+.B \fBlog_path\fP
+Optional, string. Absolute path where log files should be stored. If not
+specified, logs will be saved to \fB/var/log/nginx/\fP directory. You
+should take care of log rotation if you specify a custom log path.
+The specified path needs to exist before nginx is reloaded/restarted.
+.TP
+.B \fBaccess_log\fP
+Optional, string. Defaults to \fB<\(ga\(ganame[0]>_access\fP\&.
+Name of the access log file.
+The suffix \fB\&.log\fP will be added automatically.
+.TP
+.B \fBaccess_log_enabled\fP
+Optional, boolean. Defaults to \fBTrue\fP\&.
+If access logging should be enabled.
+.TP
+.B \fBerror_log\fP
+Optional, string. Defaults to \fB<\(ga\(ganame[0]>_error\fP\&.
+Name of the error log file.
+The suffix \fB\&.log\fP will be added automatically.
+.TP
+.B \fBerror_log_enabled\fP
+Optional, boolean. Defaults to \fBTrue\fP\&.
+If error logging should be enabled.
+.TP
+.B \fBaccess_log_format\fP
+Optional. Name of the access log format.
+Custom log formats can be defined using \fBnginx__log_format\fP variable.
+.TP
+.B \fBstatus\fP
+Optional, list of strings.
+Enable nginx server status page and allow access from the given list of IP
+addresses or CIDR ranges.
+.TP
+.B \fBstatus_name\fP
+Optional, string. Defaults to \fBnginx_status_name\fP\&.
+Set the name of the location which should be used for the nginx status page.
+.UNINDENT
+.SS Error pages
+.INDENT 0.0
+.TP
+.B \fBerror_pages\fP
+Optional. Dict of error codes in string format as keys and
+corresponding error pages to display. Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ error_pages:
+   \(aq403 404\(aq: \(aq/400.html\(aq
+   \(aq502\(aq:     \(aq/500.html\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBerror_pages_list\fP
+Optional. List of dictionaries, each one describing an error page. List
+of known keys and their descriptions:
+.INDENT 7.0
+.TP
+.B \fBcode\fP
+Required, String or list strings. Error codes to include in this
+configuration section.
+.TP
+.B \fBuri\fP
+Required. URI or location to redirect the request to.
+.TP
+.B \fBlocation\fP and \fBlocation_options\fP
+Optional. If specified, an additional location section will be added
+with contents of the \fBlocation_options\fP parameter. If only
+\fBlocation_options\fP is present, the \fBuri\fP parameter will be used as
+the location.
+.UNINDENT
+.sp
+Examples:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ error_pages_list:
+   \- code: [ \(aq403\(aq, \(aq404\(aq, \(aq=500\(aq ]
+     uri: \(aq/error.html\(aq
+     location: \(aq= /error.html\(aq
+     location_options: |
+       internal;
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBmaintenance\fP
+Optional, boolean. Defaults to \fBTrue\fP\&.
+Specifies if the maintenance HTML page configuration should be added to the
+server or not.
+.TP
+.B \fBmaintenance_file\fP
+Optional. Path of the maintenance HTML page (by default
+\fBmaintenance.html\fP) located in the website\(aqs document root directory.
+If the file is present, all requests will be redirected to the maintenance
+page with error \(dq503 Service Unavailable\(dq.
+.UNINDENT
+.SS Welcome page
+.INDENT 0.0
+.TP
+.B \fBwelcome\fP
+Optional, boolean. Defaults to \fBFalse\fP\&.
+If \fBTrue\fP a welcome \fBindex.html\fP page is generated in website root
+directory using a template.
+.TP
+.B \fBwelcome_force\fP
+Optional, boolean.
+Ensure that the templated file is up\-to\-date if \fBTrue\fP\&.
+Set to \fBFalse\fP by default to ensure idempotent operation.
+.TP
+.B \fBwelcome_template\fP
+Optional. Specify absolute path to a Jinja2 template which should be
+used to generate a welcome page.
+.TP
+.B \fBwelcome_domain\fP
+Optional. Specify a DNS domain which should be used in the generated
+welcome page. By default, a domain is detected from \fBname[0]\fP, or
+if it\(aqs not specified, \fBansible_domain\fP variables.
+.TP
+.B \fBwelcome_css\fP
+Optional. If specified and False, omit custom stylesheet in the
+generated \fBindex.html\fP\(aq file.
+.UNINDENT
+.SS User directories
+.INDENT 0.0
+.TP
+.B \fBuserdir\fP
+Optional, boolean. Enable UserDir support.
+Web pages on \fBhttps://host/~<user>/\fP will be read from
+\fB/srv/www/<user>/userdir/public\fP directories.
+.TP
+.B \fBuserdir_regexp\fP
+Optional, string. Specify location regexp pattern used by nginx to determine if
+a specified URL is an userdir URL.
+.TP
+.B \fBuserdir_alias\fP
+Optional, string. Specify the absolute path to user directories used as an
+alias pattern which uses the parameters from location regexp to select
+the correct user and file to display.
+.TP
+.B \fBuserdir_index\fP
+Optional, string. Specify space separated list of index files which will be
+used by nginx automatically to display a HTML page, if found in the current
+directory.
+.TP
+.B \fBuserdir_options\fP
+Optional, string. Specify additional options added to the userdir location
+block.
+.UNINDENT
+.SS Type: php
+.sp
+Available when \fBitem.type\fP is set to \fBphp\fP for a server.
+.INDENT 0.0
+.TP
+.B \fBphp_upstream\fP
+Required, string. Name of nginx upstream to use.
+.sp
+If undefined, \fB\&.php\fP files will be protected by =403.
+.TP
+.B \fBindex\fP
+Optional, string.
+Space separated list of index filenames.
+Refer to \fI\%Common webserver options\fP for details.
+.sp
+If undefined, add \fBindex.php\fP at the end of list of index files.
+.TP
+.B \fBphp_limit_except\fP or False
+Optional, string or list of strings or boolean (\fBFalse\fP).
+Whitelist of allowed HTTP request methods.
+.sp
+If absent or \fBFalse\fP, limits are disabled.
+.sp
+Refer to the \fI\%Nginx limit_except directive documentation\fP <\fBhttps://nginx.org/en/docs/http/ngx_http_core_module.html#limit_except\fP> for details.
+.TP
+.B \fBphp_include\fP
+Optional, string or boolean (\fBFalse\fP).
+File to include instead of \fBfastcgi_params\fP or \fBfastcgi.conf\fP,
+relative to \fB/etc/nginx/\fP\&.
+.sp
+If set to \fBFalse\fP, nothing is included.
+.TP
+.B \fBphp_try_files\fP
+Optional. A string or list with \fBtry_files\fP option values which should be
+defined in the PHP location blocks. If not defined, the default is to use the
+\fB$script_name\fP and \fB=404\fP values.
+.TP
+.B \fBphp_location_script_name\fP
+Optional. This parameter allows modification of the location matching rule
+used for PHP scripts without additional parameters, by default:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+~ ^(?!.+\e.php/)(?<script_name>.+\e.php)$
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBphp_location_path_info\fP
+Optional. This parameter allows modification of the location matching rule
+used for PHP scripts with additional parameters, by default:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+~ ^(?<script_name>.+\e.php)(?<path_info>/.*)$
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBphp_options\fP
+Optional, string. Additional options to append to php location.
+.TP
+.B \fBphp_status\fP
+Optional, boolean. Enable php\-fpm server status page.
+.TP
+.B \fBphp_status_name\fP
+Optional, string. Defaults to \fBphp_status\fP\&.
+Set the name of the location which should be used for php fpm
+status page
+.TP
+.B \fBphp_ping_name\fP
+Optional, string. Defaults to \fBphp_ping\fP\&.
+Set the name of the location which should be used for php fpm
+ping page
+.TP
+.B \fBphp_status_allow\fP
+Optional, string or list of strings.
+Allow access the given IP addresses or CIDR ranges.
+.UNINDENT
+.SS Type: php5
+.sp
+Deprecated, use \fI\%Type: php\fP\&.
+.SS Type: proxy
+.sp
+Available when \fBitem.type\fP is set to \fBproxy\fP for a server.
+.INDENT 0.0
+.TP
+.B \fBproxy_pass\fP
+Required, string. Set the upstream url for this proxy configuration. This can
+be omitted if either a \fBlocation\fP or a \fBlocation_list\fP is defined.
+.TP
+.B \fBproxy_location\fP
+Optional, string. Defaults to \fB/\fP\&.
+Set the location for the proxy, which is used in case not other \fBlocation\fP or
+\fBlocation_list\fP are defined.
+.TP
+.B \fBproxy_headers\fP
+Optional, string. Add custom headers to this proxy configuration using a YAML
+text block (semicolon at the end of each line is required).
+.TP
+.B \fBproxy_options\fP
+Optional, string. Add custom options to this proxy configuration using a YAML
+text block (semicolon at the end of each line is required).
+.UNINDENT
+.SS Type: rails
+.sp
+Available when \fBitem.type\fP is set to \fBrails\fP for a server.
+.sp
+FIXME: Documentation missing.
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

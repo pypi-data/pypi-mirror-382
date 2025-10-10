@@ -1,0 +1,223 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS-RUN" "1" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops-run \- Execute Ansible playbooks in DebOps environments
+.SH SYNOPSIS
+.sp
+\fBdebops run\fP [\-h|\-\-help] [\-\-project\-dir <project_dir>] [\-V|\-\-view <view>] [\-E|\-\-bell] [\-\-eval] [\-v|\-\-verbose] [\-\-] <[<namespace>.<collection>/]playbook> [playbook] ... [<ansible_args>]
+.sp
+\fBdebops check\fP [\-h|\-\-help] [\-\-project\-dir <project_dir>] [\-V|\-\-view <view>] [\-E|\-\-bell] [\-\-eval] [\-v|\-\-verbose] [\-\-] <[<namespace>.<collection>/]playbook> [playbook] ... [<ansible_args>]
+.SH DESCRIPTION
+.sp
+DebOps roles can store encrypted secrets (passwords and other confiential data)
+in a project directory, under \fBansible/secret/\fP subdirectory. For normal
+operation, the secrets need to be unlocked so that Ansible roles and playbooks
+can access and manipulate them. To make this process easier, DebOps provides
+the \fBdebops run\fP and \fBdebops check\fP commands which will
+automatically unlock and lock the encrypted secrets as needed.
+.sp
+An additional benefit of using these commands is that the user does not have to
+provide a full path to the playbooks \- the script will try to find the correct
+playbook in a set of different directories or even inside Ansible Collections.
+.SH DEBOPS RUN
+.sp
+Execute one or more Ansible Playbooks against the Ansible inventory. Playbooks
+are included with the DebOps installation by default, they can be provided by
+Ansible Collections or stored in the \fBansible/playbooks/\fP subdirectory in
+the DebOps project directory. You can also specify full path to an Ansible
+playbook on disk.
+.sp
+The \fBdebops run\fP command will automatically unlock and lock the
+encrypted \fBansible/secret/\fP directory as needed, to give the playbooks
+and roles access to secrets. If \fBgit\-crypt\fP is used for secret encryption,
+this process might fail if the project directory contains uncommitted changes.
+Easiest way to mitigate this is to unlock the project directory using the
+\fBdebops project unlock\fP command before making any changes.
+.SS Options
+.sp
+The options below need to be specified before any playbooks to take effect.
+.INDENT 0.0
+.TP
+.B \fB\-h, \-\-help\fP
+Display the help and usage information
+.TP
+.B \fB\-\-project\-dir <project_dir>\fP
+Path to the project directory to work on. If it\(aqs not specified, the script
+will use the current directory.
+.TP
+.B \fB\-V <view>, \-\-view <view>\fP
+Specify the name of the \(dqinfrastructure view\(dq to use for running Ansible
+playbooks. If not specified, the default view will be used automatically.
+Using this option overrides the automatic view detection performed by DebOps
+based on the current working directory.
+.TP
+.B \fB\-E, \-\-bell\fP
+Emit an ASCII \(dqbell\(dq at the end of the \fBansible\-playbook\fP command
+execution to notify the user. This might be useful during longer playbook
+runs.
+.TP
+.B \fB\-\-eval\fP
+Do not execute \fBansible\-playbook\fP command; instead print out all the
+environment variables and the command itself to stdout.
+.TP
+.B \fB\-v, \-\-verbose\fP
+Increase output verbosity. More letters means higher verbosity.
+.TP
+.B \fB\-\-\fP
+Mark the end of the \fBdebops run\fP options. Any of the options after
+this mark will be passed to the \fBansible\-playbook\fP command as\-is.
+.TP
+.B \fB<[<namespace>.<collection>/]playbook>\fP
+Specify one or more Ansible Playbooks to execute.
+.sp
+If you specify simple names like \fBsite\fP, \fBservice/core\fP and
+similar, the script will look for the corresponding playbooks in the default
+Ansible Collection (\fBdebops.debops\fP). If not found there, the
+\fBansible/playbooks/\fP subdirectory in the current DebOps project
+directory will be checked next. Finally the name will be assumed to be
+a normal filesystem path with optional \fB\&.yml\fP or \fB\&.yaml\fP extension.
+.sp
+You can also specify the namespace and collection at the start of the path to
+select a specific collection instead of the default one, for example
+\fBdebops.debops/site\fP or \fBdebops.debops/service/core\fP\&. The
+playbooks should be stored in the \fBplaybooks/\fP subdirectory of the
+Ansible Collection, you can use subdirectories to manage a large set of
+playbooks easier.
+.TP
+.B \fB[ansible_args]\fP
+You can specify all arguments supported by the \fBansible\-playbook\fP
+command to augment the execution, for example \fB\-\-diff\fP, \fB\-\-check\fP,
+\fB\-\-limit\fP, and so on. See \fBansible\-playbook \-\-help\fP for more
+details.
+.UNINDENT
+.SS Examples
+.sp
+Execute the \fBsite.yml\fP DebOps playbook against all hosts in the Ansible
+inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run site
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Run the \fBlayer/common.yml\fP DebOps playbook against specific hosts in the
+Ansible inventory. User will be notified at the end of playbook execution:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run \-E layer/common \-l webserver,dbserver,appserver
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Display the commands which will run a DebOps playbook for a specific service on
+specific hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run \-\-eval service/mariadb_server \-l dbservers
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Do the same as above, by specifying the Ansible Collection in which to look for
+the playbook:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run \-\-eval debops.debops/service/mariadb_server \-l dbservers
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Run a playbook from a custom Ansible Collection in a specific \(dqinfrastructure
+view\(dq meant to be used to deploy an application:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run \-V deployment company.collection/app/setup \-l appservers
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Run a playbook with DebOps in a verbose debug mode:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run \-vvv service/sshd \-l webserver
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Same as above, but also enable verbose debug mode in Ansible itself:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run \-vvv service/sshd \-l webserver \-vvv
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEBOPS CHECK
+.sp
+Execute one or more Ansible Playbooks against the Ansible inventory in check
+mode. This command behaves the same as the \fBdebops run\fP command, but
+automatically adds the \fB\-\-diff\fP and \fB\-\-check\fP \fBansible\-playbook\fP
+options to enable the \(dqcheck mode\(dq. In this mode, Ansible will execute the
+playbook without making any actual changes to the host.
+.SH AUTHOR
+Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

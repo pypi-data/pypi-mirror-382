@@ -1,0 +1,245 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.POSTSCREEN" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.postscreen \- Manage Postscreen Postfix service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/postscreen\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%Postscreen\fP <\fBhttp://www.postfix.org/POSTSCREEN_README.html\fP> Postfix
+service can be enabled to filter out undesired SMTP clients on initial
+connection to the mail server. Postscreen uses certain criteria (static
+white/blacklist, DNS Block List queries, communication analysis) to allow or
+deny connections for a given SMTP client.
+.sp
+This role can be used to enable and configure Postscreen in a Postfix
+installation managed by the \fI\%debops.postfix\fP Ansible role. It does not configure
+Postfix directly on its own.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+By default Postscreen will enable the DNS Blocklists if the host has public
+IPv4/IPv6 addresses. The DNS Blocklists will be disabled on private networks.
+.sp
+Most of the Postfix configuration is defined in the dependent variables, you
+can change the configuration through the inventory directly. Check the
+\fI\%debops.postfix\fP documentation to see how to do this.
+.SS Example inventory
+.sp
+To install and configure Postscreen on a host, it needs to be present in the
+\fB[debops_service_postscreen]\fP Ansible inventory group. The Postfix server
+should also be configured beforehand.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_postfix]
+hostname
+
+[debops_service_postscreen]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.postscreen\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Postfix postscreen configuration
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_postscreen\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare postfix environment
+      ansible.builtin.import_role:
+        name: \(aqpostfix\(aq
+        tasks_from: \(aqmain_env\(aq
+      vars:
+        postfix__dependent_packages:
+          \- \(aq{{ postscreen__postfix__dependent_packages }}\(aq
+        postfix__dependent_maincf:
+          \- role: \(aqpostscreen\(aq
+            config: \(aq{{ postscreen__postfix__dependent_maincf }}\(aq
+        postfix__dependent_mastercf:
+          \- role: \(aqpostscreen\(aq
+            config: \(aq{{ postscreen__postfix__dependent_mastercf }}\(aq
+      tags: [ \(aqrole::postfix\(aq, \(aqrole::secret\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::postfix\(aq ]
+      secret__directories:
+        \- \(aq{{ postfix__secret__directories }}\(aq
+
+    \- role: postfix
+      tags: [ \(aqrole::postfix\(aq, \(aqskip::postfix\(aq ]
+      postfix__dependent_packages:
+        \- \(aq{{ postscreen__postfix__dependent_packages }}\(aq
+      postfix__dependent_maincf:
+        \- role: \(aqpostscreen\(aq
+          config: \(aq{{ postscreen__postfix__dependent_maincf }}\(aq
+      postfix__dependent_mastercf:
+        \- role: \(aqpostscreen\(aq
+          config: \(aq{{ postscreen__postfix__dependent_mastercf }}\(aq
+
+    \- role: postscreen
+      tags: [ \(aqrole::postscreen\(aq, \(aqskip::postscreen\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Keep in mind that the default Postscreen playbook does not configure firewall
+access for Postfix. You still need to use the Postfix playbook to configure the
+server instance initially.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+some of \fBdebops.postscreen\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS postscreen__access
+.sp
+This is a list of IP addresses or CIDR subnets which can be statically
+whitelisted or blacklisted in Postscreen. Entries are processed in order of
+appearance. If a list entry is a string, the given entry will be whitelisted.
+Otherwise, you can specify an entry as a YAML dictionary with specific keys:
+.INDENT 0.0
+.TP
+.B \fBname\fP, \fBcidr\fP
+Required. The IP address or CIDR subnet to manage in the access list.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given entry will be present in
+the access list. If \fBabsent\fP, a given entry will be removed from the access
+list.
+.TP
+.B \fBaction\fP, \fBvalue\fP
+Optional. If \fBpermit\fP, a given client will be immediately accepted by
+Postscreen. If \fBreject\fP, a given client will be disconnected by Postscreen.
+if \fBdunno\fP, the accept/reject decision will be left to further checks by
+Postscreen. If action is not specified, by default the entry use the
+\fBpermit\fP action.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with a comment about a given entry.
+.UNINDENT
+.SS Examples
+.sp
+Allow client connections from private RFC 1918 subnets, except specific
+addresses:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postscreen__access:
+
+  \- name: \(aq10.0.0.1\(aq
+    action: \(aqdunno\(aq
+    comment: \(aqLocal gateway\(aq
+
+  \- \(aq10.0.0.0/8\(aq
+  \- \(aq172.16.0.0/12\(aq
+  \- \(aq192.168.0.0/16\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS postscreen__dnsbl_reply_pcre_map
+.sp
+This list contains regular expressions that specify the DNS blocklists. When
+Postscreen checks the client\(aqs IP address against DNS blocklists and a client
+is blocked, Postscreen rejects the client\(aqs connection with a message. This
+list can be used to define what message is sent to the client after it has been
+blocked by Postscreen.
+.sp
+You can specify list entries as PCRE regular expressions, in that case they
+will use the default response defined in the
+\fI\%postscreen__dnsbl_default_reply\fP\&. Alternatively, you can specify
+entries as YAML dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP, \fBpcre\fP
+Required. A regular expression that identifies a DNS Blocklist.
+.TP
+.B \fBvalue\fP, \fBreply\fP
+Optional. A string that specifies the response sent to the client when its
+connection is blocked by a given DNS Blocklist.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given entry will be added in the
+configuration file. If \fBabsent\fP, a given entry will be removed from the
+configuration file.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with a comment for a given entry.
+.UNINDENT
+.SS Examples
+.sp
+Define a custom response for a RBL:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postscreen__dnsbl_reply_pcre_map:
+
+  \- pcre: \(aq/^rbl\e.example\e.org$/\(aq
+    reply: \(aqBlocked by a DNS RBL\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

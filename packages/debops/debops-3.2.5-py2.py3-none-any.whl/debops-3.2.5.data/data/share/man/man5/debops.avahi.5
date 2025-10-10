@@ -1,0 +1,363 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.AVAHI" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.avahi \- configure Avahi service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/avahi\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Avahi\fP <\fBhttps://www.avahi.org/\fP> is a Linux daemon which can be used to publish information about
+local or remote services using \fI\%Multicast DNS\fP <\fBhttps://en.wikipedia.org/wiki/Multicast_DNS\fP> protocol (mDNS, also used by
+Bonjour or ZeroConf). This protocol can then be queried by other applications
+such as DNS clients or those that support \fI\%DNS Service Discovery\fP <\fBhttps://en.wikipedia.org/wiki/Zero-configuration_networking#Service_discovery\fP> to find
+out and access services on the local network.
+.sp
+The \fBdebops.avahi\fP Ansible role can be used to configure the Avahi service on
+Debian or Ubuntu hosts. You can create custom services, publish static host
+entries that point to other hosts on the local network, or even define and
+publish CNAME records pointing to the host itself via a custom script.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+By default the \fBdebops.avahi\fP role publishes records for the SSH and SFTP
+services, as well as a special \fBdevice\-info\fP record which marks the server as
+a \(dqfile server\(dq on supported platforms. The \fBworkstation\fP and \fBhinfo\fP
+records are not published to indicate that this host is a server and not
+a client machine.
+.SS Avahi CNAME (alias) support
+.sp
+Avahi by default does not support \fBCNAME\fP records, i.e. alternative
+subdomains that point to a given host. To support these records,
+\fBdebops.avahi\fP can install and configure a custom third party script,
+\fI\%avahi\-alias\fP <\fBhttps://github.com/george-hawkins/avahi-aliases-notes\fP>
+maintained by \fI\%George Hawkins\fP <\fBhttps://github.com/george-hawkins\fP>\&.
+.sp
+The script will be installed by default if the Python 2.7 support is enabled on
+the host. At present (2019), Debian does not include the \fBpython3\-avahi\fP
+package, therefore Python 2.7 is required for this functionality to work.
+.sp
+The role will install the script in the \fB/usr/local/sbin/\fP directory and
+prepare a \fBsystemd\fP service (SysVinit is not supported at this time).
+The script needs to be restarted to register any changed CNAME records and this
+is not automatic unlike Avahi daemon itself (role restarts the service on any
+changes).
+.sp
+The list of CNAME records is stored in the \fB/etc/avahi/aliases\fP file and
+can be modified by other roles or manually. The file should contain only CNAME
+FQDN records, each in one line; comments are not supported.
+.SS Avahi services in other Ansible roles
+.sp
+The \fBdebops.avahi\fP Ansible role is designed to be used as a role dependency
+of another Ansible role. By specifying the service configuration using the
+\fI\%avahi__dependent_services\fP variable (preferably as a YAML list) you
+can configure Avahi services as well as CNAME aliases if necessary.
+See \fI\%avahi__services\fP for more details about supported parameters.
+.sp
+If advanced control over CNAME aliases published by Avahi is not needed, you
+can make the process simpler by including the tasks that configure an Avahi
+service directly in your own role, for example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Ensure that Avahi directories exist
+  file:
+    path: \(aq/etc/avahi/services\(aq
+    state: \(aqdirectory\(aq
+    mode: \(aq0755\(aq
+
+\- name: Generate Avahi service configuration
+  template:
+    src: \(aqetc/avahi/services/application.xml.j2\(aq
+    dest: \(aq/etc/avahi/services/application.xml\(aq
+    mode: \(aq0644\(aq
+
+\- name: Add mDNS CNAME resource record for the application
+  lineinfile:
+    path: \(aq/etc/avahi/aliases\(aq
+    regexp: \(aq^application\e.local$\(aq
+    line: \(aqapplication.local\(aq
+    state: \(aqpresent\(aq
+    create: True
+    mode: \(aq0644\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Avahi daemon automatically detects changes in the \fB/etc/avahi/services/\fP
+directory and reloads all files, therefore service restart is not necessary.
+The format of the XML service file can be found in the
+\fI\%avahi.service(5)\fP <\fBhttps://manpages.debian.org/avahi.service(5)\fP> manual page.
+.SS Example inventory
+.sp
+The \fBdebops.avahi\fP role needs to be enabled to be used in the DebOps
+playbook. To do that, add the hosts that you want to configure Avahi on to the
+\fB[debops_service_avahi]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_avahi]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.avahi\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Avahi service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_avahi\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::avahi\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ avahi__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ avahi__python__dependent_packages2 }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ avahi__ferm__dependent_rules }}\(aq
+
+    \- role: avahi
+      tags: [ \(aqrole::avahi\(aq, \(aqskip::avahi\(aq ]
+
+    \- role: nsswitch
+      tags: [ \(aqrole::nsswitch\(aq, \(aqskip::nsswitch\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.avahi\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS avahi__daemon_conf
+.sp
+The \fBavahi__daemon_conf_*\fP variables are used to specify what parameters
+should be present in the \fB/etc/avahi/avahi\-daemon.conf\fP configuration
+file. Each pair of variables manages one section of the INI file. The \(dqdefault\(dq
+variable is combined with the custom variable therefore it\(aqs possible to change
+the value of a parameter without the need to copy the entire variable over to
+the Ansible inventory.
+.sp
+Each variable is a YAML dictionary with keys representing the available
+parameters and values representing the parameter values. You can use boolean
+YAML values (\fBTrue\fP, \fBFalse\fP) to specify \fByes\fP or \fBno\fP values, as well
+as strings and numbers. if a value is an empty string, the corresponding
+parameter will be commented out in the finished configuration file.
+.sp
+See the \fI\%avahi\-daemon.conf(5)\fP <\fBhttps://manpages.debian.org/avahi-daemon.conf(5)\fP> manual page for information about
+recognized parameters and their meaning.
+.SS avahi__services
+.sp
+The \fBavahi__*_services\fP variables define the services published by Avahi on
+its \fB\&.local\fP domain. The variables are either YAML dictionaries or YAML lists
+of dictionaries that are combined together in the
+\fI\%avahi__combined_services\fP in the order they appear in the
+\fBdefaults/main.yml\fP file.
+.sp
+Each entry in the \fBavahi__*_services\fP variables is a YAML dictionary with
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBfilename\fP
+Name of the configuration file that holds the service details. The name will
+be used in the file path in the format:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/avahi/services/<filename>.service
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If the filename is not specified and the main variable uses the YAML
+dictionary format, the dictionary key will be used as the filename.
+The examples below are equivalent:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+avahi__services:
+  \(aqexample\-service\(aq:
+    name: \(aqExample service on %h\(aq
+    type: \(aq_example._tcp\(aq
+    port: \(aq1234\(aq
+
+avahi__host_services:
+  \- filename: \(aqexample\-service\(aq
+    name: \(aqExample service on %h\(aq
+    type: \(aq_example._tcp\(aq
+    port: \(aq1234\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBservices\fP
+Optional. A YAML list of services defined by this entry and encloses in
+a service group. Each list item is a YAML dictionary that specifies given
+service parameters. If the \fBservices\fP parameter is not specified, role will
+automatically generate one based on parameters defined in the main entry.
+This parameter is only useful in applications that define multiple services,
+which can be defined together in a service group, otherwise you can use the
+simpler syntax.
+.TP
+.B \fBtype\fP
+A string similar to \fI\%DNS SRV Records\fP which defines the service
+type and protocol (only the service name and protocol are relevant, other
+parts of the SRV record shouldn\(aqt be used). Example service types are
+\fB_ssh._tcp\fP and \fB_http._tcp\fP\&.
+.sp
+If the type is not specified and a given entry has no separate \fBservices\fP
+list defined, the service will not be published. This can be used to define
+host CNAME entries without an associated service (see below).
+.TP
+.B \fBsubtype\fP
+Optional. Either a string, or a YAML list of additional subtypes to publish
+for this service. Example subtype definition: \fB_custom._sub._example._tcp\fP\&.
+.TP
+.B \fBport\fP
+Optional. Specify the port number on which a given service listens for new
+connections. If it\(aqs not specified, the port number for this service will be
+set to \fB0\fP\&.
+.TP
+.B \fBname\fP
+Optional. Custom description of a service, displayed in compatible Avahi
+clients. If not specified, the host\(aqs hostname will be used instead.
+.TP
+.B \fBreplace_wildcards\fP
+Optional, boolean. If not defined or \fBTrue\fP, Avahi will replace the \fB%h\fP
+wildcard in the service description with the host\(aqs hostname. Setting this
+parameter to \fBFalse\fP will turn off the replacement.
+.TP
+.B \fBprotocol\fP
+Optional. Specify which network to publish the service on, either IPv4, IPv6
+or both (default). Possible values: \fBipv4\fP, \fBipv6\fP, \fBany\fP\&.
+.TP
+.B \fBdomain\fP or \fBdomain_name\fP
+Optional. Publish the service on a different domain than the default
+\fB\&.local\fP domain used by Avahi.
+.TP
+.B \fBfqdn\fP or \fBhostname\fP or \fBhost_name\fP
+Optional. Specify a different FQDN for a given service. This can be used to
+publish services on behalf of other hosts on the network that do not support
+Avahi themselves. You also need to register the host A/AAAA record separately
+for the Avahi to correctly publish the service record.
+See \fI\%avahi__hosts\fP for more details.
+.TP
+.B \fBtxt\fP or \fBtxt_record\fP
+Optional. String or YAML list of custom TXT records which should be published
+for this service. These records are used to provide additional information
+about the service, configuration options, etc.
+.UNINDENT
+.sp
+The parameters below are additional and related to the role itself, rather than
+to the Avahi services:
+.INDENT 0.0
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with additional comments included in the
+service configuration file.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the Avahi service will be
+configured. If \fBabsent\fP, the configuration of a given Avahi service will be
+removed.
+.TP
+.B \fBcname\fP
+Optional. Specify a custom CNAME record which will be used to register a host
+alias using the \fBavahi\-alias\fP script. The CNAME record will point to
+the originating host. See \fI\%Avahi CNAME (alias) support\fP for more details.
+You can define \fBavahi__*_services\fP entries that only publish CNAME records
+by not specifying a type, for example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+avahi__services:
+  \- filename: \(aqcustom\-cname\-of\-host\(aq
+    cname: \(aqcustom\(aq
+
+avahi__host_services:
+  \(aqother\-example\(aq:
+    cname: \(aqother.local\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.TP
+.B \fBcname_state\fP
+Optional. If the \fBcname\fP parameter is specified, you can use this parameter
+to control the state of the CNAME record separately from the main \fBstate\fP
+parameter. If not specified or \fBpresent\fP, the CNAME record will be
+published. If \fBabsent\fP, the CNAME record will be removed.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,225 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.TIMESYNCD" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.timesyncd \- Manage time synchronization using systemd-timesyncd
+.SH SYNOPSIS
+.sp
+\fBdebops run service/timesyncd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+THe \fI\%systemd\-timesyncd(8)\fP <\fBhttps://manpages.debian.org/systemd-timesyncd(8)\fP> service is a lightweight SNTP and NTP (Network
+Time Protocol) client developed as a part of the \fI\%systemd\fP <\fBhttps://www.freedesktop.org/wiki/Software/systemd/\fP> project. It
+provides time synchronization with NTP server network on hardware and
+virtualized hosts.
+.sp
+The \fI\%debops.timesyncd\fP Ansible role can be used to configure the
+\fBsystemd\-timesyncd\fP service. It will detect presence of alternative
+NTP clients/servers installed on the host and back off when they are detected,
+so that users can easily switch to a different service provider if they wish.
+.SH GETTING STARTED
+.SS Configuration of preferred NTP servers
+.sp
+The \fBsystemd\-timesyncd\fP service can use NTP servers provided via DHCP
+or configured in the \fBsystemd\-networkd\fP service to perform time
+synchronization. If both cases are not defined, the service uses the \fBNTP=\fP
+and \fBFallbackNTP=\fP configuration options to find the preferred NTP servers.
+By default, Debian installation defines a list of \fB{0,3}.debian.pool.ntp.org\fP
+NTP servers to use if no others are specified.
+.sp
+Users can define their own preferred NTP servers in the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# File: ansible/inventory/group_vars/all/timesyncd.yml
+
+# Needed to enable custom configuration deployment
+timesyncd__deploy_state: \(aqpresent\(aq
+
+timesyncd__configuration:
+
+  \- name: \(aqNTP\(aq
+    value:
+      \- \(aq0.pool.ntp.org\(aq
+      \- \(aq1.pool.ntp.org\(aq
+      \- \(aq2.pool.ntp.org\(aq
+      \- \(aq3.pool.ntp.org\(aq
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Timezone configuration is performed using the \fI\%debops.tzdata\fP Ansible
+role, via the \fI\%tzdata__timezone\fP variable.
+.SS Support for container environments
+.sp
+The \fBsystemd\-timesyncd.service\fP unit contains a conditional check for
+a containerized environment (LXC, Docker, nspawn). Such environments don\(aqt have
+complete control over system clock, therefore inside of them the time daemon
+will not be started.
+.SS Support for other NTP services
+.sp
+The role checks if one of the APT packages listed in the
+\fI\%timesyncd__skip_packages\fP variable is already installed on the host
+before doing any modifiaction on the system. If such package is detected, the
+role will skip further tasks to avoid messing up existing configuration.
+.SS Example inventory
+.sp
+The \fBdebops.timesyncd\fP role is included by default in the \fBcommon.yml\fP DebOps
+playbook; you don\(aqt need to add hosts to any Ansible groups to enable it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.timesyncd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage systemd\-timesyncd service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_timesyncd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: timesyncd
+      tags: [ \(aqrole::timesyncd\(aq, \(aqskip::timesyncd\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::timesyncd\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.timesyncd\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS timesyncd__configuration
+.sp
+The \fBtimesyncd__*_configuration\fP default variables define the configuration
+of the \fBsystemd\-timesyncd\fP service. You can find more details about
+\fBsystemd\-timesyncd\fP configuration in the \fI\%timesyncd.conf(5)\fP <\fBhttps://manpages.debian.org/timesyncd.conf(5)\fP>
+manual page.
+.sp
+The generated configuration will be located in the
+\fB/etc/systemd/timesyncd.conf.d/ansible.conf\fP config file. This file is not
+generated by default to fall back on the default configuration provided in the
+OS packages; to generate it the \fI\%timesyncd__deploy_state\fP variable needs
+to be set to \fBpresent\fP\&.
+.SS Examples
+.sp
+You can check the \fI\%timesyncd__default_configuration\fP variable for the
+default contents of the configuration file.
+.SS Syntax
+.sp
+The role uses the \fI\%Universal Configuration\fP system to configure
+\fBsystemd\-timesyncd\fP daemon. Each configuration entry in the list is
+a YAML dictionary. The simple form of the configuration uses the dictionary
+keys as the parameter names, and dictionary values as the parameter values.
+Remember that the parameter names need to be specified in the exact case they
+are used in the documentation (e.g. \fBFallbackNTP\fP, \fBPollIntervalMinSec\fP),
+otherwise they will be duplicated in the generated configuration file. It\(aqs
+best to use a single YAML dictionary per configuration option.
+.sp
+If the YAML dictionary contains the \fBname\fP key, the configuration switches to
+the complex definition mode, with configuration options defined by specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Specify the name of the \fBsystemd\-timesyncd\fP configuration
+file parameter. The case is important and should be the same as specified in
+the configuration file or the \fI\%timesyncd.conf(5)\fP <\fBhttps://manpages.debian.org/timesyncd.conf(5)\fP> manual page, otherwise
+the configuration entries will be duplicated.
+.sp
+Multiple configuration entries with the same \fBname\fP parameter are merged
+together in order of appearance. This can be used to modify parameters
+conditionally.
+.TP
+.B \fBvalue\fP
+Required. The value of a given configuration option. It can be a string,
+number, \fBTrue\fP/\fBFalse\fP boolean, an empty string or a YAML list which will
+be joined together using the space character.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration parameter
+will be present in the generated configuration file. If \fBabsent\fP, a given
+parameter will be removed from the configuration file. If \fBcomment\fP, the
+parameter will be present but commented out.
+.sp
+If the state is \fBinit\fP, the parameter will be \(dqprimed\(dq in the configuration
+pipeline, but it will be commented out in the generated configuration file.
+Any subsequent configuration entry with the same \fBname\fP will switch the
+state to \fBpresent\fP \- this is used to define the default parameters in the
+role which can be changed via the Ansible inventory.
+.sp
+If the state is \fBignore\fP, a given configuration entry will not be evaluated
+during role execution. This can be used to activate configuration entries
+conditionally.
+.UNINDENT
+.SH SEE ALSO
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%systemd\-timesyncd.service(8)\fP <\fBhttps://manpages.debian.org/systemd-timesyncd.service(8)\fP>, \fI\%timedatectl(1)\fP <\fBhttps://manpages.debian.org/timedatectl(1)\fP>
+.IP \(bu 2
+\fI\%Arch Linux Wiki: systemd\-timesyncd\fP <\fBhttps://wiki.archlinux.org/title/systemd-timesyncd\fP>
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,598 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.MAILMAN" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.mailman \- Manage Mailman installation using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/mailman\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%debops.mailman\fP Ansible role can be used to create and manage mailing
+lists using \fI\%GNU Mailman\fP <\fBhttps://list.org/\fP> service. The role is designed to
+install and configure Mailman 3 using Debian packages, and will automatically
+integrate with PostgreSQL or MariaDB database for configuration storage and
+Postfix for SMTP services.
+.sp
+By default the role provides configuration for \fI\%debops.postfix\fP role to
+configure the SMTP server integration, as well as \fI\%debops.nginx\fP role to
+configure access to the web control panel.
+.SH GETTING STARTED
+.SS Important installation steps
+.sp
+The default installation will configure the Mailman service under
+the \fBlists.<example.org>\fP DNS domain. This can be changed using the
+\fI\%mailman__fqdn\fP variable.
+.sp
+On installation, if the LDAP support is not enabled, the role will create an
+initial superuser account with a random password. The default superuser account
+will use the login name specified in the \fI\%mailman__superuser_name\fP
+variable and e\-mail address specified in the \fI\%mailman__superuser_email\fP
+variable. They are based on the facts defined by the \fI\%debops.core\fP role,
+but you might want to redefine them beforehand in the inventory to be sure that
+the validation e\-mail is sent to the correct e\-mail account.
+.sp
+After the role configures Mailman, you should go to the
+\fI\%https://lists.example.org/\fP website (make sure that the DNS record is
+configured). The default superuser account has a random password assigned to
+it, so the first step is to request a password change by specifying your admin
+e\-mail address. When you get the e\-mail, you will be able to specify your own
+password. After logging in again, you will receive another e\-mail request to
+confirm the authenticity of the account \- when you confirm that you are who you
+say you are in the web interface, you will be able to login as the site
+administrator.
+.sp
+The Postorius/HyperKitty web interface uses \fBexample.com\fP as the default
+\(dqwebsite\(dq defined in the Django framework. You will have to change that to your
+preferred domain using the \fI\%https://lists.example.org/admin/\fP interface. In the
+Django admin page, in the \(dqPages\(dq section, click \(dqModify\(dq, \(dqexample.com\(dq and
+change the default site domain to your preferred one. After this you can create
+a new domain for the mailing lists, and a new mailing list in the Postorius web
+interface.
+.SS LDAP integration
+.sp
+If the \fI\%LDAP environment\fP is configured on the host, the
+role will configure the LDAP support in the Django framework to allow the users
+in the \fI\%UNIX Administrators\fP group to login as superuser
+accounts. You should be able to login with your username and password defined
+in LDAP directory, and the confirmation e\-mail should be sent to your e\-mail
+account.
+.SS SMTP service integration
+.sp
+The \fI\%debops.mailman\fP role provides the configuration for
+\fI\%debops.postfix\fP Ansible role which are used in the example playbook. The
+configuration is defined in the \fI\%mailman__postfix__dependent_maincf\fP
+variable and is passed to the role via role dependent variables.
+.SS HTTP service integration
+.sp
+The role provides configuration for \fI\%debops.nginx\fP role which will configure
+the Mailman web interface using \fBnginx\fP service.
+.SS Example inventory
+.sp
+To configure Mailman on a host, you need to add it to
+\fB[debops_service_mailman]\fP Ansible inventory group. Some other services will
+also need to be configured as well. The role integrates with the Postfix service using
+the \fI\%debops.postfix\fP role. A database is needed; role can use either
+PostgreSQL or MariaDB service, depending on which one is available. If none of
+them are installed, a fallback to SQLite3 database will happen automatically.
+.sp
+An example inventory configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname    ansible_host=hostname.example.org
+
+[debops_service_postgresql_server]
+hostname
+
+[debops_service_postfix]
+hostname
+
+[debops_service_mailman]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+The \fI\%debops.mailman\fP uses a set of other roles to configure additional
+services like HTTP and SMTP server. Here\(aqs an example playbook with all of the
+required DebOps services:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Mailman service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_mailman\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare postfix environment
+      ansible.builtin.import_role:
+        name: \(aqpostfix\(aq
+        tasks_from: \(aqmain_env\(aq
+      vars:
+        postfix__dependent_maincf:
+          \- role: \(aqmailman\(aq
+            config: \(aq{{ mailman__postfix__dependent_maincf }}\(aq
+      tags: [ \(aqrole::postfix\(aq, \(aqrole::secret\(aq, \(aqrole::ferm\(aq ]
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::nginx\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::postfix\(aq ]
+      secret__directories:
+        \- \(aq{{ postfix__secret__directories }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+        \- \(aq{{ postfix__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 | d([]) }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+        \- \(aq{{ mailman__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 | d([]) }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+        \- \(aq{{ mailman__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ mailman__ldap__dependent_tasks }}\(aq
+      when: mailman__ldap_enabled | bool
+
+    \- role: postfix
+      tags: [ \(aqrole::postfix\(aq, \(aqskip::postfix\(aq ]
+      postfix__dependent_maincf:
+        \- role: \(aqmailman\(aq
+          config: \(aq{{ mailman__postfix__dependent_maincf }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ mailman__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ mailman__nginx__dependent_upstreams }}\(aq
+
+    \- role: mailman
+      tags: [ \(aqrole::mailman\(aq, \(aqskip::mailman\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH MIGRATION FROM MAILMAN 2.X TO MAILMAN 3.X
+.SS Overview
+.sp
+Before doing the migration, review the \fI\%official migration instructions\fP <\fBhttps://docs.mailman3.org/en/latest/migration.html\fP> to
+get an overview of the procedure.
+.sp
+The \fI\%debops.mailman\fP role does not support installation of Mailman 2.1 and
+Mailman 3 on the same host. You should create a new host for the Mailman site
+and import the list configuration as well as the list archives from the old
+one. Don\(aqt remove the old Mailman 2.1 installation just yet, you might need it
+to modify the list configuration files in case the import doesn\(aqt work. For
+example, there are known issues with the \fBbounce_info\fP configuration not
+being parsable by Mailman 3. You can \fI\%use the existing Mailman installation\fP <\fBhttps://lists.mailman3.org/archives/list/mailman-users@mailman3.org/thread/JEPMB3HW4FI57EUMOST4L7BD2ILIIS3P/\fP>
+to reset these values.
+.SS Example migration steps
+.sp
+Here\(aqs an example migration procedure of the \fBexample\-list@lists.example.org\fP
+mailing list, based on the Mailman packages distributed in Debian. We assume
+that both hosts (old Mailman 2.x installation and new Mailman 3.x installation)
+are running and are accessible only from the Ansible Controller, cannot
+communicate directly. The procedure can be performed before the Mailman
+3 website is available publicly.
+.SS Old Mailman 2.1.x host
+.sp
+Reset bounce information for a given list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Switch to \(aqroot\(aq account
+sudo \-i
+
+# Reset bounce configuration (repeat for each list)
+echo \(aqbounce_info = {}\(aq > /tmp/reset_bounceinfo.py
+config_list \-i /tmp/reset_bounceinfo.py example\-list
+
+# Create tarball w list configuration and archives
+tar \-czvf /tmp/example\-list.tar.gz \-C /var/lib/mailman \e
+    lists/example\-list/config.pck \e
+    archives/private/example\-list.mbox/example\-list.mbox
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible Controller
+.sp
+Copy the tarball between the old Mailman 2.1.x host and new Mailman 3.x host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+scp \-3 old\-mailman:/tmp/example\-list.tar.gz \e
+       new\-mailman:/tmp/example\-list.tar.gz
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS New Mailman 3.x host
+.sp
+Extract the tarball contents:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cd /tmp
+tar \-zxvf example\-list.tar.gz
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create new mailing list and import the old configuration and archives:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Switch to \(aqroot\(aq account
+sudo \-i
+
+mailman create example\-list@lists.example.org
+mailman import21 example\-list@lists.example.org /tmp/lists/example\-list/config.pck
+
+# Import list archives
+/usr/share/mailman3\-web/manage.py hyperkitty_import \e
+    \-l example\-list@lists.example.org \e
+    /tmp/archives/private/example\-list.mbox/example\-list.mbox
+
+# Refresh archive index
+/usr/share/mailman3\-web/manage.py update_index
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After these steps, you should be able to see the mailing list information in
+the Postorious interface, as well as the mailing list archives in HyperKitty.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.mailman\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS mailman__core_configuration
+.sp
+The \fBmailman__core_*_configuration\fP variables define the contents of the
+\fB/etc/mailman3/mailman.cfg\fP configuration file. You can read \fI\%Mailman
+3 documentation\fP <\fBhttps://mailman.readthedocs.io/en/latest/src/mailman/config/docs/config.html\fP> to find more about possible configuration options.
+.sp
+The same syntax is used in the \fBmailman__hyperkitty_*_configuration\fP
+variables to define the contents of the
+\fB/etc/mailman3/mailman\-hyperkitty.cfg\fP configuration file.
+.SS Examples
+.sp
+You can see the contents of the \fI\%mailman__core_original_configuration\fP
+for the default contents of the configuration file defined in YAML, and the
+\fI\%mailman__core_default_configuration\fP for the configuration options
+changed from the defaults which are used by the role.
+.SS Syntax
+.sp
+Each configuration option is defined as a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the configuration file section. The entries with the
+same \fBname\fP parameter are merged together which can be used to modify
+already defined configuration entries from the Ansible inventory.
+.TP
+.B \fBstate\fP
+Optional. Define the state of the configuration section. If not specified or
+\fBpresent\fP, a given configuration section will be included in the generated
+configuration file. If \fBabsent\fP, the section will not be included in the
+configuration file.
+.sp
+If the value is \fBhidden\fP, the section will be included but its header
+(\fB[section]\fP) will not.
+.sp
+If the value is \fBignore\fP, a given configuration entry will not be evaluated
+during role execution. This can be used to conditionally enable or disable
+features.
+.TP
+.B \fBseparator\fP
+Optional, boolean. If defined and \fBTrue\fP, the section will have an
+additional empty line before it for cosmetic reasons.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with additional comments about a given
+configuration section.
+.TP
+.B \fBoptions\fP
+Optional. YAML list which contains the Mailman 3 configuration options in
+a given section. The \fBoptions\fP parameters from multiple configuration
+entries with the same \fBname\fP parameter are merged together; this can be
+used to modify the already defined configuration options from the Ansible
+inventory.
+.sp
+Each configuration option is defined using a YAML dictionary with specific
+parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. The name of the configuration option. Entries with the same
+\fBname\fP are merged together which can be used to modify previously defined
+configuration options.
+.TP
+.B \fBoption\fP
+Optional. If multiple variations of the same option are defined (for
+example a \fBclass\fP database configuration option), they need to be defined
+in configuration entries with an unique \fBname\fP parameter. This however
+will be an issue in the actual configuration file.
+.sp
+The \fBoption\fP parameter can be used to specify the configuration option
+name to use instead of the \fBname\fP parameter.
+.TP
+.B \fBvalue\fP
+Required. The value which should be set for a given Mailman 3 configuration
+option. It can be a number, a string, a boolean or a YAML list of strings
+which will be joined together using spaces.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment about a given
+configuration option.
+.TP
+.B \fBseparator\fP
+Optional, boolean. If defined and \fBTrue\fP, the option will have an
+additional empty line before it for cosmetic reasons.
+.TP
+.B \fBstate\fP
+Optional. Define the state of a given configuration option. If not
+specified or \fBpresent\fP, the option will be included in the configuration
+file. If \fBabsent\fP, the option will not be included in the configuration
+file. If \fBignore\fP, a given configuration entry will not be evaluated
+during role execution. If \fBcomment\fP, the option will be present in the
+configuration file, but commented out.
+.UNINDENT
+.UNINDENT
+.SS mailman__web_configuration
+.sp
+The \fBmailman__web_*_configuration\fP variables define the contents of the
+\fB/etc/mailman3/mailman\-web.py\fP configuration file.
+.SS Examples
+.sp
+Change the randomly selected \fI\%Libravatar image generation engine\fP <\fBhttps://wiki.libravatar.org/api/\fP> to one of:
+\fBmm\fP (simple avatar), \fBidenticon\fP, \fBmonsterid\fP, \fBwavatar\fP, \fBretro\fP,
+\fBrobohash\fP, \fBpagan\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mailman__web_configuration:
+
+  \- name: \(aqgravatar_default_image\(aq
+    value: \(aqidenticon\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can see the contents of the \fI\%mailman__web_original_configuration\fP
+for the default contents of the configuration file defined in YAML, and the
+\fI\%mailman__web_default_configuration\fP for the configuration options
+changed from the defaults which are used by the role.
+.SS Syntax
+.sp
+Each configuration option is defined as a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the configuration option. Entries with the same
+\fBname\fP are merged together which can be used to modify previously defined
+configuration options.
+.TP
+.B \fBoption\fP
+Optional. If multiple variations of the same option are defined (for
+example a \fBdatabases\fP database configuration option), they need to be defined
+in configuration entries with an unique \fBname\fP parameter. This however
+will be an issue in the actual configuration file.
+.sp
+The \fBoption\fP parameter can be used to specify the configuration option
+name to use instead of the \fBname\fP parameter.
+.TP
+.B \fBvalue\fP
+Optional. The value which should be set for a given Mailman 3 configuration
+option. It can be a number, a string, a boolean or a YAML list. More
+complicated values are defined using other parameters.
+.TP
+.B \fBoptions\fP
+Optional. YAML list which contains the Mailman 3 Web configuration options in
+a given section. The \fBoptions\fP parameters from multiple configuration
+entries with the same \fBname\fP parameter are merged together; this can be
+used to modify the already defined configuration options from the Ansible
+inventory.
+.sp
+Each configuration option is defined using a string which is included as\-is,
+or a YAML dictionary with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The string to be included in the list. Entries with the same \fBname\fP are
+merged together which can be used to modify previously defined
+configuration options.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment about a given
+configuration item.
+.TP
+.B \fBstate\fP
+Optional. Define the state of a given configuration item. If not
+specified or \fBpresent\fP, the item will be included in the configuration
+file. If \fBabsent\fP, the item will not be included in the configuration
+file. If \fBignore\fP, a given configuration entry will not be evaluated
+during role execution. If \fBcomment\fP, the item will be present in the
+configuration file, but commented out.
+.UNINDENT
+.TP
+.B \fBtype\fP
+Optional. Modify the value generated by the role:
+.sp
+If the type is set to \fBtuple\fP, the list defined in the \fBvalue\fP or
+\fBoptions\fP parameters will be rendered as a Python tuple.
+.sp
+If the type is set to \fBraw\fP, the \fBvalue\fP contents will be included as\-is
+in the generated configuration file. This can be used to include small
+snippets of Python code specified as strings.
+.TP
+.B \fBconfig\fP
+Optional. YAML dictionary with the configuration rendered in the final file
+using the \fBto_nice_json\fP Ansible filter. This parameter can be used to
+define dictionary\-based configuration options. The \fBconfig\fP parameters from
+configuration entries with the same \fBname\fP parameter replace each other in
+order of appearance.
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block which will be included in the generated
+configuration file as\-is. This can be used to include Python code in the
+generated configuration file that cannot be expressed otherwise.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment about a given
+configuration option.
+.TP
+.B \fBseparator\fP
+Optional, boolean. If defined and \fBTrue\fP, the option will have an
+additional empty line before it for cosmetic reasons.
+.TP
+.B \fBstate\fP
+Optional. Define the state of a given configuration option. If not
+specified or \fBpresent\fP, the option will be included in the configuration
+file. If \fBabsent\fP, the option will not be included in the configuration
+file. If \fBignore\fP, a given configuration entry will not be evaluated
+during role execution. If \fBcomment\fP, the option will be present in the
+configuration file, but commented out.
+.TP
+.B \fBcopy_id_from\fP
+Optional. Specify the \fBname\fP parameter of a different configuration option;
+the configuration entry with this parameter will copy the internal \(dqid\(dq value
+of the specified configuration entry. This can be used to reorder
+configuration entries in the final generated configuration file.
+.TP
+.B \fBweight\fP
+Optional. Positive or negative number which can be used to affect the
+position of a given configuration option in the generated file. Specifying
+a positive number will lower the option within the file (more weight),
+specifying a negative number will raise the option (less weight). This can be
+used to reorder configuration entries in the final generated configuration
+file.
+.UNINDENT
+.SS mailman__templates
+.sp
+The \fBmailman__*_templates\fP variables can be used to define \fI\%Mailman
+3 templates\fP <\fBhttps://mailman.readthedocs.io/en/stable/src/mailman/rest/docs/templates.html\fP> stored in the filesystem. The files will be stored in
+subdirectories under \fB/var/lib/mailman3/templates/\fP directory and can be
+used change how Mailman processes mailing list messages.
+.SS Examples
+.sp
+Remove the default message footer in all lists (this is enabled by default):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mailman__templates:
+
+  \- name: \(aqsite/en/list:member:generic:footer.txt\(aq
+    content: \(aq\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each template is defined by a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. A path relative to the \fB/var/lib/mailman3/templates/\fP
+directory with the template filename, ending with \fB\&.txt\fP extension. Any
+subdirectories will be created automatically, if not present. Configuration
+entries with the same \fBname\fP parameter are merged together in order of
+appearance.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the template file will be
+generated. If \fBabsent\fP, the template file will be removed.
+.TP
+.B \fBcontent\fP
+Optional. String or YAML text block with contents of the generated template.
+If not specified, the template will be empty.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

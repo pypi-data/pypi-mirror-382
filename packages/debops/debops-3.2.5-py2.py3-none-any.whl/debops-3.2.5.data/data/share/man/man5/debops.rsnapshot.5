@@ -1,0 +1,866 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.RSNAPSHOT" "5" "Oct 09, 2025" "v3.2.5" "DebOps"
+.SH NAME
+debops.rsnapshot \- Manage rsnapshot backups using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/rsnapshot\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%rsnapshot\fP <\fBhttps://rsnapshot.org/\fP> script is a wrapper around the \fI\%rsync\fP <\fBhttps://rsync.samba.org/\fP> command that allows
+creation and management of snapshotted backups of local or remote filesystems.
+Periodic snapshots are created using \fBcron\fP jobs and use \fI\%hard
+links\fP <\fBhttps://en.wikipedia.org/wiki/Hard_link\fP> to perform deduplication.
+.sp
+The \fBdebops.rsnapshot\fP Ansible role acts as another \(dqlayer\(dq above
+\fBrsnapshot\fP\&. The role can configure snapshotted backups of the local
+host to internal or removable storage, as well as create snapshotted backups of
+remote hosts over SSH.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To configure \fBrsnapshot\fP on a host using the \fI\%debops.rsnapshot\fP
+role, that host needs to be included in the \fB[debops_service_rsnapshot]\fP
+Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_rsnapshot]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+By default the role will create only the configuration for its own host, but
+with the \fBno_create_root\fP option enabled \- if the snapshot directory is not
+present, the snapshots will not be created. You can either create the host
+subdirectory in \fB/var/cache/rsnapshot/hosts/\fP directory to enable the
+snapshots, or change the configuration to point the snapshot directory to
+removable media.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.rsnapshot\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage rsnapshot service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_rsnapshot\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: rsnapshot
+      tags: [ \(aqrole::rsnapshot\(aq, \(aqskip::rsnapshot\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::rsnapshot\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.rsnapshot\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%rsnapshot(1)\fP <\fBhttps://manpages.debian.org/rsnapshot(1)\fP>, \fI\%rsync(1)\fP <\fBhttps://manpages.debian.org/rsync(1)\fP>
+.UNINDENT
+.SH GUIDES AND EXAMPLES
+.SS Role design goals
+.sp
+Host backups performed by the \fBrsnapshot\fP script are a very efficient
+method to keep time\-based snapshots of local or remote systems. Unfortunately,
+the default method of creating backups using one configuration file and backing
+up remote hosts in order is inconvenient: all hosts managed through this single
+file will be backed up each time, there\(aqs only one set of snapshots that can be
+used this way, and any error will stop backups of hosts further along the
+config file.
+.sp
+To avoid this issue, the \fI\%debops.rsnapshot\fP role uses combination of
+\fI\%batch(1)\fP <\fBhttps://manpages.debian.org/batch(1)\fP>, \fI\%cron(8)\fP <\fBhttps://manpages.debian.org/cron(8)\fP> and custom scheduler script written in Bash to
+perform backups of multiple remote hosts at the same time, each one configured
+in its own \fBrsnapshot.conf\fP configuration file, with its own lists of
+snapshots to manage, its own include/exclude lists, and so on.
+.SS How rsnapshot backups are performed
+.sp
+The whole backup sequence is:
+.INDENT 0.0
+.IP 1. 3
+\fBcron\fP launches \fBrsnapshot\-wrapper\fP script with
+a specified interval (hourly, daily, weekly, monthly). Custom intervals are
+also possible, but not implemented at this time.
+.IP 2. 3
+\fBrsnapshot\-wrapper\fP launches the \fBrsnapshot\-scheduler\fP
+script, requesting a \fBschedule\fP operation for a given backup interval for
+all subdirectories found in the \fB/etc/rsnapshot/hosts/\fP directory,
+a given subdirectory represents one host to back up.
+.IP 3. 3
+\fBrsnapshot\-scheduler\fP scans \fB/etc/rsnapshot/hosts/\fP
+subdirectories looking for configuration files, and checks if a given
+configuration uses specific interval \- for example when a \fBhourly\fP
+interval is executed, script checks if \fBretain hourly\fP is present in the
+\fBrsnapshot.conf\fP configuration file.
+.IP 4. 3
+\fBrsnapshot\-scheduler\fP checks if current backup interval for a given
+host is already scheduled using a pidfile in
+\fB/run/rsnapshot\-scheduler/\fP directory. If one is found, script
+finishes gracefully to not create duplicate backup jobs.
+.IP 5. 3
+If current interval is found and particular configuration is not disabled
+(file \fB/etc/rsnapshot/hosts/<host>/\fP\fIstop|disable|disabled\fP is
+absent), \fBrsnapshot\-scheduler\fP creates a \(dqbackup job\(dq for a given
+host. If \fBat\fP is installed, backup job will be added to the
+\fBbatch\fP queue; otherwise, a background instance of
+\fBrsnapshot\-scheduler\fP will be started with a random short
+\fBsleep\fP interval to not create high load spikes on the backup
+machine when multiple backups are scheduled at the same time.
+.IP 6. 3
+If \fBat\fP is installed, it will start backup jobs in order depending
+on the current system load (you can use the \fI\%debops.atd\fP role to manage
+that).  Depending on available CPU cores and system load, backups might be
+done within the selected interval (hourly, for example). If not, duplicate
+backup jobs won\(aqt be created as long as the previous backup job is queued.
+.IP 7. 3
+On the next specified interval, \fBcron\fP will run the
+\fBrsnapshot\-scheduler\fP again, scheduling new backup jobs.
+.UNINDENT
+.SS How to backup hosts outside of Ansible cluster
+.sp
+In addition to backing up hosts under Ansible control, you might want to create
+configuration for backing up other hosts, which you don\(aqt want to configure
+directly (or can\(aqt). For this situation, you can use perform the steps
+described below to prepare the hosts for periodic snapshotting.
+.SS Things to set up on external host
+.sp
+For practical reasons, \fBrsnapshot\fP should use a \fBroot\fP account
+directly on remote host. To make this configuration more secure, you can use
+\fBrrsync\fP Perl script provided with the \fI\%rsync\fP <\fBhttps://rsync.samba.org/\fP> package, which lets
+you set up read\-only access over SSH from remote hosts.
+.sp
+First, on Debian\-based systems, install \fBrsync\fP package and extract
+provided script to a convenient directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sudo apt install rsync
+sudo cp \-v /usr/share/doc/rsync/scripts/rrsync /usr/local/bin/rrsync
+sudo chmod +x /usr/local/bin/rrsync
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When the \fBrrsync\fP script is set up, you will have to add one of the
+\fBrsnapshot\fP SSH identities on the remote host, in the
+\fB~/.ssh/authorized_keys\fP file of the \fBroot\fP account. The default SSH
+identities are located in the \fB~/.ssh/id_rsnapshot*.pub\fP files on the
+\fBrsnapshot\fP host. You should use the same SSH identity which you
+configured with a given host using the \fBitem.ssh_identity\fP parameter, or
+\fBid_rsnapshot\fP if you want to use the default one.
+.sp
+At the same time you will configure this key to only allow for a specific
+\fBrsync\fP command. You should include configuration similar to this in
+\fB/root/.ssh/authorized_keys\fP, in one line:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+no\-pty,no\-agent\-forwarding,no\-X11\-forwarding,no\-port\-forwarding,command=\(dqionice \-c 3 nice /usr/local/bin/rrsync \-ro /\(dq ssh\-rsa AAAAB3NzaC1yc2EAAAA...
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBionice\fP and the \fBnice\fP commands will prevent
+\fBrsync\fP from hogging too much system resources during its operation.
+.sp
+This will allow read\-only access to whole filesystem. After that, you can run
+the \fI\%debops.rsnapshot\fP Ansible role and it should correctly configure your
+\fBrsnapshot\fP client host to access external servers.
+.SS Fixing \(dqstdin: is not a tty\(dq issue
+.sp
+On default Debian installation there is a problem \- when \fBrsnapshot\fP
+tries to connect to the server, shell might respond with a warning:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+stdin: is not a tty
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will prompt \fBrsnapshot\fP to send an e\-mail to system administrator
+with the response, which might get annoying after a while. To avoid that, open
+\fB/root/.profile\fP file on an external host and change line:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mesg n
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+to:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tty \-s && mesg n
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will tell shell that it should check if connection is interactive before
+changing the terminal settings. This configuration is automatically applied on
+hosts managed by DebOps by the \fI\%debops.root_account\fP Ansible role.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.rsnapshot\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS rsnapshot__ssh_identities
+.sp
+The \fI\%rsnapshot__ssh_default_identities\fP and
+\fI\%rsnapshot__ssh_identities\fP variables define the SSH identities
+(private/public key pairs) used by the \fBrsnapshot\fP script to access
+the remote hosts over SSH. The default identities are created on the initial
+setup and stored in the \fB/root/.ssh/\fP directory, the main identity used
+by the role if none is selected is defined by the
+\fI\%rsnapshot__ssh_main_identity\fP variable. Users can use the
+\fI\%rsnapshot__ssh_identities\fP variable to add more identities or to
+override the default ones if necessary.
+.sp
+The public portion of the SSH keys is accessible via the Ansible local facts,
+via the \fBansible_local.rsnapshot.ssh_identities\fP dictionary.
+.SS Examples
+.sp
+Create a custom SSH identity for older machines, the DSA keys have to use
+a length of 1024 bits:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnapshot__ssh_identities:
+
+  \- name: \(aqid_rsnapshot_dsa\(aq
+    type: \(aqdsa\(aq
+    bits: \(aq1024\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables are lists of YAML dictionaries, each dictionary defines a SSH
+identity using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the SSH identity used as the filename; it\(aqs common to
+use the \fBid_\fP prefix in the SSH key filenames. The name will be used for
+the private key file, public key will have the \fB\&.pub\fP suffix added
+automatically. The configuration entries with the same \fBname\fP parameter are
+merged, this mechanism can be used to modify the SSH identities
+conditionally.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the SSH identity will be created.
+Currently SSH identities cannot be removed1 by the role, so the \fBabsent\fP
+parameter will result in a given identity not being created if it doesn\(aqt
+exist. The \fBignore\fP value will tell the role to ignore a given
+configuration entry during execution.
+.TP
+.B \fBtype\fP
+Optional, name of the SSH key type to create, depending on the support on the
+host. Usually either \fBed25519\fP, \fBrsa\fP or \fBdsa\fP\&. If not specified, the
+value of the \fI\%rsnapshot__ssh_key_type\fP will be used by default.
+.TP
+.B \fBbits\fP
+Optional, the size of the generated RSA keys. If it\(aqs not specified, the
+value of the \fI\%rsnapshot__ssh_key_bits\fP is used by default. Needs to
+be set to \fB1024\fP for the DSA keys.
+.TP
+.B \fBcomment\fP
+Optional. A comment added to the generated SSH identity. If not specified,
+the value of the \fI\%rsnapshot__ssh_key_comment\fP will be used by
+default.
+.UNINDENT
+.SS rsnapshot__hosts
+.sp
+The \fBrsnapshot__*_hosts\fP lists define the configuration of the hosts to back
+up by the \fBrsnapshot\fP script. Each host configuration is defined as
+a YAML dictionary and describes the contents of the
+\fB/etc/rsnapshot/hosts/<name>/\fP directory. The default configuration is
+based on the \fBrsnapshot__*_configuration\fP, \fBrsnapshot__*_excludes\fP and
+\fBrsnapshot__*_includes\fP variables, and can be modified per\-host as needed.
+.SS Examples
+.sp
+Back up specific hosts defined in the Ansible inventory with default values:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnapshot__hosts:
+
+  \- \(aqhostname1\(aq
+  \- \(aqhostname2\(aq
+  \- \(aqhostname3\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create backup configuration for hosts in a specific Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/hosts
+
+[hosts_to_backup]
+hostname1
+hostname2
+hostname3
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# ansible/inventory/host_vars/backup\-host/rsnapshot.yml
+
+rsnapshot__hosts:
+
+  \- \(aq{{ groups[\(dqhosts_to_backup\(dq]
+        | difference(groups[\(dqdebops_service_rsnapshot\(dq]) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create configuration for host in the Ansible inventory but specify the host\(aqs
+FQDN directly instead of using Ansible fact gathering to get it. This can be
+used to select a different host address than the one Ansible sets as the
+\fBansible_fqdn\fP variable.
+.sp
+This method can also be used to create backup configuration for hosts outside
+of the Ansible inventory.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnapshot__hosts:
+
+  \- name: \(aqhostname1\(aq
+    fqdn: \(aqhost.example.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create backup configuration for an external host that uses non\-standard SSH
+port and does not support the \fBed25519\fP SSH keys, only RSA. This is also an
+OpenVZ container which cannot modify the I/O niceness using the
+\fBionice\fP command, therefore the command defined in the SSH key
+installed on the host needs to be different:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnaphot__hosts:
+
+  \- name: \(aqold\-db.example.org\(aq
+    ssh_port: 2200
+    ssh_identity: \(aqid_rsnapshot_rsa\(aq
+    ssh_command: \(aqnice /usr/local/bin/rrsync \-ro /\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create configuration for an external host but don\(aqt install the SSH key (it
+will be installed manually out\-of\-band). Exclude any NFS mounts inside of the
+home directories from backups.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnapshot__hosts:
+
+  \- name: \(aqappserver.example.org\(aq
+    ssh_key: False
+    excludes:
+      \- \(aq/home/*/nfs\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create backup configuration for a host in the Ansible inventory, but make
+snapshots in a removable media storage and don\(aqt create the snapshot directory
+automatically if it\(aqs not present (removable media is removed):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnapshot__hosts:
+
+  \- name: \(aqhostname2\(aq
+    options:
+
+      \- snapshot_root: \(aq/media/USB0/Snapshots/hostname2\(aq
+      \- no_create_root: 1
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create backup of the local host based on its inventory name (this is enabled by
+default in the \fI\%rsnapshot__default_hosts\fP variable):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnapshot__hosts:
+
+  \- name: \(aq{{ inventory_hostname }}\(aq
+    local: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Include additional filesystems in the local host backup, important when
+\fBone_fs\fP option is enabled. All filesystems will be backed up relative to the
+\fBdest_root\fP path:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnapshot__hosts:
+
+  \- name: \(aq{{ inventory_hostname }}\(aq
+    filesystems: [ \(aq/home\(aq, \(aq/srv\(aq, \(aq/var\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Alternatively, back up different filesystems into separate subdirectories:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnapshot__hosts:
+
+  \- name: \(aq{{ inventory_hostname }}\(aq
+    filesystems:
+      \(aq/\(aq:     \(aqrootfs/\(aq
+      \(aq/home\(aq: \(aqhome/\(aq
+      \(aq/srv\(aq:  \(aqsrv/\(aq
+      \(aq/var\(aq:  \(aqvar/\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each configuration entry is a string that denotes the inventory name or FQDN of
+the host to back up. Alternatively, configuration entries are defined as YAML
+dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Either the name of the host in the Ansible inventory (equivalent of
+\fBinventory_hostname\fP), or a FQDN of the host to back up. Configuration
+entries with the same \fBname\fP parameter are merged together and can change
+the host configuration conditionally.
+.sp
+If the configuration entry is specified as a string, for example being based
+on the Ansible \fBgroups\fP variable, the string will be converted to
+a \fBname\fP parameter. Additional configuration can then be applied using
+configuration entries with the same name.
+.TP
+.B \fBfqdn\fP
+Optional. Specify the Fully Qualified Domain Name of the host to back up. If
+this parameter is specified, it overrides the FQDN detected automatically by
+Ansible facts (if the host is in the Ansible inventory) and disables fact
+gathering for a given host. If you configure an external host to back up and
+specify its FQDN as the \fBname\fP parameter, you don\(aqt need to specify the
+\fBfqdn\fP parameter.
+.TP
+.B \fBlocal\fP
+Optional, boolean. If defined and \fBTrue\fP, the host is considered local and
+SSH configuration will not be applied. The backup paths will be local as
+well. This parameter should not be used, unless you configure backups for the
+backup host itself, usually named as \fB\(aq{{ inventory_hostname }}\(aq\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, the host configuration will be
+created, SSH keys will be deployed to the hosts, and SSH host fingerprints
+will be stored. If \fBabsent\fP, the host configuration will be removed, but
+running backup jobs will not be stopped and existing snapshots will not be
+touched. If \fBignore\fP, a given configuration entry will not be evaluated
+during role execution. This can be used to conditionally activate
+configuration entries.
+.TP
+.B \fBdest_root\fP
+Optional. The relative destination directory, added to the \fBsnapshot_root\fP
+directory path. By default it\(aqs set to \fB\&./\fP which means the same
+directory as the \fBsnapshot_root\fP directory.
+.TP
+.B \fBfilesystems\fP
+Optional. A string or a YAML list of filesystems which should be backed up by
+\fBrsnapshot\fP\&. This is only relevant if the \fBone_fs\fP configuration
+option is enabled (by default it is enabled).
+.sp
+The \fB/\fP filesystem is backed up automatically, but with \fBone_fs\fP
+enabled the \fBrsync\fP script will not traverse beyond the filesystem
+boundaries. With this parameter, an user can tell \fBrsnapshot\fP to
+back up additional filesystems in addition to the \fB/\fP filesystem. They
+will be backed up relative to the path specified as the \fBdest_root\fP, by
+default \fB\&./\fP, which should reflect their original placement in the
+source filesystem.
+.sp
+This parameter can also be defined as a YAML dictionary, with dictionary key
+specifying the source filesystem path, and dictionary value specifying the
+destination path, relative to \fBsnapshot_root\fP directory. This can be used
+to separate different filesystem snapshots into their own subdirectories.
+.TP
+.B \fBoptions\fP
+Optional. List of the \fBrsnapshot.conf\fP configuration options, defined
+in the same format as the \fI\%rsnapshot__configuration\fP variable. The
+\fBoptions\fP parameter is merged between different configuration entries and
+options from different entries can modify each other according to their order
+in the configuration. This can be used to modify the default options for
+a specific host.
+.TP
+.B \fBexcludes\fP
+Optional. List of the file patterns to exclude from the backup, stored in the
+\fBexcludes.txt\fP file in each host configuration directory. The list is
+defined in the same format as the \fI\%rsnapshot__excludes, rsnapshot__includes\fP
+variable. The \fBexcludes\fP parameter is merged between different
+configuration entries and exclude patterns from different entries can modify
+each other according to their order in the configuration. This can be used to
+modify the default list of exclude patterns for a specific host.
+.TP
+.B \fBincludes\fP
+Optional. List of the file patterns to include in the backup, stored in the
+\fBincludes.txt\fP file in each host configuration directory. The list is
+defined in the same format as the \fI\%rsnapshot__excludes, rsnapshot__includes\fP
+variable.  The \fBincludes\fP parameter is merged between different
+configuration entries and include patterns from different entries can modify
+each other according to their order in the configuration. This can be used to
+modify the default list of include patterns for a specific host.
+.TP
+.B \fBoverrides\fP
+Optional. String or YAML list of configuration options appended to each
+\fBbackup\fP option in the \fBrsnapshot.conf\fP configuration file. Normally
+the role uses the overrides to define what SSH identity to use for a given
+host and what SSH port to connect to; users can specify additional overrides
+using this parameter. These overrides will be added to each \fBbackup\fP
+configuration entry generated by the role.
+.TP
+.B \fBrsync\fP
+Optional, boolean. If not specified or \fBTrue\fP, the role will install APT
+packages specified in the \fI\%rsnapshot__host_packages\fP variable (by
+default \fBrsync\fP) on the remote host to back up and set up the
+\fB/usr/local/bin/rrsync\fP wrapper script. If these tasks cannot or
+shouldn\(aqt be performed on the remote host, you can disable them by setting
+this parameter to \fBFalse\fP\&.
+.TP
+.B \fBrrsync_source\fP
+Optional. Absolute path on the host to back up to the \fBrrsync\fP
+wrapper script source (by default
+\fB/usr/share/doc/rsync/scripts/rrsync\fP). The role will copy the script
+to the \fB/usr/local/bin/\fP directory and make it executable. The role
+will automatically detect any tarballs with the \fB\&.gz\fP extension and extract
+their contents; the \fB\&.gz\fP extension should not be included in the path
+specified in this parameter.
+.TP
+.B \fBrrsync_binary\fP
+Optional. Absolute path on the host to back up where the \fBrrsync\fP
+wrapper script should be installed (by default
+\fB/usr/local/bin/rrsync\fP).
+.TP
+.B \fBssh_key\fP
+Optional, boolean. If not specified or \fBTrue\fP, the role will install the
+specified or default SSH public key on the host to back up, so that
+\fBrsnapshot\fP can connect to it over SSH.
+.TP
+.B \fBssh_scan\fP
+Optional, boolean. If not specified or \fBTrue\fP, the role will scan the SSH
+fingerprint of the host to back up, so that \fBrsnapshot\fP command can
+connect to it unattended. If the SSH public key has been added or modified on
+the host to back up, the role will remove the previously saved SSH
+fingerprints assuming that the host has been reinstalled and new SSH host
+keys are present.
+.TP
+.B \fBssh_user\fP
+Optional. The name of the user to which the \fBrsnapshot\fP command will
+connect over SSH and on which the SSH public key will be installed. By
+default \fBroot\fP\&. Use of an unprivileged account is not implemented at the
+moment.
+.TP
+.B \fBssh_port\fP
+Optional. The TCP port of the SSH service the \fBrsnapshot\fP should use
+to connect to the host which is being backed up.
+.TP
+.B \fBssh_identity\fP
+Optional. A name of the SSH identity to use for a given host. If not
+specified, the identity defined in \fI\%rsnapshot__ssh_main_identity\fP
+will be used by default. The available SSH identities can be listed by
+executing the \fB/etc/ansible/facts.d/rsnapshot.fact\fP script on the
+\fBrsnapshot\fP host.
+.TP
+.B \fBssh_options\fP
+Optional. A string with SSH options added with the SSH key in the
+\fB~/.ssh/authorized_keys\fP file on the host to back up. If not specified,
+the value of the \fI\%rsnapshot__ssh_options\fP variable will be used by
+default.
+.TP
+.B \fBssh_command\fP
+Optional. The command to execute on the host to back up, defined with the SSH
+key in the \fB~/.ssh/authorized_keys\fP file. If not specified, the value
+of the \fI\%rsnapshot__ssh_command\fP variable will be used by default.
+.UNINDENT
+.SS rsnapshot__excludes, rsnapshot__includes
+.sp
+The \fBrsnapshot__*_excludes\fP and \fBrsnapshot__*_includes\fP variables define
+the default lists of file patterns to exclude and included in the snapshots. By
+default the snapshots are designed to include everything, but exclude specific
+paths in the filesystem; this way any paths not specified explicitly in the
+configuration should be backed up automatically.
+.sp
+The default lists of exclude and include patterns are combined with the
+\fBitem.excludes\fP and \fBitem.includes\fP parameters of the host configuration
+entries in the \fI\%rsnapshot__hosts\fP variables. They can be used to
+modify existing file patterns or add new ones.
+.sp
+See the \fI\%rsync(1)\fP <\fBhttps://manpages.debian.org/rsync(1)\fP> manual page, \(dqINCLUDE/EXCLUDE PATTERN RULES\(dq section
+for more information about file patterns.
+.SS Examples
+.sp
+See the \fI\%rsnapshot__default_excludes\fP variable for the list of the file
+patterns that are defined by default.
+.sp
+Define a list of file patterns to exclude from backups:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnapshot__excludes:
+
+  \- \(aq/no\-backup\(aq
+  \- \(aq/scratch\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Include everything in the backup, barring any excluded files:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rsnapshot__includes:
+
+  \- \(aq/*\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each entry in the list can be a string that defines a file pattern. The default
+behaviour is dependent on the variable type \- files will be excluded by default
+if defined in the \fBrsnapshot__*_excludes\fP variables, and included if they are
+defined in the \fBrsnapshot__*_includes\fP variables.
+.sp
+Alternatively, you can define each file pattern using the YAML dictionary
+syntax with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The file pattern to exclude/include in the backups. The entries
+with the same \fBname\fP parameter are merged together, this can be used to
+modify previously defined file patterns conditionally.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given file pattern will be
+present in the generated \fBexcludes.txt\(ga\fP or \fBincludes.txt\fP
+configuration files. If \fBabsent\fP, the pattern will not be present in the
+configuration files. If \fBignore\fP, a given configuration entry will not be
+evaluated by the role during execution.
+.TP
+.B \fBrule\fP
+Optional. Specify the rule type to use for a given file pattern (see
+\fI\%rsync(1)\fP <\fBhttps://manpages.debian.org/rsync(1)\fP> for detailed explanation). Possible values are: \fBexclude\fP,
+\fBinclude\fP, \fBmerge\fP, \fBdir\-merge\fP, \fBhide\fP, \fBshow\fP, \fBprotect\fP,
+\fBrisk\fP, \fBclear\fP\&. This can be used to override the default file pattern
+type, to include a pattern in the \fBexcludes.txt\fP file, or exclude in
+the \fBincludes.txt\fP file.
+.UNINDENT
+.SS rsnapshot__configuration
+.sp
+The \fBrsnapshot__*_configuration\fP variables define the default options
+included in the generated \fBrsnapshot.conf\fP configuration files. The
+defaults are merged with the \fBitem.options\fP parameter in each host
+configuration entry, which can be used to override specific configuration
+options on a host\-by\-host basis.
+.sp
+The information about possible options and their meaning can be found in the
+\fI\%rsnapshot(1)\fP <\fBhttps://manpages.debian.org/rsnapshot(1)\fP> manpage.
+.SS Examples
+.sp
+See the \fI\%rsnapshot__original_configuration\fP to see the original values
+of the configuration options.
+.sp
+The \fI\%rsnapshot__default_configuration\fP contains all of the values
+modified by the role by default.
+.SS Syntax
+.sp
+The options can be specified as a list of YAML dictionaries, each dictionary
+key being the option name, and the dictionary value being the option value (you
+should specify only one key/value pair this way per the list element).
+.sp
+Alternatively, if the YAML dictionary key \fBname\fP is present, the role will
+interpret a given entry using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the configuration option. Entries with the same
+\fBname\fP parameter are merged together, this can be used to modify the
+configuration options conditionally.
+.TP
+.B \fBoption\fP
+Optional. Specify an alternative name of the configuration option. This is
+used when a given option can be present more than once in the configuration
+file, for example \fBretain\fP\&. In that case, the option value will be taken
+from the \fBname\fP parameter and additional arguments will be taken from the
+\fBvalue\fP parameter.
+.TP
+.B \fBvalue\fP
+The value of a given configuration option, usually a string or a number. The
+role does not interpret booleans, lists or dictionaries in any special way.
+Some of the specific configuration options might have their default values
+modified in the configuration file template to support multi\-host backups.
+.TP
+.B \fBraw\fP
+Optional. A string or a YAML text block that will be included in the
+configuration file as\-is instead of the \fBname\fP/\fBvalue\fP parameters. This
+can be used for parts of the configuration that are too complex to implement
+them using other parameters. Remember that the \fBrsnapshot.conf\fP
+configuration file uses tab characters as separators between option name,
+value and other arguments.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration option will
+be included in the generated config file. If \fBabsent\fP, the option will be
+removed from the generated configuration file. If \fBignore\fP, the entry will
+not be evaluated during role execution. If \fBcomment\fP, a given configuration
+option will be includedd, but it will be commented out.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with comments for a given configuration
+option.
+.TP
+.B \fBsection\fP
+Optional. Name of the section in which to include a given configuration
+option. Possible sections are defined in the
+\fI\%rsnapshot__configuration_sections\fP variable. If a section is not
+specified, an \fBunknown\fP section will be used by default.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which modifies the \(dqweight\(dq of
+a given configuration option. The weight affects the order of configuration
+options in a given section; use negative number to move a given option higher
+in the file, and positive number to move it lower in the file.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.
