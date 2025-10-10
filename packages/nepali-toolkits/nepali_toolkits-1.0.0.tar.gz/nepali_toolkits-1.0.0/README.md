@@ -1,0 +1,147 @@
+# Nepali Toolkit
+
+Production-ready utilities for working with Nepali language and data:
+
+## Features
+
+### Bikram Sambat (BS) Calendar
+- AD ↔ BS conversion with strict validation
+- Flexible formatting tokens (`YYYY`, `MMM`, `DD`, etc.)
+- English/Nepali month names, optional Nepali digits (०१२…)
+- Timezone-aware `today_bs()` and `now()` (default `Asia/Kathmandu`)
+
+### BS Holidays
+- List holidays by year/month/tags (e.g., `public`, `festival`, `school`)
+- Free-text search (name_en / name_ne / BS / AD)
+- `next_holiday()` and `list_holiday_between()` helpers
+- Data-driven JSON sets; supports merging multiple years
+
+### Script Utilities
+- Roman ↔ Devanagari transliteration (digits + diacritics)
+- Data-backed alphabets (vowels/consonants) with examples
+- Barakhari generation (क, का, कि, …) for any base consonant
+- Clean import surface: `roman_to_dev`, `dev_to_roman`, `vowel_alphabet`, `consonant_alphabet`
+
+### Gazetteer
+- Provinces, zones, districts, and a unified places file (with `famous` flag & tags)
+- Filter by province/zone/district/tags; ranked text search; nearby (Haversine)
+- Single `query_places()` API plus ergonomic wrappers (`list_places`, `nearby_places`, `list_famous_places`)
+
+### Units
+- Area / Volume / Mass conversions via a single `convert(value, from, to)` API
+- Friendly aliases (e.g., `"sq m"`, `"m²"`, `"liter"`, `"L"`, `"kg"`)
+- Category safety (prevents cross-category mistakes)
+
+### Treks
+- Curated trekking routes with region/province/district metadata
+- Filter by difficulty, days, altitude, tags, permits, seasons
+- Text search, nearby-by-start, and lightweight suggestions
+
+### Design Principles
+- Pure Python, JSON datasets, predictable APIs
+- i18n-first (EN/NE), developer ergonomics, strong validation
+- Modular structure with clean `__init__` exports for friendly imports
+
+
+> Requires Python ≥ 3.9
+
+---
+
+## Installation
+
+```bash
+pip install nepali-toolkit
+```
+
+## Quick Start
+
+```python
+# quick_start.py
+from nepali_toolkit.holiday import list_holiday, next_holiday, list_holiday_between
+from nepali_toolkit.script.transliterate import roman_to_dev, dev_to_roman
+from nepali_toolkit.script.alphabet import vowel_alphabet, consonant_alphabet
+from nepali_toolkit.script.barakhari import Barakhari
+from nepali_toolkit.gazetteer import (
+    list_provinces, get_zone, list_districts, list_places, nearby_places, search, suggest
+)
+from nepali_toolkit.unit import convert
+from nepali_toolkit.trek import list_treks, search_treks, nearby_treks
+from nepali_toolkit.bs import to_bs, to_ad, today_bs, now
+from nepali_toolkit.scripts.barakhari import table
+
+print("=== BS Calendar ===")
+
+print("\n=== AD → BS ===")
+bs_obj = to_bs("1999-10-01")
+print("Raw BS (ISO):", str(bs_obj))
+print("EN label:    ", to_bs("1999-10-01", fmt="YYYY MMM D", lang="en"))
+print("NE label:    ", to_bs("1999-10-01", fmt="YYYY MMMM DD", lang="ne", ne_digits=True))
+
+
+
+
+print("\n=== BS → AD ===")
+ad_obj = to_ad("2056-06-14")
+print("Raw AD (ISO):", ad_obj.isoformat())
+print("EN label:    ", to_ad("2056-06-14", fmt="YYYY MMM D", lang="en"))
+print("NE label:    ", to_ad("2056-06-14", fmt="YYYY MMMM DD", lang="ne", ne_digits=True))
+
+
+print("\n=== TODAY (BS) ===")
+bs_obj = today_bs()
+print("Raw BS (ISO)      :", str(bs_obj))
+print("EN (space style)  :", today_bs(fmt="YYYY MMM D", lang="en"))
+print("NE (full+digits)  :", today_bs(fmt="YYYY MMMM DD", lang="ne", ne_digits=True))
+
+
+print("\n=== NOW (BS + AD) ===")
+bs_now, dt_now = now()
+print("Now BS (ISO)      :", str(bs_now))
+print("Now AD (ISO)      :", dt_now.isoformat())
+
+
+bs_now_en, dt_now_en = now(fmt="YYYY MMM D", lang="en")
+print("Now BS (EN)       :", bs_now_en)
+
+
+bs_now_ne, dt_now_ne = now(fmt="YYYY MMMM DD", lang="ne", ne_digits=True)
+print("Now BS (NE)       :", bs_now_ne)
+
+print("\n=== Holidays ===")
+print("Current year public (top 5):", list_holiday(tags=["public"], limit=5))
+print("Festival in Ashwin:", list_holiday(tags=["festival"], month=6))
+print("Search 'Dashain':", list_holiday(query="Dashain", limit=3))
+print("Next from 2082-06-10:", next_holiday("2082-06-10", limit=3, inclusive=True))
+print("Between 2082-05-01..2082-06-30:", list_holiday_between("2082-05-01", "2082-06-30", tags=["festival"]))
+
+print("\n=== Script: Transliterate ===")
+print("roman → dev:", roman_to_dev("santosh kandel"))
+print("dev → roman:", dev_to_roman("नेपाल २०२५"))
+
+print("\n=== Script: Alphabet ===")
+print("Vowels (dev):", vowel_alphabet(out="dev")[:6])
+print("Consonants (roman):", consonant_alphabet(out="roman")[:8])
+print("Vowels with examples:", vowel_alphabet(out="pair", example=True)[:3])
+
+print("Barakhari:", table(out="dev"))
+
+print("Specific Base:", table(["ka", "kha"], out="dev"))
+
+print("\n=== Gazetteer ===")
+print("Provinces:", list_provinces()[:2])
+print("Bagmati zone:", get_zone("Bagmati"))
+print("Districts in Bagmati:", list_districts(zone="Bagmati")[:5])
+print("Places (heritage in P3):", list_places(province="P3", tags_any=["heritage"])[:3])
+print("Nearby heritage (KTM ±30km):", nearby_places(27.7172, 85.3240, radius_km=30, tags_any=["heritage"])[:3])
+print("Search 'kathmandu':", search("kathmandu", kinds=["district","place","famous"])[:3])
+print("Suggest 'ka':", suggest("ka", kinds=["district","place"], limit=5))
+
+print("\n=== Units ===")
+print("1 bigha → m2:", convert(1, "bigha", "m2"))
+print("5000 sq ft → aana:", convert(5000, "sq ft", "aana"))
+
+print("\n=== Treks ===")
+print("All treks (sample):", list_treks()[:2])
+print("Search 'everest':", search_treks("everest", limit=3))
+print("Nearby treks from KTM (≤120km):", nearby_treks(27.7172, 85.3240, radius_km=120)[:3])
+```
