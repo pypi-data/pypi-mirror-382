@@ -1,0 +1,60 @@
+name: PyPI Publish - exonware-xwsystem (supports both import paths)
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v0.0.2, v1.0.0, etc.
+  workflow_dispatch:  # Allows manual trigger of the workflow
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: Build exonware-xwsystem package
+      run: |
+        echo "Building exonware-xwsystem package..."
+        python -m build
+        
+    - name: List built packages
+      run: |
+        echo "Built packages:"
+        find dist -name "*.whl" -o -name "*.tar.gz" | sort
+    
+    - name: Publish exonware-xwsystem to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        echo "Publishing exonware-xwsystem to PyPI (includes both import paths)..."
+        ls -la dist/
+        twine upload dist/exonware_xwsystem-*.whl dist/exonware_xwsystem-*.tar.gz
+        echo "✅ Both 'import xwsystem' and 'import exonware.xwsystem' now work!"
+        
+    - name: Success notification
+      run: |
+        echo "✅ Successfully published exonware-xwsystem v${{ github.ref_name }}"
+        echo ""
+        echo "PyPI URL:"
+        echo "   https://pypi.org/project/exonware-xwsystem/"
+        echo ""
+        echo "Install with either:"
+        echo "   pip install exonware-xwsystem"
+        echo "   pip install exonware-xwsystem[lazy]  # Minimal dependencies"
+        echo "   pip install exonware-xwsystem[full]  # All features"
+        echo ""
+        echo "Both import paths work:"
+        echo "   import xwsystem"
+        echo "   import exonware.xwsystem"
