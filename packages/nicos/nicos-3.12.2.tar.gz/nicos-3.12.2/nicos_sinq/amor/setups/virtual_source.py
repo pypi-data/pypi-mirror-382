@@ -1,0 +1,66 @@
+description = 'Virtual source for the Selene guide'
+
+display_order = 20
+
+devices = dict(
+    dvv = device('nicos_sinq.amor.devices.virtual_source.NumberSwitcher',
+        description = 'Virtual source vertical opening',
+        mapping = {
+            1: 0.,
+            2: 45.,
+            3: 90.,
+            4: 135.,
+            5: 180.,
+            6: 225,
+            7: 270,
+            8: -45.
+        },
+        precision = 0.1,
+        moveable = 'dvv_motor',
+        fmtstr = '%d',
+    ),
+    dvv_motor = device('nicos_sinq.devices.epics.motor.SinqMotor',
+        description = 'Virtual source vertical motor',
+        motorpv = 'SQ:AMOR:turboPmac4:dvv',
+        visibility = (),
+    ),
+    dvh = device('nicos_sinq.amor.devices.virtual_source.NumberSwitcher',
+        description = 'Virtual source horiziontal opening',
+        mapping = {
+            1: 0.,
+            2: 45.,
+            3: 90.,
+            4: 135.,
+            5: 180.,
+            6: 225,
+            7: 270,
+            8: -45.
+        },
+        fmtstr = '%d',
+        moveable = 'dvh_motor',
+        precision = 0.1,
+    ),
+    dvh_motor = device('nicos_sinq.devices.epics.motor.SinqMotor',
+        description = 'Virtual source horiziontal motor',
+        motorpv = 'SQ:AMOR:turboPmac4:dvh',
+        visibility = (),
+    ),
+    dmf = device('nicos_sinq.amor.devices.virtual_source.NumberSwitcher',
+        description = 'Diaphragm at middle focus',
+        mapping = {
+            1: 288.,
+            2: 0.,
+            3: 72,
+            4: 144,
+            5: 216.
+        },
+        fmtstr = '%d',
+        precision = 0.1,
+        moveable = 'dmf_motor',
+    ),
+    dmf_motor = device('nicos_sinq.devices.epics.motor.SinqMotor',
+        description = 'Diaphragm at middle focus, motor',
+        motorpv = 'SQ:AMOR:turboPmac4:dmf',
+        visibility = (),
+    ),
+)

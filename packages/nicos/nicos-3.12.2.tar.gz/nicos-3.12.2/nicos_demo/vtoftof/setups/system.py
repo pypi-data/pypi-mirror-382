@@ -1,0 +1,71 @@
+description = 'NICOS system setup'
+
+group = 'lowlevel'
+
+sysconfig = dict(
+    cache = configdata('config_data.cache_host'),
+    instrument = 'TOFTOF',
+    experiment = 'Exp',
+    datasinks = [
+        'conssink', 'filesink', 'dmnsink', 'livesink', 'tofsink', 'nxsink',
+    ],
+)
+
+modules = ['nicos.commands.standard']
+
+devices = dict(
+    TOFTOF = device('nicos.devices.instrument.Instrument',
+        description = 'Virtual TOFTOF instrument',
+        instrument = 'V-TofTof',
+        responsible = 'R. Esponsible <r.esponsible@frm2.tum.de>',
+        doi = 'http://dx.doi.org/10.17815/jlsrf-1-40',
+        website = 'http://www.mlz-garching.de/toftof',
+        facility = 'NICOS demo instruments',
+        operators = ['NICOS developer team'],
+    ),
+    Sample = device('nicos.devices.sample.Sample',
+        description = 'The currently used sample',
+    ),
+    Exp = device('nicos_mlz.toftof.devices.Experiment',
+        description = 'The currently running experiment',
+        propprefix = '',
+        dataroot = configdata('config_data.dataroot'),
+        sendmail = True,
+        serviceexp = 'p0',
+        sample = 'Sample',
+        reporttemplate = '',
+        elog = True,
+        forcescandata = True,
+        managerights = dict(
+            enableDirMode = 0o775,
+            enableFileMode = 0o664,
+            disableDirMode = 0o550,
+            disableFileMode = 0o440,
+            owner = 'toftof',
+            group = 'toftof',
+        ),
+        counterfile = 'counter',
+    ),
+    filesink = device('nicos.devices.datasinks.AsciiScanfileSink'),
+    conssink = device('nicos.devices.datasinks.ConsoleScanSink'),
+    dmnsink = device('nicos.devices.datasinks.DaemonSink'),
+    livesink = device('nicos_mlz.toftof.datasinks.LiveViewSink'),
+    tofsink = device('nicos_mlz.toftof.datasinks.TofImageSink',
+        filenametemplate = ['%(pointcounter)08d_0000.raw'],
+    ),
+    nxsink = device('nicos_mlz.toftof.datasinks.NexusSink',
+        templateclass = 'nicos_mlz.toftof.datasinks.nexustemplate.LegacyTemplate',
+        filenametemplate = ['L_TOFTOF%(pointcounter)08d.hdf5'],
+    ),
+    Space = device('nicos.devices.generic.FreeSpace',
+        description = 'The amount of free space for storing data',
+        path = configdata('config_data.dataroot'),
+        minfree = 5,
+    ),
+    LogSpace = device('nicos.devices.generic.FreeSpace',
+        description = 'Free space on the log drive',
+        path = configdata('config_data.logging_path'),
+        visibility = (),
+        warnlimits = (0.5, None),
+    ),
+)

@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+# *****************************************************************************
+# NICOS, the Networked Instrument Control System of the MLZ
+# Copyright (c) 2009-2025 by the NICOS contributors (see AUTHORS)
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 2 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc.,
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+# Module authors:
+#   Jens Krüger <jens.krueger@frm2.tum.de>
+#
+# *****************************************************************************
+# isort:skip_file
+
+import argparse
+import logging
+import sys
+from os import path
+
+try:
+    from nicos import config
+except ImportError:
+    sys.path.insert(0, path.dirname(path.dirname(path.realpath(__file__))))
+    from nicos import config
+
+from nicos.utils.loggers import ColoredConsoleHandler
+
+from nicostools.setupchecker import FileHandler, Logger, SetupValidator
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-v', '--verbose', dest='verbose', action='store_true', default=False,
+        help='verbose output'
+    )
+    parser.add_argument(
+        '-o', '--outfile', dest='filename', action='store', default=None,
+        type=str, help='write report to FILE', metavar='FILE'
+    )
+    parser.add_argument(
+        '-s', '--separate', dest='separate', action='store_true',
+        help='treat every argument as a separate setup directory '
+        'for duplicate device purposes'
+    )
+    parser.add_argument(
+        'paths', nargs=argparse.REMAINDER,
+        help='directory containing setup files|setup file(s)'
+    )
+
+    opts = parser.parse_args()
+    paths = opts.paths
+    if not paths:
+        # read NICOS config
+        config.apply()
+        # get default custom paths
+        default_dirs = [
+            path.join(config.setup_package_path, p.strip(), 'setups')
+            for p in config.setup_subdirs
+        ]
+        paths = default_dirs
+
+    logging.basicConfig()
+    logging.setLoggerClass(Logger)
+    root_log = logging.getLogger()
+    root_log.removeHandler(root_log.handlers[0])
+    root_log.addHandler(ColoredConsoleHandler())
+    root_log.setLevel(logging.WARNING)
+
+    if opts.verbose:
+        root_log.setLevel(logging.INFO)
+    if opts.filename:
+        outfile = open(opts.filename, 'a', encoding='utf-8') # pylint: disable=consider-using-with
+        root_log.addHandler(FileHandler(outfile))
+
+    ret = SetupValidator().walk(paths, opts.separate)
+
+    return not ret
+
+
+if __name__ == "__main__":
+    sys.exit(main())

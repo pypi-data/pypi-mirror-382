@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+# *****************************************************************************
+# NICOS, the Networked Instrument Control System of the MLZ
+# Copyright (c) 2009-2025 by the NICOS contributors (see AUTHORS)
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 2 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc.,
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+# Module authors:
+#   Georg Brandl <g.brandl@fz-juelich.de>
+#
+# *****************************************************************************
+
+import argparse
+import signal
+import sys
+from os import path
+
+sys.path.insert(0, path.dirname(path.dirname(path.realpath(__file__))))
+
+from nicos.core.sessions.simple import ScriptSession
+from nicos.utils import LOCALE_ENCODING
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-M', '--maintenance', dest='mode', const='maintenance',
+                    action='store_const', default='slave',
+                    help='start in maintenance mode')
+parser.add_argument('-A', '--appname', dest='appname', default='script',
+                    help='application name (base name for log files)')
+parser.add_argument('-S', '--stop-after', dest='stop', default=0, type=int,
+                    help='forcibly stop after SEC seconds', metavar='SEC')
+parser.add_argument('args', nargs=argparse.ONE_OR_MORE,
+                    help='[setupname] file_or_code')
+
+opts = parser.parse_args()
+
+if len(opts.args) == 1:
+    setup, script = 'startup', opts.args[0]
+elif len(opts.args) >= 2:
+    setup, script = opts.args[:2]
+
+setup = setup.split(',')  # pylint: disable=used-before-assignment
+if path.isfile(script):
+    with open(script, 'r', encoding=LOCALE_ENCODING) as f:
+        script_text = f.read()
+else:
+    script_text = script
+
+if opts.stop:
+    signal.alarm(opts.stop)
+
+sys.exit(ScriptSession.run(setup,
+                           script_text,
+                           mode=opts.mode,
+                           appname=opts.appname))

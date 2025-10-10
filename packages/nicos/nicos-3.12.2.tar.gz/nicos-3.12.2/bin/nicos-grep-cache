@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+# *****************************************************************************
+# NICOS, the Networked Instrument Control System of the MLZ
+# Copyright (c) 2009-2025 by the NICOS contributors (see AUTHORS)
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 2 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc.,
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+# Module authors:
+#   Georg Brandl <g.brandl@fz-juelich.de>
+#
+# *****************************************************************************
+
+"""Small utility to grep within cache files."""
+
+import argparse
+import os
+import re
+import sys
+import time
+
+
+def printline(fn, line, opts):
+    try:
+        key, ts, _, val = line.split('\t', 3)
+    except ValueError:  # old file format
+        key, ts, val = line.split('\t', 2)
+    ts = float(ts)
+    val = val.strip()
+    if opts.table:
+        print('%s\t%s' % (ts, val))
+    elif opts.timestamp:
+        print('%s: %.3f %s %s' % (fn, ts, key, val))
+    else:
+        fmtts = time.strftime('%Y-%m-%d %H:%M:%S.%%03d',
+                              time.localtime(ts)) % ((ts % 1) * 1000)
+        print('%-30s %-25s %-15s %s' % (fn, fmtts, key, val))
+
+
+def grep(fn, rex, opts):
+    with open(fn, encoding='utf-8') as fp:
+        fn += ':'
+        for line in fp:
+            if line.startswith('#'):
+                continue
+            if rex.search(line):
+                printline(fn, line, opts)
+
+
+def rgrep(dev, dt, rex, opts):
+    j = os.path.join
+    os.chdir(opts.cachedir)
+    for devdir in sorted(os.listdir('.')):
+        if devdir == 'lastday' or not os.path.isdir(devdir) or devdir.isdigit():
+            continue
+        if dev.search(devdir):
+            for yeardir in sorted(os.listdir(devdir)):
+                for dayfile in sorted(os.listdir(j(devdir, yeardir))):
+                    if dt.search('%s-%s' % (yeardir, dayfile)):
+                        grep(j(devdir, yeardir, dayfile), rex, opts)
+
+
+def main():
+    parser = argparse.ArgumentParser(usage='''\
+%(prog)s [options] device date searchterm
+
+All of "device", "date" and "searchterm" are regular expressions.
+
+    * "device" is matched against the NICOS device name of cache files.
+    * "date" is matched against the date of cache files (format YYYY-MM-DD).
+    * "searchterm" is matched against entries in cache files.
+
+Hint: to select everything for one argument, use . as argument.''')
+    parser.add_argument('-d', '--cache-dir', dest='cachedir',
+                        default='/data/cache',
+                        help='root location of cache database (default='
+                        '/data/cache)')
+    parser.add_argument('-t', '--timestamp', dest='timestamp',
+                        action='store_true',
+                        help='output raw timestamp instead of formatted time')
+    parser.add_argument('-b', '--table', dest='table', action='store_true',
+                        help='output timestamp and value suitable for reading'
+                        'in with another program')
+    parser.add_argument('device',
+                        help='regular expression matched against the NICOS'
+                        ' device names')
+    parser.add_argument('day',
+                        help='is matched against the date of the cache file'
+                        ' in format YYYY-MM-DD')
+    parser.add_argument('searchterm',
+                        help='is matched against entries in the cache file')
+
+    opts = parser.parse_args()
+
+    # special case for running from checkout
+    if opts.cachedir == '/data/cache' and not os.path.isdir(opts.cachedir) \
+       and os.path.isdir('data/cache'):
+        opts.cachedir = 'data/cache'
+
+    rgrep(re.compile(opts.device, re.I),
+          re.compile(opts.day),
+          re.compile(opts.searchterm), opts)
+
+
+sys.exit(main())
