@@ -1,0 +1,105 @@
+"""
+Authors: Merlin Dumeur <merlin@dumeur.net>
+
+Automated scaling range selection based on bootstrapping.
+"""
+
+import numpy as np
+from .regression import prepare_regression
+from .utils import Dim
+
+# def mf_analysis_ar(wt_coefs, wt_leaders, scaling_rangexs, weighted,
+#                    n_cumul, q):
+
+#     if q is None:
+#         q = [2]
+
+#     if isinstance(q, list):
+#         q = np.array(q)
+
+#     parameters = {
+#         'q': q,
+#         'n_cumul': n_cumul,
+#         'weighted': weighted,
+#         'scaling_ranges': scaling_ranges
+#         }
+
+#     param_dwt = {
+#         'mrq': wt_coefs,
+#         **parameters
+#     }
+
+#     dwt_struct = StructureFunction._from_dict(param_dwt)
+#     dwt_cumul = Cumulants._from_dict(param_dwt)
+#     dwt_spec = None  # MultifractalSpectrum._from_dict(param_dwt)
+
+#     # pylint: disable=unbalanced-tuple-unpacking
+#     # dwt_hmin, _ = estimate_hmin(wt_coefs, j1, j2, weighted)
+#     dwt_hmin = None
+
+#     dwt = MFractalVar(dwt_struct, dwt_cumul, dwt_spec, dwt_hmin)
+
+#     if wt_leaders is not None:
+
+#         param_lwt = {
+#             'mrq': wt_leaders,
+#             **parameters
+#         }
+
+#         lwt_struct = StructureFunction._from_dict(param_lwt)
+#         lwt_cumul = Cumulants._from_dict(param_lwt)
+#         lwt_spec = None  # MultifractalSpectrum._from_dict(param_lwt)
+
+#         # pylint: disable=unbalanced-tuple-unpacking
+#         # lwt_hmin, _ = estimate_hmin(wt_leaders, j1, j2, weighted)
+#         lwt_hmin = None
+
+#         lwt = MFractalVar(lwt_struct, lwt_cumul, lwt_spec, lwt_hmin)
+
+#     else:
+
+#         lwt = None
+
+#     return MFractalData(dwt, lwt)
+
+
+def compute_Lambda(R, R_b):
+    return 1 - ((R_b < R).sum(dim=Dim.bootstrap) / R_b.sizes[Dim.bootstrap])
+
+
+def find_max_lambda(L, per_moment=False):
+    # L.mean(dim=Dim.j) == np.amax(L.mean(dim=Dim.j))
+
+    if per_moment:
+        return L.argmax(dim=Dim.scaling_range)
+
+    if Dim.q in L.dims:
+        moment_dim = Dim.q
+    else:
+        moment_dim = Dim.m
+
+    return L.sum(dim=moment_dim).argmax(dim=Dim.scaling_range)
+
+
+def compute_R(moment, slope, intercept, weights, j_min_max, j):
+
+    x, _, j_min, j_max, j_min_idx, j_max_idx = prepare_regression(
+        j_min_max, j, moment.dims)
+
+    moment = moment.sel(j=slice(j_min, j_max))
+    # slope = slope
+    # intercept = intercept[:, None]
+    # weights = weights[..., None]
+    # x = x[..., None]
+
+    # return np.nansum(
+    #     weights ** 2 * (moment - x * slope - intercept) ** 2, axis=1)
+    return (
+        weights ** 2 * (moment - x * slope - intercept) ** 2).mean(
+            dim=Dim.j, skipna=True)
+
+
+def sanitize_scaling_ranges(scaling_ranges, j2_eff):
+
+    return np.array([(j1, j2) for (j1, j2) in scaling_ranges
+                     if j2 <= j2_eff and j1 <= j2 - 2])

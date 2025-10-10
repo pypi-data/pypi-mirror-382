@@ -1,0 +1,110 @@
+"""
+Authors: Omar D. Domingues <omar.darwiche-domingues@inria.fr>
+         Merlin Dumeur <merlin@dumeur.net>
+"""
+
+import warnings
+import numpy as np
+import matplotlib.pyplot as plt
+
+# from sklearn.linear_model import LinearRegression
+
+from .regression import linear_regression, prepare_regression, prepare_weights
+from . import scalingfunction
+from . import utils
+from .utils import Dim
+
+
+def estimate_hmin(mrq, scaling_ranges, weighted, idx_reject, warn=True,
+                  return_y=False):
+    """
+    Estimate the value of the uniform regularity exponent hmin using
+    wavelet coefficients.
+    """
+    # TODO: change so it returns a constant number of outputs
+
+    x, n_ranges, j_min, j_max, *_ = prepare_regression(
+        scaling_ranges, np.array([*mrq.values]), dims=(Dim.j)
+    )
+
+    if weighted == 'bootstrap' and mrq.bootstrapped_obj is not None:
+
+        std = mrq.std_values('_sup_coeffs')(n_ranges, j_max, j_min, idx_reject)
+
+    else:
+        std = None
+
+    sup_coeffs = mrq._sup_coeffs(
+        n_ranges, j_max, j_min, idx_reject)
+
+    y = np.log2(sup_coeffs).sel(j=slice(j_min, j_max))
+
+    w = prepare_weights(
+        mrq.get_nj_interv, weighted, n_ranges, j_min, j_max,
+        scaling_ranges, y, std=std)
+
+    hmin, intercept = linear_regression(x, y, w)
+
+    # warning
+    if 0 in hmin and warn:
+        warnings.warn(f"h_min = {hmin} < 0. gamint should be increased")
+
+    if return_y:
+        return hmin, intercept, y
+
+    return hmin, intercept
+
+
+def estimate_eta_p(wt_coefs, p_exp, scaling_ranges, weighted, idx_reject):
+    """
+    Estimate the value of eta_p
+    """
+
+    bootstrapped_obj = None
+
+    if weighted == 'bootstrap':
+
+        ws_boot = scalingfunction.StructureFunction(
+            mrq=wt_coefs.bootstrapped_obj, q=np.array([p_exp]),
+            scaling_ranges=scaling_ranges, weighted=None)
+
+        bootstrapped_obj = utils.MFractalVar(ws_boot, None, None)
+
+    wavelet_structure = scalingfunction.StructureFunction(
+        mrq=wt_coefs, q=np.array([p_exp]), scaling_ranges=scaling_ranges,
+        weighted=weighted, idx_reject=idx_reject,
+        bootstrapped_obj=bootstrapped_obj)
+
+    # shape N_ranges, n_channelnals
+    return wavelet_structure.zeta[0]
+
+
+def plot_hmin(wt_coefs, j1, j2_eff, weighted, warn=True):
+    """
+    Plots the regression used to show :math:`h_{min}`
+    """
+
+    hmin, intercept, y = estimate_hmin(wt_coefs, j1, j2_eff, weighted, warn)
+    x = np.arange(j1, j2_eff+1)
+
+    # plot log_sup_coeffs
+    plt.figure('hmin')
+
+    plt.plot(x, y, 'r--.')
+    plt.xlabel('j')
+    plt.ylabel(r'$\log_2(\sup_k |d(j,k)|)$')
+    plt.suptitle(r'$h_\mathrm{min}$')
+
+    plt.draw()
+    plt.grid()
+
+    # plot regression line
+    reg_x = [j1, j2_eff]
+    reg_y = map(lambda x: hmin*x + intercept, reg_x)
+
+    legend = f'$h_\\mathrm{min}$ = {hmin:.5f}'
+    plt.plot(reg_x, reg_y, color='k', linestyle='-', linewidth=2, label=legend)
+    plt.legend()
+    plt.draw()
+
+    plt.show()
