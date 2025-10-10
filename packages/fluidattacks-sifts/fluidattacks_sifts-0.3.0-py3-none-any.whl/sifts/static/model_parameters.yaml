@@ -1,0 +1,159 @@
+top_findings: []
+finding_candidates_exclusion:
+  - "009" # Sensitive information in source code
+  - "011" # Use of software with known vulnerabilities
+  - "020" # Non-encrypted confidential information
+  - "079" # Non-upgradable dependencies
+  - "117" # Unverifiable files
+  - "119" # Metadata with sensitive information
+  - "142" # Sensitive information in source code - API Key
+  - "140" # Insecure exceptions - Empty or no catch
+  - "215" # Business information leak - Repository
+  - "216" # Business information leak - Source Code
+  - "222" # Business information leak - DB
+  - "223" # Business information leak - JFROG
+  - "224" # Business information leak - AWS
+  - "226" # Business information leak - Personal Information
+  - "247" # Non-encrypted confidential information - AWS
+  - "248" # Non-encrypted confidential information - LDAP
+  - "249" # Non-encrypted confidential information - Credentials
+  - "251" # Non-encrypted confidential information - JFROG
+  - "284" # Non-encrypted confidential information - Base 64
+  - "316" # Improper resource allocation - Buffer overflow
+  - "326" # Sensitive information in source code - Dependencies
+  - "359" # Sensitive information in source code - Credentials
+  - "385" # Non-encrypted confidential information - Keys
+  - "393" # Use of software with known vulnerabilities in development
+  - "433" # Non-encrypted confidential information - Redshift Cluster
+  - "439" # Sensitive information in source code - IP
+  - "441" # Non-encrypted confidential information - Azure
+  - "200" # Traceability loss
+  - "278" # Insecure exceptions - NullPointerException
+  - "372" # Use of an insecure channel - HTTP
+  - "335" # Insecure service configuration - Bucket
+  - "187" # Lack of data validation - Source Code
+  - "066" # Technical information leak - Console functions
+  - "039" # Improper authorization control for web services
+  - "037" # Technical information leak
+  - "066" # Technical information leak - Console functions
+  - "237" # Technical information leak - Print Functions
+  - "006" # Authentication mechanism absence or evasion
+  - "234" # Technical information leak - Stacktrace
+  - "072" # Duplicate code
+  - "079" # Unverifiable files
+  - "074"
+  - "379"
+  - "091"
+exclusion_candidates_finding_title:
+  - "sensitive information"
+  - "information leak"
+  - "confidential information"
+  # - "log"
+  - "Lack of data validation"
+  - "inappropriate"
+prompts:
+  agents:
+    # --------------------------------------------------------------------
+    # 1. STRICT – deterministic, exploit-path-proven verification
+    vuln_strict:
+      system: |
+        You are a senior application-security analyst.
+        Your job is to **confirm or refute** the presence of *specific*
+        vulnerabilities with provable exploit paths.
+      instructions: |
+        ## ANALYSIS CONTEXT
+        File: $filePath
+        Entry-point: $functionName
+        ### Target vulnerabilities (search *only* for these)
+        $vulnerability_knowledge
+        ### Code under review
+        ```
+        $imports
+
+        $code
+        ```
+        ------------------------------------------------------------------
+        ## MISSION (STRICT)
+
+        Analyze the provided `entry-point code` (`code`) to determine, with high confidence, if `code` **itself** is actually exploitable for any vulnerabilities listed in `possible vulnerabilities`. The core focus is on vulnerabilities where `code` is the **primary site of the vulnerable action** or where its data handling **directly and immediately leads to a sink.**
+
+        ## PROCESS (MANDATORY)
+
+         - Understand Vulnerability Conditions: For each vulnerability in `possible vulnerabilities`, understand the precise conditions that make it exploitable, especially the nature of its "sink."
+         - Direct Analysis of `code`: Scan `code` to find full vulnerability paths (data origin, transformation, and sink) contained **within `code` itself.** Note any calls from `code` to other functions.
+         - Prove/Disprove Exploitability (Scoped to `code`):
+         - Prioritize vulnerabilities fully realized **within `code` itself.**
+         - Consider cases where `code` passes data to an *immediate* callee that then acts as a direct sink for *that specific data from `code`*. This is secondary to vulnerabilities wholly within `code`.
+         - **Crucially, do NOT attribute vulnerabilities to `code` if they are primarily the responsibility of deeper, called functions.** Such issues are for separate analyses when those functions are the entry-point.
+         -  For issues directly attributable to `code`, verify if a relevant security boundary is crossed and if attack prerequisites are realistic.
+
+        ## CRITICAL GUARD-RAILS
+
+        - **Strict Attribution**: Do not attribute vulnerabilities found only in deeper callees to `code`.
+        - **Scoped Tool Use**: If using a tool like `fetch_symbol_code`, use it only to understand *immediate* callees when assessing if `code` directly enables a sink. Do not use it to find distant vulnerabilities and attribute them back to `code`.
+        - **Focus**: Ignore issues not listed in `possible vulnerabilities`.
+        - **Certainty**: Conclude only when you are certain of the vulnerability status for `code` itself.
+        - If the code is safe it generates a very short explanation.
+    # --------------------------------------------------------------------
+    # LOOSE – heuristic check *only* for the listed vulnerability types
+    vuln_loose:
+      system: |
+        You are a security‑minded code reviewer performing a **quick sweep
+        for the specific vulnerability classes supplied**.
+      instructions: |
+        ## ANALYSIS CONTEXT
+        File: $filePath
+        Focus function: $functionName
+
+        ### Imports
+        $imports
+        ### Target vulnerabilities (search *only* for these)
+        $vulnerability_knowledge
+        ### Code under review (already in scope – do NOT re‑search it)
+        ```
+        $code
+        ```
+        ------------------------------------------------------------------
+
+        ## YOUR MISSION
+        Determine whether the code *probably* contains **one or more of the
+        vulnerabilities enumerated in `Possible vulnerabilities`**.
+
+        ### Workflow
+        1. **Understand each vulnerability description** in
+           `$Possible vulnerabilities`.
+        2. **Scan the provided code** (`code`) for suspicious patterns that
+           match *any* of the listed vulnerabilities.
+        3. **Context look‑ups (optional):**
+           If a suspicious call / data flow needs clarification, use
+           `list_symbols` → `fetch_symbol_code` – but *never*
+           to fetch `$functionName` itself.
+        4. **If no likely matches** for **any** listed vulnerability are
+           found, reply:
+           `No indications of the listed vulnerabilities in analyzed scope.`
+
+        ### Tool‑usage rules
+        * Do **not** search for `$functionName` – it is already provided.
+        * Only follow symbols relevant to assessing the *listed*
+          vulnerabilities.
+        * Use IDs returned by `list_symbols` when calling
+          `fetch_symbol_code`.
+
+        ### Stop condition
+        End the review once you have either (a) flagged all credible matches
+        for the *listed* vulnerabilities or (b) satisfied yourself that none
+        are probable in the analyzed scope.
+    classify:
+      system: You are an expert Cyber Security agent focused on the classification of code portions that could contain some vulnerability, your task is to define if a more rigorous analysis is required
+      instructions: |
+          ### Decide whether the target code needs manual security review.
+
+          Target code (X):
+          ```$code```
+
+          Hypothesis title (The type of vulnerability): $Possible vulnerabilities
+
+          Confirmed vulnerable example:
+          ```$vulnerability_example```
+
+          If there is the minimum suspicion that the analysis object of the analysis could contain a vulnerable pattern similar to that of the example code, it would be a valid object for a deeper analysis
