@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  pull_request:
+    branches:
+      - master
+
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install uv and set the Python version
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install dependencies
+        run: |
+          uv sync --locked --only-dev
+      - name: Run Prettier
+        uses: creyD/prettier_action@v4.3
+        with:
+          dry: True
+          prettier_options: "--check **/*.{json,yaml,yml,md}"
+      - name: Run Tox
+        run: |
+          uv run tox -e py,lint
