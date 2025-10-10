@@ -1,0 +1,77 @@
+name: Client CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'client/**' # only run if something in client/ changes
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: client
+        run: npx eslint src src-electron
+
+  build:
+    if: ${{ !failure() && (github.ref == 'refs/heads/main' || github.base_ref == 'main') }}
+    needs: [lint]
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin
+            artifact-name: mac-client
+            extension: app
+          - os: ubuntu-latest
+            platform: linux
+            artifact-name: linux-client
+            extension: AppImage
+          - os: windows-latest
+            platform: win32
+            artifact-name: windows-client
+            extension: exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            schema/package-lock.json
+            client/package-lock.json
+
+      - name: Install schema dependencies
+        working-directory: schema
+        run: npm ci
+
+      - name: Install client dependencies
+        working-directory: client 
+        run: npm ci
+
+      - name: Build app
+        working-directory: client 
+        run: npm run build:pack
