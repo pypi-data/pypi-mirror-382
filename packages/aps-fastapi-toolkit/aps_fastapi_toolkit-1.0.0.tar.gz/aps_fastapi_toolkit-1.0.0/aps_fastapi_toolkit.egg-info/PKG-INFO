@@ -1,0 +1,373 @@
+Metadata-Version: 2.4
+Name: aps_fastapi_toolkit
+Version: 1.0.0
+Summary: Common utils and services for FastAPI projects.
+Author: Abhay Pratap Singh
+Keywords: fastapi,jwt,authentication,database,sqlalchemy,security
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Framework :: FastAPI
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Database
+Classifier: Topic :: Security
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: argon2-cffi==25.1.0
+Requires-Dist: SQLAlchemy==2.0.43
+Requires-Dist: PyJWT==2.10.1
+Requires-Dist: fastapi==0.118.0
+Requires-Dist: email-validator==2.3.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: keywords
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# FastAPI Toolkit
+
+A comprehensive toolkit providing common utilities, services, and components for FastAPI projects. This package includes authentication, database management, user management, and security utilities to accelerate FastAPI development.
+
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.118.0-009688.svg)](https://fastapi.tiangolo.com)
+
+## Features
+
+- 🔐 **JWT Authentication**: Complete JWT token management with access and refresh tokens
+- 🍪 **Cookie Management**: Secure HTTP cookie handling for authentication
+- 👤 **User Management**: User creation, authentication, and management services
+- 🗄️ **Database Integration**: SQLAlchemy-based database services with connection pooling
+- 🔒 **Password Security**: Argon2 password hashing with validation
+- 📊 **Pydantic Schemas**: Pre-built schemas for common data structures
+- 🔧 **FastAPI Dependencies**: Ready-to-use dependency injection components
+- ⚡ **Type Safety**: Full type hints and mypy support
+
+## Installation
+
+```bash
+pip install fastapi-toolkit
+```
+
+## Quick Start
+
+### 1. Database Setup
+
+```python
+from fastapi import FastAPI
+from fastapi_toolkit.services import DatabaseService
+from fastapi_toolkit.schemas import DBConfigs
+from fastapi_toolkit.dependencies import init_db_dependency
+
+app = FastAPI()
+
+# Configure database
+db_configs = DBConfigs(
+    db_uri="postgresql://user:password@localhost/dbname",
+    pool_size=10,
+    max_overflow=20
+)
+
+# Initialize database service
+db_service = DatabaseService(db_configs)
+init_db_dependency(db_service)
+```
+
+### 2. JWT Authentication Setup
+
+```python
+from datetime import timedelta
+from fastapi_toolkit.services import JWTService
+from fastapi_toolkit.dependencies import init_jwt_service
+
+# Configure JWT service
+jwt_service = JWTService(
+    secret_key="your-secret-key",
+    access_token_lifetime=timedelta(minutes=15),
+    refresh_token_lifetime=timedelta(days=7),
+    algorithm="HS256"
+)
+
+# Initialize JWT dependency
+init_jwt_service(jwt_service)
+```
+
+### 3. Using Dependencies
+
+```python
+from fastapi_toolkit.dependencies import (
+    DBDependency,
+    UserServiceDependency,
+    is_authenticated_header
+)
+
+# Dependencies are ready to use in your FastAPI routes
+```
+
+## Core Components
+
+### Services
+
+#### DatabaseService
+
+Manages SQLAlchemy database connections with built-in connection pooling:
+
+```python
+from fastapi_toolkit.services import DatabaseService
+from fastapi_toolkit.schemas import DBConfigs
+
+configs = DBConfigs(
+    db_uri="sqlite:///./test.db",
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800
+)
+
+db_service = DatabaseService(configs, is_sqlite=True)
+```
+
+#### JWTService
+
+Handles JWT token creation and validation:
+
+```python
+from fastapi_toolkit.services import JWTService
+from datetime import timedelta
+
+jwt_service = JWTService(
+    secret_key="your-secret-key",
+    access_token_lifetime=timedelta(minutes=15),
+    refresh_token_lifetime=timedelta(days=7)
+)
+
+# Create tokens
+access_token = jwt_service.get_access_token({"user_id": 1})
+refresh_token = jwt_service.get_refresh_token({"user_id": 1})
+
+# Decode tokens
+payload = jwt_service.decode_token(access_token.token)
+```
+
+#### CookieService
+
+Manages secure HTTP cookies for authentication:
+
+```python
+from fastapi_toolkit.services import CookieService
+from fastapi_toolkit.schemas import LoginTokens
+
+cookie_service = CookieService(
+    access_token_lifetime=timedelta(minutes=15),
+    refresh_token_lifetime=timedelta(days=7)
+)
+
+# Create login response with cookies
+tokens = LoginTokens(
+    access_token="...",
+    refresh_token="...",
+    csrf_token="..."
+)
+response = cookie_service.create_login_cookies_response(tokens)
+```
+
+#### UserService
+
+Provides user management functionality:
+
+```python
+from fastapi_toolkit.services import UserService
+from fastapi_toolkit.schemas import User, SuperUser
+
+# With database session
+user_service = UserService(db_session)
+
+# Create users
+user = User(email="user@example.com", password="SecurePass123#", name="John Doe")
+user_service.create_user(user)
+
+# Query users
+user = user_service.get_user_by_email("user@example.com")
+exists = user_service.user_exists("user@example.com")
+```
+
+### Models
+
+#### Base Model
+
+All models inherit from a base model with common fields:
+
+```python
+from fastapi_toolkit.models import Base
+
+class MyModel(Base):
+    __tablename__ = "my_table"
+    # id, created_at, updated_at are automatically included
+```
+
+#### User Model
+
+Abstract user model that can be extended:
+
+```python
+from fastapi_toolkit.models import User, SuperUserMixin
+
+class AppUser(User, SuperUserMixin):
+    __tablename__ = "users"
+    # Additional fields can be added here
+```
+
+### Security Utilities
+
+#### Password Hashing
+
+Secure password hashing with Argon2:
+
+```python
+from fastapi_toolkit.utils import get_argon_hasher, validate_strong_password
+
+hasher = get_argon_hasher()
+
+# Hash password
+password = "MySecurePassword123#"
+validate_strong_password(password)  # Validates strength
+hashed = hasher.hash_value(password)
+
+# Verify password
+is_valid, needs_rehash = hasher.verify_value(hashed, password)
+```
+
+### Dependencies
+
+Pre-configured FastAPI dependencies for common operations:
+
+```python
+from fastapi_toolkit.dependencies import (
+    DBDependency,
+    UserServiceDependency,
+    JWTServiceDependency,
+    CookieServiceDependency,
+    is_authenticated_header,
+    is_authenticated_cookie,
+    is_anonymous_header,
+    is_anonymous_cookie
+)
+```
+
+### Schemas
+
+Pydantic schemas for data validation:
+
+```python
+from fastapi_toolkit.schemas import (
+    User,
+    SuperUser,
+    DBConfigs,
+    LoginTokens,
+    JWTTokenPayload,
+    AccessToken,
+    RefreshToken
+)
+```
+
+## Password Validation
+
+The toolkit includes strong password validation:
+
+- Minimum 8 characters
+- At least 1 lowercase letter
+- At least 1 uppercase letter  
+- At least 1 digit
+- At least 1 special character (@, #, $)
+
+```python
+from fastapi_toolkit.utils import validate_strong_password
+
+try:
+    password = validate_strong_password("WeakPass")
+except ValueError as e:
+    print(e)  # "Password must contain at least 1 digit"
+```
+
+## Custom User Models
+
+Extend the base User model for your application:
+
+```python
+from fastapi_toolkit.models import User, SuperUserMixin
+from fastapi_toolkit.services import UserService
+from sqlalchemy.orm import mapped_column, Mapped
+
+class AppUser(User, SuperUserMixin):
+    __tablename__ = "users"
+    
+    # Add custom fields
+    phone: Mapped[str] = mapped_column(nullable=True)
+    avatar_url: Mapped[str] = mapped_column(nullable=True)
+
+# Configure UserService to use custom model
+UserService.set_user_model(AppUser)
+```
+
+## Configuration Examples
+
+### PostgreSQL Configuration
+
+```python
+from fastapi_toolkit.schemas import DBConfigs
+
+configs = DBConfigs(
+    db_uri="postgresql://username:password@localhost:5432/mydb",
+    pool_size=20,
+    max_overflow=30,
+    pool_timeout=60,
+    pool_recycle=3600,
+    other_engine_configs={
+        "echo": False,
+        "pool_pre_ping": True
+    }
+)
+```
+
+### SQLite Configuration
+
+```python
+configs = DBConfigs(db_uri="sqlite:///./app.db")
+db_service = DatabaseService(configs, is_sqlite=True)
+```
+
+## Requirements
+
+- Python 3.12+
+- FastAPI 0.118.0+
+- SQLAlchemy 2.0.43+
+- Pydantic 2.0+
+- PyJWT 2.10.1+
+- argon2-cffi 25.1.0+
+- email-validator 2.3.0+
+
+## Development
+
+## Changelog
+
+### Version 1.0.0
+
+- Initial release
+- JWT authentication services
+- Database connection management
+- User management services
+- Security utilities
+- FastAPI dependencies
+- Comprehensive test suite
+
+## Author
+
+Abhay Pratap Singh
+
+---
+
+Built for the FastAPI community.
