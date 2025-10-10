@@ -1,0 +1,441 @@
+Metadata-Version: 2.3
+Name: dbapi-helper
+Version: 0.1.0
+Summary: A helper library for implementing Python DB API 2.0 database drivers
+Project-URL: Homepage, https://github.com/betodealmeida/dbapi-helper
+Project-URL: Repository, https://github.com/betodealmeida/dbapi-helper
+Project-URL: Issues, https://github.com/betodealmeida/dbapi-helper/issues
+Author-email: Beto Dealmeida <roberto@dealmeida.net>
+License: Apache License 2.0
+License-File: LICENSE
+Keywords: database,db-api,dbapi,driver,sql
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Database
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Provides-Extra: dev
+Requires-Dist: build>=1.0; extra == 'dev'
+Requires-Dist: mypy>=1.0; extra == 'dev'
+Requires-Dist: pre-commit>=3.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: twine>=4.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# dbapi-helper
+
+A modern Python library that provides the basics for implementing [Python DB API 2.0](https://peps.python.org/pep-0249/) database drivers. This library handles all the boilerplate, leaving you to implement only the `cursor.execute()` method.
+
+Perfect for creating database drivers for services with REST/HTTP endpoints that accept SQL queries.
+
+## Features
+
+- ✅ Full DB API 2.0 compliance (PEP 249)
+- ✅ Complete base implementations of `Connection` and `Cursor`
+- ✅ All standard exceptions and type objects included
+- ✅ Modern Python (3.9+) with full type hints
+- ✅ Generic cursor type support for better IDE experience
+- ✅ Comprehensive documentation and examples
+- ✅ Only requires implementing `cursor.execute()` method
+
+## Installation
+
+```bash
+pip install dbapi-helper
+```
+
+## Quick Start
+
+Here's a minimal example of implementing a database driver:
+
+```python
+import requests
+from dbapi_helper import Connection, Cursor
+
+class RESTCursor(Cursor):
+    def __init__(self, api_url: str):
+        super().__init__()
+        self.api_url = api_url
+
+    def execute(self, operation: str, parameters=None):
+        # Make REST API call
+        response = requests.post(
+            f"{self.api_url}/query",
+            json={"sql": operation, "params": parameters}
+        )
+        data = response.json()
+
+        # Set description (column metadata)
+        self.description = tuple(
+            (col["name"], col["type"], None, None, None, None, None)
+            for col in data["columns"]
+        )
+
+        # Set results iterator
+        self._results = iter(data["rows"])
+
+        # Store operation for debugging
+        self.operation = operation
+
+        return self
+
+class RESTConnection(Connection[RESTCursor]):
+    def __init__(self, api_url: str):
+        super().__init__()
+        self.api_url = api_url
+
+    def cursor(self) -> RESTCursor:
+        cursor = RESTCursor(self.api_url)
+        self.cursors.append(cursor)
+        return cursor
+
+# Usage
+conn = RESTConnection("https://api.example.com")
+cursor = conn.cursor()
+cursor.execute("SELECT * FROM users WHERE age > ?", (25,))
+
+for row in cursor.fetchall():
+    print(row)
+
+conn.close()
+```
+
+## Detailed Usage
+
+### Implementing execute()
+
+The `execute()` method is the only required method to implement. It must:
+
+1. Execute the operation with the given parameters
+2. Set `self.description` to column metadata (or `None` for non-SELECT queries)
+3. Set `self._results` to an iterator of result tuples
+4. Set `self.operation` to the operation string
+5. Return `self`
+
+```python
+def execute(self, operation: str, parameters=None):
+    # 1. Execute the query (your custom logic here)
+    result = self.my_query_executor(operation, parameters)
+
+    # 2. Set column metadata
+    self.description = tuple(
+        (name, type_code, None, None, None, None, None)
+        for name, type_code in result.columns
+    )
+
+    # 3. Set results iterator
+    self._results = iter(result.rows)
+
+    # 4. Store the operation
+    self.operation = operation
+
+    # 5. Return self
+    return self
+```
+
+**Important**: When overriding `execute()`, apply the `@check_closed` decorator to ensure proper error handling:
+
+```python
+from dbapi_helper import Cursor
+from dbapi_helper.cursor import check_closed
+
+class MyCursor(Cursor):
+    @check_closed  # Important!
+    def execute(self, operation: str, parameters=None):
+        # Your implementation
+        ...
+        return self
+```
+
+### Implementing cursor()
+
+The `cursor()` method creates and returns a new cursor instance:
+
+```python
+from dbapi_helper import Connection
+from dbapi_helper.connection import check_closed
+
+class MyConnection(Connection[MyCursor]):
+    @check_closed  # Recommended!
+    def cursor(self) -> MyCursor:
+        cursor = MyCursor(self)  # Pass connection if needed
+        self.cursors.append(cursor)  # Track cursor
+        return cursor
+```
+
+### Column Description Format
+
+The `description` attribute is a tuple of 7-item tuples, one per column:
+
+```python
+(
+    name,          # Column name (str)
+    type_code,     # Type code (type object or None)
+    display_size,  # Display size (int or None)
+    internal_size, # Internal size (int or None)
+    precision,     # Precision (int or None)
+    scale,         # Scale (int or None)
+    null_ok,       # Nullable (bool or None)
+)
+```
+
+Most implementations only set `name` and `type_code`, leaving others as `None`.
+
+### Using Context Managers
+
+Connections support context managers for automatic cleanup:
+
+```python
+with RESTConnection("https://api.example.com") as conn:
+    cursor = conn.execute("SELECT * FROM users")
+    print(cursor.fetchall())
+# Connection is automatically committed and closed
+```
+
+### Exception Handling
+
+All DB API 2.0 exceptions are included:
+
+```python
+from dbapi_helper import (
+    Error,              # Base exception
+    InterfaceError,     # Interface-related errors
+    DatabaseError,      # Database-related errors (base for below)
+    DataError,          # Data processing errors
+    OperationalError,   # Database operation errors
+    IntegrityError,     # Relational integrity errors
+    InternalError,      # Database internal errors
+    ProgrammingError,   # Programming errors
+    NotSupportedError,  # Feature not supported
+)
+
+try:
+    cursor.execute("INVALID SQL")
+except ProgrammingError as e:
+    print(f"SQL error: {e}")
+```
+
+### Type Objects
+
+Use type objects to describe column types:
+
+```python
+from dbapi_helper import STRING, BINARY, NUMBER, DATETIME, ROWID
+
+# In your execute() implementation:
+self.description = (
+    ("id", NUMBER, None, None, None, None, None),
+    ("name", STRING, None, None, None, None, None),
+    ("created_at", DATETIME, None, None, None, None, None),
+)
+```
+
+## Complete Example: REST API Driver
+
+```python
+from typing import Any
+import requests
+from dbapi_helper import Connection, Cursor, OperationalError
+
+class RestAPICursor(Cursor):
+    """Cursor for a REST API database."""
+
+    def __init__(self, connection: "RestAPIConnection"):
+        super().__init__()
+        self.connection = connection
+
+    def execute(self, operation: str, parameters: tuple[Any, ...] | None = None):
+        """Execute SQL via REST API."""
+        try:
+            response = requests.post(
+                f"{self.connection.base_url}/query",
+                json={
+                    "sql": operation,
+                    "params": list(parameters) if parameters else []
+                },
+                headers={"Authorization": f"Bearer {self.connection.token}"},
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+        except requests.RequestException as e:
+            raise OperationalError(f"Query failed: {e}")
+
+        # Set column descriptions
+        if data.get("columns"):
+            self.description = tuple(
+                (
+                    col["name"],
+                    self._map_type(col.get("type")),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                for col in data["columns"]
+            )
+        else:
+            self.description = None
+
+        # Set results
+        self._results = iter(tuple(row) for row in data.get("rows", []))
+        self.operation = operation
+
+        return self
+
+    @staticmethod
+    def _map_type(type_name: str | None) -> type | None:
+        """Map API type names to Python types."""
+        if not type_name:
+            return None
+        type_map = {
+            "string": str,
+            "integer": int,
+            "float": float,
+            "boolean": bool,
+            "timestamp": str,  # or datetime
+        }
+        return type_map.get(type_name.lower())
+
+class RestAPIConnection(Connection[RestAPICursor]):
+    """Connection to a REST API database."""
+
+    def __init__(self, base_url: str, token: str):
+        super().__init__()
+        self.base_url = base_url.rstrip("/")
+        self.token = token
+
+    def cursor(self) -> RestAPICursor:
+        """Create a new cursor."""
+        cursor = RestAPICursor(self)
+        self.cursors.append(cursor)
+        return cursor
+
+# Usage
+def main():
+    conn = RestAPIConnection(
+        base_url="https://api.example.com",
+        token="your-api-token"
+    )
+
+    try:
+        # Using cursor directly
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, email FROM users WHERE active = ?", (True,))
+
+        print(f"Columns: {[desc[0] for desc in cursor.description]}")
+
+        for row in cursor:
+            print(row)
+
+        # Using connection.execute() shortcut
+        cursor2 = conn.execute("SELECT COUNT(*) FROM users")
+        count = cursor2.fetchone()[0]
+        print(f"Total users: {count}")
+
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    main()
+```
+
+## API Reference
+
+### Connection
+
+- `cursor()` → Cursor: Create a new cursor (must implement)
+- `close()`: Close connection and all cursors
+- `commit()`: Commit transaction (no-op by default)
+- `rollback()`: Rollback transaction (no-op by default)
+- `execute(operation, parameters)`: Convenience method
+
+### Cursor
+
+- `execute(operation, parameters)` → Cursor: Execute query (must implement)
+- `fetchone()` → tuple | None: Fetch next row
+- `fetchmany(size)` → list[tuple]: Fetch multiple rows
+- `fetchall()` → list[tuple]: Fetch all remaining rows
+- `close()`: Close cursor
+- `executemany()`: Not supported (raises NotSupportedError)
+- `setinputsizes()`: No-op (compatibility)
+- `setoutputsizes()`: No-op (compatibility)
+
+### Attributes
+
+- `cursor.description`: Column metadata tuple
+- `cursor.rowcount`: Number of rows affected/returned
+- `cursor.arraysize`: Rows to fetch with fetchmany() (default: 1)
+- `connection.cursors`: List of created cursors
+
+## Module Attributes
+
+```python
+import dbapi_helper
+
+print(dbapi_helper.apilevel)      # "2.0"
+print(dbapi_helper.threadsafety)  # 2
+print(dbapi_helper.paramstyle)    # "qmark"
+```
+
+## Examples
+
+The `examples/` directory contains complete, working implementations:
+
+### REST API Driver (`examples/rest_driver.py`)
+A simple REST API database driver that demonstrates the basic pattern for implementing a DB API 2.0 driver. This example shows how to:
+- Make HTTP requests to query a REST API
+- Map API responses to DB API 2.0 structures
+- Handle column descriptions and type mapping
+
+Run with: `PYTHONPATH=src python examples/rest_driver.py`
+
+### Apache Druid Driver (`examples/druid_driver.py`)
+A production-ready implementation for Apache Druid's SQL API. This example demonstrates:
+- Streaming large result sets from HTTP responses
+- Incremental JSON parsing for memory efficiency
+- Multiple authentication methods (Basic Auth, JWT)
+- Parameter escaping with pyformat style (`%(name)s`)
+- Type inference from result data
+- Context managers and connection pooling
+
+Run with: `PYTHONPATH=src python examples/druid_driver.py`
+
+Both examples serve as templates you can adapt for your own database drivers.
+
+## Development
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/dbapi-helper.git
+cd dbapi-helper
+
+# Install in development mode
+pip install -e .
+
+# Run tests
+pytest
+
+# Type checking
+mypy src/dbapi_helper
+```
+
+## License
+
+Apache License 2.0 - see LICENSE file for details.
+
+## Credits
+
+Based on the generic DB API 2.0 implementation from [Shillelagh](https://github.com/betodealmeida/shillelagh) by Beto Dealmeida.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
