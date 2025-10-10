@@ -1,0 +1,1 @@
+"""galgopy - Genetic algorithm."""
