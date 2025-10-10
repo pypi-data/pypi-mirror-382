@@ -1,0 +1,93 @@
+# Flow Task Configuration (Full Template)
+#
+# This template shows a clear, commented structure with sane defaults.
+# Keep it simple for common cases, but ready to scale for power users.
+#
+# Quick start:
+#   1) Pick an instance (instance_type: a100 | 8xh100 | 4xa100 | etc.)
+#   2) Choose an image
+#   3) Put your command (string, list, or multi-line block)
+#   4) Optionally: add volumes or data_mounts
+#   5) Save and run:  flow submit task.yaml
+
+# Identity
+name: flow-task
+unique_name: true  # Append -xxxxxx to avoid name collisions
+
+# Compute
+instance_type: 8xh100   # Or: a100, 4xa100, etc. Use min_gpu_memory_gb as an alternative selector
+# min_gpu_memory_gb: 40
+num_instances: 1
+region: null            # e.g., us-central1-b (optional; provider default used when omitted)
+priority: med           # low | med | high
+
+# Runtime
+image: nvidia/cuda:12.1.0-runtime-ubuntu22.04
+working_dir: /workspace
+upload_code: true       # When true and working_dir is '/workspace', Flow nests code at '/workspace/<project>' by default
+
+# Command (examples):
+# command: "nvidia-smi"
+# command: [python, train.py, --epochs, '10']
+command: |
+  echo "Hello from Flow!"
+  nvidia-smi
+  echo "Edit this command to run your workload"
+
+# Environment (examples)
+# env:
+#   DATASET: imagenet
+#   SECRET_KEY: "${MY_SECRET}"
+env: {}
+
+# Ports (>= 1024)
+# ports: [6006, 8888]
+
+# Pricing (optional)
+# max_price_per_hour: 12.5
+
+# Persistent storage (block=file-system formatted device)
+# - Create new: name + size_gb (+ interface: block|file) → mount_path
+# - Attach existing: volume_id + mount_path
+# - Mounted read-write at the same mount_path inside host and container
+# - Avoid mounting at working_dir when upload_code: true; avoid system paths
+# volumes:
+#   - name: training-data
+#     size_gb: 100
+#     interface: block
+#     mount_path: /volumes/data
+#   - volume_id: vol_abc123
+#     mount_path: /volumes/existing
+volumes: []
+
+# External data mounts (provider-resolved)
+# - volume://<name-or-id> with target: /data         # persistent volume by name/ID
+# - s3://bucket/path       with target: /mnt/s3/path  # read-only (requires AWS credentials)
+# data_mounts:
+#   - source: volume://training-data
+#     target: /data
+#   - source: s3://my-bucket/datasets
+#     target: /mnt/s3/datasets
+data_mounts: []
+
+# SSH keys (optional)
+# ssh_keys:
+#   - sshkey_abc123def456
+#   - ~/.ssh/id_ed25519.pub
+#   - id_ed25519
+
+# Lifetime controls (optional)
+# - max_run_time_hours: cancel after deadline (robust to restarts)
+# - terminate_on_exit: cancel as soon as main container exits (batch-friendly)
+# max_run_time_hours: 12
+# terminate_on_exit: true
+
+# Advanced (optional)
+# code_root: ./subdir                      # Override project directory to upload
+# distributed_mode: auto                   # For multi-node (auto|manual)
+# allow_docker_cache: false                # Mount /var/lib/docker on a volume (single-node only)
+# retries:
+#   max_retries: 3
+#   backoff_coefficient: 2.0
+#   initial_delay: 1.0
+#   max_delay: 60.0
