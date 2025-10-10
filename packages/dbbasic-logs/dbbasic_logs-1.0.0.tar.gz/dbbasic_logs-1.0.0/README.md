@@ -1,0 +1,403 @@
+# dbbasic-logs
+
+Structured logging with TSV storage and compression.
+
+**Philosophy**: "Log everything. Query anything. Compress the rest."
+
+Part of the [DBBasic](https://dbbasic.com) family of tiny Python modules.
+
+## Features
+
+- **Simple API**: One-line logging, no setup required
+- **Structured**: TSV format with JSON context
+- **Unix-Native**: Plain text files, grep-able, compressible
+- **Zero Config**: Works out of the box
+- **Searchable**: Built-in search with regex support
+- **Compressed**: Automatic gzip compression for old logs
+- **Multiple Log Types**: Separate files for app, errors, and access logs
+
+## Installation
+
+```bash
+pip install dbbasic-logs
+```
+
+## Quick Start
+
+```python
+from dbbasic_logs import log
+
+# Basic logging
+log.info("User logged in", user_id=42, ip="192.168.1.1")
+log.warning("Rate limit approaching", user_id=42, count=95)
+log.error("Payment failed", order_id=123, error="Timeout")
+log.debug("Cache miss", key="user:42")
+
+# Exception logging with automatic stack traces
+try:
+    process_payment(order)
+except Exception as e:
+    log.exception("Payment processing failed", order_id=order.id)
+    raise
+
+# HTTP access logging
+log.access(
+    method="GET",
+    path="/api/users",
+    status=200,
+    duration=0.05,
+    ip=request.remote_addr
+)
+```
+
+## Storage Format
+
+Logs are stored as TSV (tab-separated values) files organized by type and date:
+
+```
+data/logs/
+  app/
+    2025-10-09.tsv         # Today's application logs
+    2025-10-08.tsv.gz      # Yesterday's logs (compressed)
+    2025-10-07.tsv.gz      # Older logs (compressed)
+  errors/
+    2025-10-09.tsv         # Today's error logs with stack traces
+    2025-10-08.tsv.gz
+  access/
+    2025-10-09.tsv         # Today's HTTP access logs
+    2025-10-08.tsv.gz
+```
+
+### TSV Format
+
+Each log entry is a single line with 4 tab-separated columns:
+
+```
+timestamp   level   message   context
+```
+
+Example:
+
+```
+1696886400  INFO    User logged in  {"user_id":42,"ip":"192.168.1.1"}
+1696886401  ERROR   Payment failed  {"order_id":123,"error":"Timeout"}
+```
+
+## Querying Logs
+
+### Python API
+
+```python
+from dbbasic_logs import log
+
+# Search for errors in last 7 days
+errors = log.search("ERROR", log_type='errors', days=7)
+for error in errors:
+    print(f"{error['timestamp']}: {error['message']}")
+    print(f"  Context: {error['context']}")
+
+# Find user activity (regex search)
+user_logs = log.search(r"user_id.*42", log_type='all', days=30)
+
+# Get recent logs
+recent = log.tail('app', lines=100)
+
+# Find slow requests
+slow_requests = log.search(r'duration.*[5-9]\.', log_type='access', days=1)
+```
+
+### Command Line (Unix Way)
+
+```bash
+# All errors today
+grep ERROR data/logs/app/2025-10-09.tsv
+
+# All errors last 7 days (including compressed)
+zgrep ERROR data/logs/app/2025-10-*.tsv*
+
+# Specific user activity
+zgrep 'user_id.*42' data/logs/app/*.tsv*
+
+# Count 500 errors
+grep "status.*500" data/logs/access/2025-10-09.tsv | wc -l
+
+# Slow requests (> 1 second)
+grep "duration.*[1-9]\." data/logs/access/2025-10-09.tsv
+
+# View logs with the included script
+./scripts/view-logs.sh tail app 100
+./scripts/view-logs.sh search ERROR app 7
+./scripts/view-logs.sh today errors
+./scripts/view-logs.sh errors 1
+```
+
+## Log Rotation & Compression
+
+The included rotation script automatically:
+- Compresses yesterday's logs (10:1 compression ratio)
+- Deletes old logs based on retention policy
+- Keeps errors longer than access logs
+
+### Setup Automatic Rotation
+
+```bash
+# Install to cron (runs daily)
+sudo cp scripts/rotate-logs.sh /etc/cron.daily/dbbasic-logs-rotate
+sudo chmod +x /etc/cron.daily/dbbasic-logs-rotate
+```
+
+### Manual Rotation
+
+```bash
+./scripts/rotate-logs.sh
+```
+
+### Custom Retention Policies
+
+```bash
+# Set custom retention (in days)
+export APP_RETENTION_DAYS=30      # App logs (default: 30)
+export ACCESS_RETENTION_DAYS=7    # Access logs (default: 30)
+export ERROR_RETENTION_DAYS=90    # Error logs (default: 90)
+
+./scripts/rotate-logs.sh
+```
+
+## Configuration
+
+### Custom Log Directory
+
+```python
+from dbbasic_logs import DBBasicLogger
+
+# Use custom directory
+logger = DBBasicLogger(log_dir='/var/log/myapp')
+logger.info("Custom location", app="myapp")
+```
+
+### Environment Variable
+
+```bash
+# Set globally via environment
+export LOG_DIR=/var/log/myapp
+
+# Now all logs go to /var/log/myapp
+python your_app.py
+```
+
+## Integration Examples
+
+### Flask Application
+
+```python
+from flask import Flask, request
+from dbbasic_logs import log
+import time
+
+app = Flask(__name__)
+
+@app.before_request
+def log_request_start():
+    request.start_time = time.time()
+
+@app.after_request
+def log_request_end(response):
+    duration = time.time() - request.start_time
+
+    log.access(
+        method=request.method,
+        path=request.path,
+        status=response.status_code,
+        duration=duration,
+        ip=request.remote_addr,
+        user_agent=request.user_agent.string
+    )
+
+    return response
+
+@app.route('/api/users/<user_id>')
+def get_user(user_id):
+    log.info("Fetching user", user_id=user_id, ip=request.remote_addr)
+
+    try:
+        user = User.get(user_id)
+        if not user:
+            log.warning("User not found", user_id=user_id)
+            return {"error": "Not found"}, 404
+
+        return user.to_dict()
+    except Exception as e:
+        log.exception("Error fetching user", user_id=user_id)
+        return {"error": "Internal error"}, 500
+```
+
+### Django Middleware
+
+```python
+from dbbasic_logs import log
+import time
+
+class LoggingMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        start_time = time.time()
+
+        response = self.get_response(request)
+
+        duration = time.time() - start_time
+        log.access(
+            method=request.method,
+            path=request.path,
+            status=response.status_code,
+            duration=duration,
+            ip=request.META.get('REMOTE_ADDR'),
+        )
+
+        return response
+```
+
+### Background Job Queue
+
+```python
+from dbbasic_logs import log
+
+def process_jobs(handlers):
+    jobs = get_pending_jobs()
+    log.info("Processing jobs", count=len(jobs))
+
+    for job in jobs:
+        try:
+            log.info("Starting job", job_id=job['id'], type=job['type'])
+            start = time.time()
+
+            result = handlers[job['type']](job['payload'])
+
+            duration = time.time() - start
+            log.info("Job completed", job_id=job['id'], duration=duration)
+        except Exception as e:
+            log.exception("Job failed", job_id=job['id'], type=job['type'])
+```
+
+## Performance
+
+### Benchmarks
+
+| Operation | Time | Notes |
+|-----------|------|-------|
+| Write log | 0.1ms | Append to file |
+| Search today | 0.5s | grep 10MB file |
+| Search compressed | 2s | zgrep 1MB file |
+| Tail recent | 0.01s | Read last N lines |
+
+### Storage
+
+| Daily Logs | Uncompressed | Compressed | 30 Days Total |
+|------------|--------------|------------|---------------|
+| Low traffic | 1MB | 100KB | 3MB |
+| Medium traffic | 10MB | 1MB | 30MB |
+| High traffic | 100MB | 10MB | 300MB |
+
+Even high-traffic sites: **< 1GB for 30 days of logs**
+
+## Comparison to Alternatives
+
+### vs. Sentry (Error Tracking SaaS)
+
+**Sentry**:
+- Setup: SDK integration, API keys
+- Cost: $29-$299/month
+- Features: Grouping, alerts, dashboards
+- Privacy: Sends errors to third-party
+
+**dbbasic-logs**:
+- Setup: Import and use
+- Cost: $0
+- Features: TSV storage, grep search
+- Privacy: All local
+
+### vs. Python logging + RotatingFileHandler
+
+**Python stdlib**:
+```python
+# 8 lines just for config
+import logging
+from logging.handlers import RotatingFileHandler
+
+handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=5)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger = logging.getLogger('app')
+logger.addHandler(handler)
+
+logger.info("User logged in", extra={'user_id': 42})  # Awkward
+```
+
+**dbbasic-logs**:
+```python
+from dbbasic_logs import log
+
+log.info("User logged in", user_id=42)  # Natural
+```
+
+### vs. ELK Stack
+
+**ELK**:
+- Setup: Docker compose with 3 services
+- Memory: 4GB+ RAM
+- Complexity: High
+
+**dbbasic-logs**:
+- Setup: Import
+- Memory: 0 (just files)
+- Complexity: Low
+
+## Design Principles
+
+1. **Foundational**: All other DBBasic modules use this
+2. **Simple**: One-line logging, no setup
+3. **Structured**: TSV format, queryable
+4. **Unix-Native**: Plain text, grep-able, compressible
+5. **Zero Config**: Works out of the box
+
+## Security & Privacy
+
+### What NOT to Log
+
+Never log sensitive data:
+```python
+# BAD - Don't do this
+log.info("User logged in", password=password)  # ❌
+log.info("Payment", credit_card=card_number)   # ❌
+
+# GOOD - Log safely
+log.info("User logged in", user_id=user.id)    # ✓
+log.info("Payment", order_id=order.id)         # ✓
+```
+
+### Log File Permissions
+
+Protect your logs:
+```bash
+# Restrict access to logs
+chmod 700 data/logs
+chmod 600 data/logs/*/*.tsv*
+```
+
+## Contributing
+
+This module is part of the DBBasic project. Contributions welcome!
+
+- GitHub: https://github.com/askrobots/dbbasic-logs
+- Documentation: https://dbbasic.com/logs-spec
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Credits
+
+Created as part of the [DBBasic](https://dbbasic.com) project - a collection of tiny, composable Python web framework modules.
+
+**Philosophy**: Keep it simple. Keep it readable. Keep it under 500 lines.
