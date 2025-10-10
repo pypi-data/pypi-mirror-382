@@ -1,0 +1,40 @@
+#!/bin/bash
+
+if [ "${DIB_DEBUG_TRACE:-0}" -gt 0 ]; then
+    set -x
+fi
+set -eu
+set -o pipefail
+
+rm -rf /tmp/ironic-python-agent
+# In Centos Stream, /lib is linked to /lib/firmware, so the first
+# loop will likely go ahead and remove everything, but the || true
+# below will keep it from erroring.
+KNOWN_FIRMWARE_PATH="/lib/firmware/ /usr/lib/firmware/"
+for folder in $KNOWN_FIRMWARE_PATH; do
+    for item in ${IPA_REMOVE_FIRMWARE//,/ }; do
+        # Attempt removal of item, but don't error
+        # if it is not present already.
+        rm -rf $folder$item || true
+    done
+done
+
+# TODO(dtantsur): implement the same for debian-based systems
+case "$DISTRO_NAME" in
+    fedora|centos|rhel)
+        ${YUM:-yum} remove -y postfix gcc make
+        # Remove webkit... Save ~26MB. This is a ramdisk, not a web browser.
+        ${YUM:-yum} remove -y webkit2gtk3-jsc libproxy-webkitgtk4 || true
+        # Remove polkit... Save ~23 MB. This is a ramdisk, not a desktop.
+        ${YUM:-yum} remove -y polkit polkit-libs PackageKit polkit-pkla-compat || true
+
+        ${YUM:-yum} clean all
+        # Rebuilding the rpm database after removing packages will reduce
+        # its size
+        rpm --rebuilddb
+        ;;
+esac
+
+# NOTE(TheJulia): remove any excess temporary files from /var/tmp
+# In particular, dracut may leave some items we don't need/want.
+rm -r -f /var/tmp/*

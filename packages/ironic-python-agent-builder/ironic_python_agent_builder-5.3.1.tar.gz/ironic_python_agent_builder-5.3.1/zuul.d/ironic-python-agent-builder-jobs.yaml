@@ -1,0 +1,152 @@
+- job:
+    name: ironic-python-agent-build-image-base
+    parent: publish-openstack-artifacts
+    nodeset: ubuntu-jammy
+    pre-run: playbooks/ironic-python-agent-build-image/pre.yaml
+    run: playbooks/ironic-python-agent-build-image/run.yaml
+    post-run:
+      - playbooks/ironic-python-agent-build-image/post.yaml
+      - playbooks/ironic-python-agent-build-image/extra-logs.yaml
+    timeout: 1800
+    required-projects:
+      - openstack/requirements
+      - openstack/ironic-python-agent
+      - openstack/ironic-python-agent-builder
+    vars:
+      ipa_raw_dir: '{{ ansible_user_dir }}/src/opendev.org/openstack/ironic-python-agent/UPLOAD_RAW'
+      ipa_tar_dir: '{{ ansible_user_dir }}/src/opendev.org/openstack/ironic-python-agent/UPLOAD_TAR'
+
+- job:
+    name: ironic-python-agent-build-image-tinyipa
+    parent: ironic-python-agent-build-image-base
+    vars:
+      image_type: 'tinyipa'
+
+- job:
+    name: ironic-python-agent-build-image-dib-centos9
+    parent: ironic-python-agent-build-image-base
+    required-projects:
+      - openstack/diskimage-builder
+    vars:
+      image_type: 'dib'
+      image_distro: 'centos'
+      image_release: '9-stream'
+      image_target_name: 'centos9'
+
+- job:
+    name: ironic-python-agent-build-image-dib-debian
+    parent: ironic-python-agent-build-image-base
+    required-projects:
+      - openstack/diskimage-builder
+    vars:
+      image_type: 'dib'
+      image_distro: 'debian-minimal'
+      image_release: 'bookworm'
+
+- job:
+    name: ironic-python-agent-check-image-base
+    parent: base
+    nodeset: ubuntu-jammy
+    pre-run: playbooks/ironic-python-agent-build-image/pre.yaml
+    run: playbooks/ironic-python-agent-build-image/run.yaml
+    post-run: playbooks/ironic-python-agent-build-image/extra-logs.yaml
+    timeout: 1800
+    required-projects:
+      - openstack/requirements
+      - openstack/ironic-python-agent
+      - openstack/ironic-python-agent-builder
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^doc/.*$
+      - ^releasenotes/.*$
+      - ^setup.cfg$
+      - ^tools/.*$
+      - ^tox.ini$
+    vars:
+      ipa_raw_dir: '{{ ansible_user_dir }}/src/opendev.org/openstack/ironic-python-agent/UPLOAD_RAW'
+      ipa_tar_dir: '{{ ansible_user_dir }}/src/opendev.org/openstack/ironic-python-agent/UPLOAD_TAR'
+
+- job:
+    name: ironic-python-agent-check-image-tinyipa
+    parent: ironic-python-agent-check-image-base
+    vars:
+      image_type: 'tinyipa'
+
+- job:
+    name: ironic-python-agent-check-image-dib-centos9
+    parent: ironic-python-agent-check-image-base
+    required-projects:
+      - openstack/diskimage-builder
+    vars:
+      image_type: 'dib'
+      image_distro: 'centos'
+      image_release: '9-stream'
+      image_target_name: centos9
+
+- job:
+    name: ironic-python-agent-check-image-dib-centos9-extra
+    parent: ironic-python-agent-check-image-dib-centos9
+    vars:
+      extra_elements: ["extra-hardware"]
+
+- job:
+    name: ironic-python-agent-check-image-dib-debian
+    parent: ironic-python-agent-check-image-base
+    required-projects:
+      - openstack/diskimage-builder
+    vars:
+      image_type: 'dib'
+      image_distro: 'debian-minimal'
+      image_release: 'bookworm'
+
+- job:
+    name: ironic-python-agent-check-image-dib-debian-bullseye
+    parent: ironic-python-agent-check-image-dib-debian
+    vars:
+      image_release: 'bullseye'
+
+- job:
+    name: ironic-python-agent-check-image-dib-debian-arm64
+    parent: ironic-python-agent-check-image-dib-debian
+    nodeset: debian-bullseye-arm64
+    vars:
+      image_target_name: debian-arm64
+
+- job:
+    name: ironic-python-agent-build-image-dib-debian-arm64
+    parent: ironic-python-agent-build-image-dib-debian
+    nodeset: debian-bullseye-arm64
+    vars:
+      image_target_name: debian-arm64
+
+- job:
+    name: ironic-python-agent-check-image-dib-debian-extra
+    parent: ironic-python-agent-check-image-dib-debian
+    vars:
+      extra_elements: ["extra-hardware"]
+
+- job:
+    name: ironic-python-agent-check-image-dib-ubuntu
+    parent: ironic-python-agent-check-image-base
+    required-projects:
+      - openstack/diskimage-builder
+    vars:
+      image_type: 'dib'
+      image_distro: 'ubuntu'
+      image_release: 'jammy'
+      dib_no_tmpfs: '1'
+
+- job:
+    name: ironic-python-agent-check-image-dib-ubuntu-arm64
+    parent: ironic-python-agent-check-image-dib-ubuntu
+    nodeset: ubuntu-jammy-arm64
+    vars:
+      image_target_name: ubuntu-arm64
+
+
+- job:
+    name: ironic-python-agent-builder-tox-codespell
+    parent: openstack-tox
+    timeout: 7200
+    vars:
+      tox_envlist: codespell

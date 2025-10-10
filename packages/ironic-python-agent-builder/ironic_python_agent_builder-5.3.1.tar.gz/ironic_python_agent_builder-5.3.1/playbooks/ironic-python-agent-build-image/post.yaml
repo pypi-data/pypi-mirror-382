@@ -1,0 +1,43 @@
+- hosts: all
+
+  tasks:
+
+    - name: Ensure artifacts directory exists
+      file:
+        path: '{{ zuul.executor.work_root }}/artifacts/{{ image_type }}/files'
+        state: directory
+      delegate_to: localhost
+
+    - name: Copy files from {{ ipa_raw_dir }} on node
+      synchronize:
+        src: '{{ ipa_raw_dir }}/'
+        dest: '{{ zuul.executor.work_root }}/artifacts/{{ image_type }}/files/'
+        mode: pull
+        copy_links: true
+        verify_host: true
+        rsync_opts:
+          - --include=/*
+          - --prune-empty-dirs
+
+    - name: Copy files from {{ ipa_tar_dir }} on node
+      synchronize:
+        src: '{{ ipa_tar_dir }}/'
+        dest: '{{ zuul.executor.work_root }}/artifacts/{{ image_type }}/'
+        mode: pull
+        copy_links: true
+        verify_host: true
+        rsync_opts:
+          - --include=/*
+          - --prune-empty-dirs
+
+    - name: Copy files from {{ ansible_user_dir }}/src/opendev.org/openstack/ironic-python-agent on node
+      synchronize:
+        src: '{{ ansible_user_dir }}/src/opendev.org/openstack/ironic-python-agent/'
+        dest: '{{ zuul.executor.log_root }}'
+        mode: pull
+        copy_links: true
+        verify_host: true
+        rsync_opts:
+          - --include=*/
+          - --exclude=*
+          - --prune-empty-dirs
