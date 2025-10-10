@@ -1,0 +1,71 @@
+#!/bin/bash
+
+PID_FILE="/tmp/snowpark_connect_server.pid"
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+
+start_server() {
+    if [ -f "$PID_FILE" ]; then
+        echo "Snowpark Connect session is already running."
+        exit 1
+    fi
+
+    nohup "$SCRIPT_DIR/snowpark-session" > /dev/null 2>&1 &
+    echo $! > "$PID_FILE"
+    echo "Snowpark Connect session started with PID $!"
+}
+
+stop_server() {
+    if [ ! -f "$PID_FILE" ]; then
+        echo "Snowpark Connect session is not running."
+        exit 1
+    fi
+
+    PID=$(<$PID_FILE)
+    if kill -9 "$PID" > /dev/null 2>&1; then
+        rm -f "$PID_FILE"
+        echo "Snowpark Connect session with PID $PID stopped."
+    else
+        echo "Failed to stop Snowpark Connect session with PID $PID."
+        rm -f "$PID_FILE"
+    fi
+}
+
+check_server() {
+    if [ ! -f "$PID_FILE" ]; then
+        echo "Snowpark Connect session is not running."
+        exit 1
+    fi
+
+    PID=$(cat "$PID_FILE")
+    if kill -0 "$PID" > /dev/null 2>&1; then
+        echo "Snowpark Connect session is running with PID $PID."
+    else
+        echo "Snowpark Connect session is not running."
+        rm -f "$PID_FILE"
+    fi
+}
+
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <start|stop|restart|check>"
+    exit 1
+fi
+
+case "$1" in
+    start)
+        start_server
+        ;;
+    stop)
+        stop_server
+        ;;
+    restart)
+        stop_server
+        start_server
+        ;;
+    check)
+        check_server
+        ;;
+    *)
+        echo "Unknown command. Use start, stop, restart, or check."
+        exit 1
+        ;;
+esac
