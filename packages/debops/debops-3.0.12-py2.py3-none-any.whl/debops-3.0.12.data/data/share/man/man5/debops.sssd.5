@@ -1,0 +1,312 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.SSSD" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.sssd \- Configure LDAP support for NSS and PAM lookups
+.SH SYNOPSIS
+.sp
+\fBdebops run service/sssd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBsssd\fP daemon, maintained by the \fI\%SSSD Project\fP <\fBhttps://sssd.io/\fP>, is a spinoff
+from the \fI\%FreeIPA Project\fP <\fBhttps://www.freeipa.org/\fP> and provides a modern take on venerable daemons
+such as \fI\%debops.nslcd\fP, \fI\%debops.nscd\fP and \fI\%unscd(1)\fP <\fBhttps://manpages.debian.org/unscd(1)\fP>\&. It is
+used to look up user, group or other information stored in a number of
+different databases, such as LDAP, Kerberos, FreeIPA, Active Directory, etc.
+It is needed if you want to use the \fBposixAccount\fP and \fBposixGroup\fP LDAP
+objects to authenticate to UNIX\-like hosts.
+.sp
+The \fBdebops.sssd\fP Ansible role can be used to configure the \fBsssd\fP
+service on a host and, via \fI\%debops.ldap\fP role, create a bind account in
+the LDAP directory used by \fBsssd\fP to perform LDAP lookups.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To enable the \fBsssd\fP service on a host, you need to add it to the
+\fB[debops_service_sssd]\fP Ansible inventory group. The host should also be
+configured with base LDAP support via the \fI\%debops.ldap\fP role (see its
+documentation for more details):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_ldap]
+hostname
+
+[debops_service_sssd]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A common case is configuration of LDAP authentication in the entire cluster of
+hosts. You can enable \fBdebops.sssd\fP role on all DebOps hosts in the
+Ansible inventory at once:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname1
+hostname2
+
+[debops_service_sssd:children]
+debops_all_hosts
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBsssd\fP service can also be installed and configured by other
+playbooks, for example \fBbootstrap\-sss.yml\fP\&. In such cases the custom
+playbook will configure the \fBsssd\fP service on a host, but the role
+playbook will not work on a host automatically; you will have to include that
+host in the \fB[debops_service_sssd]\fP Ansible inventory group via one of the
+methods above to be able to change the service configuration.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.sssd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# SPDX\-License\-Identifier: GPL\-3.0\-only
+
+\- name: Manage sssd service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_sssd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ sssd__ldap__dependent_tasks }}\(aq
+
+    \- role: sssd
+      tags: [ \(aqrole::sssd\(aq, \(aqskip::sssd\(aq ]
+
+    \- role: nsswitch
+      tags: [ \(aqrole::nsswitch\(aq, \(aqskip::nsswitch\(aq ]
+      nsswitch__dependent_services:
+        \- \(aq{{ sssd__nsswitch__dependent_services }}\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::sssd\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.sssd\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%sssd.conf(5)\fP <\fBhttps://manpages.debian.org/sssd.conf(5)\fP> (and subsystem man pages such as
+\fI\%sssd\-ldap(5)\fP <\fBhttps://manpages.debian.org/sssd-ldap(5)\fP> and \fI\%sssd\-krb5(5)\fP <\fBhttps://manpages.debian.org/sssd-krb5(5)\fP>)
+.IP \(bu 2
+The website of the \fI\%SSSD Project\fP <\fBhttps://sssd.io/\fP>
+.IP \(bu 2
+LDAP support in DebOps: \fI\%client\-side\fP, \fI\%server\-side\fP
+.IP \(bu 2
+\fI\%Configuring SSSD\fP <\fBhttps://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system-level_authentication_guide/sssd\fP> in the Red Hat Enterprise Linux 7 Guide
+.IP \(bu 2
+\fI\%Understanding SSSD\fP <\fBhttps://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/configuring_authentication_and_authorization_in_rhel/understanding-sssd-and-its-benefits_configuring-authentication-and-authorization-in-rhel\fP> in the Red Hat Enterprise Linux 8 Guide
+.IP \(bu 2
+\fI\%LDAP authentication\fP <\fBhttps://wiki.archlinux.org/index.php/LDAP_authentication\fP> documentation in the Arch Wiki
+.IP \(bu 2
+\fI\%Debian LDAP Portal\fP <\fBhttps://wiki.debian.org/LDAP\fP> page in the Debian Wiki
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.sssd\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS sssd__configuration
+.sp
+The \fBsssd__*_configuration\fP variables define the contents of the
+\fB/etc/sssd/sssd.conf\fP configuration file. The variables are merged in
+the order defined by the \fI\%sssd__combined_configuration\fP variable, which
+allows modification of the default configuration through the Ansible inventory.
+See \fI\%sssd.conf(5)\fP <\fBhttps://manpages.debian.org/sssd.conf(5)\fP> and the service\-specific man pages (e.g.
+\fI\%sssd\-ldap(5)\fP <\fBhttps://manpages.debian.org/sssd-ldap(5)\fP>, \fI\%sssd\-krb5(5)\fP <\fBhttps://manpages.debian.org/sssd-krb5(5)\fP> or \fI\%sssd\-sudo(5)\fP <\fBhttps://manpages.debian.org/sssd-sudo(5)\fP>) for possible
+configuration parameters and their values.
+.SS Examples
+.sp
+See \fI\%sssd__default_configuration\fP variable for an example of
+existing configuration.
+.sp
+Enable debugging for the \fBnss\fP and \fBpam\fP subsystems:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sssd__configuration:
+
+  \- section: \(aqnss\(aq
+    options:
+      \- debug_level: \(aq0x0770\(aq
+
+  \- section: \(aqpam\(aq
+    options:
+      \- debug_level: \(aq0x0770\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Enable enumeration (which means that \fBsssd\fP will download and cache all
+users and groups from the LDAP server preemptively). This means that users
+and groups will still be available in case of network outages, etc, but
+enumeration is not suitable for large environments:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sssd__configuration:
+
+  \- section: \(aqdomain/default\(aq
+    options:
+
+      \- name: \(aqenumerate\(aq
+        value: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The variables contain a list of YAML dictionaries, each dictionary can have
+the following parameters:
+.INDENT 0.0
+.TP
+.B \fBsection\fP
+Required. Name of the \fI\%sssd.conf(5)\fP <\fBhttps://manpages.debian.org/sssd.conf(5)\fP> configuration section in which
+a given configuration option should be included. This parameter is used as an
+\(dqanchor\(dq, configuration entries with the same \fBsection\fP are combined
+together and affect each other in order of appearance.
+.TP
+.B \fBtitle\fP
+Optional. This parameter can be used to provide a short description
+of the section which will be included in the generated configuration file.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given section will be included
+in the generated configuration file. If \fBabsent\fP, the section will not be
+included in the file. If \fBignore\fP, a given configuration entry will not be
+evaluated during role execution. If \fBhidden\fP, the section\(aqs header and title
+will be hidden in the generated configuration file.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which can be used to affect the order
+of sections in the generated configuration file. Positive numbers add more
+\(dqweight\(dq to the section making it appear \(dqlower\(dq in the file; negative
+numbers subtract the \(dqweight\(dq and therefore move the section upper in the
+file.
+.TP
+.B \fBoptions\fP
+Required. A list of \fBsssd\fP configuration options for a given
+section. The \fBoptions\fP parameters from configuration entries with the same
+\fBsection\fP parameter are merged together in order of appearance and can
+affect each other.
+.sp
+The options can be specified in a simple form as key/value pairs, where the
+key is the option name and value is the option value. Alternatively, if the
+\fBname\fP and \fBvalue\fP parameters are used, the entries can use an extended
+format with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. The name of a given \fI\%sssd.conf(5)\fP <\fBhttps://manpages.debian.org/sssd.conf(5)\fP> configuration option
+for a given \fBsection\fP\&. Options with the same \fBsection\fP and \fBname\fP
+will be merged in order of appearance.
+.TP
+.B \fBvalue\fP
+Required. The value of a given configuration option. It can be either
+a string, a boolean, a number, or a YAML list (elements will be joined with
+commas).
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block which will be included in the
+configuration file \(dqas is\(dq. If this parameter is specified, the \fBname\fP
+and \fBvalue\fP parameters are ignored \- you need to specify the
+entire line(s) with configuration option names as well.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given configuration option or
+section will be included in the generated configuration file. If \fBabsent\fP,
+\fBignore\fP or \fBinit\fP, a given configuration option or section will not be
+included in the generated file. If \fBcomment\fP, the option will be included
+but commented out and inactive.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block that contains comments about a given
+configuration option.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, David Härdeman
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

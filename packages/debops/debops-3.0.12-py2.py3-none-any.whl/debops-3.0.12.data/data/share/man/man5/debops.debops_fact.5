@@ -1,0 +1,153 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DEBOPS_FACT" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.debops_fact \- Manage Ansible local facts for other roles
+.SH SYNOPSIS
+.sp
+\fBdebops run service/debops_fact\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.debops_fact\fP Ansible role can be used to read JSON data from
+a set of INI configuration files and make them available as Ansible local
+facts. This mechanism can be used to maintain common facts between separate
+Ansible roles without the need for them to know about the specific file
+structures, using \fBini_file\fP Ansible module.
+.SH GETTING STARTED
+.SS Reading custom facts
+.sp
+The \fBdebops.debops_fact\fP role uses two INI files to store the custom facts,
+one \(dqpublic\(dq and readable by every user on the system, and one \(dqprivate\(dq and
+readable only by specific system group (\fBroot\fP by default). Contents of the
+files are merged into one variable tree. There are three types of facts
+managed by the role, stored in different INI sections.
+.sp
+The \fB[default]\fP section, available through Ansible local facts as
+\fBansible_local.debops_fact.*\fP, can be used to store top\-level variables. Keep
+in mind that some of the variables on this level are reserved for the
+\fBdebops.debops_fact\fP role itself and shouldn\(aqt be modified by other roles.
+Both public and private INI files contain this section.
+.sp
+The \fB[global]\fP section is stored in the public INI file and can be accessed
+as \fBansible_local.debops_fact.global.*\fP\&.
+.sp
+The \fB[secret]\fP section is stored in the private INI file with limited access
+controlled by UNIX permissions, and can be accessed as
+\fBansible_local.debops_fact.secret.*\fP\&.
+.SS Setting custom facts
+.sp
+You can use the \fBini_file\fP Ansible module to set custom DebOps facts. The
+role provides a set of local facts which can be used as the module parameters
+to store the variables in the correct files. The values are read as JSON,
+therefore you can use \fBto_json\fP Ansible filter to correctly store more
+complex data structures in the INI files. You shouldn\(aqt modify the file
+ownership or permissions using the module parameters.
+.SS Examples
+.sp
+Set a variable in the \fB[default]\fP section of the public INI file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Save DebOps facts
+  ini_file:
+    dest: \(aq{{ ansible_local.debops_fact.public_facts|d(\(dq/etc/ansible/debops_fact.ini\(dq) }}\(aq
+    section: \(aq{{ ansible_local.debops_fact.default_section|d(\(dqdefault\(dq) }}\(aq
+    option: \(aqmta\(aq
+    value: True
+  when: ansible_local|d() and ansible_local.debops_fact|d() and
+        ansible_local.debops_fact.enabled|bool
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add your role to list of roles applied on this host:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\- name: Save DebOps facts
+  ini_file:
+    dest: \(aq{{ ansible_local.debops_fact.public_facts|d(\(dq/etc/ansible/debops_fact.ini\(dq) }}\(aq
+    section: \(aq{{ ansible_local.debops_fact.public_section|d(\(dqglobal\(dq) }}\(aq
+    option: \(aqapplied_roles\(aq
+    value: \(aq{{ ((ansible_local.debops_fact.global.applied_roles
+                 if (ansible_local.debops_fact.global|d() and
+                     ansible_local.debops_fact.global.applied_roles|d())
+                 else []) + [ \(dqusername.rolename\(dq ]) | unique | to_json }}\(aq
+  when: ansible_local|d() and ansible_local.debops_fact|d() and
+        ansible_local.debops_fact.enabled|bool
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example inventory
+.sp
+The \fBdebops.debops_fact\fP role is included in the \fBcommon.yml\fP DebOps
+playbook and doesn\(aqt need to be specifically enabled on a host.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.debops_fact\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Ansible local facts for other roles
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_debops_fact\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: debops_fact
+      tags: [ \(aqrole::debops_fact\(aq, \(aqskip::debops_fact\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,701 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.OPENDKIM" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.opendkim \- Manage OpenDKIM service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/opendkim\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%DomainKeys Identified Mail\fP <\fBhttps://en.wikipedia.org/wiki/DomainKeys_Identified_Mail\fP>
+(DKIM) standard can be used by organizations to automatically sign and verify
+e\-mail messages sent by their SMTP server(s). Other organizations can verify
+signed messages using public keys retrieved from the DNS database; the
+signature validity can then be used to classify e\-mail messages as wanted or
+not.
+.sp
+The \fI\%OpenDKIM\fP <\fBhttp://opendkim.org/\fP> library implements DKIM in the form of
+a Sendmail milter service, which can be used by SMTP servers. You can use the
+\fBdebops.opendkim\fP Ansible role to configure the OpenDKIM service on one or
+multiple hosts. If \fI\%debops.postfix\fP role is used together with this one,
+Postfix can be automatically configured to sign and verify e\-mail messages.
+.SH GETTING STARTED
+.SS Default DKIM configuration
+.sp
+The role by default will create a DomainKey for the host\(aqs DNS domain, which
+will use a \fBmail\fP DKIM selector. The private key can be found in the
+\fBsecret/opendkim/domainkeys/\fP directory on the Ansible Controller (as
+well as on the remote hosts). Using the installed script in the
+\fIsecret/opendkim/lib/\fP directory you can extract the public key in the form of
+a DNS TXT record and place it in your DNS zone.
+.sp
+OpenDKIM will be configured to sign mail messages from \fBlocalhost\fP and the
+host\(aqs FQDN. Messages sent from the host\(aqs own DNS domain, as well as any
+messages from the subdomains will be signed by default.
+.SS Support for Unbound DNS resolver
+.sp
+The \fBdebops.opendkim\fP role checks if the Unbound service has been installed
+on a given host, by checking for the Ansible local facts defined by the
+\fBdebops.unbound\fP role. If Unbound is present, OpenDKIM will automatically use
+it to resolve DNS queries and check DNSSEC validity.
+.SS Postfix integration
+.sp
+If the \fBdebops.opendkim\fP role detects an installed Postfix instance by
+checking the Ansible local facts created by the \fI\%debops.postfix\fP Ansible role,
+Postfix support will be enabled automatically.
+.sp
+OpenDKIM will be reconfigured to create its listening socket in
+\fB/var/spool/postfix/opendkim/\fP directory.  This directory is created with
+SGID bit set, and its group is set to the Postfix main group, so that the
+socket created by OpenDKIM will be automatically accessible by Postfix.
+.sp
+The \fBdebops.opendkim\fP role will add Postfix \fBmain.cf\fP configuration
+options using the \fI\%debops.postfix\fP dependent role variables. OpenDKIM filter
+will be added to the \fBsmtpd_milters\fP as well as \fBnon_smtpd_milters\fP
+configuration options.
+.SS Example inventory
+.sp
+The install and configure OpenDKIM on a host, it needs to be present in the
+\fB[debops_service_opendkim]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_opendkim]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.opendkim\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage OpenDKIM service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_opendkim\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare opendkim environment
+      import_role:
+        name: \(aqopendkim\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::opendkim\(aq, \(aqrole::secret\(aq ]
+
+    \- name: Prepare postfix environment
+      import_role:
+        name: \(aqpostfix\(aq
+        tasks_from: \(aqmain_env\(aq
+      vars:
+        postfix__dependent_maincf:
+          \- role: \(aqopendkim\(aq
+            config: \(aq{{ opendkim__postfix__dependent_maincf }}\(aq
+      when: opendkim__postfix_integration|bool
+      tags: [ \(aqrole::postfix\(aq, \(aqrole::secret\(aq, \(aqrole::ferm\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::opendkim\(aq, \(aqrole::postfix\(aq ]
+      secret__directories:
+        \- \(aq{{ postfix__secret__directories  | d([]) }}\(aq
+        \- \(aq{{ opendkim__secret__directories | d([]) }}\(aq
+
+    \- role: postfix
+      tags: [ \(aqrole::postfix\(aq, \(aqskip::postfix\(aq ]
+      postfix__dependent_maincf:
+        \- role: \(aqopendkim\(aq
+          config: \(aq{{ opendkim__postfix__dependent_maincf }}\(aq
+      when: opendkim__postfix_integration|bool
+
+    \- role: opendkim
+      tags: [ \(aqrole::opendkim\(aq, \(aqskip::opendkim\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::opendkim\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+some of \fBdebops.opendkim\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS opendkim__config
+.sp
+Configuration of the \fBopendkim__*_config\fP variables is described in a separate
+document, \fI\%Default variable details: opendkim__config\fP\&.
+.SS opendkim__keys
+.sp
+The \fBopendkim__*_keys\fP variables define what DomainKeys are created and used
+by OpenDKIM. The private keys are generated on the Ansible Controller, stored in
+the \fBsecret/opendkim/domainkeys/\fP directory (see \fI\%debops.secret\fP role
+for details) and copied to the remote hosts. The role can install the same
+private key on multiple hosts, which can be useful in environments with multiple
+SMTP servers handling the same domains.
+.sp
+You can use the \fBsecret/opendkim/lib/extract\-domainkey\-zone\fP Bash script
+to get the DomainKey public keys which then need to be configured in your DNS
+zone.
+.sp
+Each list element is either a string that represents the DomainKey selector for
+the current host domain, or a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP or \fBselector\fP
+Required. The DomainKey selector used for this DomainKey.
+.TP
+.B \fBdomain\fP
+Optional. The DNS domain which will use this DomainKey. If not specified,
+\fI\%opendkim__domain\fP will be used by default.
+.TP
+.B \fBregenerate\fP
+Optional, supported since Ansible 2.10. Value passed to \fBregenerate\fP
+parameter of \fBopenssl_privatekey\fP module. It should be set to \fBnever\fP or
+\fBfail\fP when keys are managed externally. If not specified it is set to
+\fBfull_idempotence\fP\&.
+.TP
+.B \fBsize\fP
+Optional. The size of the autogenerated RSA private key. If not specified,
+\fI\%opendkim__default_key_size\fP will be used.
+.TP
+.B \fBtype\fP
+Optional. The private key style (\fBrsa\fP or \fBdsa\fP) which should be generated
+by the \fBopenssl\fP command. Currently only \fBrsa\fP makes sense.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, the key will be generated on the
+Ansible Controller and copied to the remote hosts. If \fBabsent\fP, key still
+will be generated, but it will be not copied, and existing private key will
+be removed from the remote hosts.
+.UNINDENT
+.SS Examples
+.sp
+Create two DomainKeys for the current domain:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__keys:
+
+  \- \(aqselector1\(aq
+  \- \(aqselector2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+They will be placed in the DNS database as:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+selector1._domainkey.example.com
+selector2._domainkey.example.com
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create a DomainKey for a different domain:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__keys:
+
+  \- name: \(aqmail\(aq
+    domain: \(aqexample.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS opendkim__signing_table
+.sp
+The \fBopendkim__*_signing_table\fP variables define a mapping between the
+contents of the \fBFrom:\fP header field in a mail message and the DomainKey used
+to sign the message. The format of the \fBFrom:\fP header interpreted by OpenDKIM
+depends on the type of the table used (see \fI\%opendkim.conf(5)\fP <\fBhttps://manpages.debian.org/opendkim.conf(5)\fP>). The
+role by default maps the entire domain, without specifying any users.
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP or \fBselector\fP
+Required. Specify the DomainKey selector to use for a given signing table
+entry.
+.TP
+.B \fBfrom\fP
+Required. Specify the contents of the \fBFrom:\fP header used to lookup the
+DomainKey. By default you should use only domain names here, otherwise you
+need to reconfigure the \fBSigningTable\fP configuration option. See
+\fI\%opendkim.conf(5)\fP <\fBhttps://manpages.debian.org/opendkim.conf(5)\fP> for details.
+.TP
+.B \fBdomain\fP
+Optional. The DNS domain used to lookup the DomainKey for a given signing
+table entry. If not specified, the \fI\%opendkim__domain\fP value is used
+by default.
+.TP
+.B \fBsubdomains\fP
+Optional, boolean. If \fBTrue\fP, the \fBfrom\fP value will be added again with
+a leading dot (\fB\&.\fP), which signifies that subdomains of a given domain
+should also be signed. By default subdomains are not signed.
+.TP
+.B \fBstate\fP
+Optional. if not specified or \fBpresent\fP, a given entry will be included in
+the signing table. If \fBabsent\fP, a given entry will not be included in the
+configuration.
+.UNINDENT
+.SS Examples
+.sp
+Sign mails from a given domain and its subdomains with the default DomainKey:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__signing_table:
+
+  \- name: \(aqmail\(aq
+    from: \(aqexample.org\(aq
+    domain: \(aq{{ ansible_domain }}\(aq
+    subdomains: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS opendkim__trusted_hosts
+.sp
+The \fBopendkim__*_trusted_hosts\fP variables are YAML lists which contain IP
+addresses, CIDR subnets and hostnames of \(dqtrusted hosts\(dq. These hosts will be
+stored in the \fB/etc/opendkim/dkimkeys/TrustedHosts\fP file which is by
+default used in the OpenDKIM configuration by the \fBInternalHosts\fP and
+\fBExternalIgnoreList\fP options. Mail messages from these hosts will be
+automatically signed rather than verified by OpenDKIM.
+.SS Examples
+.sp
+Trust localhost and a given subnet:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__trusted_hosts:
+
+  \- \(aqlocalhost\(aq
+  \- \(aq127.0.0.1\(aq
+  \- \(aq::1\(aq
+  \- \(aq192.0.2.0/24\(aq
+  \- \(aq2001:db8::/32\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS: OPENDKIM__CONFIG
+.sp
+The \fBopendkim__*_config\fP variables are used to define the contents of the
+\fB/etc/opendkim.conf\fP configuration file. The variables are YAML lists,
+concatenated together into \fI\%opendkim__combined_config\fP variable, which
+is passed to the configuration template.
+.sp
+Each list entry is a YAML dictionary, which can be written in a simple or
+complex form. Entries that control OpenDKIM parameters of the same name will be
+combined together in order of appearance.
+.SS Simple form of the configuration parameters
+.sp
+Simple form of the OpenDKIM configuration uses the dictionary key as a option
+name, and its value as that option\(aqs parameters:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__config:
+
+  # Option with boolean value
+  \- Syslog: True
+
+  # Option with integer value
+  \- AutoRestartCount: 0
+
+  # Option with string value
+  \- Domain: \(aqexample.com\(aq
+
+  # Option with multiple values in a list
+  \- OversignHeaders: [ \(aqHeader1\(aq, \(aqHeader2\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/opendkim.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+Syslog              yes
+AutoRestartCount    0
+Domain              example.com
+OversignHeaders     Header1,Header2
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The parameters in the configuration file will be present in the order they were
+first defined in the variables.
+.SS Complex form of the configuration parameters
+.sp
+Complex form of the OpenDKIM configuration is detected when a dictionary key
+contains a \fBname\fP parameter. In that case, the role will interpret the entry
+using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+The name of the configuration option to manage. This parameter is used as an
+identifier during the variable parsing.
+.TP
+.B \fBvalue\fP
+Required. A value which should be set for a given option. Values can be YAML
+strings, integers, booleans and lists (not dictionaries). Lists can contain
+simple strings, numbers, or YAML dictionaries that describe each value in
+greater detail. See \fI\%Configuration values and their interactions\fP for more details.
+.TP
+.B \fBoption\fP
+Optional. If specified, the option will use this string as the \(dqname\(dq instead
+of the \fBname\fP value. This is useful to create examples in the configuration
+file that have the same name as existing configuration options.
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML dictionary with additional comments for a given
+configuration option.
+.TP
+.B \fBseparator\fP
+Optional, boolean. if \fBTrue\fP, an empty line will be added above a given
+option, useful for readability.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the option will be present in the
+finished configuration file.
+.sp
+If \fBabsent\fP, the option will not be included in the configuration file.
+.sp
+If \fBignore\fP, the given entry will not be evaluated by the role, and no
+changes will be done to the preceding parameters with the same name. This can
+be used to conditionally activate entries with different configuration.
+.sp
+If \fBhidden\fP, the option will not be displayed in the configuration file,
+but any comments will be present. This can be used to add free\-form comments
+in the Postfix configuration file.
+.sp
+If \fBcomment\fP, the option will be present, but it will be commented out.
+This can be used to add examples in the configuration file.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which affects the position of a given
+option in the configuration file. The higher the number, the more a given
+option \(dqweighs\(dq and the lower it will be placed in the finished configuration
+file. Negative numbers make the option \(dqlighter\(dq and it will be placed
+higher.
+.TP
+.B \fBcopy_id_from\fP
+Optional. This is an internal role parameter which can be used to change the
+relative position of a given option in the configuration file. If you specify
+a name of an option, it\(aqs internal \(dqid\(dq number (used for sorting) will be
+copied to the current option. This can be used to move options around to
+different configuration file sections.
+.UNINDENT
+.SS Examples
+.sp
+Define the previous example using complex form:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__config:
+
+  \- name: \(aqSyslog\(aq
+    comment: \(aqLog to syslog\(aq
+    value: True
+
+  \- name: \(aqAutoRestartCount\(aq
+    value: 0
+
+  \- name: \(aqDomain\(aq
+    value: \(aqexample.com\(aq
+
+  \- name: \(aqOversignHeaders\(aq
+    value: [ \(aqHeader1\(aq, \(aqHeader2\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/postfix/main.cf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Log to syslog
+Syslog              yes
+
+AutoRestartCount    0
+Domain              example.com
+OversignHeaders     Header1,Header2
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The parameters in the configuration file will be present in the order they were
+first defined in the variables, unless the \fBweight\fP parameter is added, which
+will change the order.
+.SS Configuration values and their interactions
+.sp
+The \fI\%OpenDKIM configuration file\fP <\fBhttp://opendkim.org/opendkim.conf.5.html\fP>
+uses key\-value format, with values being either strings, numbers, booleans or
+lists. The first three types are handled by the \fBdebops.opendkim\fP role as
+normal.
+.sp
+List values are by default concatenated to allow easy extension of existing
+values. The values in a list are either YAML strings, numbers, or can be
+defined as YAML dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP or \fBparam\fP
+Required. The value itself, usually a string.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, the value will be included in the
+list.
+.sp
+If \fBabsent\fP, the value will be removed from the list.
+.sp
+If \fBignore\fP, the given entry will not be evaluated by the role, and will
+not change the state of the value. This can be used to enable or disable
+values conditionally.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which affects the position of a given
+value in the list. The higher the number, the more a given value \(dqweighs\(dq and
+the lower it will be placed in the finished list. Negative numbers make the
+value \(dqlighter\(dq and it will be placed higher.
+.UNINDENT
+.SS Example list
+.sp
+Define a list with conditional values:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__config:
+
+  \- name: \(aqOversignHeaders\(aq
+    value:
+
+      \- \(aqFrom\(aq
+
+      \- name: \(aqTo\(aq
+        state: \(aq{{ \(dqpresent\(dq
+                   if (ansible_domain.split(\(dq.\(dq)|count > 1)
+                   else \(dqignore\(dq }}\(aq
+
+      \- name: \(aqSubject\(aq
+        weight: 100
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Base value replacement
+.sp
+Repeating the string, number or boolean option will result in the latter entry
+replacing the former entry:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__config:
+
+  # Old value
+  \- Domain: \(aqexample.com\(aq
+
+  # New, active value
+  \- Domain: \(aqexample.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/opendkim.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+Domain          example.org
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Lists are merged together
+.sp
+The list parameters behave differently. Specifying the same option multiple
+times, if the preceding option was a list, will add the specified parameters to
+the list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__config:
+
+  \- InternalHosts: [ \(aq127.0.0.1\(aq, \(aqlocalhost\(aq ]
+
+  \- InternalHosts: [ \(aq192.0.2.1\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/opendkim.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+InternalHosts          127.0.0.1,localhost,192.0.2.1
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS How to reset a list
+.sp
+If the option was a list, and subsequent option specified a boolean, string or
+a number, the value will replace the previous one, instead of adding to a list.
+This can be used to reset the list instead of appending to it.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__config:
+
+  \- InternalHosts: [ \(aq127.0.0.1\(aq, \(aq::1\(aq ]
+
+  \- Internalhosts: \(aqlocalhost\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/opendkim.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+InternalHosts          localhost
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Lists don\(aqt add duplicates
+.sp
+The role checks if a given list element is already present, and it won\(aqt add
+a duplicate value to the list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+opendkim__config:
+
+  \- Domain: [ \(aqexample.org\(aq, \(aqlocalhost\(aq ]
+
+  \- Domain: [ \(aqexample.org\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/opendkim.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+Domain           example.org,localhost
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

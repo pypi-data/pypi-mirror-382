@@ -1,0 +1,478 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.MOUNT" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.mount \- Manage local device and bind mounts using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/mount\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.mount\fP Ansible role can be used to manage local filesystem mounts
+as well as bind mounts in the \fB/etc/fstab\fP database. Custom directories
+can also be created by this role, with support for normal as well as ACL
+attributes.
+.sp
+This role is meant to be used to configure local filesystems, for remote
+filesystems, you can use the \fI\%debops.nfs\fP role instead, which will
+configure the NFS client service.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The \fBdebops.mount\fP role is included by default in the DebOps \fBcommon.yml\fP
+playbook and does not need to be explicitly enabled. It can be disabled if
+needed, by setting the \fI\%mount__enabled\fP boolean variable to \fBFalse\fP
+in the Ansible inventory.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.mount\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage local device and bind mounts
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_mount\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: mount
+      tags: [ \(aqrole::mount\(aq, \(aqskip::mount\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::mount\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.mount\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%fstab(5)\fP <\fBhttps://manpages.debian.org/fstab(5)\fP>, \fI\%systemd.mount(5)\fP <\fBhttps://manpages.debian.org/systemd.mount(5)\fP>,
+\fI\%systemd.automount(5)\fP <\fBhttps://manpages.debian.org/systemd.automount(5)\fP>
+.IP \(bu 2
+\fI\%Ansible ansible.posix.mount module\fP <\fBhttps://docs.ansible.com/ansible/latest/collections/ansible/posix/mount_module.html\fP> documentation
+.IP \(bu 2
+\fI\%Debian Wiki: fstab\fP <\fBhttps://wiki.debian.org/fstab\fP>
+.IP \(bu 2
+\fI\%Arch Linux Wiki: fstab\fP <\fBhttps://wiki.archlinux.org/index.php/Fstab\fP>
+.IP \(bu 2
+\fI\%StackExchange: What is a bind mount?\fP <\fBhttps://unix.stackexchange.com/a/198591\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.mount\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS mount__devices
+.sp
+The \fBmount__*_devices\fP variables define a list of YAML dictionaries that
+configure local device mounts. They can be used to configure any mount type,
+however remote devices should be avoided (the role is executed early in the
+DebOps \fBcommon.yml\fP playbook, when network configuration might not be
+finished), and bind mounts have their own set of variables and a separate task
+to allow creation of source directories.
+.sp
+The role does not create new filesystems, the devices configured by it should
+have their own filesystems configured and formatted beforehand.
+.SS Examples
+.sp
+Create an \fB/etc/fstab\fP entry for a disk drive that\(aqs not mounted on boot,
+with specific filesystem type:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mount__devices:
+
+  \- name: \(aq/media/backups\(aq
+    src: \(aq/dev/sdb1\(aq
+    fstype: \(aqext4\(aq
+    opts: \(aqdefaults,noauto,nofail\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create an automount entry for an USB drive using \fBsystemd\fP automount
+functionality (you can find its UUID with \fBlsblk \-f\fP command):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mount__devices:
+
+  \- name: \(aq/media/USB_Stick\(aq
+    src: \(aqUUID=aaaaaaaa\-bbbb\-cccc\-dddd\-eeeeeeeeeeee\(aq
+    opts: [ \(aqdefaults\(aq, \(aqnoauto\(aq, \(aqnofail\(aq, \(aqx\-systemd.automount\(aq,
+            \(aqx\-systemd.idle\-timeout=2\(aq, \(aqx\-systemd.device\-timeout=2\(aq,
+            \(aqx\-systemd.mount\-timeout=2\(aq ]
+
+    # Without this, Ansible tries to mount the drive right away which
+    # results in an error
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each \fBmount__*_devices\fP list entry is a YAML dictionary with specific
+parameters. Most of the parameters are the same as the Ansible \fBmount\fP
+module:
+.INDENT 0.0
+.TP
+.B \fBsrc\fP
+Required. A device name which will be mounted at a given path. It can be
+a block device file in \fB/dev\fP directory, or a label, or device UUID.
+See \fI\%fstab(5)\fP <\fBhttps://manpages.debian.org/fstab(5)\fP> manual page, first field description for more details.
+.TP
+.B \fBpath\fP / \fBdest\fP / \fBname\fP
+Required. Absolute path in the filesystem where a given device will be
+mounted.
+.TP
+.B \fBfstype\fP
+Optional. Specify the filesystem type to use with a given device. If not
+specified, \fBauto\fP will be used to perform autodetection.
+.TP
+.B \fBopts\fP
+Optional. String (comma\-delimited) or YAML list of options for a given mount
+point. If not specified, \fBdefaults\fP will be used instead.
+.TP
+.B \fBdump\fP
+Optional. This field determines which filesystems should be backed up by the
+\fI\%dump(8)\fP <\fBhttps://manpages.debian.org/dump(8)\fP> command. If not specified, \fB0\fP is set by default.
+.TP
+.B \fBpassno\fP
+Optional. This field determines the order of the filesystem checks on boot
+done by the \fI\%fsck(8)\fP <\fBhttps://manpages.debian.org/fsck(8)\fP> command. The root filesystem should be it set to
+\fB1\fP, other filesystems should be set to \fB2\fP\&. If not specified, it
+defaults to \fB0\fP, which disables filesystem checks on boot.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBmounted\fP, the device entry will be added to
+the \fB/etc/fstab\fP database and it will be automatically mounted.
+Unmounted devices will be mounted again. If the mount point directory is not
+present, it will be automatically created.
+.sp
+If \fBpresent\fP, the device entry will be added to \fB/etc/fstab\fP, but
+Ansible will not try to mount it right away (preferable for automounted
+devices). Already mounted devices will not be changed.
+.sp
+If \fBunmounted\fP, Ansible will try and unmount the already mounted device.
+The \fB/etc/fstab\fP database will not be changed, however missing entries
+will be added.
+.sp
+If \fBabsent\fP, the mounted device will be unmounted, and the
+\fB/etc/fstab\fP database entry, along with the mount point directory, will
+be removed.
+.TP
+.B \fBfstab\fP
+Optional. Absolute path of the alternative \fI\%fstab(5)\fP <\fBhttps://manpages.debian.org/fstab(5)\fP> database to use
+instead of the default \fB/etc/fstab\fP database.
+.UNINDENT
+.sp
+Additional parameters control functions outside of the Ansible \fBmount\fP
+module:
+.INDENT 0.0
+.TP
+.B \fBdevice\fP
+Optional. The role creates the required mount points by itself instead of
+letting the Ansible \fBmount\fP module do it; this allows for fine\-grained
+control over initial mount point attributes. The task that creates the mount
+points is not executed when they are actually mounted \- the role checks if
+the \fBsrc\fP parameter is present in the \fBansible_mounts\fP fact entries as
+the \fBdevice\fP dictionary key.
+.sp
+In case that the \fBsrc\fP parameter and the expected \fBdevice\fP dictionary key
+are different, you can set the \fBdevice\fP parameter to override the check.
+.TP
+.B \fBowner\fP
+Optional. Specify the UNIX account that will be the owner of the initial
+mount point, before the device is mounted. If not specified, \fBroot\fP will be
+the owner.
+.TP
+.B \fBgroup\fP
+Optional. Specify the UNIX group that will be the group of the initial mount
+point, before the device is mounted. If not specified, the value of \fBowner\fP
+is used, otherwise \fBroot\fP will be the group.
+.TP
+.B \fBmode\fP
+Optional. Specify the UNIX permissions that will be applied to the initial
+mount point, before the device is mounted. If not specified, \fB0755\fP will be
+set by default.
+.UNINDENT
+.SS mount__directories
+.sp
+The \fBmount__*_directories\fP variables are list of YAML dictionaries, each
+entry defining a directory in the filesystem, with optional attributes.  These
+variables can be used to create, modify or remove directories in the
+filesystems after they are mounted.
+.SS Examples
+.sp
+Create a directory owned by root on the mounted filesystem:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mount__directories:
+
+  \- path: \(aq/media/USB_Stick/Private\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create directory for data sharing between unprivileged LXC containers. This
+assumes that the unprivileged LXC containers are started by \fBroot\fP and use
+subUID/subGID range defined by the \fI\%debops.root_account\fP Ansible role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mount__directories:
+
+  \- path: \(aq/srv/shared/lxc\-opt\(aq
+    owner: \(aq100000\(aq
+    group: \(aq100000\(aq
+    mode: \(aq0751\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create directory with custom ACL permissions that allows the \fBwww\-data\fP
+UNIX group to write files:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mount__directories:
+
+  \- path: \(aq/srv/www\(aq
+
+  \- path: \(aq/srv/www/data\(aq
+    owner: \(aqroot\(aq
+    group: \(aqroot\(aq
+    mode: \(aq0750\(aq
+    acl:
+      \- entity: \(aqwww\-data\(aq
+        etype: \(aqgroup\(aq
+        permissions: \(aqrwx\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The \fBmount__*_directories\fP lists contain YAML dictionaries, each dictionary
+can have specific parameters, that reflect the Ansible \fBfile\fP module
+parameters:
+.INDENT 0.0
+.TP
+.B \fBpath\fP / \fBdest\fP / \fBname\fP
+Required. Absolute path of the directory that is managed by the role.
+.TP
+.B \fBowner\fP
+Optional. Specify the UNIX account that should be the owner of the directory.
+If not specified, \fBroot\fP is used by default.
+.TP
+.B \fBgroup\fP
+Optional. Specify the UNIX group that should be the main group of the given
+directory. If not specified, the value of \fBowner\fP is used by default,
+otherwise \fBroot\fP is set.
+.TP
+.B \fBmode\fP
+Optional. Set the permissions of the managed directory. If not specified,
+\fB0755\fP will be used by default.
+.TP
+.B \fBrecurse\fP
+Optional, boolean. If defined and \fBTrue\fP, the role will set the specified
+permissions and ownership recursively to all subdirectories of the given
+directory as well as to the directory itself.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBdirectory\fP, the given directory will be
+created or updated with the specified permissions and ownership. If
+\fBabsent\fP, the given directory will be removed. Other values of the
+\fBstate\fP parameter are ignored in this role.
+.TP
+.B \fBacl\fP
+Optional. This parameter defines Access Control List entries for a given
+directory, each entry is a YAML dictionary with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBentity\fP
+Name of the ACL entity to manage, either UNIX account or UNIX group.
+.TP
+.B \fBetype\fP
+The entity type of a given ACL, check the \fI\%setfacl(1)\fP <\fBhttps://manpages.debian.org/setfacl(1)\fP> manual page for
+more details. Choices: \fBuser\fP, \fBgroup\fP, \fBother\fP, \fBmask\fP\&.
+.TP
+.B \fBpermissions\fP
+Specify the permissions to set for a given ACL entry, they can be
+a combination of \fBr\fP (read), \fBw\fP (write) and \fBx\fP (execute).
+.TP
+.B \fBdefault\fP
+Optional, boolean. If defined and \fBTrue\fP, a given ACL entry will be the
+default for all entities created inside of a given directory.
+.TP
+.B \fBfollow\fP
+Optional, boolean. If set and \fBTrue\fP, the Ansible module will follow the
+symlinked directory to the symlink target and change its attributes instead
+of the symlink attributes.
+.TP
+.B \fBrecursive\fP
+Optional, boolean. If set and \fBTrue\fP, the Ansible module will apply the
+specified ACL to all objects in a given path.
+.TP
+.B \fBstate\fP
+Optional. If not set or \fBpresent\fP, the ACL entry will be added to the
+current object. If \fBabsent\fP, the ACL entry will be removed from the
+current path.
+.UNINDENT
+.UNINDENT
+.SS mount__binds
+.sp
+The \fBmount__*_binds\fP variables can be used to create bind mounted directories
+in the filesystem. Bind mounts are similar to symlinks, where a given directory
+is mounted at a different place in the filesystem. This can be used to give
+access to parts of the filesystem in a different namespace, for example in
+a LXC container.
+.sp
+The task that manages the bind mounts are separate from the \(dqnormal\(dq mounts to
+allow the system to mount devices that could have parts of their filesystem
+bind\-mounted later on.
+.SS Examples
+.sp
+Bind mount the USB drive at a different point in the filesystem:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mount__binds:
+
+  \- src: \(aq/media/USB_Stick\(aq
+    dest: \(aq/srv/removable/data\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each \fBmount__*_binds\fP list entry is a YAML dictionary with specific
+parameters. The parameters are the same as the Ansible \fBmount\fP module:
+.INDENT 0.0
+.TP
+.B \fBsrc\fP
+Required. A directory name which will be bind mounted at a given path. The
+directory should already exist. You can use the \fI\%mount__directories\fP
+variables to create the directories beforehand.
+.TP
+.B \fBpath\fP / \fBdest\fP / \fBname\fP
+Required. Absolute path in the filesystem where a given directory will be
+bind mounted.
+.TP
+.B \fBfstype\fP
+Optional. Specify the filesystem type to use with a given device. If not
+specified, \fBnone\fP will be used, which is required for bind mounts.
+.TP
+.B \fBopts\fP
+Optional. String (comma\-delimited) or YAML list of options for a given mount
+point. If not specified, \fBbind\fP will be used instead.
+.TP
+.B \fBdump\fP
+Optional. This field determines which filesystems should be backeed up by the
+\fI\%dump(8)\fP <\fBhttps://manpages.debian.org/dump(8)\fP> command. If not specified, \fB0\fP is set by default.
+.TP
+.B \fBpassno\fP
+Optional. This field determines the order of the filesystem checks on boot
+done by the \fI\%fsck(8)\fP <\fBhttps://manpages.debian.org/fsck(8)\fP> command. The root filesystem should be it set to
+\fB1\fP, other filesystems should be set to \fB2\fP\&. If not specified, it
+defaults to \fB0\fP, which disables filesystem checks on boot.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBmounted\fP, the bind mount entry will be added
+to the \fB/etc/fstab\fP database and it will be automatically mounted.
+Unmounted bind directories will be mounted again. If the mount point
+directory is not present, it will be automatically created.
+.sp
+If \fBpresent\fP, the bind mount entry will be added to \fB/etc/fstab\fP, but
+Ansible will not try to mount it right away (preferable for automounted
+devices). Already mounted bind directories will not be changed.
+.sp
+If \fBunmounted\fP, Ansible will try and unmount the already bind mounted
+directories.  The \fB/etc/fstab\fP database will not be changed, however
+missing entries will be added.
+.sp
+If \fBabsent\fP, the bind mounted directory will be unmounted, and the
+\fB/etc/fstab\fP database entry, along with the mount point directory, will
+be removed.
+.TP
+.B \fBfstab\fP
+Optional. Absolute path of the alternative \fI\%fstab(5)\fP <\fBhttps://manpages.debian.org/fstab(5)\fP> database to use
+instead of the default \fB/etc/fstab\fP database.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

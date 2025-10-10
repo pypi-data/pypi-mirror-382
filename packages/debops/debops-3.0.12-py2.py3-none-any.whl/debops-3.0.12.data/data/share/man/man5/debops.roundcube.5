@@ -1,0 +1,726 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ROUNDCUBE" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.roundcube \- Manage Roundcube Web mail with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/roundcube\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.roundcube\fP Ansible role manages \fI\%Roundcube\fP <\fBhttps://roundcube.net/\fP>, an IMAP Web client
+written in PHP.
+.SH GETTING STARTED
+.SS Default setup
+.sp
+If you don\(aqt specify any configuration values, the role will setup a \fI\%Nginx\fP <\fBhttps://en.wikipedia.org/wiki/Nginx\fP>
+HTTP server running a default installation of the latest Roundcube stable
+release which is then accessible via \fBhttps://webmail.<your\-domain>\fP\&.
+SQLite is used as database backend for storing the user settings.
+.sp
+When the \fI\%LDAP infrastructure\fP is detected on the Roundcube
+host, the role will install and configure LDAP support in Roundcube. The
+default address book will be configured to allow only searches in the
+directory, which is beneficial in larger environments. The \fBpassword\fP plugin
+will be enabled and configured to use the LDAP Password Modify Extended
+Operation (\fI\%RFC 3062\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc3062.html\fP>) driver to allow users to change their passwords.
+.sp
+Roundcube will use the current user credentials to login to the LDAP directory,
+therefore access to the LDAP entries and attributes depends on the LDAP ACL
+configuration in the directory itself.
+.sp
+Local spell check support will be configured using the \fI\%Enchant\fP <\fBhttps://en.wikipedia.org/wiki/Enchant_(software)\fP> library with
+\fBaspell\fP spell checker. By default only the English dictionary
+(\fBaspell\-en\fP) is installed, more dictionaries can be added using the
+\fI\%roundcube__packages\fP variable.
+.SS Deployment from private or internal git repository
+.sp
+The \fI\%debops.roundcube\fP role supports deployment of Roundcube from
+private/internal \fBgit\fP repositories over HTTPS. This can be useful
+when a Roundcube codebase is forked to include custom themes or other changes
+in the application required for a particular installation.
+.sp
+To do this, you can specify the URL to the \fBgit\fP repository using the
+\fI\%roundcube__git_repo\fP variable in the form:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+https://<username>:<password>@<git\-host>/<organization>/<repository>.git
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In GitLab, this functionality is called \fI\%Deploy Tokens\fP <\fBhttps://docs.gitlab.com/ce/user/project/deploy_tokens/\fP>, while on GitHub
+users can create \fI\%Personal Access Tokens\fP <\fBhttps://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line\fP>\&. The tokens can be generated
+per\-project and allow for read\-only access to the \fBgit\fP repository.
+.sp
+The access credentials will be stored in the \fB\&.git/\fP directory of the
+cloned Roundcube repository. The role by default puts it in the location
+specified by the \fI\%roundcube__git_dir\fP variable, under the
+\fB/usr/local/src/\fP subdirectories, with access restricted via UNIX
+permissions.
+.sp
+The role expects that the checked out commits or tags are signed by a valid GPG
+key. To include the GPG keys for the staff that creates the modifications of
+the Roundcube code base, you can include their GPG fingerprints in the
+\fI\%roundcube__git_additional_gpg_keys\fP list. They will be imported to the
+Roundcube UNIX account by the \fI\%debops.keyring\fP role.
+.sp
+Here are an example Ansible inventory variables that hide the token using the
+\fI\%debops.secret\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roundcube_access_token: \(aq{{ lookup(\(dqfile\(dq, secret + \(dq/roundcube/access_token\(dq) }}\(aq
+roundcube__git_repo: \(aq{{ \(dqhttps://\(dq + roundcube_access_token
+                         + \(dq@code.example.org/mail\-infra/roundcubemail.git\(dq }}\(aq
+roundcube__git_additional_gpg_keys: [ \(aqfingerprint1\(aq, \(aqfingerprint2\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Before running the role, make sure to put the credentials in the
+\fBansible/secret/roundcube/access_token\fP file inside of the DebOps project
+directory. The file should contain the credentials in the form of:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+<username>:<password>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+There should be no new line character at the end.
+.SS IMAP, SMTP and Sieve server detection
+.sp
+The role detects the preferred IMAP, SMTP and Sieve servers by using
+\fI\%DNS SRV Records\fP for the following services:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+_imaps._tcp.{{ roundcube__domain }} (default port 993)
+_submissions._tcp.{{ roundcube__domain }} (default port 465)
+_sieve._tcp.{{ roundcube__domain }} (default port 4190)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+At the moment, only a single SRV resource record is supported for each service.
+.sp
+If the above SRV resource records are not available, the role will check for
+the presence of the \fI\%debops.dovecot\fP and \fI\%debops.postfix\fP roles using
+Ansible local facts on the host. If they are found, the respective service
+(IMAP, SMTP (submission) and/or Sieve) will be configured to be accessed via
+the host\(aqs own FQDN address to support X.509 certificate verification. In this
+case the services will also use Implicit TLS.
+.sp
+Finally, the role will fall back to using static domain names for the
+respective services, based on the host domain (\fI\%roundcube__domain\fP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+IMAP:  imap.example.org:993
+SMTP:  smtp.example.org:465
+Sieve: sieve.example.org:4190
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This allows for deployment of the RoundCube Webmail independent from the
+respective services, for example on a separate host or VM. The communication
+with the mail services will be encrypted by default using Implicit TLS, as
+recommended by \fI\%RFC 8314\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc8314.html\fP>\&.
+.SS Example inventory
+.sp
+To install and configure Roundcube on a host, it needs to be present in the
+\fB[debops_service_roundcube]\fP Ansible inventory group. Additional services
+like \fI\%memcached\fP, \fI\%Redis\fP,
+\fI\%MariaDB\fP and
+\fI\%PostgreSQL\fP can help increase the website
+performance.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+webmail
+
+[debops_service_mariadb_server]
+webmail
+
+[debops_service_memcached]
+webmail
+
+[debops_service_postgresql_server]
+webmail
+
+[debops_service_redis_server]
+webmail
+
+[debops_service_roundcube]
+webmail
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+The following playbook can be used with DebOps. If you are using these role
+without DebOps you might need to adapt them to make them work in your setup.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Install and manage Roundcube Web mail
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_roundcube\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Apply keyring configuration for php environment
+      import_role:
+        name: \(aqkeyring\(aq
+      vars:
+        keyring__dependent_apt_keys:
+          \- \(aq{{ php__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ nodejs__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+          \- \(aq{{ mariadb__keyring__dependent_apt_keys }}\(aq
+        keyring__dependent_gpg_user: \(aq{{ roundcube__keyring__dependent_gpg_user }}\(aq
+        keyring__dependent_gpg_keys:
+          \- \(aq{{ roundcube__keyring__dependent_gpg_keys }}\(aq
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq,
+              \(aqrole::php\(aq, \(aqrole::nodejs\(aq, \(aqrole::nginx\(aq, \(aqrole::mariadb\(aq,
+              \(aqrole::roundcube\(aq ]
+
+    \- name: Prepare php environment
+      import_role:
+        name: \(aqphp\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::php\(aq, \(aqrole::php:env\(aq, \(aqrole::logrotate\(aq ]
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq,
+              \(aqrole::nginx\(aq, \(aqrole::php\(aq, \(aqrole::nodejs\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ php__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ nodejs__apt_preferences__dependent_list }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ php__logrotate__dependent_config }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq, \(aqrole::nginx\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::mariadb\(aq, \(aqrole::postgresql\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages3 if roundcube__database_map[roundcube__database].dbtype == \(dqmysql\(dq else [] }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+        \- \(aq{{ postgresql__python__dependent_packages3 if roundcube__database_map[roundcube__database].dbtype == \(dqpostgresql\(dq else [] }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages2 if roundcube__database_map[roundcube__database].dbtype == \(dqmysql\(dq else [] }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+        \- \(aq{{ postgresql__python__dependent_packages2 if roundcube__database_map[roundcube__database].dbtype == \(dqpostgresql\(dq else [] }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ roundcube__ldap__dependent_tasks }}\(aq
+
+    \- role: php
+      tags: [ \(aqrole::php\(aq, \(aqskip::php\(aq ]
+      php__dependent_packages:
+        \- \(aq{{ roundcube__php__dependent_packages }}\(aq
+      php__dependent_pools:
+        \- \(aq{{ roundcube__php__dependent_pools }}\(aq
+
+    \- role: nodejs
+      tags: [ \(aqrole::nodejs\(aq, \(aqskip::nodejs\(aq ]
+      nodejs__npm_dependent_packages:
+        \- \(aq{{ roundcube__nodejs__npm_dependent_packages }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ roundcube__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ roundcube__nginx__dependent_upstreams }}\(aq
+
+    \- role: mariadb
+      tags: [ \(aqrole::mariadb\(aq, \(aqskip::mariadb\(aq ]
+      mariadb__dependent_users:
+        \- database: \(aq{{ roundcube__database_map[roundcube__database].dbname }}\(aq
+          user: \(aq{{ roundcube__database_map[roundcube__database].dbuser }}\(aq
+          password: \(aq{{ roundcube__database_map[roundcube__database].dbpass }}\(aq
+          owner: \(aq{{ roundcube__user }}\(aq
+          group: \(aq{{ roundcube__group }}\(aq
+          home: \(aq{{ roundcube__home }}\(aq
+          system: True
+          priv_aux: False
+      mariadb__server: \(aq{{ roundcube__database_map[roundcube__database].dbhost }}\(aq
+      when: roundcube__database_map[roundcube__database].dbtype == \(aqmysql\(aq
+
+    \- role: postgresql
+      tags: [ \(aqrole::postgresql\(aq, \(aqskip::postgresql\(aq ]
+      postgresql__dependent_roles:
+        \- db: \(aq{{ roundcube__database_map[roundcube__database].dbname }}\(aq
+          role: \(aq{{ roundcube__database_map[roundcube__database].dbuser }}\(aq
+          password: \(aq{{ roundcube__database_map[roundcube__database].dbpass }}\(aq
+      postgresql__server: \(aq{{ roundcube__database_map[roundcube__database].dbhost
+                              if roundcube__database_map[roundcube__database].dbhost != \(dqlocalhost\(dq
+                              else \(dq\(dq }}\(aq
+      when: roundcube__database_map[roundcube__database].dbtype == \(aqpostgresql\(aq
+
+    \- role: roundcube
+      tags: [ \(aqrole::roundcube\(aq, \(aqskip::roundcube\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This playbook is also shipped with DebOps at \fBansible/playbooks/service/roundcube.yml\fP\&.
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::roundcube\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::roundcube:pkg\fP
+Run tasks related to system package installation.
+.TP
+.B \fBrole::roundcube:deployment\fP
+Run tasks related to the application deployment and update.
+.TP
+.B \fBrole::roundcube:config\fP
+Run tasks related to the Roundcube application configuration.
+.TP
+.B \fBrole::roundcube:database\fP
+Run tasks related to setup or update the database user and schema.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.roundcube\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS roundcube__configuration
+.sp
+The \fBroundcube__*_configuration\fP variables define the contents of the
+\fBconfig/config.php.inc\fP configuration file located in the Roundcube
+installation directory. The contents are defined using YAML data structures and
+converted to PHP via the role template.
+.SS Examples
+.sp
+Define a few configuration options with simple syntax:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roundcube__configuration:
+
+  \- string_option: \(aqstring value\(aq
+
+  \- number_option: 1234
+
+  \- bool_true_option: True
+
+  \- bool_false_option: False
+
+  \- null_option: null
+
+  \- empty_array: []
+
+  \- empty_string: \(aq\(aq
+
+  \- simple_list: [ \(aqitem1\(aq, \(aqitem2\(aq, \(aqitem3\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a few configuration options with more advanced syntax which allows for
+conditions and better control over values:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roundcube__configuration:
+
+  \- name: \(aqstring_option\(aq
+    value: \(aqstring value\(aq
+
+  \- name: \(aqnumber_option\(aq
+    value: 1234
+
+  \- name: \(aqbool_true_option\(aq
+    value: True
+
+  \- name: \(aqbool_false_option\(aq
+    value: False
+
+  \- name: \(aqnull_option\(aq
+    value: null
+
+  \- name: \(aqempty_array\(aq
+    value: []
+
+  \- name: \(aqempty_string\(aq
+    value: \(aq\(aq
+
+  \- name: \(aqsimple_list\(aq
+    value: [ \(aqitem1\(aq, \(aqitem2, \(aqitem3\(aq ]
+
+  \- name: \(aqoption_with_constant\(aq
+    value: \(dq\(aqstring\(aq . CONSTANT . \(aqother\-string\(aq\(dq
+    quotes: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Insert raw PHP code in the configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roundcube__configuration:
+
+  \- name: \(aqcustom_code\(aq
+    raw: |
+      if( isset( $_SERVER[\(aqMACHINE_NAME\(aq] )) {
+          $config[\(aqsyslog_facility\(aq] = LOG_USER;
+      }
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Add a multi\-level option in the configuration (in a \(dqsub\-array\(dq):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roundcube__configuration:
+
+  \- name: \(aqmulti_level_option\(aq
+    option: [ \(aqfirstlevel\(aq, \(aqsecondlevel\(aq ]
+    value: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create complex PHP \fBarray()\fP definitions parsed directly in the template:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roundcube__configuration:
+
+  \- name: \(aqspellcheck_languages\(aq
+    array:
+      \- de: \(aqDeutsch\(aq
+      \- en: \(aqEnglish\(aq
+      \- pl: \(aqPolish\(aq
+
+  \- name: \(aqcompose_responses_static\(aq
+    array:
+      \- [ \(aqname\(aq: \(aqCanned Response 1\(aq, \(aqtext\(aq: \(aqStatic Response One\(aq ]
+      \- [ \(aqname\(aq: \(aqCanned Response 2\(aq, \(aqtext\(aq: \(aqStatic Response Two\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can see more examples in the \fI\%roundcube__original_configuration\fP
+and the \fI\%roundcube__default_configuration\fP variables.
+.SS Syntax
+.sp
+The Roundcube configuration options can be defined using a simple or expanded
+syntax. Simple syntax uses YAML dictionary keys as the configuration option
+names (the \fBname\fP equivalent), and dictionary values as the option values
+(the \fBvalue\fP equivalent). In this case, only one YAML dictionary key/value
+pair should be defined at a time.
+.sp
+The expanded definition is enabled when a given configuration entry contains
+the \fBname\fP parameter and uses a set of parameters for better control over
+the final output:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Roundcube configuration option name. Configuration entries with the
+same \fBname\fP parameter are merged in order of appearance; this can be used
+to change configuration options conditionally.
+.sp
+If the \fBoption\fP parameter is specified, the \fBname\fP parameter is not used
+as the configuration option name.
+.TP
+.B \fBvalue\fP
+Optional. The value of the Roundcube configuration option. It can be
+specified as a string, a YAML list, \fBTrue\fP or \fBFalse\fP boolean, a \fBnull\fP
+value, a positive or negative number. if the \fBvalue\fP parameter is not
+specified, the result will be an empty list (\fBarray()\fP in PHP).
+.sp
+The \fBvalue\fP parameters from multiple configuration entries override each
+other, with exception of YAML lists \- the lists are additive and the result
+will contain only unique values. Only strings are supported in lists.
+.TP
+.B \fBarray\fP
+Optional. Define a \fI\%PHP array()\fP <\fBhttps://www.php.net/manual/en/language.types.array.php\fP> data structure using YAML. The \fBarray\fP
+parameter is used only when the \fBvalue\fP or \fBraw\fP parameters are not
+present. The \fBarray\fP parameters from multiple configuration entries
+override each other. See various examples in the role default variables for
+better idea on how to define the data structures.
+.TP
+.B \fBraw\fP
+Optional. String or YAML text block with PHP code, which will be included in
+the generated configuration file \(dqas is\(dq. If the \fBraw\fP parameter is
+defined, it takes precedence over \fBvalue\fP or \fBarray\fP parameters.
+.TP
+.B \fBoption\fP
+Optional. It can be a string or a YAML list of strings. If defined, the value
+will be used instead of the \fBname\fP parameter as the Roundcube configuration
+option name. If a list is defined, each list element will be used as
+a \(dqsubkey\(dq, for example \fB[ \(aqone\(aq, \(aqtwo\(aq ]\fP value would become
+\fB$config[\(aqone\(aq][\(aqtwo\(aq]\fP in the generated configuration file.
+.TP
+.B \fBquotes\fP
+Optional, bollean. If defined and \fBFalse\fP, the quotes around the string
+value will not be included in the generated configuration file. This can be
+used to create values which contain PHP constants; the text strings in the
+values need to be additionally quoted in this case.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given Roundcube option will be
+present in the configuration file. If \fBabsent\fP, a given option will be
+removed from the configuration file (or not included if not present).
+If \fBinit\fP, the configuration option will be prepared, but will not be
+active and won\(aqt show up on the generated configuration file \- this can be
+used to prepare configuration that will be activated conditionally in another
+configuration entry. If \fBignore\fP, a given configuration entry will not be
+evaluated during role execution. If \fBcomment\fP, a given Roundcube
+configuration option will be present in the generated file, but commented
+out.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with comments about a given configuration
+option.
+.TP
+.B \fBseparator\fP
+Optional, boolean. If defined and \fBTrue\fP, the role will add an empty line
+before a given configuration option, to allow for better readability.
+.TP
+.B \fBsection\fP
+Optional. Specify the configuration file section name to put a given
+configuration option into. Section names are defined using the
+\fI\%roundcube__configuration_sections\fP variables. If not defined, the
+configuration option will be put into the \fBunknown\fP section.
+.TP
+.B \fBcopy_id_from\fP
+Optional. Copy the internal \(dqid\(dq of a configuration option specified by the
+\fBname\fP parameter to the current configuration option. This parameter can be
+used to reorder configuration options relative to a specific option.
+.TP
+.B \fBweight\fP
+Optional. Positive or negative number which defines the additional \(dqweight\(dq
+of an option. Smaller or negative weight will move the option higher in the
+configuration file, Bigger weight will move the configuration option lower in
+the configuration file.
+.TP
+.B \fBvalue_cast\fP
+Optional. Specify the type of a given value to use in the configuration file.
+Supported types: \fBint\fP/\fBinteger\fP, \fBstr\fP/\fBstring\fP, \fBfloat\fP,
+\fBnull\fP/\fBnone\fP, \fBbool\fP/\fBboolean\fP\&. This parameter is onlu useful when
+the value is defined using another variable, in which case the type
+information is not preserved by Jinja templating.
+.UNINDENT
+.SS roundcube__configuration_sections
+.sp
+The \fBroundcube__*_configuration_sections\fP variables define what sections are
+present in the \fBconfig/config.inc.php\fP configuration file. Using these
+variables, the sections can be reordered and modified as needed.
+.SS Examples
+.sp
+See the \fI\%roundcube__default_configuration_sections\fP variable for the
+list of the sections defined by default.
+.SS Syntax
+.sp
+Configuration sections are defined using a list of YAML dictionaries, each
+dictionary uses specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of a given section, used also as its identificator in the main
+configuration \fBsection\fP parameter. Multiple configuration entries with the
+same \fBname\fP are merged together.
+.TP
+.B \fBtitle\fP
+Optional. Set a custom title for a given section. If not specified, the
+\fBname\fP parameter will be used as the title.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given section will be present in
+the generated configuration file. If \fBabsent\fP, a given section will be
+removed from the configuration file. if \fBhidden\fP, the section will be
+present, but the title will not be included in the generated configuration
+file. if \fBignore\fP, a given configuration entry will not be evaluated during
+role execution.
+.UNINDENT
+.SS roundcube__plugins
+.sp
+The \fBroundcube__*_plugins\fP lists define what plugins will be enabled in
+Roundcube and optionally installed from the \fI\%Roundcube Plugins repository\fP <\fBhttps://plugins.roundcube.net\fP>
+using \fI\%PHP Composer\fP <\fBhttps://getcomposer.org\fP>\&. The \fBcomposer\fP command is assumed to be
+installed by the \fI\%debops.php\fP role.
+.SS Examples
+.sp
+Override the default value in the \fBcloud_button\fP plugin configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roundcube__plugins:
+
+  \- name: \(aqcloud_button\(aq
+    state: \(aqappend\(aq
+    options:
+
+      \- cloud_button_url: \(aqhttps://cloud.example.org/\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+See the \fI\%roundcube__default_plugins\fP for a list of Roundcube plugin
+definitions which are enabled by the role.
+.SS Syntax
+.sp
+The plugins are defined using YAML dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the plugin, also the directory name in the
+\fBplugins/\fP subdirectory where the plugin is located. The \fBname\fP
+parameter is used in the \fB$config[\(aqplugins\(aq]\fP configuration option to
+enable the plugin, only if the \fBstate\fP parameter is set to \fBenabled\fP\&.
+Multiple configuration entries with the same \fBname\fP parameter are merged
+together in the order of appearance.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, the plugin will be installed (if the
+\fBpackage\fP parameter is also defined), and its \fBconfig.inc.php\fP
+configuration file will be generated, but the plugin itself will not be
+active in Roundcube. If \fBenabled\fP, the plugin will be installed if needed,
+and will be activated in the Roundcube configuration file.
+.sp
+If \fBabsent\fP, the plugin will be deactivated, but it will not be uninstalled
+from the host. If \fBignore\fP, a given configuration entry won\(aqt be evaluated
+during role execution. If \fBinit\fP, a given configuration entry will be
+prepared but will not be activated \- this can be used to prepare
+configuration for plugins and activate them later conditionally if needed.
+If \fBappend\fP, a given configuration entry is evaluated by the role only if
+an entry with the same name is already present in the configuration (was
+defined previously).
+.TP
+.B \fBpackage\fP
+Optional. If specified, a given plugin will be installed using PHP Composer
+from the \fI\%Roundcube Plugins\fP <\fBhttps://plugins.roundcube.net/\fP> repository. You need to specify the plugin name
+using the \fBnamespace/plugin\fP format, plugin names can be found on the
+repository page.
+.sp
+This parameter is passed to the \fBcomposer\fP Ansible module as the
+\fBarguments\fP parameter. You can use any valid value, for example by setting
+a specific version of a plugin to use by defining it as
+\fBnamespace/plugin:version\fP\&.
+.TP
+.B \fBoptions\fP
+Optional. List of configuration options for a specific plugin which will be
+stored in the \fBplugins/<plugin_name>/config.inc.php\fP configuration
+file. The list format is the same as the Roundcube global configuration
+defined in the \fI\%roundcube__configuration\fP variables.
+.UNINDENT
+.SH AUTHOR
+Reto Gantenbein
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

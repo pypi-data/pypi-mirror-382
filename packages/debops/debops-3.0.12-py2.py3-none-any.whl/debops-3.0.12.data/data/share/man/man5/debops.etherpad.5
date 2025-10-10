@@ -1,0 +1,203 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ETHERPAD" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.etherpad \- Manage Etherpad Lite using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/etherpad\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Etherpad\fP <\fBhttps://en.wikipedia.org/wiki/Etherpad\fP> is a collaborative text
+editor usable through a web browser. Documents can be edited by multiple people
+in real time, shared and exported in different formats.
+.sp
+This role can be used to deploy and configure \fI\%Etherpad Lite\fP <\fBhttps://github.com/ether/etherpad-lite\fP>,
+a NodeJS version of Etherpad, on a Debian/Ubuntu host. The application can use
+a MariaDB or SQLite database as a storage backend, and will be configured
+behind a Nginx proxy as a frontend.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The role will detect presence of a MariaDB database server and use it if
+available. If not, a SQLite database will be automatically configured on the
+server. You can configure MariaDB database using the \fI\%debops.mariadb_server\fP
+Ansible role.
+.SS Example inventory
+.sp
+To install and configure Etherpad on a host, it needs to be present in the
+\fB[debops_service_etherpad]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_etherpad]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.etherpad\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Etherpad service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_etherpad\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq,
+              \(aqrole::nodejs\(aq, \(aqrole::mariadb\(aq, \(aqrole::postgresql\(aq, \(aqrole::nginx\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nodejs__keyring__dependent_apt_keys }}\(aq
+        \- \(aq{{ mariadb__keyring__dependent_apt_keys if (etherpad__database == \(dqmysql\(dq) else [] }}\(aq
+        \- \(aq{{ postgresql__keyring__dependent_apt_keys if (etherpad__database == \(dqpostgresql\(dq) else [] }}\(aq
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ etherpad__etc_services__dependent_list }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ etherpad__logrotate__dependent_config }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ nodejs__apt_preferences__dependent_list }}\(aq
+
+    \- role: nodejs
+      tags: [ \(aqrole::nodejs\(aq, \(aqskip::nodejs\(aq ]
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::mariadb\(aq, \(aqrole::postgresql\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ postgresql__python__dependent_packages3 if etherpad__database == \(dqpostgres\(dq else [] }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages3 if etherpad__database == \(dqmysql\(dq else [] }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ postgresql__python__dependent_packages2 if etherpad__database == \(dqpostgres\(dq else [] }}\(aq
+        \- \(aq{{ mariadb__python__dependent_packages2 if etherpad__database == \(dqmysql\(dq else [] }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: mariadb
+      tags: [ \(aqrole::mariadb\(aq, \(aqskip::mariadb\(aq ]
+      mariadb__dependent_users:
+        \- \(aq{{ etherpad__mariadb__dependent_users }}\(aq
+      mariadb__dependent_databases:
+        \- \(aq{{ etherpad__mariadb__dependent_databases }}\(aq
+      when: etherpad__database == \(aqmysql\(aq
+
+    \- role: postgresql
+      tags: [ \(aqrole::postgresql\(aq, \(aqskip::postgresql\(aq ]
+      postgresql__dependent_roles:
+        \- \(aq{{ etherpad__postgresql__dependent_roles }}\(aq
+      postgresql__dependent_databases:
+        \- \(aq{{ etherpad__postgresql__dependent_databases }}\(aq
+      when: etherpad__database == \(aqpostgres\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ etherpad__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ etherpad__nginx__dependent_upstreams }}\(aq
+
+    \- role: etherpad
+      tags: [ \(aqrole::etherpad\(aq, \(aqskip::etherpad\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::etherpad\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::etherpad:source\fP
+Run tasks related to install Etherpad from source.
+.TP
+.B \fBrole::etherpad:config\fP
+Run tasks related to configuring Etherpad.
+.TP
+.B \fBrole::etherpad:plugins\fP
+Run tasks which install the defined Etherpad plugins.
+.TP
+.B \fBrole::etherpad:api:call\fP
+Run tasks API call tasks. Can be used for rapid API calls.
+.TP
+.B \fBrole::etherpad:api\fP
+Same as \fBrole::etherpad:api:call\fP but ensures that the service is running
+and waiting for it to start before trying.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski, Hartmut Goebel, Robin Schneider
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

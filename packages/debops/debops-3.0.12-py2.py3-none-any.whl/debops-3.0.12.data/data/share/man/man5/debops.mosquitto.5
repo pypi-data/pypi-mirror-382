@@ -1,0 +1,630 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.MOSQUITTO" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.mosquitto \- Manage a Mosquitto MQTT broker using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/mosquitto\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Mosquitto\fP <\fBhttps://mosquitto.org/\fP> is an open source
+\fI\%Message Queue Telemetry Transport (MQTT)\fP <\fBhttps://en.wikipedia.org/wiki/MQTT\fP>
+broker used in the \fI\%Internet of Things\fP <\fBhttps://en.wikipedia.org/wiki/Internet_of_things\fP>
+paradigm.
+.sp
+The \fBdebops.mosquitto\fP Ansible role can be used to install and configure
+Mosquitto on Debian/Ubuntu hosts. The role can use other DebOps roles to manage
+firewall access to Mosquitto, publish Avahi services and configure an nginx
+frontend for the Mosquitto WebSockets API.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+With the default configuration, the \fBdebops.mosquitto\fP role will configure
+Mosquitto with a TLS listener accepting connections from any host (if the
+\fI\%debops.pki\fP environment is detected), and plaintext listener accepting
+connections only from localhost. Anonymous access to the broker will be
+allowed.
+.sp
+By default, plaintext connections are not allowed over the network. You can
+change that by setting the \fI\%mosquitto__allow\fP variable with a list of
+IP addresses or CIDR subnets to allow plaintext connections.
+.SS WebSocket configuration
+.sp
+WebSocket support will be enabled if a sufficient version of the
+\fBlibwebsockets\fP library is detected; this was tested and works on Debian
+Stretch; using upstream Mosquitto on older OS releases is not enough, and at
+the time the role was written upstream Stretch version was not available. The
+WebSocket listener will be configured for \fBlocalhost\fP connections only.
+.sp
+The role provides two playbooks, a \(dqplain\(dq and \(dqnginx\(dq version (see below). The
+\(dqnginx\(dq playbook can be used to configure an \fBnginx\fP reverse proxy for
+the WebSocket listener. By default any host will be able to access the
+WebSocket connection, this can be controlled separately from the normal TLS
+connection using \fI\%mosquitto__websockets_allow\fP variable.
+.sp
+You can test support for WebSockets in Mosquitto using:
+\fI\%http://www.hivemq.com/blog/full\-featured\-mqtt\-client\-browser\fP
+.SS User accounts, ACL, password creation
+.sp
+For better security, you should configure some user accounts (see
+\fI\%mosquitto__auth_users\fP) and ACL entries for the broker. When user
+accounts are defined, the role will automatically block the anonymous access;
+this can be controlled using the \fI\%mosquitto__allow_anonymous\fP variable.
+.sp
+The older Mosquitto releases (pre 1.4+) provide a \fBmosquitto_passwd\fP
+command which does not support batch password creation, therefore the role will
+not configure the user accounts if such version is detected. You should either
+enable upstream release (on older OS releases) or use Debian Stretch+ which
+supports batch password creation.
+.SS Avahi CNAME (alias) support
+.sp
+If the Avahi support managed by the \fBdebops.avahi\fP Ansible role is detected,
+the \fBdebops.mosquitto\fP role will automatically create Avahi service entries
+for the configured listeners. The Avahi configuration is managed by the
+\fBavahi_*\fP parameters in the listener configuration, see
+\fI\%mosquitto__listeners\fP for more details.
+.SS Example inventory
+.sp
+The \fBdebops.mosquitto\fP role needs to be enabled to be used in the DebOps
+playbook. To do that, add the hosts that you want to configure Avahi on to the
+\fB[debops_service_mosquitto]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_mosquitto]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you want to enable the \fBnginx\fP reverse proxy on a given host for
+WebSocket support, you can add that host to the
+\fB[debops_service_mosquitto_nginx]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_mosquitto_nginx]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.mosquitto\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# Copyright (C) 2017 Maciej Delmanowski <drybjed@gmail.com>
+# Copyright (C) 2017 DebOps <https://debops.org/>
+# SPDX\-License\-Identifier: GPL\-3.0\-only
+
+\- name: Configure Mosquitto service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_mosquitto\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::mosquitto\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ mosquitto__keyring__dependent_apt_keys }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ mosquitto__etc_services__dependent_list }}\(aq
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+      tcpwrappers__dependent_allow:
+        \- \(aq{{ mosquitto__tcpwrappers__dependent_allow }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ mosquitto__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::mosquitto\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ mosquitto__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ mosquitto__python__dependent_packages2 }}\(aq
+
+    \- role: mosquitto
+      tags: [ \(aqrole::mosquitto\(aq, \(aqskip::mosquitto\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+There is a separate playbook for a Mosquitto instance with \fBnginx\fP
+used as a reverse proxy for WebSocket connections:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure Mosquitto service with Nginx
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_mosquitto_nginx\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::nginx\(aq, \(aqrole::mosquitto\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+        \- \(aq{{ mosquitto__keyring__dependent_apt_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ mosquitto__etc_services__dependent_list }}\(aq
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+      tcpwrappers__dependent_allow:
+        \- \(aq{{ mosquitto__tcpwrappers__dependent_allow }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ mosquitto__ferm__dependent_rules }}\(aq
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::nginx\(aq, \(aqrole::mosquitto\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+        \- \(aq{{ mosquitto__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+        \- \(aq{{ mosquitto__python__dependent_packages2 }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ mosquitto__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ mosquitto__nginx__dependent_upstreams }}\(aq
+
+    \- role: mosquitto
+      tags: [ \(aqrole::mosquitto\(aq, \(aqskip::mosquitto\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::mosquitto\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::mosquitto:acl\fP
+Tasks related to ACL configuration.
+.TP
+.B \fBrole::mosquitto:passwd\fP
+Tasks related to user/password management.
+.TP
+.B \fBrole::mosquitto:avahi\fP
+Tasks related to Avahi service support.
+.TP
+.B \fBrole::mosquitto:config\fP
+Tasks related to global configuration.
+.TP
+.B \fBrole::mosquitto:listeners\fP
+Tasks related to \fBmosquitto\fP listener configuration.
+.TP
+.B \fBrole::mosquitto:bridges\fP
+Tasks which configure MQTT bridge connections.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.mosquitto\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS mosquitto__options
+.sp
+The \fI\%mosquitto__default_options\fP and \fI\%mosquitto__options\fP
+variables are YAML dictionaries which contain global Mosquitto configuration
+stored in the \fB/etc/mosquitto/conf.d/00_default.conf\fP configuration file.
+They are combined together, therefore it is possible to override the default
+options using the Ansible inventory. The Mosquitto configuration reference can
+be found in the \fI\%mosquitto.conf(5)\fP <\fBhttps://manpages.debian.org/mosquitto.conf(5)\fP> manual page.
+.sp
+Each key of the YAML dictionary is a Mosquitto option name. Dictionary keys
+cannot be specified by variable substitution. If the value is a string, it is
+set as\-is for a given option. If the string value is empty (\(aq\(aq), the option
+will be removed from the configuration file.
+.sp
+If the value is a YAML list, each list element will be present in its own line
+with the option name prepended to it.
+.sp
+Boolean values are not processed by the template, you should use the string
+representation accepted by Mosquitto (\fB\(aqtrue\(aq\fP, \fB\(aqfalse\fP) in the variable,
+or use an \fBif/else\fP condition that interprets boolean values and passes
+correct strings as needed.
+.SS Examples
+.sp
+Set a few custom options for Mosquitto:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# A few variables set in the Ansible inventory as an example
+mqtt_connection_messages: False
+mqtt_log_dest: \(aqsyslog\(aq
+mqtt_log_type: [ \(aqall\(aq, \(aqdebug\(aq, \(aqwarning\(aq, \(aqnotice\(aq ]
+mqtt_log_timestamp: \(aqtrue\(aq
+
+mosquitto__options:
+  connection_messages: \(aq{{ \(dqtrue\(dq if mqtt_connection_messages|bool else \(dqfalse\(dq }}\(aq
+  log_dest:            \(aq{{ mqtt_log_dest }}\(aq
+  log_type:            \(aq{{ mqtt_log_type if mqtt_log_dest == \(dqsyslog\(dq else \(dq\(dq }}\(aq
+  log_timestamp:       \(aq{{ mqtt_log_timestamp }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above configuration should result in:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+log_timestamp true
+connection_messages false
+log_dest syslog
+log_type all
+log_type debug
+log_type warning
+log_type notice
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS mosquitto__listeners
+.sp
+The \fI\%mosquitto__default_listeners\fP and \fI\%mosquitto__listeners\fP
+variables can be used to configure how Mosquitto listens for connections. The
+variables are YAML dictionaries, which are combined together, therefore the
+default configuration can be easily changed through Ansible inventory if
+needed. There\(aqs no custom merging, if you want to modify a specific listener,
+you need to include all of its options.
+.sp
+Each entry in the YAML dictionary is a listener configuration. The dictionary
+key can be anything, but it\(aqs best to specify the TCP port the listener will be
+configured on, for consistency. The value of the dictionary is another YAML
+dictionary, with keys being the \fBmosquitto\fP configuration options, and
+values being the option values; the format is similar to the one used in the
+\fI\%mosquitto__options\fP configuration. You can find the possible
+configuration options and their meaning in the \fBLISTENERS\fP section of the
+\fI\%mosquitto.conf(5)\fP <\fBhttps://manpages.debian.org/mosquitto.conf(5)\fP> manual page.
+.sp
+The role knows about additional listener parameters, which are used to manage
+the configuration:
+.INDENT 0.0
+.TP
+.B \fBcomment\fP
+Optional. A custom comment added to the listener, either a string or a YAML
+text block.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the listener configuration will be
+generated on the host. If \fBabsent\fP, the listener configuration will be
+removed.
+.UNINDENT
+.sp
+The listener configuration can contain additional parameters that are not used
+by Mosquitto, but are used to configure Avahi services (see
+\fI\%Avahi CNAME (alias) support\fP for more details):
+.INDENT 0.0
+.TP
+.B \fBavahi_type\fP
+Required for Avahi support. The string that specifies the service type, for
+example \fB_mqtt._tcp\fP\&.
+.TP
+.B \fBavahi_port\fP
+Required for Avahi support. The port number the service is listening for
+connections, which will be advertised by Avahi.
+.TP
+.B \fBavahi_state\fP
+Optional. If not specified or \fBpresent\fP, the Avahi configuration for
+a given listener will be generated. If \fBabsent\fP, the Avahi configuration
+for a given listener will be removed.
+.UNINDENT
+.sp
+You can check the \fI\%mosquitto__default_listeners\fP variable in the
+\fBdefaults/main.yml\fP file for examples of the Mosquitto listener
+configuration.
+.SS mosquitto__bridges
+.sp
+The \fI\%mosquitto__bridges\fP, \fI\%mosquitto__group_bridges\fP and
+\fI\%mosquitto__host_bridges\fP variables can be used to configure bridge
+connections between MQTT brokers (Mosquitto or other brokers). The variables
+are YAML dictionaries, which are combined together, therefore the default
+configuration can be easily changed through Ansible inventory if needed.
+There\(aqs no custom merging, if you want to modify a specific bridge, you need to
+include all of its options.
+.sp
+Each entry in the YAML dictionary is a bridge configuration. The dictionary key
+should be a short name of the bridge; it can also be specified as the
+\fBconnection\fP parameter. The value of the dictionary is another YAML
+dictionary, with keys being the \fBmosquitto\fP configuration options, and
+values being the option values; the format is similar to the one used in the
+\fI\%mosquitto__options\fP configuration. You can find the possible
+configuration options and their meaning in the \fBCONFIGURING BRIDGES\fP section
+of the \fI\%mosquitto.conf(5)\fP <\fBhttps://manpages.debian.org/mosquitto.conf(5)\fP> manual page.
+.sp
+The role knows about additional bridge parameters, which are used to manage
+the configuration:
+.INDENT 0.0
+.TP
+.B \fBcomment\fP
+Optional. A custom comment added to the bridge, either a string or a YAML
+text block.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the bridge configuration will be
+generated on the host. If \fBabsent\fP, the bridge configuration will be
+removed.
+.UNINDENT
+.SS Examples
+.sp
+The example bridge connection to the \fI\%test Mosquitto broker\fP <\fBhttp://test.mosquitto.org\fP>
+from the manual page:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mosquitto__bridges:
+  \(aqtest\-mosquitto\-org\(aq:
+    address: \(aqtest.mosquitto.org\(aq
+    cleansession: \(aqtrue\(aq
+    topic: \(aqclients/total in 0 test/mosquitto/org/ $SYS/broker/\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+An example two\-directional bridge connection to central Mosquitto broker on
+local domain over TLS:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mosquitto__bridges:
+  \(aqmqtt\-local\(aq:
+    address: \(aqmqtt.{{ ansible_domain }}\(aq
+    topic:
+      \- \(aqraw both 2 remote/topic/ local/topic/\(aq
+      \- \(aqcondensed both 2 remote/topic/ local/topic/\(aq
+    bridge_cafile: \(aq{{ mosquitto__client_cafile }}\(aq
+    bridge_certfile: \(aq{{ mosquitto__client_certfile }}\(aq
+    bridge_keyfile: \(aq{{ mosquitto__client_keyfile }}\(aq
+    bridge_tls_version: \(aq{{ mosquitto__tls_version }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS mosquitto__auth_anonymous
+.sp
+This variable can be used to define Access Control List for anonymous Mosquitto
+users. It can be either a string (with one entry), a YAML text block (with
+multiple entries) or a YAML list with string entries.
+.sp
+Each entry should be in the form:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+topic [read|write|readwrite] <topic>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The specified entries will be included at the top of the
+\fB/etc/mosquitto/acl\fP file, therefore will apply to all users that don\(aqt
+provide an username/password, ie. anonymous users.
+.SS Examples
+.sp
+Allow read\-only access to the broker status topics for anonymous users:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mosquitto__auth_anonymous:
+  \- \(aqtopic read $SYS/#\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS mosquitto__auth_users
+.sp
+The \fI\%mosquitto__auth_users\fP, \fI\%mosquitto__auth_group_users\fP and
+\fI\%mosquitto__auth_host_users\fP can be used to configure user accounts in
+Mosquitto. Each variable is a YAML list with entries specified as strings which
+should be th user account names, or as YAML dictionaries that can be used to
+control the user account configuration.
+.sp
+Batch password generation is supported on Mosquitto 1.4+, therefore
+user/password entries will only work on older OS releases with upstream
+Mosquitto, or Debian Stretch. On unsupported systems user accounts won\(aqt be
+registered in the \fB/etc/mosquitto/passwd\fP file, but they can be added or
+removed manually using the \fBmosquitto_passwd\fP command. The
+\fBhtpasswd\fP Ansible module is not used here because it produces incompatible
+hash strings.
+.sp
+The following parameters can be included in the YAML dictionary entries:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required: User account name.
+.TP
+.B \fBpassword\fP
+Optional. Password for a given user account. If not specified, a random
+password will be generated and stored in the \fBsecret/\fP directory in
+a subdirectory specified in the \fI\%mosquitto__password_secret_path\fP
+variable. See \fI\%debops.secret\fP Ansible role documentation for more details.
+.TP
+.B \fBacl\fP
+Optional. Either a string, or a YAML list of entries to configure for a given
+user account. The format is the same as the anonymous ACL entries.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the user account and its ACL
+entries will be configured on the host. If \fBabsent\fP, the user account entry
+and its ACL entries will be removed from the host.
+.UNINDENT
+.SS Examples
+.sp
+Create a \fBroger\fP user account with custom ACL entry:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mosquitto__auth_users:
+  \- name: \(aqroger\(aq
+    acl:  \(aqtopic foo/bar\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS mosquitto__auth_patterns
+.sp
+This variable can be used to define Access Control List based on topic
+patterns. It can be either a string (with one entry), a YAML text block (with
+multiple entries) or a YAML list with string entries.
+.sp
+Each entry should be in the form:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pattern [read|write|readwrite] <topic>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The topics can contain substitutions that are replaced by the broker:
+.INDENT 0.0
+.IP \(bu 2
+\fB%c\fP will match the client\-id of a given client
+.IP \(bu 2
+\fB%u\fP will match the username of the client
+.UNINDENT
+.sp
+The specified entries will be included at the bottom of the
+\fB/etc/mosquitto/acl\fP file. The pattern ACLs apply to all users, even if
+they have their own specific ACL entries.
+.SS Examples
+.sp
+Allow per\-user write access to a given topic:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mosquitto__auth_patterns:
+  \- \(aqpattern write sensor/%u/data\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Allow access to bridge connection data depending on the client id:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mosquitto__auth_patterns:
+  \- \(aqpattern write $SYS/broker/connection/%c/state\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

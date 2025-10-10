@@ -1,0 +1,353 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.GITLAB" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.gitlab \- Install and manage GitLab service
+.SH SYNOPSIS
+.sp
+\fBdebops service/gitlab\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.gitlab\fP role can be used to install and manage a GitLab instance.
+It supports automatic update of the currently installed version (when the role
+is executed), as well as upgrade to a next stable GitLab release. You can deploy
+the installation either on a single host, or a set of separate hosts, each one
+with a different service (database, application, webserver).
+.SH GETTING STARTED
+.SS Role design
+.sp
+The \fBdebops.gitlab\fP role is designed to install the GitLab services using
+\fI\%the source installation method\fP <\fBhttps://gitlab.com/gitlab-org/gitlab-ce/blob/master/doc/install/installation.md\fP>\&.
+This method, instead of GitLab Omnibus packages, was chosen to allow use of
+other services managed by DebOps, like Redis, nginx, a SQL database, and so
+on. To support monthly GitLab releases, the role tracks currently installed
+version of GitLab and can perform an automatic upgrade when an older version is
+detected. Latest changes to the active GitLab branch are also automatically
+applied on Ansible runs, to support updates.
+.sp
+The installation or upgrade process is not ideal \- role performs installation
+or an upgrade when new changes are detected in the \fBgit\fP repositories,
+but if there are errors during this process, role cannot recover from that
+state automatically. It is advisable to keep a separate staging environment to
+check for any issues with an upgrade of the currently installed production
+environment before performing the production upgrade.
+.sp
+If a failed install or upgrade occurs, the easiest recovery method is usually
+to completely reset the affected host (perform a new deployment) after fixing
+the issue. The more involved method would be to remove the source
+\fBgit\fP repositories and checked out directories and re\-run the role
+again.
+.SS SQL database support
+.sp
+The \fBdebops.gitlab\fP role automatically detects the available PostgreSQL database
+using the Ansible local facts. If the database service should be present on the
+same host as the GitLab service, adding the corresponding database server group in
+the Ansible inventory should be enough.
+If the database server is on a different host, you should use the corresponding
+database client role to configure the relevant Ansible local facts before
+running the \fBdebops.gitlab\fP role.
+.sp
+Installation of a new GitLab environment with existing database is currently
+not tested and may result in a broken installation or data corruption.
+.sp
+You can install the PostgreSQL database using its DebOps role.
+See the \fI\%debops.postgresql_server\fP role documentation for more details.
+.SS Redis support
+.sp
+Currently the \fBdebops.gitlab\fP role expects a Redis Server instance installed
+on the host, for example by the \fI\%debops.redis_server\fP Ansible role.
+Support for distributed Redis Server service managed by Redis Sentinel is
+planned for a future release.
+.SS Docker Registry support
+.sp
+The \fI\%debops.docker_registry\fP Ansible role can be used as a backend to the
+GitLab Container Registry service. The \fBdebops.gitlab\fP playbook will import
+the \fI\%debops.docker_registry\fP playbook to facilitate configuration
+synchronization between the two services. The installation process with Docker
+Registry role enabled will be:
+.INDENT 0.0
+.IP \(bu 2
+Install PostgreSQL server, Redis Server
+.IP \(bu 2
+Install Docker Registry service
+.IP \(bu 2
+Install GitLab, using facts from Docker Registry role
+.IP \(bu 2
+Update Docker Registry service with facts from GitLab role
+.UNINDENT
+.sp
+This should avoid issue with circular dependencies in the configuration of both
+services. The Docker Registry requires PKI support, therefore it\(aqs good
+practice to apply the \fBcommon.yml\fP DebOps playbook, or at least the
+\fI\%debops.pki\fP role, before the GitLab installation begins.
+.SS Support for other services
+.sp
+The \fBdebops.gitlab\fP role depends on other DebOps roles to configure various
+services used by GitLab and provide the required environment for installation.
+The default role playbook is designed to install the services on the same host
+as the GitLab service, however it should be possible to move them to other,
+remote hosts if necessary.
+.sp
+The role provides its own set of \fBsystemd\fP unit files that allow
+management of different GitLab services as one \(dqunit\(dq using \fBsystemd\fP
+slice. The new units will be enabled automatically on all new installations on
+hosts that use the \fBsystemd\fP service manager; on other, older hosts
+the role should fallback to the init script provided by the upstream.
+.SS Example inventory
+.sp
+To enable GitLab service on a host, it needs to be included in the
+\fB[debops_service_gitlab]\fP Ansible inventory group. You should also enable
+a suitable PostgreSQL database and Redis Server service.
+.sp
+Example Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_postgresql_server]
+hostname
+
+[debops_service_redis_server]
+hostname
+
+[debops_service_docker_registry]
+hostname
+
+[debops_service_gitlab]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.gitlab\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+
+\- name: Manage GitLab service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_gitlab\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare gitlab environment
+      import_role:
+        name: \(aqgitlab\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::gitlab\(aq, \(aqrole::postgresql\(aq ]
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq,
+              \(aqrole::nodejs\(aq, \(aqrole::postgresql\(aq, \(aqrole::nginx\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nodejs__keyring__dependent_apt_keys }}\(aq
+        \- \(aq{{ postgresql__keyring__dependent_apt_keys }}\(aq
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+
+    \- role: system_groups
+      tags: [ \(aqrole::system_groups\(aq, \(aqskip::system_groups\(aq ]
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ golang__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ nodejs__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ postgresql__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ ruby__apt_preferences__dependent_list }}\(aq
+        \- \(aq{{ gitlab__apt_preferences__dependent_list }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::mariadb\(aq, \(aqrole::postgresql\(aq, \(aqrole::ldap\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ gitlab__python__dependent_packages3 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+        \- \(aq{{ postgresql__python__dependent_packages3 if gitlab__database == \(dqpostgresql\(dq else [] }}\(aq
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ gitlab__python__dependent_packages2 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+        \- \(aq{{ postgresql__python__dependent_packages2 if gitlab__database == \(dqpostgresql\(dq else [] }}\(aq
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+
+    \- role: golang
+      tags: [ \(aqrole::golang\(aq, \(aqskip::golang\(aq ]
+
+    \- role: nodejs
+      tags: [ \(aqrole::nodejs\(aq, \(aqskip::nodejs\(aq ]
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ gitlab__etc_services__dependent_list }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ gitlab__logrotate__dependent_config }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: ruby
+      tags: [ \(aqrole::ruby\(aq, \(aqskip::ruby\(aq ]
+      ruby__dev_support: True
+
+    \- role: postgresql
+      tags: [ \(aqrole::postgresql\(aq, \(aqskip::postgresql\(aq ]
+      postgresql__dependent_roles:
+        \- \(aq{{ gitlab__postgresql__dependent_roles }}\(aq
+      postgresql__dependent_groups:
+        \- \(aq{{ gitlab__postgresql__dependent_groups }}\(aq
+      postgresql__dependent_databases:
+        \- \(aq{{ gitlab__postgresql__dependent_databases }}\(aq
+      postgresql__dependent_extensions:
+        \- \(aq{{ gitlab__postgresql__dependent_extensions }}\(aq
+      postgresql__dependent_pgpass:
+        \- \(aq{{ gitlab__postgresql__dependent_pgpass }}\(aq
+      when: gitlab__database == \(aqpostgresql\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ gitlab__ldap__dependent_tasks }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_servers:
+        \- \(aq{{ gitlab__nginx__dependent_servers }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ gitlab__nginx__dependent_upstreams }}\(aq
+
+    \- role: gitlab
+      tags: [ \(aqrole::gitlab\(aq, \(aqskip::gitlab\(aq ]
+
+# Import the \(aqdebops.docker_registry\(aq playbook to apply configuration of the
+# Docker Registry that is defined by the \(aqdebops.gitlab\(aq role. This has an
+# effect only when the \(aqdebops.docker_registry\(aq role is enabled on the host via
+# its corresponding Ansible inventory group.
+\- import_playbook: \(aqdocker_registry.yml\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH HOW TO USE REMOTE SQL DATABASE
+.SS PostgreSQL
+.sp
+If you would like to use the remote PostgreSQL database, on the server side you
+need to allow remote connections from the GitLab host. This can be done using
+the Ansible inventory variables:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql_server__listen_addresses: [ \(aq*\(aq ]
+postgresql_server__allow: [ \(aq192.0.2.0/24\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+On the GitLab host, you need to enable the \fI\%debops.postgresql\fP role by adding
+the host to its respective Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_postgresql]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The PostgreSQL client role also needs to be pointed to the remote database
+server, it can be done using the Ansible inventory variables:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postgresql__server: \(aqsqldb.example.org\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBdebops.gitlab\fP role should detect the PostgreSQL configuration
+automatically. If not, you can force the use of the PostgreSQL server through
+the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+gitlab__database: \(aqpostgresql\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS MariaDB/MySQL
+.sp
+MariaDB / MySQL databases are not supported anymore. GitLab\(aqs developers
+themselves discourage their use: \fI\%https://docs.gitlab.com/ce/install/requirements.html#database\fP\&.
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

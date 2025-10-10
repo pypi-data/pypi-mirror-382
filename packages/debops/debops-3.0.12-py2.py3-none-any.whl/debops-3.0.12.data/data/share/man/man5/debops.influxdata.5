@@ -1,0 +1,181 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.INFLUXDATA" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.influxdata \- Configure InfluxData APT repositories
+.SH SYNOPSIS
+.sp
+\fBdebops run service/influxdata\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.influxdata\fP Ansible role can be used to configure APT
+repositories maintained by the \fI\%InfluxData\fP <\fBhttps://www.influxdata.com/about/\fP>
+company on Debian and Ubuntu hosts. The APT repositories are used to distribute
+\fBinfluxdb\fP, \fBtelegraf\fP, \fBchronograf\fP and \fBkapacitor\fP APT packages.
+The role allows only for installation of packages, additional configuration
+and management of the installed software is performed by other Ansible roles.
+.SH GETTING STARTED
+.SS General role usage
+.sp
+The role will configure an APT repository provided by the InfluxData
+company to allow secure installation of various software packages developed by
+said company. The GPG key used by the repository is downloaded from a OpenPGP
+keyserver to ensure authenticity and verification by a third party.
+.sp
+The role itself does not install any APT packages by default. The APT package
+selection can be performed either using Ansible inventory, or through role
+dependent variables.
+.sp
+In an example application role, create a YAML list variable that contains APT
+packages you want to install:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__influxdata__dependent_packages:
+  \- \(aqinfluxdb\(aq
+  \- \(aqtelegraf\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Then, in either the playbook, or in role dependencies, use that variable with
+the \fBinfluxdata\fP role to specify what APT packages to install:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roles:
+
+  \- role: influxdata
+    influxdata__dependent_packages:
+      \- \(aq{{ application__influxdata__dependent_packages }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The role will install selected packages automatically after configuring the
+repository. When this mechanism is used, the Ansible local facts that contain
+application versions will be correctly updated by the role.
+.SS Ansible local facts
+.sp
+The \fBdebops.influxdata\fP role provides a set of Ansible local facts which can
+be used by other roles. In the \fBansible_local.influxdata.packages\fP YAML
+dictionary you can find a YAML dictionary which contains all APT package names
+recognized by the role as keys, and their installed version as values. You can
+use these facts to for example provide an accurate version number on your role
+to check against \fBversion_compare()\fP Ansible filter:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__version: \(aq{{ ansible_local.influxdata.packages.influxdb|d(\(dq0.0.0\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can also use the \fBansible_local.influxdata.packages\fP fact to check if
+a given InfluxData application is installed:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+application__present: \(aq{{ \(dqinfluxdb\(dq in (ansible_local.influxdata.packages|d({})) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example inventory
+.sp
+To enable configuration of the InfluxData APT repositories, you need to
+add a host to the \fB[debops_service_influxdata]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_influxdata]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The role will be automatically used by other Ansible roles that manage
+InfluxData software, therefore the above step is not strictly necessary.
+Refer to the documentation of these roles for more details.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.influxdata\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage InfluxData APT repositories
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_influxdata\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::influxdata\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ influxdata__keyring__dependent_apt_keys }}\(aq
+
+    \- role: influxdata
+      tags: [ \(aqrole::influxdata\(aq, \(aqskip::influxdata\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Patryk Ściborek, Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

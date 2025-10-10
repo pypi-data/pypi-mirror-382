@@ -1,0 +1,468 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ETC_ALIASES" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.etc_aliases \- Manage /etc/aliases database using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/etc_aliases\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fB/etc/aliases\fP file contains the mail alias database used by the
+various SMTP daemons to redirect local mail to remote recipients, local files,
+commands, etc. See the \fI\%aliases(5)\fP <\fBhttps://manpages.debian.org/aliases(5)\fP> for more details.
+.sp
+This role can be used to set the contents of the alias database, either using
+Ansible inventory variables, or as a dependency of another Ansible role.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+The role forwards the \fBroot\fP mail to a set of e\-mail administrator accounts
+defined by the \fI\%debops.core\fP Ansible role (see that role\(aqs documentation for
+more details). If they are not defined, the mail will be forwarded to
+\fBroot@<domain>\fP for convenience.
+.sp
+The role creates the \fBstaff\fP mail alias which by default is forwarded to
+\fBroot\fP\&. If you have separate team for IT Operations and Helpdesk, you might
+want to consider changing this, or some other aliases to forward mail
+elsewhere. To do that, you can define in the inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+etc_aliases__recipients:
+
+  # Forward staff mail to specific users
+  \- staff: [ \(aqexample1\(aq, \(aqexample2\(aq ]
+
+  \- example1: \(aquser1@example.com\(aq
+
+  \- example2: \(aquser2@example.com\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+See the \fI\%etc_aliases__recipients\fP for more details about
+the configuration format.
+.SS Support for the RFC 2142
+.sp
+The \fI\%RFC 2142\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc2142.html\fP>: Mailbox Names For Common Services and Functions
+defines a set of mailboxes (or aliases) that are recommended to exist on any
+DNS domain to allow easy communication between organizations. This role defines
+these recommended mail aliases by default for convenience. You can disable this
+by setting the variable:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+etc_aliases__rfc2142_compliant: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Alternatively, you can change the default mail recipients for the created
+aliases using the normal configuration mechanism described above.
+.SS Example inventory
+.sp
+To configure \fBdebops.etc_aliases\fP on a given remote host, it needs to be added to
+\fB[debops_service_etc_aliases]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_etc_aliases]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs a minimal example playbook that can be used to manage the
+\fB/etc/aliases\fP file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage /etc/aliases database
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_etc_aliases\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare etc_aliases environment
+      import_role:
+        name: \(aqetc_aliases\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::etc_aliases\(aq, \(aqrole::secret\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::etc_aliases\(aq ]
+      secret__directories:
+        \- \(aq{{ etc_aliases__secret__directories }}\(aq
+
+    \- role: etc_aliases
+      tags: [ \(aqrole::etc_aliases\(aq, \(aqskip::etc_aliases\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The playbook is shipped with this role under
+\fBdocs/playbooks/etc_aliases.yml\fP from which you can symlink it to your
+playbook directory.
+.SH USAGE AS A ROLE DEPENDENCY
+.sp
+The \fBdebops.etc_aliases\fP role can be used as a dependency by other Ansible
+roles to manage contents of the \fB/etc/aliases\fP file idempotently.
+Configuration options from multiple roles can be merged together and included
+in the alias database, or removed conditionally.
+.SS Dependent role variable
+.sp
+The role exposes the \fI\%etc_aliases__dependent_recipients\fP variable which
+can be used to define mail aliases and recipients by other Ansible roles
+through the role dependent variables.
+.sp
+The variable is a YAML list with YAML dictionaries as entries. A short format
+of the configuration uses the dictionary key as a name of the dependent role
+and dictionary value as that role\(aqs configuration, in the format defined by
+\fI\%etc_aliases__recipients\fP variable (see playbook excerpt below):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roles:
+
+  \- role: debops.etc_aliases
+    etc_aliases__dependent_recipients:
+      \- role_name: \(aq{{ role_name__etc_aliases__dependent_recipients }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The extended version of the configuration uses a YAML dictionary with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBrole\fP
+Required. Name of the role, used to save its configuration in a YAML
+dictionary on the Ansible Controller. Shouldn\(aqt be changed once selected,
+otherwise the configuration will be desynchronized.
+.TP
+.B \fBconfig\fP
+Required. YAML list with configuration of the aliases and recipients in the
+same format defined by \fI\%etc_aliases__recipients\fP variable.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration will be included
+in the generated alias database. If \fBabsent\fP, the configuration will be
+removed from the alias database. If \fBignore\fP, a given configuration entries
+will be skipped during alias evaluation and won\(aqt affect any existing
+entries.
+.UNINDENT
+.sp
+An example extended configuration (playbook excerpt):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roles:
+
+  \- role: debops.etc_aliases
+    etc_aliases__dependent_recipients:
+      \- role: \(aqrole_name\(aq
+        config: \(aq{{ role_name__etc_aliases__dependent_recipients }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above configuration layout allows for use of the multiple role dependencies
+in one playbook by providing configuration of each role in a separate
+configuration entry.
+.SS Dependent configuration storage and retrieval
+.sp
+The dependent configuration from other roles is stored in the \fBsecret/\fP
+directory on the Ansible Controller (see \fI\%debops.secret\fP for more details) in
+a JSON file, with each role configuration in a separate dictionary. The
+\fBdebops.etc_aliases\fP role reads this file when Ansible local facts
+indicate that the \fB/etc/aliases\fP file is configured, otherwise a new
+empty file is created. This ensures that the stale configuration is not present
+on a new or re\-installed host.
+.sp
+The YAML dictionaries from different roles are be merged with the main
+configuration in the \fI\%etc_aliases__combined_recipients\fP variable that
+is used to generate the final configuration. The merge order of the different
+\fBetc_aliases__*_recipients\fP variables allows to further affect the dependent
+configuration through Ansible inventory if necessary, therefore the Ansible
+roles that use this method don\(aqt need to provide additional variables for this
+purpose themselves.
+.SS Example role default variables
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# This is a set of default variables in an example \(aqapplication\(aq role that uses
+# dependent variables to pass configuration to \(aqdebops.etc_aliases\(aq role.
+
+# /etc/aliases mail recipients defined by the application
+application__etc_aliases__dependent_recipients:
+
+  \- name: \(aqapplication\(aq
+    dest: [ \(aquser1\(aq, \(aquser2\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example role playbook
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# This is a playbook for an example \(aqapplication\(aq role which uses
+# \(aqdebops.etc_aliases\(aq as a dependency and passes its own set of
+# configuration options to it.
+
+\- name: Manage application
+  collections: [ \(aqdebops.debops\(aq ]
+  hosts: [ \(aqdebops_service_application\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare etc_aliases environment
+      import_role:
+        name: \(aqetc_aliases\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::etc_aliases\(aq, \(aqrole::secret\(aq ]
+
+  roles:
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::etc_aliases\(aq ]
+      secret__directories:
+        \- \(aq{{ etc_aliases__secret__directories }}\(aq
+
+    \- role: etc_aliases
+      tags: [ \(aqrole::etc_aliases\(aq ]
+      etc_aliases__dependent_recipients:
+
+        # Short form of dependent configuration
+        \- application: \(aq{{ application__etc_aliases__dependent_recipients }}\(aq
+
+        # Alternavie form of dependent configuration
+        \- role: \(aqapplication\(aq
+          config: \(aq{{ application__etc_aliases__dependent_recipients }}\(aq
+          state: \(aqpresent\(aq
+
+    \- role: application
+      tags: [ \(aqrole::application\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.etc_aliases\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS etc_aliases__recipients
+.sp
+The \fBetc_aliases__*_recipients\fP variables define mail aliases and their
+recipients which should be present in the \fB/etc/aliases\fP file. Each
+variable is a YAML list with dictionaries as the entries. Multiple entries that
+define the same mail alias are combined together in order of appearance.
+.sp
+Each entry can be a YAML dictionary with a dictionary key being the alias to
+define, and dictionary value being a string with one recipient, or a YAML list
+of recipients to set for a given alias:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+etc_aliases__recipients:
+
+  \- root: \(aqadmin\(aq
+
+  \- admin: [ \(aquser1\(aq, \(aquser2\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The more complex version uses a set of parameters that allow greater control
+over a particular alias:
+.INDENT 0.0
+.TP
+.B \fBname\fP, \fBalias\fP
+The mail alias to configure.
+.TP
+.B \fBdest\fP, \fBto\fP
+Required. The string or an YAML list of recipients for a given mail alias.
+.TP
+.B \fBadd_dest\fP, \fBadd_to\fP, \fBcc\fP, \fBbcc\fP
+Optional. A string or an YAML list of recipients to add to existing list of
+recipients. This is useful in subsequent entries to modify the list of
+recipients if necessary.
+.TP
+.B \fBdel_dest\fP, \fBdel_to\fP
+Optional. A string or an YAML list of recipients to remove from the existing
+list of recipients. This is useful in subsequent entries to modify the list
+of recipients if necessary.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment added to a particular
+alias.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given alias entry will be
+defined in the database file.
+.sp
+If \fBabsent\fP, the alias will not be included in the database file.
+.sp
+If \fBhidden\fP, the entry itself won\(aqt be included, but the optional comment
+will be in the file.
+.sp
+If \fBcomment\fP, the entry will be present in the database file, but commented
+out.
+.TP
+.B \fBsection\fP
+Optional. Name of the section in the database file in which a given alias
+should be included. If not specified, the \fBunknown\fP section is used
+automatically.
+.TP
+.B \fBweight\fP
+Optional. A numeric value which is used to sort the entries in the final
+database file. The entries with higher numbers have bigger \(dqweight\(dq and will
+be put lower in the file. Negative numbers can be used to put the entries
+higher than normal. If not specified, a default \fB0\fP will be set.
+.UNINDENT
+.SS Examples
+.sp
+Create a set of aliases:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+etc_aliases__recipients:
+
+  \- name: \(aqroot\(aq
+    dest: \(aqadmin\(aq
+
+  \- alias: \(aqadmin\(aq
+    to: [ \(aquser1\(aq, \(aquser2\(aq ]
+
+  \- alias: \(aqadmin\(aq
+    cc: \(aquser3\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS etc_aliases__sections
+.sp
+The \fB/etc/aliases\fP file is managed using informal \(dqsections\(dq, each
+section groups the common mail aliases. The \fI\%etc_aliases__sections\fP
+contains a list of sections defined by YAML dictionaries with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Short name of the section, used in the alias configuration
+parameters to put the aliases in a particular section.
+.TP
+.B \fBtitle\fP
+Optional. A short description of the section included as its header.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the section will be added in the
+database file. If \fBabsent\fP, the section will not be included in the file.
+.UNINDENT
+.SS Examples
+.sp
+Define a set of alias sections:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+etc_aliases__sections:
+
+  \- name: \(aqgeneral\(aq
+    title: \(aqGeneral\-purpose mail aliases\(aq
+
+  \- name: \(aqadmin\(aq
+    title: \(aqAdministrator mail aliases\(aq
+
+  \- name: \(aqunknown\(aq
+    title: \(aqOther mail aliases\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

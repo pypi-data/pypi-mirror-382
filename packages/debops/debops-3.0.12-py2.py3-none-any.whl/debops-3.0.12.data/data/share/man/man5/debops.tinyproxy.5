@@ -1,0 +1,176 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.TINYPROXY" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.tinyproxy \- Install Tinyproxy on a Debian/Ubuntu host using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/tinyproxy\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.tinyproxy\fP role can be used to install Tinyproxy on a Debian or
+Ubuntu host. Tinyproxy is a light\-weight HTTP/HTTPS proxy daemon for POSIX operating systems.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To install Tinyproxy on a host, it needs to be added to a specific Ansible
+inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_tinyproxy]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.tinyproxy\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Tinyproxy
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_tinyproxy\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ tinyproxy__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ tinyproxy__ferm__dependent_rules }}\(aq
+
+    \- role: tinyproxy
+      tags: [ \(aqrole::tinyproxy\(aq, \(aqskip::tinyproxy\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::tinyproxy\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.tinyproxy\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS tinyproxy__configuration
+.sp
+The \fBtinyproxy__*_configuration\fP variables define the contents of the
+\fB/etc/tinyproxy/tinyproxy.conf\fP configuration file. Each variable is a list of YAML
+dictionaries. The list entries with the same \fBname\fP parameter are merged
+together; this allows to change specific parameters in the Ansible inventory
+without the need to copy over the entire variable contents.
+.SS Examples
+.sp
+To see the examples of the configuration, you can look at the
+\fI\%tinyproxy__default_configuration\fP variable which defines the
+\fBtinyproxy\fP default configuration set by the role.
+.SS Syntax
+.sp
+Each entry in the list is a YAML dictionary that describes the configuration file in the
+\fB/etc/tinyproxy/tinyproxy.conf\fP, using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The filename of the generated configuration file, it should include
+a \fB\&.conf\fP extension. This parameter is used to merge multiple entries with
+the same \fBname\fP together.
+.TP
+.B \fBoptions\fP
+Optional. A YAML list of \fBtinyproxy\fP configuration options defined in
+the configuration file. The \fBoptions\fP parameters from different
+configuration entries are merged together, therefore it\(aqs easy to modify
+specific parameters without the need to copy the entire value to the
+inventory.
+.sp
+Each element of the options list is a YAML dictionary with specific
+parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. This parameter defines the option name, and it needs to be unique
+in a given configuration file. Parameters from different options lists with
+the same \fBname\fP are merged together when the configuration entries are
+merged.
+.TP
+.B \fBcomment\fP
+Optional. A string or YAML text block with a comment added to a given
+option.
+.TP
+.B \fBraw\fP
+Optional. Specify the raw \fI\%tinyproxy(8)\fP <\fBhttps://manpages.debian.org/tinyproxy(8)\fP> configuration options as
+a string or a YAML text block. You can use this parameter to define
+\fBtinyproxy\fP options that don\(aqt have specific values.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given option will be included
+in the configuration file. If \fBabsent\fP, an option will be removed from
+the configuration file. If \fBcomment\fP, an option will be included in the
+configuration file but commented out.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Leonardo Bechea, Alin Alexandru
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

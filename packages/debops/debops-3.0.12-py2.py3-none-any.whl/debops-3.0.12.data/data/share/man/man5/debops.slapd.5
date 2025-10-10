@@ -1,0 +1,2228 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.SLAPD" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.slapd \- Manage OpenLDAP server using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/slapd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run service/slapd\fP \fB\-\-tags\fP \fBrole::slapd:tasks\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%OpenLDAP\fP <\fBhttps://openldap.org/\fP> is an open source \fI\%Lightweight DIrectory Access Protocol\fP <\fBhttps://en.wikipedia.org/wiki/Lightweight_Directory_Access_Protocol\fP>
+server, that can be used for centralized directory services.
+.sp
+The \fBdebops.slapd\fP Ansible role can be used to install and manage OpenLDAP
+server (\fBslapd\fP) on Debian or Ubuntu hosts. The role supports easy
+management of the on\-line configuration (OLC) used to manage \fBslapd\fP
+instances and integrates with other DebOps roles like \fI\%debops.pki\fP and
+\fI\%debops.dhparam\fP for additional functionality.
+.SH GETTING STARTED
+.SS OpenLDAP features enabled by default
+.sp
+The \fBdebops.slapd\fP role enables and configures some of the OpenLDAP features
+that otherwise are enabled dynamically and could have different names in the
+LDAP directory on different installations due to the order in which they were
+enabled. If you are planning to apply the role on an existing installation, you
+should review the configuration before doing so \- the OpenLDAP server usually
+refuses the incorrect configuration outright, which should not affect the
+existing installation, but that\(aqs not a 100% guarantee.
+.SS Access to service denied by default
+.sp
+The default configuration denies access to the OpenLDAP service from anywhere
+through the firewall and TCP Wrappers, although the \fBslapd\fP daemon
+will listen for connections on all interfaces. You can use the
+\fBslapd__*_allow\fP variables to define what IP addresses or subnets have access
+to the LDAP service.
+.sp
+If you don\(aqt use the \fI\%debops.ferm\fP and the \fI\%debops.tcpwrappers\fP
+Ansible roles to control access to services, keep in mind that the OpenLDAP
+service will be available publicly. This might be important while designing the
+LDAP Access Control List and password policies.
+.sp
+You can control the default behaviour using the \fI\%slapd__accept_any\fP
+boolean variable. Another option is to use an external firewall with IDS/IPS
+systems that can analyze LDAP traffic. Access through a VPN connection, for
+example using the \fI\%debops.tinc\fP Ansible role, can also be a good option
+for limiting the exposure of LDAP directory directly to the Internet.
+.SS SASL authentication
+.sp
+The role uses the \fI\%debops.saslauthd\fP Ansible role to configure the
+\fBsaslauthd\fP service which provides SASL authentication capability. PAM
+authentication is used by default to authenticate LDAP access via the UNIX
+accounts. If LDAP support is configured on the host by the \fI\%debops.ldap\fP
+role, the directory will be used for authentication instead.
+.sp
+Humans can authenticate themselves by specifying their account names without
+a domain part, which are defined by the \fBuid\fP attribute of their
+\fBinetOrgPerson\fP LDAP objects, looked up in the \fBou=People\fP subtree of the
+LDAP directory.
+.sp
+Computers can authenticate to the LDAP directory by specifying an UNIX account
+name and their FQDN domain name, for example \fBsshd@host.example.org\fP, which
+corresponds to the \fBuid\fP and \fBhost\fP attributes of the \fBaccount\fP LDAP
+objects. Only hosts that have been registered in the LDAP directory
+\fBou=Hosts\fP subtree can authenticate with this method.
+.sp
+The \fI\%debops.saslauthd\fP role defines the \fBslapd\fP LDAP profile which
+contains the LDAP search query and filtering rules which can be used for access
+control to the OpenLDAP directory itself.
+.SS Authentication debugging and logs
+.sp
+By default the \fBslapd\fP log output is set to \fBnone\fP, which results in
+minimal logs. If you need to debug or keep track of LDAP authentication and
+search queries, you can easily configure \fBslapd\fP to do that through
+the Ansible inventory, by adding a configuration file, for example in a cluster
+of LDAP hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# ansible/inventory/group_vars/slapd_cluster/slapd.yml
+
+slapd__group_tasks:
+
+  \- name: \(aqConfigure the OpenLDAP server log level\(aq
+    dn: \(aqcn=config\(aq
+    attributes:
+      olcLogLevel: \(aqstats\(aq
+    state: \(aqexact\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Make sure that the \fBname\fP parameter corresponds to the correct
+\fBslapd\fP option defined in the \fI\%slapd__default_tasks\fP variable,
+to modify it using \fI\%Universal Configuration\fP mechanism included in DebOps.
+.sp
+You can use \fBjournald\fP to view the \fBslapd\fP logs:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+journald \-f \-u slapd.service
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example inventory
+.sp
+To install and manage the OpenLDAP server on a host, you need to add it to the
+\fB[debops_service_slapd]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_slapd]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.slapd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage OpenLDAP service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_slapd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ slapd__ferm__dependent_rules }}\(aq
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+      tcpwrappers__dependent_allow:
+        \- \(aq{{ slapd__tcpwrappers__dependent_allow }}\(aq
+
+    \- role: cron
+      tags: [ \(aqrole::cron\(aq, \(aqskip::cron\(aq ]
+
+    \- role: logrotate
+      tags: [ \(aqrole::logrotate\(aq, \(aqskip::logrotate\(aq ]
+      logrotate__dependent_config:
+        \- \(aq{{ slapd__logrotate__dependent_config }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq, \(aqrole::slapd\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+        \- \(aq{{ slapd__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+        \- \(aq{{ slapd__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ saslauthd__ldap__dependent_tasks }}\(aq
+      when: slapd__saslauthd_enabled | bool
+
+    \- role: saslauthd
+      tags: [ \(aqrole::saslauthd\(aq, \(aqskip::saslauthd\(aq ]
+      saslauthd__dependent_instances:
+        \- \(aq{{ slapd__saslauthd__dependent_instances }}\(aq
+      when: slapd__saslauthd_enabled | bool
+
+    \- role: slapd
+      tags: [ \(aqrole::slapd\(aq, \(aqskip::slapd\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The included \fI\%debops.ferm\fP and \fI\%debops.tcpwrappers\fP Ansible roles are
+optional. They can be used for managing firewall and access rules to the LDAP
+service.
+.sp
+If you further want to enable LDAP transport layer security in \fBdebops.slapd\fP
+role, the \fI\%debops.pki\fP and \fI\%debops.dhparam\fP roles must also be
+applied on the host. The \fBdebops.slapd\fP role will automatically detect and
+use their configured environments if available.
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::slapd\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::slapd:tasks\fP
+Run the LDAP tasks generated by the role to apply OpenLDAP \fBcn=config\fP
+configuration. This will also include the ACL tests.
+.TP
+.B \fBrole::slapd:slapacl\fP
+Run tasks that maintain the \fBslapacl\fP test suite script and perform
+OpenLDAP ACL tests when enabled.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.slapd\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%slapd(8)\fP <\fBhttps://manpages.debian.org/slapd(8)\fP>, \fI\%slapd\-config(5)\fP <\fBhttps://manpages.debian.org/slapd-config(5)\fP>
+.IP \(bu 2
+\fI\%LDAP for Rocket Scientists\fP <\fBhttp://www.zytrax.com/books/ldap/\fP>, an excellent book about LDAP and OpenLDAP
+.IP \(bu 2
+\fI\%Debian LDAP Portal\fP <\fBhttps://wiki.debian.org/LDAP\fP> page in the Debian Wiki
+.UNINDENT
+.SH OPENLDAP OVERLAYS
+.sp
+OpenLDAP server supports \fI\%overlays\fP <\fBhttps://www.openldap.org/doc/admin24/overlays.html\fP> which can be added to a LDAP database to
+modify its functionality. The overlays listed below are enabled by the
+\fI\%debops.slapd\fP role by default.
+.SS Sync Provider overlay
+.sp
+The role will by default enable the \fI\%Sync Provider\fP <\fBhttp://www.zytrax.com/books/ldap/ch6/syncprov.html\fP> (\fBsyncprov\fP) dynamic
+module and overlay, in both the \fBcn=config\fP configuration database, and the
+main OpenLDAP database.
+.sp
+The Sync Provider functionality is used in different \fI\%data replication\fP <\fBhttps://www.openldap.org/doc/admin24/replication.html\fP>
+strategies. Enabling it by default, even on a standalone OpenLDAP server,
+should be harmless \- the replication requires additional configuration defined
+in each OpenLDAP database. The overlay is enabled first to keep the
+\fBX\-ORDERED\fP index number consistent between the \fBcn=config\fP database and
+the main database.
+.sp
+Manual page: \fI\%slapo\-syncprov(5)\fP <\fBhttps://manpages.debian.org/slapo-syncprov(5)\fP>
+.SS Password Policy overlay
+.sp
+The \fI\%debops.slapd\fP role will by default import the \fBppolicy\fP LDAP
+schema, load the \fBppolicy\fP dynamic module and enable the Password Policy
+overlay in the main OpenLDAP database.
+.sp
+The \fI\%Password Policy\fP <\fBhttps://www.zytrax.com/books/ldap/ch6/ppolicy.html\fP> overlay is used to maintain the security and quality of
+various passwords stored in the LDAP database. By default the overlay will
+ensure that the cleartext passwords passed to the OpenLDAP server are hashed
+using the algorithms specified in the \fBolcPasswordHash\fP parameter (salted
+SHA\-512 via \fI\%crypt(3)\fP <\fBhttps://manpages.debian.org/crypt(3)\fP> function is set by default by the
+\fI\%debops.slapd\fP role).
+.sp
+The LDAP administrators can define default and custom Password Policies in the
+main database, which can enforce additional password requirements, like minimum
+password length, different types of characters used, lockout policy, etc.
+.sp
+Manual page: \fI\%slapo\-ppolicy(5)\fP <\fBhttps://manpages.debian.org/slapo-ppolicy(5)\fP>
+.SS Attribute Uniqueness overlay
+.sp
+The \fI\%Attribute Uniqueness overlay\fP <\fBhttps://www.openldap.org/doc/admin24/overlays.html#Attribute%20Uniqueness\fP> is used to enforce that specific LDAP
+attributes are unique acrosse the LDAP directory. The default configuration
+enforces the uniqueness of the \fBuidNumber\fP and \fBgidNumber\fP attributes in
+the entire LDAP directory, and the \fBuid\fP, \fBgid\fP and \fBmail\fP attributes in
+the \fBou=People,dc=example,dc=org\fP subtree of the directory.
+.sp
+Manual page: \fI\%slapo\-unique(5)\fP <\fBhttps://manpages.debian.org/slapo-unique(5)\fP>
+.SS Reverse Group Membership Maintenance overlay
+.sp
+The \fI\%memberOf overlay\fP <\fBhttps://www.openldap.org/doc/admin24/overlays.html#Reverse%20Group%20Membership%20Maintenance\fP> is used to update the LDAP objects of group members
+when they are added or removed from a particular \fBgroupOfNames\fP or
+\fBgroupOfEntries\fP objects, as well as \(dqrole occupants\(dq defined in a given
+\fBorganizationalRole\fP object. The overlay also maintains reverse membership
+information of the \fBgroupOfURLs\fP objects maintained by the
+\fI\%AutoGroup overlay\fP\&.
+.sp
+Applications and services can search for objects with the \fBmemberOf\fP
+attribute with specific values to get the list of groups or roles a given user
+belongs to.
+.sp
+Manual page: \fI\%slapo\-memberof(5)\fP <\fBhttps://manpages.debian.org/slapo-memberof(5)\fP>
+.SS Referential Integrity overlay
+.sp
+The \fI\%refint overlay\fP <\fBhttps://www.openldap.org/doc/admin24/overlays.html#Referential%20Integrity\fP> is used to update Distinguished Name references in other
+LDAP objects when a particular object is renamed or removed. This ensures that
+the references between objects in the LDAP database are consistent.
+.sp
+Manual page: \fI\%slapo\-refint(5)\fP <\fBhttps://manpages.debian.org/slapo-refint(5)\fP>
+.SS Audit Logging overlay
+.sp
+The \fI\%auditlog overlay\fP <\fBhttps://www.openldap.org/doc/admin24/overlays.html#Audit%20Logging\fP> records all changes performed in the LDAP database
+using an external log file. Changes are stored in the LDIF format, that
+includes a timestamp and the identity of the modifier. The role will
+automatically ensure that the audit log files are rotated periodically using
+the \fBlogrotate\fP service to keep the disk usage under control.
+.sp
+Manual page: \fI\%slapo\-auditlog(5)\fP <\fBhttps://manpages.debian.org/slapo-auditlog(5)\fP>
+.SS Attribute Constraints overlay
+.sp
+The \fI\%constraint overlay\fP <\fBhttps://www.openldap.org/doc/admin24/overlays.html#Constraints\fP> can be used to place constraints on specific LDAP
+attributes, for example number of possible values, size or format.
+.sp
+Manual page: \fI\%slapo\-constraint(5)\fP <\fBhttps://manpages.debian.org/slapo-constraint(5)\fP>
+.SS AutoGroup overlay
+.sp
+The \fBautogroup\fP overlay is yet another attempt at creating \fI\%dynamic groups\fP <\fBhttps://www.zytrax.com/books/ldap/ch11/dynamic.html\fP>
+in the LDAP directory. Normally using the combination of the
+\fI\%slapo\-dynlist(5)\fP <\fBhttps://manpages.debian.org/slapo-dynlist(5)\fP> and the \fI\%slapo\-dyngroup(5)\fP <\fBhttps://manpages.debian.org/slapo-dyngroup(5)\fP> overlays the LDAP
+directory can support dynamic group objects which define membership in a group
+using LDAP search URLs. However these groups are \(dqvirtual\(dq and don\(aqt really
+exist, using the dynamic attributes in searches will not include these groups.
+Also, the reverse membership information defined by the \fBmemberOf\fP attribute
+cannot be implemented this way.
+.sp
+With \fBautogroup\fP overlay, the directory server checks on each add, modify or
+delete operation on an object if that object is included in a search of
+a particular \fBgroupOfURLs\fP group and statically adds or removes a reference
+to it in the \fBmember\fP attribute as needed. With addition of the \fBmemberof\fP
+overlay which maintains reverse membership information of a given object using
+the \fBmemberOf\fP attribute, the AutoGroup overlay can be used to provide
+two\-way dynamic group support in the LDAP directory. The write performance
+might be an issue with large datasets.
+.sp
+The dynamic groups are defined using the \fBgroupOfURLs\fP LDAP object. The
+\fBmemberURL\fP attribute(s) define the \fI\%LDAP search URLs\fP <\fBhttps://ldapwiki.com/wiki/LDAP%20URL\fP> (\fI\%RFC 4516\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc4516.html\fP>) used
+to specify the members of the group.
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+During development of the feature in DebOps, crashes of the
+\fBslapd\fP daemon were observed in multi\-master replication
+mode on older Debian releases. The OpenLDAP version included in
+Debian Buster seems to work fine, though.
+.UNINDENT
+.UNINDENT
+.SS LastBind overlay
+.sp
+The \fBlastbind\fP overlay and the corresponding OpenLDAP module can be used to
+maintain information about last login time of a LDAP account, similar to the
+\fI\%lastLogon\fP <\fBhttps://ldapwiki.com/wiki/LastLogon\fP> functionality from Active Directory. The primary purpose
+of the \fBlastbind\fP overlay is detection of inactive user accounts; it
+shouldn\(aqt be relied on for real\-time login tracking.
+.sp
+The time of the last successful authenticated bind operation of a given LDAP
+object is stored in the \fBauthTimestamp\fP operational attribute (not
+replicated, not visible in normal queries, has to be specifically requested).
+By default the timestamp is updated once a day to avoid performance issues in
+larger environments.
+.sp
+Manual page: \fI\%slapo\-lastbind(5)\fP <\fBhttps://manpages.debian.org/slapo-lastbind(5)\fP>
+.SH CUSTOM LDAP SCHEMAS
+.sp
+The \fBdebops.slapd\fP role by default configures a set of custom LDAP schemas on
+top of the default ones enabled during \fBslapd\fP installation. The
+schemas included in a LDAP directory cannot be removed without issues,
+therefore it\(aqs best to select the ones you want to use at the database
+initialization.
+.sp
+You can find more details about managing the LDAP schemas using \fBcn=config\fP
+configuration \fI\%in the Zytrax LDAP guide\fP <\fBhttp://www.zytrax.com/books/ldap/ch6/slapd-config.html#use-schemas\fP>\&.
+.SS General notes
+.sp
+The \fBslapd__*_schemas\fP variables define a list of LDAP schemas to import by
+the role. The list is not merged via custom Ansible filter plugins and is only
+additive. You can define different sets of schemas on different Ansible
+inventory levels.
+.sp
+The schema files need to already be present on the remote host to be imported
+by the role. The default schemas included by the role are installed via APT
+packages, you can see the available set of schemas by running the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+apt\-cache search fusiondirectory plugin schema
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The Debian/Ubuntu archive also contains a smaller set of APT packages for the
+GOsa² application which contain LDAP schemas, however the \fBgosa\-*\fP and
+\fBfusiondirectory\-*\fP packages conflict with each other.
+.sp
+You can use the \fI\%debops.resources\fP role to copy custom \fB*.schema\fP or
+\fB*.ldif\fP files to the remote host before importing them. The \fB*.ldif\fP files
+can be imported automatically, but the \fB*.schema\fP import relies on the
+\fBfusiondirectory\-insert\-schema\fP command which is available in the
+\fBfusiondirectory\-schema\fP APT package.
+.sp
+If you are using clustered OpenLDAP, for example in N\-Way Multi Master
+replication mode, you should import the schemas only on one node at a time.
+Execution of the import command on multiple remote hosts at once will result in
+an error when one replication host already has a schema defined with a specific
+\fBX\-ORDERED\fP index number, but the other nodes don\(aqt. The schema will be
+replicated automatically between all of the OpenLDAP masters.
+.SS The \fBrfc2307bis\fP schema
+.sp
+The \fI\%rfc2307bis LDAP schema\fP <\fBhttps://tools.ietf.org/html/draft-howard-rfc2307bis-02\fP> is a proposed replacement of the \fI\%RFC 2307\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc2307.html\fP>
+document that defines the \fBnis\fP LDAP schema. Main improvement over the old
+\fBnis\fP schema is the modified \fBposixGroup\fP LDAP object, which in the new
+schema has an \fBAUXILIARY\fP type instead of the \fBSTRUCTURAL\fP type. Notably,
+the \fBposixAccount\fP LDAP object has an \fBAUXILIARY\fP type in the original
+\fBnis\fP scheme; the change makes both objects work similarly by allowing an
+UNIX\-based attributes to be combined with LDAP\-based directory entries.
+.sp
+Without this change, LDAP directories that are used in UNIX\-like environments
+for group authentication require two sets of groups stored in the directory
+\- one for LDAP entities based on DN attributes, and another for UNIX entities
+based on GID attributes. The new schema enables the \fBposixGroup\fP object
+type to combine with other LDAP object types, namely \fBgroupOfNames\fP or
+\fBgroupOfUniqueNames\fP\&. This allows the two sets of data to be combined in
+one object \- allowing both the UID and DN attributes to be used as group
+members.  This of course depends on the client\-side support \- both
+\fBnslcd\fP and \fBsssd\fP daemons should be able to use the combined
+data sets correctly.
+.SS Support in Debian
+.sp
+Some of the Linux\-based distributions provide the \fBslapd\fP package with
+the new \fBrfc2307bis\fP schema enabled by default. Unfortunately, Debian\(aqs
+\fBslapd\fP APT package includes the original \fBnis\fP schema which
+conflicts with the new \fBrfc2307bis\fP schema because both define the same LDAP
+objects and their attributes. The \fBnis\fP schema is loaded by default during
+the \fBslapd\fP package installation and removing it from the already
+initialized directory can be difficult.
+.sp
+Fortunately, there\(aqs a clean way to avoid this issue and enable the
+\fBrfc2307bis\fP schema on \fBslapd\fP installation. The Debian Archive
+contains two packages that provide it: \fI\%fusiondirectory\-schema\fP <\fBhttps://packages.debian.org/stable/fusiondirectory-schema\fP> and
+\fI\%gosa\-schema\fP <\fBhttps://packages.debian.org/stable/gosa-schema\fP>\&. Both packages conflict with each other, therefore only one can
+be installed at a time. In the \fBdebops.slapd\fP role, the
+\fBfusiondirectory\-schema\fP has been selected because FusionDirectory project
+seems to be an actively maintained fork of GOsa² and will be more likely to be
+selected for installation; another reason is more
+\fBfusiondirectory\-plugin\-*\-schema\fP APT packages available in Debian.
+.sp
+The role still works fine with \fBgosa\-schema\fP APT package installed, however
+this will not be detected automatically; the user should redefine the
+\fI\%slapd__rfc2307bis_packages\fP list the Ansible inventory to select this
+APT package.
+.sp
+Before the installation of the \fBslapd\fP APT package, the
+\fBdebops.slapd\fP role will install the \fBfusiondirectory\-schema\fP package,
+divert the \fB/etc/ldap/schema/nis.(ldif,schema)\fP files aside using the
+\fBdpkg\-divert\fP tool and create a symlink to the
+\fB/etc/ldap/fusiondirectory/rfc2307bis.(ldif,schema)\fP files in their
+place. With this modification, when the \fBslapd\fP APT package is
+installed, it will automatically include the modified \fBrfc2307bis\fP schema.
+.sp
+The automatic installation of the \fBrfc2307bis\fP schema can be disabled by
+setting the \fI\%slapd__rfc2307bis_enabled\fP boolean variable to \fBFalse\fP\&.
+This allows usage of the LDAP directories that use the old \fBnis\fP schema
+without modifications to the directory contents.
+.SS The initial LDAP schemas
+.sp
+During installation of the \fBslapd\fP Debian package, the postinstall script
+creates a new OpenLDAP configuration using the
+\fB/usr/share/slapd/slapd.init.ldif\fP LDIF configuration file. The default
+LDAP schemas imported at that time are:
+.INDENT 0.0
+.IP \(bu 2
+\fBcore.schema\fP
+.IP \(bu 2
+\fBcosine.schema\fP
+.IP \(bu 2
+\fBnis.schema\fP (replaced by the \fBrfc2307bis.schema\fP before installation)
+.IP \(bu 2
+\fBinetorgperson.schema\fP
+.UNINDENT
+.sp
+You can find the schema files in the \fB/etc/ldap/schema/\fP directory on the
+OpenLDAP server host.
+.SS The \fBdebops\fP schema
+.sp
+This schema provides the basic LDAP object identifiers (OIDs) for other LDAP
+schemas that are created by DebOps project \- the Private Enterprise Number
+assigned to the project by IANA and the separate namespace designated to be
+used for LDAP schemas. These object identifiers are in a separate \(dqschema\(dq so
+that they can be reused in multiple LDAP schemas imported after this schema
+without creating conflicts in the OpenLDAP \fBcn=schema\fP subtree.
+.SS The \fBposixgroupid\fP schema
+.sp
+This is a custom LDAP schema maintained by DebOps. It can be found in the
+\fBansible/roles/debops.slapd/files/etc/ldap/schema/debops/\fP directory of
+the DebOps monorepo.
+.sp
+The \fBrfc2307bis\fP schema fixes one issue with POSIX groups in LDAP \- the
+\fBposixGroup\fP object attributes can be added to any object type. But there\(aqs
+one other problem not fixed by this schema \- the name of the group is taken
+from the \fBcn\fP attribute. This causes an issue when LDAP group names are in
+a human\-readable form, instead of a short string form preferred in POSIX
+environments, for example: \fBUNIX Administrators\fP vs \fBadmins\fP\&.
+.sp
+Another issue shows up with different \fI\%User Private Group\fP <\fBhttps://wiki.debian.org/UserPrivateGroups\fP> implementations in
+LDAP \- because the \fBcn\fP attribute in the LDAP objects that define people is
+used for the person\(aqs full name, for example \(dqJohn Smith\(dq, personal UNIX groups
+cannot be defined in the same LDAP object, even though the \fBgidNumber\fP
+attribute is required by the \fBposixAccount\fP object type.
+.sp
+There are different solutions to this problem \- create a separate
+\fBposixGroup\fP object for each person and put it either in a separate directory
+subtree, or as a child entry of the person\(aqs object, but these solutions are
+cumbersome and require hard to implement ACL rules. A different solution is
+adding a new attribute that would define the UNIX group name separate from the
+common name.
+.sp
+This is what the \fBposixgroupid.schema\fP LDAP schema does \- it adds the
+\fBgid\fP or \fBgroupid\fP attribute, either in a separate \fBgidObject\fP object
+type, or in the \fBposixGroupId\fP object which is a subclass of the
+\fBposixGroup\fP object. With the \fBgid\fP attribute, LDAP clients that are
+configured to use it, can use a different LDAP attribute as the UNIX group name
+instead of the human\-readable \fBcn\fP name. Similarly, LDAP objects that
+represent people can have a \fBgid\fP attribute that contains the name of the
+Private User Group, usually the same as the \fBuid\fP attribute. This requires
+that the LDAP clients look for the \fBgid\fP attribute instead of the \fBcn\fP
+attribute as the UNIX group name, but it\(aqs usually a simple configuration
+change.
+.SS The \fBnextuidgid\fP schema
+.sp
+The \fBnexuidgid\fP schema defines a set of simple LDAP objects (\fBuidNext\fP,
+\fBgidNext\fP), which can be used to store \fBuidNumber\fP and \fBgidNumber\fP
+values, respectively. These objects are used in DebOps to \fI\%keep track of
+the next available UID/GID values\fP, but can be used
+for other purposes, for example to split the UID/GID range used in the LDAP
+directory into subranges.
+.SS The \fBorgstructure\fP schema
+.sp
+The \fBorgstructure\fP schema defines an additional LDAP object,
+\fBorganizationalStructure\fP\&. This object is meant to replace the use of the
+\fBorganizationalUnit\fP object class in the base LDAP directory entries, such as
+\fBou=People\fP, \fBou=Groups\fP, and so on. The new object contains attributes
+selected to help manage the \fI\%access control\fP for specific
+LDAP directory subtrees.
+.SS The \fBppolicy\fP schema
+.sp
+The \fBppolicy\fP schema provides LDAP object and attribute definitions required
+by the \fI\%Password Policy overlay\fP\&.
+.SS The \fBldapns\fP schema
+.sp
+The \fBldapns\fP schema provides a set of LDAP objects and attributes that can be
+used for granular access control to services and hosts that use the LDAP
+directory. The \fBhost\fP attribute can be used to define a list of FQDN names,
+or hostnames to which a given user or application has access. The
+\fBauthorizedService\fP attribute can contain a list of services accessible to an
+user or application. LDAP clients can use these attributes in LDAP filters to
+grant access only to specific people or applications.
+.SS The \fBgroupofentries\fP schema
+.sp
+The \fBgroupofentries\fP schema defines a new \fI\%\(dqgroupOfEntries\(dq LDAP Object
+Class\fP <\fBhttps://tools.ietf.org/html/draft-findlay-ldap-groupofentries-00\fP> which is meant to replace the \fBgroupOfNames\fP object defined by
+\fI\%RFC 2256\fP <\fBhttps://datatracker.ietf.org/doc/html/rfc2256.html\fP>\&. The new object can be used to create groups that can be empty (no
+\fBmember\fP attribute required).
+.SS The \fBopenssh\-lpk\fP schema
+.sp
+The \fBopenssh\-lpk\fP schema allows the LDAP directory to hold SSH public keys,
+which combined with OpenSSH \fBAuthorizedKeysCommand\fP configuration can allow
+SSH authentication via LDAP directory. An \fI\%example openssh\-ldap\-publickey\fP <\fBhttps://github.com/AndriiGrytsenko/openssh-ldap-publickey\fP>
+script shows how this can be configured with OpenSSH and OpenLDAP.
+.sp
+The \fI\%debops.slapd\fP Ansible role contains a modified version of the
+official schema which adds a separate attribute for the public key
+fingerprints, meant to help find the key owners based on the information logged
+by the \fBsshd\fP service.
+.sp
+The \fI\%debops.sshd\fP Ansible role already contains support for SSH public key
+lookup in OpenLDAP, see its documentation for more details about enabling the
+support.
+.SS The \fBsudo\fP schema
+.sp
+The \fI\%sudo\fP <\fBhttps://en.wikipedia.org/wiki/Sudo\fP> service can be configured to \fI\%use LDAP directory as a backend\fP <\fBhttps://www.sudo.ws/man/1.8.17/sudoers.ldap.man.html\fP>
+for its rules. The \fI\%debops.sudo\fP Ansible role will enable the LDAP support
+when the \fI\%debops.ldap\fP configuration is detected (not implemented yet).
+.sp
+The rules in the LDAP directory are meant to be used with LDAP\-based users and
+groups; local accounts should still rely on local \fB/etc/sudoers\fP contents
+to ensure service availability in case of an issue with connection to the LDAP
+service.
+.sp
+Manual pages: \fI\%sudoers.ldap(5)\fP <\fBhttps://manpages.debian.org/sudoers.ldap(5)\fP>
+.SS The \fBeduPerson\fP schema
+.sp
+The \fBeduPerson\fP and \fBeduOrg\fP are Lightweight Directory Access Protocol
+(LDAP) schema designed to include widely\-used person and organizational
+attributes in higher education. The \fBeduPerson\fP object class provides
+a common list of attributes and definitions, drawing on the existing standards
+in higher education. The schema were developed \fI\%by the Internet2 project\fP <\fBhttps://www.internet2.edu/products-services/trust-identity/eduperson-eduorg/\fP> and
+are commonly used in academic institutions.
+.sp
+The schema is available in Debian in the
+\fBfusiondirectory\-plugin\-supann\-schema\fP APT package, however that version is
+slightly outdated and does not include object and attribute descriptions.
+Because of that, DebOps contains its own copy of the schema, cleaned up and
+updated, which will be imported by default to OpenLDAP directory server.
+.sp
+The version of the schema included in DebOps has been extended with additional
+attributes for the \fBeduPerson\fP and \fBeduOrg\fP Object Classes not present in
+the official specification. These attributes have been found useful in an
+academic environment; more attributes might be added in the future if needed.
+.SS The \fBschac\fP schema
+.sp
+The \fBschac\fP (\fI\%SCHema for ACademia\fP <\fBhttps://wiki.refeds.org/display/STAN/SCHAC\fP>) LDAP schema extends the \fBeduPerson\fP
+schema with an additional set of LDAP object classes and attributes useful in
+university and higher education environments.
+.SS The \fBnextcloud\fP schema
+.sp
+The \fBnextcloud\fP schema provides a set of LDAP objectClasses and attributes
+that can be used to control LDAP integration with \fI\%Nextcloud\fP application. Using these attributes, administrators can
+define disk quotas for Nextcloud users stored in the LDAP directory, as well as
+define which user groups present in LDAP are available in the Nextcloud user
+interface.
+.SS The \fBmailservice\fP schema
+.sp
+The \fBmailservice\fP schema is based on several draft RFCs and includes a set of
+LDAP objects and attributes useful for mail services. The \fBmailRecipient\fP
+object class provides attributes for \(dqfinal destination\(dq mail recipient
+accounts, like mail aliases, Sieve filtering rules, mail storage location,
+quota. The \fBmailDistributionList\fP object class allows for creation of simple
+mailing lists or distribution lists which can be used to distribute e\-mail
+messages to multiple recipients with basic access controls.
+.sp
+With this schema installed, the \fBmail\fP attribute should not be used for mail
+services, but should be relegated to user authentication only.
+.SS The \fBdyngroup\fP schema
+.sp
+The \fBdyngroup\fP schema provides LDAP object and attribute definitions for
+creation of \fI\%dynamic groups\fP <\fBhttps://www.zytrax.com/books/ldap/ch11/dynamic.html\fP> inside of the LDAP directory. Dynamic group
+objects define LDAP search URLs which are resolved by the directory server on
+searches and provided to the client with computed set of \fBmember\fP attributes
+as opposed to having a static object with members.
+.sp
+In DebOps, this schema is modified by adding the optional \fBmember\fP attribute
+to the group objects to support usage of the
+\fI\%AutoGroup overlay\fP which maintains \(dqstatic\(dq dynamic groups by
+updating these objects each time an LDAP entry included in the specified search
+is created, modified or destroyed.
+.SS The \fBfreeradius\fP schema
+.sp
+The \fBfreeradius\fP schema provide definitions of various LDAP objects usable by
+the \fI\%FreeRADIUS\fP <\fBhttps://freeradius.org/\fP> service, namely RADIUS Clients, RADIUS Profiles, RADIUS
+Accounting database objects, and FreeRADIUS DHCPv4/DHCPv6 configuration
+objects. The version of the schema included in DebOps is based on the
+\fBmaster\fP branch of the FreeRADIUS project code.
+.sp
+Keep in mind that the FreeRADIUS schema is split into multiple
+\fBfreeradius\-*.schema\fP files, and the main file defines just the
+\fBobjectIdentifier\fP LDAP objects used in other schema files. If you don\(aqt want
+to use specific FreeRADIUS features you should be able to disable them by
+changing the list of LDAP schemas the role loads, but the
+\fBfreeradius.schema\fP file should be always present.
+.SH LDAP ACCESS CONTROL LIST
+.sp
+The default Access Control List is defined in the \fI\%slapd__acl_tasks\fP
+default variable. It might be preferable to override this variable in the
+Ansible inventory by copying its contents there. This should keep the existing
+ACL rules intact in case of any updates to the \fI\%debops.slapd\fP role.
+.sp
+The default ACL will be updated over time when new DebOps roles are integrated
+with the LDAP directory. The DebOps documentation contains a \fI\%browseable
+representation of the LDAP Directory Information Tree\fP
+that maps how various DebOps roles interact with the directory; this should
+enable easier redesign of the Access Control List according to the needs of
+one\(aqs organization.
+.sp
+The user\-facing \fI\%LDAP directory structure\fP
+that conforms to the ACL defined by the role will be initialized by the
+\fI\%debops.slapd\fP role as well. You can use the
+\fBansible/playbooks/ldap/init\-directory.yml\fP Ansible playbook to create
+the initial LDAP Administrator account which will finish the installation. See
+\fI\%LDAP directory initialization\fP for more details.
+.SS Default security policy
+.INDENT 0.0
+.IP \(bu 2
+Deny anonymous access, apart from authentication to the LDAP directory.
+.IP \(bu 2
+Define access for groups of LDAP objects, not for specific objects.
+.IP \(bu 2
+Nobody but LDAP administrators and replicators should be able to read
+\fBuserPassword\fP attribute values, but replacement should be possible.
+.IP \(bu 2
+Grant LDAP administrators full access to the LDAP directory, including
+passwords and confidential information.
+.IP \(bu 2
+Grant LDAP replicators read\-only access to entire LDAP directory, including
+passwords and other confidential data (required for full replication).
+.IP \(bu 2
+Treat UNIX/POSIX environment as separate security domain, with its own group
+of administrators that can define UID/GID values and other attributes related
+to it.
+.IP \(bu 2
+Grant LDAP editors write access to most of the LDAP directory. They don\(aqt
+have write access to the LDAP Administrators and the LDAP Replicators roles,
+the UNIX Administrators group, the \fBou=System Groups\fP subtree as well as to
+the UNIX attributes, they cannot see passwords (but can change them).
+.IP \(bu 2
+Group owners should be able to add or remove members of their own group.
+.IP \(bu 2
+Object owners should be able to modify passwords in their own objects.
+.IP \(bu 2
+Authenticated users should have read access to most of the directory, apart
+from security\-sensitive data like passwords or private information.
+.UNINDENT
+.SS Required LDAP schemas
+.sp
+These LDAP schemas are expected to be present in the LDAP directory by the
+default ACL rules:
+.INDENT 0.0
+.IP \(bu 2
+\fBrfc2307bis\fP
+.IP \(bu 2
+\fBposixgroupid\fP
+.UNINDENT
+.sp
+If some of the schemas specified here are not present, the default ACL
+configuration will not be enabled correctly.
+.SS Directory groups
+.sp
+In this section of the documentation you can find a list of LDAP groups which
+are used in the default \fI\%debops.slapd\fP Access Control List rules. he LDAP
+Distinguished Names used in the documentation assume that the \fBexample.org\fP
+DNS domain is used by the OpenLDAP server.
+.SS UNIX Administrators
+.INDENT 0.0
+.TP
+.B DN
+cn=UNIX Administrators,ou=Groups,dc=example,dc=org
+.TP
+.B Obsolete
+cn=UNIX Administrators,ou=System Groups,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Members of this group have write access to the \fBuid\fP, \fBuidNumber\fP,
+\fBgid\fP, \fBgidNumber\fP and \fBhomeDirectory\fP attributes of the
+\fBposixAccount\fP, \fBposixGroup\fP, \fBposixGroupId\fP, \fBuidNext\fP and
+\fBgidNext\fP LDAP objects. Everyone else has read\-only access to these
+attributes.
+.IP \(bu 2
+Members of this group have write access to the
+\fBou=SUDOers,dc=example,dc=org\fP LDAP subtree which contains
+\fI\%sudoers.ldap(5)\fP <\fBhttps://manpages.debian.org/sudoers.ldap(5)\fP> configuration. Everyone else has read\-only access.
+.IP \(bu 2
+Access to the group is restricted to Read\-only by role occupants of the
+\fI\%LDAP Editor\fP and the
+\fI\%Account Administrator\fP LDAP roles.
+.UNINDENT
+.SS Hidden Objects
+.INDENT 0.0
+.TP
+.B DN
+cn=Hidden Objects,ou=Groups,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Objects in this group are visible only to themselves as well as people and
+other entities with the \fI\%LDAP Administrator\fP, the
+\fI\%LDAP Editor\fP and the
+\fI\%Hidden Object Viewer\fP roles.
+.IP \(bu 2
+The access control list checks the \fBmemberOf\fP attribute of an LDAP object
+and grants or denies access to it depending on its membership status.
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Due to limitations of the OpenLDAP Access Control List features, to
+hide the children objects of a given LDAP object, all of them need to be
+also included as separate \fBmember\fP attributes in the
+\fI\%Hidden Objects\fP group. Otherwise the children of
+hidden objects can be still visible in general LDAP searches, for example
+\fB(objectClass=*)\fP\&. The DN attribute of such entries can also disclose the
+presence of a hidden object.
+.UNINDENT
+.UNINDENT
+.SS Directory roles
+.sp
+In this section of the documentation you can find a list of LDAP roles which
+are used in the default \fI\%debops.slapd\fP Access Control List rules. The LDAP
+Distinguished Names used in the documentation assume that the \fBexample.org\fP
+DNS domain is used by the OpenLDAP server.
+.SS LDAP Administrator
+.INDENT 0.0
+.TP
+.B DN
+cn=LDAP Administrator,ou=Roles,dc=example,dc=org
+.TP
+.B Obsolete
+cn=LDAP Administrators,ou=System Groups,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Role grants full access to the entire LDAP directory.
+.IP \(bu 2
+Access to the role is restricted to read\-only by role occupants of the
+\fI\%LDAP Editor\fP and the
+\fI\%Account Administrator\fP LDAP roles.
+.UNINDENT
+.SS LDAP Replicator
+.INDENT 0.0
+.TP
+.B DN
+cn=LDAP Replicator,ou=Roles,dc=example,dc=org
+.TP
+.B Obsolete
+cn=LDAP Replicators,ou=System Groups,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Role grants read\-only access to the entire LDAP directory.
+.IP \(bu 2
+Access to the role is restricted to read\-only by role occupants of the
+\fI\%LDAP Editor\fP and the
+\fI\%Account Administrator\fP LDAP roles.
+.UNINDENT
+.SS LDAP Editor
+.INDENT 0.0
+.TP
+.B DN
+cn=LDAP Editor,ou=Roles,dc=example,dc=org
+.TP
+.B Obsolete
+cn=LDAP Editors,ou=System Groups,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Role grants write access to most of the LDAP directory, apart from the
+privileged groups and roles.
+.UNINDENT
+.SS LDAP Monitor
+.INDENT 0.0
+.TP
+.B DN
+cn=LDAP Monitor,ou=Roles,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Role grants read access to the \fBcn=Monitor\fP LDAP subtree, which stores the
+information about the OpenLDAP server. It is usually utilized by monitoring
+services to gather data about OpenLDAP service.
+.UNINDENT
+.SS Account Administrator
+.INDENT 0.0
+.TP
+.B DN
+cn=Account Administrator,ou=Roles,dc=example,dc=org
+.TP
+.B Obsolete
+cn=Account Administrators,ou=System Groups,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Role grants write access to the \fBshadowLastChange\fP and write\-only access to
+the \fBuserPassword\fP attributes in the \fBou=People,dc=example,dc=org\fP LDAP
+subtree to allow password changes in personal accounts.
+.IP \(bu 2
+Role grants write access in the \fBou=People,dc=example,dc=org\fP,
+\fBou=Groups,dc=example,dc=org\fP and the \fBou=Machines,dc=example,dc=org\fP
+LDAP subtrees.
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Purpose of this role is too broad and in the future it will be split
+into separate, more focused LDAP roles.
+.UNINDENT
+.UNINDENT
+.SS Password Reset Agent
+.INDENT 0.0
+.TP
+.B DN
+cn=Password Reset Agent,ou=Roles,dc=example,dc=org
+.TP
+.B Obsolete
+cn=Password Reset Agents,ou=System Groups,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Role grants write\-only access to the \fBshadowLastChange\fP and the
+\fBuserPassword\fP attributes in the \fBou=People,dc=example,dc=org\fP LDAP
+subtree to allow password changes in personal accounts.
+.IP \(bu 2
+This role is meant for applications that act on behalf of the users to allow
+them to perform password changes after out\-of\-band authentication.
+.UNINDENT
+.SS SMS Gateway
+.INDENT 0.0
+.TP
+.B DN
+cn=SMS Gateway,ou=Roles,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Role grants read\-only access to the \fBmobile\fP LDAP attribute, required by
+the SMS gateways to send SMS messages.
+.UNINDENT
+.SS Hidden Object Viewer
+.INDENT 0.0
+.TP
+.B DN
+cn=Hidden Object Viewer,ou=Roles,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Role occupants can see LDAP objects included in the
+\fI\%Hidden Objects\fP LDAP group.
+.UNINDENT
+.SS Other directory objects
+.sp
+This section of the documentation describes various other LDAP objects and
+their default access policy defined by the \fI\%debops.slapd\fP Ansible role.
+.SS System Groups
+.INDENT 0.0
+.TP
+.B DN
+ou=System Groups,dc=example,dc=org
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+This subtree was used to hold LDAP objects related to access control, which
+have been converted to normal groups and roles. It can be safely removed from
+existing LDAP directories; the ACL rules for this LDAP object will be removed
+at a later date to allow for secure migration to the new directory layout.
+.UNINDENT
+.SS Group owners
+.INDENT 0.0
+.IP \(bu 2
+The owners of the LDAP groups under the \fBou=Groups,dc=example,dc=org\fP LDAP
+subtree, defined by the \fBowner\fP attribute, can add, modify or remove
+members in their respective groups, using the \fBmember\fP attribute.
+.UNINDENT
+.SS Object owners
+.INDENT 0.0
+.TP
+.B DN
+self
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Object owners see their own LDAP objects even if they are hidden using the
+\fI\%Hidden Objects\fP LDAP group.
+.IP \(bu 2
+Object owners can authenticate to the LDAP directory via the \fBuserPassword\fP
+attribute.
+.IP \(bu 2
+Object owners have write access to the \fBshadowLastChange\fP attribute, and
+write\-only access to the \fBuserPassword\fP attribute in their own LDAP objects
+to allow password changes.
+.IP \(bu 2
+Object owners have write access to the \fBmobile\fP, \fBcarLicense\fP,
+\fBhomePhone\fP and \fBhomePostalAddress\fP attributes in their own objects.
+These attributes cannot be seen by other unprivileged users.
+.UNINDENT
+.SS Authenticated users
+.INDENT 0.0
+.TP
+.B DN
+users
+.TP
+.B Test RDN
+\fBperson_rdn\fP
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Authenticated users have read\-only access to most of the LDAP directory,
+depending on the restrictions defined by the ACL rules.
+.UNINDENT
+.SS Anonymous users
+.INDENT 0.0
+.TP
+.B DN
+anonymous
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Anonymous users can authenticate to the LDAP directory via the
+\fBuserPassword\fP attribute.
+.IP \(bu 2
+No other access is granted to anonymous users.
+.UNINDENT
+.SS Current issues with the default ACL
+.INDENT 0.0
+.IP \(bu 2
+LDAP editors and account administrators can modify or remove accounts of the
+LDAP administrators, thus denying access to the service. There should be
+a way to protect certain user objects based on the \fBmember\fP attribute of
+a specific \fBgroupOfNames\fP LDAP object.
+.IP \(bu 2
+users can create new LDAP objects with object classes or attributes that they
+don\(aqt have access to (for example, UNIX attributes). There should be
+a server\-side way to restrict object creation to allowed object classes only.
+.UNINDENT
+.SS Access Control List tests and validation
+.sp
+Due to its complexity, LDAP access control policy requires extensive testing to
+ensure that there are no missed loopholes or unintended data disclosures. With
+OpenLDAP service, the \fI\%slapacl(8)\fP <\fBhttps://manpages.debian.org/slapacl(8)\fP> command can be used to test the ACL
+rules against existing or simulated LDAP objects.
+.sp
+The \fBslapacl\fP command has to be executed with full access to the
+\fBcn=config\fP database, which means running it on the OpenLDAP server itself,
+as the \fBopenldap\fP UNIX account. Unfortunately, \fBslapacl\fP command
+does not support any test definition files and the tests have to be applied
+using command line arguments.
+.sp
+To make ACL testing more reliable and easier to use, the \fI\%debops.slapd\fP
+Ansible role implements a custom template and \fI\%a set of variables\fP which can be used to generate a shell script, by
+default located at \fB/etc/ldap/slapacl\-test\-suite\fP\&. This script can then
+be executed to perform various ACL tests and report the results. The test suite
+is executed by Ansible on each run of the \fI\%debops.slapd\fP role to ensure
+that any changes to the ACL rules are immediately tested.
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+The test suite shell script is executed by Ansible as the
+\fBopenldap\fP UNIX account and has full access to the OpenLDAP environment,
+database and other files owned by the service. The generated test cases are
+not validated against any command injection attacks through the Ansible
+variables and could be used to take over the OpenLDAP service. Ensure that
+the access to the OpenLDAP servers and the Ansible inventory used to
+configure them is restricted.
+.UNINDENT
+.UNINDENT
+.sp
+To generate the test suite script and perform the tests using Ansible, you can
+execute the \fI\%debops.slapd\fP playbook with a special tag:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run service/slapd \-l <host> \-t role::slapd:slapacl
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This command will regenerate the script and execute it to check the ACL rules.
+.sp
+The test script is designed with a large number of ACL test cases in mind
+(200+). By default it only outputs the details about failed test cases, to make
+them easier to spot on the command line, or in Ansible output. To see the full
+report of the various tests, you need to redirect the standard output to
+another command, for example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/ldap/slapacl\-test\-suite | more
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The output of the failed test cases is sent to the standard error. You can
+redirect the failed test cases to a file for further analysis:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/ldap/slapacl\-test\-suite 2> /tmp/slapd\-acl\-errors
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In this case the script will print the \fB\&.\fP to indicate successful tests and
+\fBX\fP for failed tests on its standard output.
+.sp
+The \fI\%default set of test cases\fP is
+designed to test validity of the default LDAP Access Control List rules defined
+by the \fI\%debops.slapd\fP role and will be expanded over time to cover more
+test cases. If you modify the default ACL rules, you might also need to update
+the existing test cases to conform to the new rules. Alternatively, the
+execution of the test script by Ansible \fI\%can be disabled\fP temporarily or permanently if you don\(aqt want your
+new ACL rules to fail the Ansible execution during development.
+.sp
+Some of the test cases require real, existing LDAP objects to execute properly.
+The \fI\%debops.slapd\fP role provides the
+\fI\%slapd__slapacl_default_tasks\fP YAML list (and additional lists for use
+in the Ansible inventory) that contains definitions of various LDAP objects
+like unprivileged and privileged user accounts. To enable the more extensive
+tests, you need to set the \fI\%slapd__slapacl_test_objects_state\fP variable
+to \fBpresent\fP which will tell the role to add the needed test objects in the
+directory. This functionality is meant to be used in a development environment
+to not interfere with the production database.
+.SS References
+.INDENT 0.0
+.IP \(bu 2
+\fI\%OpenLDAP Access Control\fP <\fBhttps://www.openldap.org/doc/admin24/access-control.html\fP> documentation
+.IP \(bu 2
+\fI\%OpenLDAP\-DIT\fP <\fBhttps://wiki.ubuntu.com/OpenLDAP-DIT\fP> page on Ubuntu Wiki, along with the \fI\%project page\fP <\fBhttps://launchpad.net/openldap-dit\fP> on
+Launchpad
+.IP \(bu 2
+\fI\%Keeping your sanity while designing LDAP ACLs\fP <\fBhttps://medium.com/@moep/keeping-your-sanity-while-designing-openldap-acls-9132068ed55c\fP>
+.IP \(bu 2
+\fI\%Basic ACL configuration\fP <\fBhttp://www.zytrax.com/books/ldap/ch5/step2.html#step2\fP> in Zytrax LDAP guide
+.UNINDENT
+.SH BACKUP AND RESTORE PROCEDURES
+.sp
+Here you can find information about the backup procedure for the OpenLDAP
+service configured by the \fI\%debops.slapd\fP Ansible role as well as tips
+about restoring the backed\-up data.
+.SS Backup snapshots
+.sp
+The \fI\%debops.slapd\fP role installs the \fBslapd\-snapshot\fP shell
+script that can be used to create periodic LDIF snapshots of the databases used
+by the OpenLDAP service.
+.sp
+By default, three \fBcron\fP jobs will be configured by the role to create
+daily (7 days), weekly (4\-5 weeks) and monthly (12 months) snapshots of all
+OpenLDAP databases found (ignoring the \(dqfrontend\(dq database or any databases
+with the \fBolcReadOnly\fP attribute present). This can be controlled using the
+\fI\%slapd__snapshot_deploy_state\fP and \fI\%slapd__snapshot_cron_jobs\fP
+default variables. Alternatively, the periodic \fBcron\fP jobs can be
+disabled, and the \fBslapd\-snapshot\fP script can be executed as \fBroot\fP
+to create current snapshot of the OpenLDAP databases in LDIF format; previous
+snapshots are automatically removed in this case with assumption that they have
+been transferred to a remote storage by other means.
+.sp
+The \fBslapd\-snapshot\fP script will enable and disable read\-only mode for
+each database, with some caveats. The \fBcn=config\fP database is not backed\-up
+read\-only, because read\-only mode cannot be disabled without stopping the
+service. The databases that have the \fBolcReadOnly\fP attribute defined (enabled
+or disabled) are not backed up automatically.
+.sp
+The snapshots are stored in the \fB/var/backups/slapd/\fP directory as
+compressed tarballs. After finishing the snapshot, the
+\fBslapd\-snapshot\fP script will change ownership of the created tarballs
+to the \fBbackup:backup\fP UNIX account and group. This account can then encrypt
+the tarballs via its own set of scripts, using GnuPG asymmetric encryption, to
+prepare them to be sent to a remote location (this functionality is not
+implemented by the \fI\%debops.slapd\fP role). The \fBslapd\-snapshot\fP
+script will automatically remove periodic \fB*.gz.asc\fP or \fB*.gz.gpg\fP
+files before creating new iterations to preserve disk space.
+.SS Restore procedure
+.sp
+The LDAP server has crashed and burned, but you have the backup snapshots
+available, how to restore them? The approach described here assumes that all
+OpenLDAP server configuration was performed using the \fI\%debops.slapd\fP role
+and is still available in the inventory; only the backup of the main LDAP
+databass is needed.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+This procedure can also be used to migrate LDAP directory between OpenLDAP
+installations.
+.UNINDENT
+.UNINDENT
+.SS tl;dr version
+.sp
+Set up a new OpenLDAP cluster, select one host as the restore point.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+scp data.ldif slapd\-host:
+ssh slapd\-host
+sudo systemctl stop slapd.service
+sudo rm \-rf /var/lib/ldap/*
+
+sudo slapadd \-F /etc/ldap/slapd.d \-n 1 \-l data.ldif \-w  # cluster
+sudo slapadd \-F /etc/ldap/slapd.d \-n 1 \-l data.ldif     # standalone
+
+sudo chown openldap:openldap /var/lib/ldap/*
+sudo systemctl start slapd.service
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After a while, data should be synchronized between all nodes in the cluster.
+.SS Detailed explanation
+.INDENT 0.0
+.IP 1. 3
+Create a new OpenLDAP server and configure it using DebOps. If it\(aqs
+a cluster of servers, make sure that after applying the configuration the
+synchronization happens correctly, for example by adding and removing an
+OpenLDAP object on one host, and noticing it appearing and disappearing on
+the other(s).
+.IP 2. 3
+Select one host as the backup importer. Copy the contents of the main LDAP
+database to it via \fBscp\fP to have the data available on the host
+locally.
+.IP 3. 3
+Stop the OpenLDAP service on the host:
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+systemctl stop slapd.service
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP 4. 3
+Remove the existing database files in the \fB/var/lib/ldap/\fP directory
+and any other auxiliary directories, if you use multiple databases/DITs.
+.IP 5. 3
+Import the backed up LDIF dataset to the OpenLDAP server using the
+\fBslapadd\fP command. If you use multiple databases, make sure that
+you use the correct database number during import.
+.sp
+\fBWARNING:\fP
+.INDENT 3.0
+.INDENT 3.5
+If you use a clustered OpenLDAP setup, use the \fB\-w\fP flag to ensure that
+the imported LDAP objects have the correct attributes to override the
+synchronization data from other cluster nodes. Otherwise, the import node
+will have its data wiped after synchronizing with the other cluster
+nodes.
+.UNINDENT
+.UNINDENT
+.sp
+Import of the main database in clustered setup:
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapadd \-F /etc/ldap/slapd.d \-n 1 \-l data.ldif \-w
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Import of the main database in standalone setup:
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapadd \-F /etc/ldap/slapd.d \-n 1 \-l data.ldif
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP 6. 3
+Set the correct UNIX account and UNIX group ownership of the OpenLDAP
+database(s), for example:
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+chown openldap:openldap /var/lib/ldap/*
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP 7. 3
+Start the OpenLDAP service:
+.INDENT 3.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+systemctl start slapd.service
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+The OpenLDAP cluster should now synchronize new LDAP objects imported into
+the LDAP directory.
+.UNINDENT
+.UNINDENT
+.SH GUIDE: N-WAY MULTI-PROVIDER REPLICATION
+.sp
+\fI\%N\-Way Multi\-Provider replication\fP <\fBhttps://www.openldap.org/doc/admin24/replication.html#N-Way%20Multi-Provider%20Replication\fP> (previously referred to in the OpenLDAP
+documentation as N\-Way Multi\-Master replication) can be used to create and
+manage multiple LDAP directory servers that share the data between them. This
+configuration can provide better LDAP directory service availability via host
+and database redundancy, failover capability and easy sharing of the LDAP
+database contents across multiple sites.
+.SS Introduction
+.sp
+There are arguments for and against this setup (see the OpenLDAP documentation
+linked above). N\-Way Multi\-Provider replication is a good solution for the core
+infrastructure to provide redundancy and failover; it might be a wrong approach
+for providing LDAP directory services \(dqcloser\(dq to the end\-users, for this you
+might want to look into \fI\%other OpenLDAP replication topologies\fP <\fBhttps://www.openldap.org/doc/admin24/replication.html\fP> (check out
+the \fI\%Zytrax guide about OpenLDAP replication\fP <\fBhttp://www.zytrax.com/books/ldap/ch7/\fP> as well).
+.sp
+This guide shows how to implement N\-Way Multi\-Provider replication of the LDAP
+directory using DebOps. You might want to check the \fI\%example configuration\fP <\fBhttps://www.openldap.org/doc/admin24/replication.html#N-Way%20Multi-Master\fP>
+in the OpenLDAP documentation for comparison. There\(aqs also a \fI\%Zytrax guide\fP <\fBhttp://www.zytrax.com/books/ldap/ch7/#ol-syncrepl-mm\fP>
+with a Multi\-Master replication example.
+.SS Requirements
+.INDENT 0.0
+.IP \(bu 2
+At least 2 Debian hosts configured by DebOps/Ansible, there can be more hosts
+included in the cluster.
+.IP \(bu 2
+All hosts have proper time synchronization using NTP.
+.IP \(bu 2
+All hosts can reach each other via DNS hostnames and the firewall + TCP
+Wrappers access has been allowed using the \fBslapd__*_allow\fP variables.
+.UNINDENT
+.SS DNS configuration
+.sp
+For flexibility, the LDAP directory cluster will be reachable by the clients
+using \fBCNAME\fP and \fI\%DNS SRV Records\fP\&. Here\(aqs an example
+\fI\%dnsmasq(8)\fP <\fBhttps://manpages.debian.org/dnsmasq(8)\fP> configuration for 3 OpenLDAP cluster hosts and 1 OpenLDAP
+test host used for development:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+host\-record = slapd\-server1.example.org,192.0.2.1
+host\-record = slapd\-server2.example.org,192.0.2.2
+host\-record = slapd\-server3.example.org,192.0.2.3
+
+host\-record = slapd\-tests.example.org,192.0.2.4
+
+cname = ldap1.example.org,slapd\-server1.example.org
+cname = ldap2.example.org,slapd\-server2.example.org
+cname = ldap3.example.org,slapd\-server3.example.org
+
+srv\-host = _ldap._tcp.example.org,ldap1.example.org,389,10,0
+srv\-host = _ldap._tcp.example.org,ldap2.example.org,389,20,0
+srv\-host = _ldap._tcp.example.org,ldap3.example.org,389,30,0
+
+cname = ldap.example.org,slapd\-server1.example.org
+
+cname = ldap\-test.example.org,slapd\-tests.example.org
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For a further explanation of this example configuration, see
+\fI\%Example SRV Configuration using CNAMEs\fP\&.
+.sp
+Keep in mind that in the replicated \fBcn=config\fP configuration (see below) you
+should use the real server hostnames, and not the \fBCNAME\fP records, to avoid
+possible issues when cluster nodes are replaced.
+.SS Ansible inventory configuration
+.sp
+Each OpenLDAP database has its own replication configuration. For maximum
+consistency, the \fBcn=config\fP database should also be replicated, which means
+that each cluster node has to be able to work using the same configuration
+options.
+.sp
+In the Ansible inventory, you should create an Ansible inventory group for the
+OpenLDAP cluster, let\(aqs call it \fB[slapd_masters_cluster1]\fP, just in case that
+in the future there will be multiple OpenLDAP clusters. You could also create
+a separate OpenLDAP server not connected to the main cluster for development
+and testing.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+slapd\-server1    ansible_host=slapd\-server1.example.org
+slapd\-server2    ansible_host=slapd\-server2.example.org
+slapd\-server3    ansible_host=slapd\-server3.example.org
+
+slapd\-tests      ansible_host=slapd\-tests.example.org
+
+[debops_service_slapd]
+slapd\-server1
+slapd\-server2
+slapd\-server3
+
+slapd\-tests
+
+[slapd_masters_cluster1]
+slapd\-server1
+slapd\-server2
+slapd\-server3
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS OpenLDAP configuration tasks
+.sp
+The specific \fI\%OpenLDAP tasks\fP that are used to
+configure the replication between the cluster nodes will be stored in the
+\fBansible/inventory/group_vars/slapd_masters_cluster1/slapd.yml\fP inventory
+file.
+.sp
+This is an example OpenLDAP configuration for 3 nodes, each replicating the
+\fBcn=config\fP database and the main database:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+slapd__group_allow: [ \(aq192.0.2.0/24\(aq ]
+
+slapd__cluster_tasks:
+
+  \- name: \(aqConfigure ServerID values\(aq
+    dn: \(aqcn=config\(aq
+    attributes:
+      olcServerID:
+        \- \(aq001 ldap://slapd\-server1.example.org/\(aq
+        \- \(aq002 ldap://slapd\-server2.example.org/\(aq
+        \- \(aq003 ldap://slapd\-server3.example.org/\(aq
+    state: \(aqexact\(aq
+
+  \- name: \(aqConfigure replication of the cn=config database\(aq
+    dn: \(aqolcDatabase={0}config,cn=config\(aq
+    attributes:
+      olcSyncrepl:
+
+        \- |\-
+          {0}rid=000
+             provider=\(dqldap://slapd\-server1.example.org/\(dq
+             binddn=\(dq{{ slapd__config_rootdn }}\(dq
+             bindmethod=\(dqsimple\(dq
+             credentials=\(dq{{ slapd__config_rootpw }}\(dq
+             searchbase=\(dqcn=config\(dq
+             type=\(dqrefreshAndPersist\(dq
+             retry=\(dq20 5 300 +\(dq
+             timeout=\(dq4\(dq
+             starttls=\(dqcritical\(dq
+             tls_cacert=\(dq{{ slapd__tls_ca_certificate }}\(dq
+             tls_cert=\(dq{{ slapd__tls_certificate }}\(dq
+             tls_key=\(dq{{ slapd__tls_private_key }}\(dq
+             tls_cipher_suite=\(dq{{ slapd__tls_cipher_suite }}\(dq
+
+        \- |\-
+          {1}rid=001
+             provider=\(dqldap://slapd\-server2.example.org/\(dq
+             binddn=\(dq{{ slapd__config_rootdn }}\(dq
+             bindmethod=\(dqsimple\(dq
+             credentials=\(dq{{ slapd__config_rootpw }}\(dq
+             searchbase=\(dqcn=config\(dq
+             type=\(dqrefreshAndPersist\(dq
+             retry=\(dq20 5 300 +\(dq
+             timeout=\(dq4\(dq
+             starttls=\(dqcritical\(dq
+             tls_cacert=\(dq{{ slapd__tls_ca_certificate }}\(dq
+             tls_cert=\(dq{{ slapd__tls_certificate }}\(dq
+             tls_key=\(dq{{ slapd__tls_private_key }}\(dq
+             tls_cipher_suite=\(dq{{ slapd__tls_cipher_suite }}\(dq
+
+        \- |\-
+          {2}rid=002
+             provider=\(dqldap://slapd\-server3.example.org/\(dq
+             binddn=\(dq{{ slapd__config_rootdn }}\(dq
+             bindmethod=\(dqsimple\(dq
+             credentials=\(dq{{ slapd__config_rootpw }}\(dq
+             searchbase=\(dqcn=config\(dq
+             type=\(dqrefreshAndPersist\(dq
+             retry=\(dq20 5 300 +\(dq
+             timeout=\(dq4\(dq
+             starttls=\(dqcritical\(dq
+             tls_cacert=\(dq{{ slapd__tls_ca_certificate }}\(dq
+             tls_cert=\(dq{{ slapd__tls_certificate }}\(dq
+             tls_key=\(dq{{ slapd__tls_private_key }}\(dq
+             tls_cipher_suite=\(dq{{ slapd__tls_cipher_suite }}\(dq
+
+      olcMirrorMode: \(aqTRUE\(aq
+    state: \(aqexact\(aq
+
+  \- name: \(aqConfigure time and size limits in the main database\(aq
+    dn: \(aqolcDatabase={1}mdb,cn=config\(aq
+    attributes:
+      olcLimits:
+        \- |\-
+          dn.exact=\(dq{{ slapd__data_rootdn }}\(dq
+          time=\(dqunlimited\(dq
+          size=\(dqunlimited\(dq
+    ordered: True
+    state: \(aqexact\(aq
+
+  \- name: \(aqConfigure replication of the main database\(aq
+    dn: \(aqolcDatabase={1}mdb,cn=config\(aq
+    attributes:
+      olcSyncrepl:
+
+        \- |\-
+          {0}rid=010
+             provider=\(dqldap://slapd\-server1.example.org/\(dq
+             binddn=\(dq{{ slapd__data_rootdn }}\(dq
+             bindmethod=\(dqsimple\(dq
+             credentials=\(dq{{ slapd__data_rootpw }}\(dq
+             searchbase=\(dq{{ slapd__basedn }}\(dq
+             type=\(dqrefreshAndPersist\(dq
+             retry=\(dq20 5 300 +\(dq
+             timeout=\(dq4\(dq
+             starttls=\(dqcritical\(dq
+             tls_cacert=\(dq{{ slapd__tls_ca_certificate }}\(dq
+             tls_cert=\(dq{{ slapd__tls_certificate }}\(dq
+             tls_key=\(dq{{ slapd__tls_private_key }}\(dq
+             tls_cipher_suite=\(dq{{ slapd__tls_cipher_suite }}\(dq
+
+        \- |\-
+          {1}rid=011
+             provider=\(dqldap://slapd\-server2.example.org/\(dq
+             binddn=\(dq{{ slapd__data_rootdn }}\(dq
+             bindmethod=\(dqsimple\(dq
+             credentials=\(dq{{ slapd__data_rootpw }}\(dq
+             searchbase=\(dq{{ slapd__basedn }}\(dq
+             type=\(dqrefreshAndPersist\(dq
+             retry=\(dq20 5 300 +\(dq
+             timeout=\(dq4\(dq
+             starttls=\(dqcritical\(dq
+             tls_cacert=\(dq{{ slapd__tls_ca_certificate }}\(dq
+             tls_cert=\(dq{{ slapd__tls_certificate }}\(dq
+             tls_key=\(dq{{ slapd__tls_private_key }}\(dq
+             tls_cipher_suite=\(dq{{ slapd__tls_cipher_suite }}\(dq
+
+        \- |\-
+          {2}rid=012
+             provider=\(dqldap://slapd\-server3.example.org/\(dq
+             binddn=\(dq{{ slapd__data_rootdn }}\(dq
+             bindmethod=\(dqsimple\(dq
+             credentials=\(dq{{ slapd__data_rootpw }}\(dq
+             searchbase=\(dq{{ slapd__basedn }}\(dq
+             type=\(dqrefreshAndPersist\(dq
+             retry=\(dq20 5 300 +\(dq
+             timeout=\(dq4\(dq
+             starttls=\(dqcritical\(dq
+             tls_cacert=\(dq{{ slapd__tls_ca_certificate }}\(dq
+             tls_cert=\(dq{{ slapd__tls_certificate }}\(dq
+             tls_key=\(dq{{ slapd__tls_private_key }}\(dq
+             tls_cipher_suite=\(dq{{ slapd__tls_cipher_suite }}\(dq
+
+      olcMirrorMode: \(aqTRUE\(aq
+    state: \(aqexact\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+As a convenience, the above configuration is available as a separate file
+(\fBexamples/multi\-master\-replication.yml\fP) in the \fI\%debops.slapd\fP
+role documentation stored in the DebOps monorepo.
+.SS Configuration notes
+.INDENT 0.0
+.IP \(bu 2
+The cluster configuration is defined in a separate variable,
+\fI\%slapd__cluster_tasks\fP, which will be included after the ACL tasks,
+but before the directory structure tasks. This should ensure that the cluster
+configuration is performed before initial directory structure creation.
+.IP \(bu 2
+The \fBX\-ORDERED\fP LDAP extension (i.e. the \fBordered\fP parameter) is not used
+here because the tasks contain attributes (e.g. \fBolcMirrorMode\fP) which are
+incompatible with \fBX\-ORDERED\fP syntax and which have to be activated at the
+same time.
+.IP \(bu 2
+The \fBolcServerID\fP values and \fBrid=\fP values are unrelated to each other.
+Each OpenLDAP server needs a unique ServerID.
+.IP \(bu 2
+The \fBrid=\fP values need to be numbers from \fB000\fP to \fB999\fP\&. A suggested
+way of using them is to use the first digit as a synchronization group (\fB0\fP
+for multi\-master nodes, \fB1\fP for normal Sync Replication, etc.), second
+digit as the database number (\fB0\fP for the \fBcn=config\fP database, \fB1\fP for
+the main database, and so on), and third digit for the OpenLDAP server
+instance, starting from \fB0\fP\&. You might want to design your own scheme of
+course.
+.IP \(bu 2
+The Sync Replication security depends on X.509 certificates and PKI. The
+\fI\%debops.slapd\fP role depends on the PKI environment managed by the
+\fI\%debops.pki\fP Ansible role to manage the certificates. Because the
+configuration will be shared between all of the masters in the cluster, they
+should use a similar configuration, including the name of the PKI realm used
+by the role.
+.UNINDENT
+.SS Deployment
+.sp
+After the configuration is in the Ansible inventory, you should apply it on all
+OpenLDAP servers in the cluster at once:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run service/slapd \-l slapd_masters_cluster1 \-\-diff
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When the deployment is complete, the OpenLDAP configuration should be defined
+on the group level instead of on an individual host level in the inventory. The
+OpenLDAP servers will synchronize the configuration between the nodes in both
+cases, but it might be confusing if you see configuration defined for one host
+suddenly \(dqshow up\(dq on other nodes in the cluster.
+.sp
+Some of the OpenLDAP configuration options, for example module loading and
+overlay setup should be done on only one node of the cluster at a time; the
+changes will be propagated automatically. Otherwise you will notice that during
+an Ansible run one or more nodes have finished with an error. This happens when
+the role tries to enable a functionality on multiple OpenLDAP cluster nodes at
+once, and the second time gets rejected by the cluster.
+.sp
+Remember that only the OpenLDAP configuration is synchronized automatically.
+Other Ansible roles involved in the \fI\%debops.slapd\fP configuration, for
+example firewall or TCP Wrappers configuration, still need to be applied on
+all hosts in the OpenLDAP cluster.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.slapd\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS slapd__tasks
+.sp
+The \fBslapd__*_tasks\fP variables define a custom set of \fBldap_entry\fP and
+\fBldap_attrs\fP Ansible module tasks that will be executed against the
+\fBslapd\fP \fBcn=config\fP configuration database, in the specified order.
+These variables provide an easy and intuitive way to manage the OpenLDAP
+configuration database, with some specific caveats due to how the \fBcn=config\fP
+configuration works. See the definition of the parameters for more details.
+.SS Examples
+.sp
+Specify root credentials of the \fBcn=config\fP database. This entry ensures that
+only the specific instance of the object attributes exists.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__tasks:
+
+  \- name: \(aqSet cn=config root credentials\(aq
+    dn: [ \(aqolcDatabase={0}config\(aq, \(aqcn=config\(aq ]
+    attributes:
+      olcRootDN: \(aqcn=admin,cn=config\(aq
+      olcRootPW: \(aqsecret\(aq
+    state: \(aqexact\(aq
+    no_log: \(aq{{ debops__no_log | d(True) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Ensure that specific object attributes in the main database are indexed by the
+LDAP directory. This entry will add the specified indexes if they are not
+configured, other existing sets of indexes will be left unchanged.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__tasks:
+
+  \- name: \(aqConfigure main database indexes\(aq
+    dn: [ \(aqolcDatabase={1}mdb\(aq, \(aqcn=config\(aq ]
+    attributes:
+      olcDbIndex:
+        \- \(aqcn,uid eq\(aq
+        \- \(aqmember,memberUid eq\(aq
+        \- \(aqobjectClass eq\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Enable \fI\%Sync Provider overlay\fP <\fBhttp://www.zytrax.com/books/ldap/ch6/syncprov.html\fP> for the main database. This entry creates a
+new LDAP object if it doesn\(aqt exist, but it will not modify existing object or
+its attributes.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__tasks:
+
+  \- name: \(aqEnable sync provider overlay in main database\(aq
+    dn: \(aqolcOverlay={0}syncprov,olcDatabase={1}mdb,cn=config\(aq
+    objectClass: [ \(aqolcOverlayConfig\(aq, \(aqolcSyncProvConfig\(aq ]
+    attributes:
+      olcOverlay: \(aq{0}syncprov\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a basic Access Control List, based on the \fI\%example security policy\fP <\fBhttp://www.zytrax.com/books/ldap/ch5/step2.html#step2\fP>\&.
+This is an example of an object with \fI\%X\-ORDERED\fP <\fBhttps://tools.ietf.org/html/draft-chu-ldap-xordered-00\fP> type attributes, which will
+be added automatically by the \fBldap_attrs\fP module included in DebOps.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__tasks:
+
+  \- name: \(aqSet Access Control List in the main database\(aq
+    dn: \(aqolcDatabase={1}mdb,cn=config\(aq
+    attributes:
+      olcAccess:
+
+        \- |\-
+          to attrs=\(dquserPassword\(dq
+          by self      write
+          by anonymous auth
+          by group.exact=\(dqcn=IT People,ou=Groups,dc=example,dc=com\(dq
+                       write
+          by *         none
+
+        \- |\-
+          to attrs=\(dqcarLicense,homePostalAddress,homePhone\(dq
+          by self       write
+          by group.exact=\(dqcn=HR People,ou=Groups,dc=example,dc=com\(dq
+                        write
+          by *          none
+
+        \- |\-
+          to *
+          by self       write
+          by group.exact=\(dqcn=HR People,ou=Groups,dc=example,dc=com\(dq
+                        write
+          by users      read
+          by *          none
+
+    ordered: True
+    state: \(aqexact\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The \fI\%slapd__default_tasks\fP, \fI\%slapd__tasks\fP,
+\fI\%slapd__group_tasks\fP and \fI\%slapd__host_tasks\fP define a list of
+YAML dictionaries, each list entry defines a \fBldap_entry\fP or \fBldap_attrs\fP
+task to perform on the local OpenLDAP \fBcn=config\fP database. The variables are
+merged together in the order specified by the \fI\%slapd__combined_tasks\fP
+variable. The entries with the same \fBname\fP parameter will affect each other,
+replacing the previously defined \(dqinstance\(dq of a given task \- this can be used
+to change previously defined tasks conditionally.
+.sp
+The list of task parameters supported by the role:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a given task, displayed during Ansible execution. It\(aqs
+an equivalent of the \fBname\fP keyword in Ansible tasks lists. Its value does
+not affect the actions performed in the \fBcn=config\fP database. Entries with
+the same name are merged together.
+.TP
+.B \fBdn\fP
+Required. The Distinguished Name of the LDAP directory object in the
+\fBcn=config\fP database which will be configured by a given entry. The value
+can be specified as a string or a YAML list, which will be joined by commas.
+.sp
+This parameter is case\-sensitive, if you use a wrong case here, the LDAP
+database will still most likely accept the configuration, but the task list
+will not be idempotent. When that happens, check the case of the DN value.
+.sp
+This parameter can contain LDAP object names that use the \fBX\-ORDERED\fP type
+syntax. The LDAP database will accept new objects that omit the \fBX\-ORDERED\fP
+syntax prefix, but subsequent executions of the role can cause errors due to
+incorrect DN name. It\(aqs best to specify the object prefix number directly
+from the start. Remember that the LDAP database can modify the \fBX\-ORDERED\fP
+prefix number on any modification of the list of objects; you should verify
+the current prefix numbering before applying any changes.
+.TP
+.B \fBobjectClass\fP
+Optional. Specify a name or a YAML list of the LDAP Object Classes which
+should be used to define a new LDAP directory object.
+.sp
+If this parameter is specified, the \fBldap_entry\fP module will be used to
+perform the operation instead of \fBldap_attrs\fP module. The \fBldap_entry\fP
+Ansible module will not modify the attributes of any existing LDAP directory
+objects, you need to use a separate configuration entry to do that, which
+does not specify this parameter.
+.sp
+This parameter is case\-sensitive, if you use a wrong case here, the LDAP
+database will still most likely accept the configuration, but the task list
+will not be idempotent. When that happens, check the case of the objectClass
+value(s). The parameter name is case\-sensitive as well.
+.TP
+.B \fBattributes\fP
+Required. YAML dictionary which defines the attributes and their values of
+a given LDAP object. Each dictionary key is a case\-sensitive name of an
+attribute, and the value is either a string, or a list of strings, or a list
+of YAML text blocks. If list is used for the values, multiple attribute
+entries will be created automatically.
+.sp
+If you create configuration entries with the same \fBname\fP parameter, the
+\fBattributes\fP parameter will replace entirely the same parameter defined in
+previous entries on the list. This is not the case in the LDAP directory
+itself, where multiple separate configuration entries can define the same
+objects and their attributes multiple times, as long as the state is not
+specified or is set as \fBpresent\fP\&. To ensure that a given set of attributes
+is specified only once in the LDAP database, you MUST define the \fBstate\fP
+parameter with the \fBexact\fP value.
+.sp
+The attribute names are case\-sensitive, if you use a wrong case here, the
+LDAP database will still most likely accept the configuration, but the task
+list will not be idempotent. When that happens, check the case of the
+attribute names.
+.sp
+The attributes can contain lists that use the \fBX\-ORDERED\fP type syntax. The
+LDAP database will accept new attribute values that omit the \fBX\-ORDERED\fP
+syntax prefix and a new prefix number will be assigned to them automatically
+by the LDAP directory. Subsequent executions of the role can create duplicate
+attribute values, if the prefix number is not specified. It\(aqs best to specify
+the attribute prefix number directly from the start. Remember that the LDAP
+database can modify the \fBX\-ORDERED\fP prefix number on any modification of
+the list of attributes; you should verify the current prefix numbering before
+applying any changes.
+.TP
+.B \fBordered\fP
+Optional, boolean. If defined and \fBTrue\fP, the \fBldap_attrs\fP Ansible module
+will automatically add the \fBX\-ORDERED\fP index numbers to lists of values in
+all attributes of a current task. This extension is used in the OpenLDAP
+\fBcn=config\fP configuration database to define order of object attributes
+which are normally unordered.
+.sp
+The most prominent use of the \fBX\-ORDERED\fP extension is in the \fBolcAccess\fP
+attribute, which defines the LDAP Access Control List. This attribute should
+be defined in a separate LDAP task, so that only its values will have the
+\fBX\-ORDERED\fP index numbers inserted. Existing index values will be removed
+and replaced with the correct ordering defined by the YAML list.
+.TP
+.B \fBstate\fP
+Optional. Possible values:
+.TS
+center;
+|l|l|.
+_
+T{
+State
+T}	T{
+Description
+T}
+_
+T{
+\fBpresent\fP
+T}	T{
+Default. The role will ensure that a given configuration entry
+is present in the LDAP directory.  There might be more more than
+one copy of a given entry present at the same time. To avoid
+creating duplicate entries, use \fBexact\fP instead of
+\fBpresent\fP\&.
+T}
+_
+T{
+\fBexact\fP
+T}	T{
+The role will ensure that only the specified set of attributes
+of a given LDAP object is defined in the LDAP database. You MUST
+use this parameter when \fBX\-ORDERED\fP type attributes are
+configured, otherwise the role cannot guarantee that only the
+specified set of attribute values, as well as their specified
+order, is defined in a given LDAP object.
+T}
+_
+T{
+\fBabsent\fP
+T}	T{
+The specified attributes of a given LDAP object will be removed.
+T}
+_
+T{
+\fBinit\fP
+T}	T{
+The role will prepare a task entry configuration but it will not
+be active \- this can be used to activate prepared entries
+conditionally.
+T}
+_
+T{
+\fBignore\fP
+T}	T{
+A given configuration entry will not be evaluated by the role.
+This can be used to conditionally enable or disable entries.
+T}
+_
+.TE
+.TP
+.B \fBentry_state\fP
+Optional. This parameter should be present only if the entire LDAP object
+entry is to be removed. Set the entry state to \fBabsent\fP to remove it.
+.TP
+.B \fBno_log\fP
+Optional, boolean. If \fBTrue\fP, a given task output will not be recorded to
+avoid emitting sensitive information like passwords. If not specified or
+\fBFalse\fP, the task will be recorded and logged.
+.TP
+.B \fBrun_once\fP
+Optional, boolean. If defined and \fBTrue\fP, a given LDAP task will be
+executed only one time when the role is applied on multiple remote hosts at
+once. This might be important in cases where the LDAP directory is
+replicated, or values from different remote hosts can result in the same LDAP
+objects, e.g. objects with \fBX\-ORDERED\fP index numbers, like LDAP schemas.
+.UNINDENT
+.SS slapd__slapacl_tests
+.sp
+The \fBslapd__slapacl_*_tests\fP variables define a set of \fI\%slapacl(8)\fP <\fBhttps://manpages.debian.org/slapacl(8)\fP>
+tests to perform against the OpenLDAP ACL configuration. The tests are
+generated and stored in a shell script which is then executed against the local
+\fBslapd\fP instance.
+.sp
+See \fI\%LDAP Access Control List\fP for more details about the default set of OpenLDAP
+Access Control Lists defined by the \fI\%debops.slapd\fP role. The
+\fI\%Access Control List tests and validation\fP section has more details about the ACL test
+infrastructure built into the \fI\%debops.slapd\fP role.
+.SS Examples
+.sp
+Check the access rules of a given LDAP object. Non\-existent objects don\(aqt
+generate an error. Existing objects will generate a list of ACL permissions.
+To see the rules, pipe the script output to a different command or to a file.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__slapacl_tests:
+
+  \- name: \(aqCheck access to ou=People,{{ slapd__basedn }}\(aq
+    dn: \(aqou=People,{{ slapd__basedn }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Check the access rules of a given LDAP object by another LDAP object. To see
+the rules, pipe the script output to a different command or to a file.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__slapacl_tests:
+
+  \- name: \(aqCheck access to ou=People,{{ slapd__basedn }} by user\(aq
+    dn: \(aqou=People,{{ slapd__basedn }}\(aq
+    authdn: \(aquid=user,ou=People,{{ slapd__basedn }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Check the access rules of a given LDAP object by a SASL identity. To see the
+rules, pipe the script output to a different command or to a file.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__slapacl_tests:
+
+  \- name: \(aqCheck access to ou=People,{{ slapd__basedn }} by SASL user\(aq
+    dn: \(aqou=People,{{ slapd__basedn }}\(aq
+    uid: \(aquser\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Test the access policy of a specific LDAP object, accessed by anonymous user.
+Failed policy test will result in an error.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__slapacl_tests:
+
+  \- name: \(aqTest access to ou=People,{{ slapd__basedn }} by anonymous user\(aq
+    dn: \(aqou=People,{{ slapd__basedn }}\(aq
+    authdn: \(aq\(aq
+    policy: \(aqnone(=0)\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Test the access policy of a specific LDAP object attribute, accessed by another
+LDAP entry. Failed policy test will result in an error.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__slapacl_tests:
+
+  \- name: \(aqTest write access to ou=People,{{ slapd__basedn }} by a service\(aq
+    dn: \(aqou=People,{{ slapd__basedn }}\(aq
+    authdn: \(aquid=service,ou=Services,{{ slapd__basedn }}\(aq
+    query: \(aqentry/write\(aq
+    policy: \(aqdeny\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Test the access policy of a specific LDAP object attribute, accessed on behalf
+of a LDAP user by a LDAP service entry via SASL proxy authorization. Failed
+policy test will result in an error.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__slapacl_tests:
+
+  \- name: \(aqTest write access to ou=People,{{ slapd__basedn }} by another user\(aq
+    dn: \(aqou=People,{{ slapd__basedn }}\(aq
+    authdn: \(aquid=service,ou=Services,{{ slapd__basedn }}\(aq
+    authzid: \(aqdn:uid=user,ou=People,{{ slapd__basedn }}\(aq
+    query: \(aqentry/write\(aq
+    policy: \(aqallow\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Test the access rules of a LDAP object, accessed by another LDAP entry. Failed
+rule test will result in an error.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+slapd__slapacl_tests:
+
+  \- name: \(aqTest access rules for ou=People,{{ slapd__basedn }} by user\(aq
+    dn: \(aqou=People,{{ slapd__basedn }}\(aq
+    authdn: \(aquid=user,ou=People,{{ slapd__basedn }}\(aq
+    queries:
+
+      \- name: \(aqdescription/write\(aq
+        result: \(aqwrite access to description: ALLOWED\(aq
+
+      \- name: \(aqentry\(aq
+        result: \(aqentry: manage(=mwrscxd)\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The ACL tests are defined using a list of YAML dictionaries. Each dictionary
+describes one test using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The descriptive name of the test, not used otherwise. Each test has
+to have an unique \fBname\fP parameter. The configuration entries with the same
+\fBname\fP are merged together and can affect each other in order of
+appearance.
+.TP
+.B \fBdn\fP
+Required. The Distinguished Name of the LDAP object to test.
+.TP
+.B \fBauthdn\fP
+Optional. The Distinguished Name of the LDAP object which is used as the
+identity which accesses the tested object.
+.TP
+.B \fBuid\fP
+Optional. The SASL id (login name) which will be mapped to a LDAP object
+using the configured \fBauthz\-regexp\fP rules configured in the OpenLDAP
+server. This LDAP object will be used as the identity which accesses the
+tested object.
+.TP
+.B \fBauthzid\fP
+Optional. The \fI\%SASL proxy authorization\fP <\fBhttps://www.openldap.org/doc/admin24/sasl.html#SASL%20Proxy%20Authorization\fP> id (login name) prefixed with
+\fBu:\fP, which will be mapped to a LDAP object using the \fBauthz\-regexp\fP
+rules configured in the OpenLDAP server, or Distinguished Name of an LDAP
+object prefixed with \fBdn:\fP\&. The \fBauthdn\fP or \fBuid\fP LDAP object will use
+the \fBauthzid\fP object to access the test subject.
+.TP
+.B \fBoptions\fP
+Optional. List of addiontal \fI\%slapacl(8)\fP <\fBhttps://manpages.debian.org/slapacl(8)\fP> option which should be used for
+a particular test, for example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+options: [ \(aqssf=\(dq128\(dq\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The option values are not quoted in the script template and need to be quoted
+in the parameter if necessary.
+.TP
+.B \fBdry_run\fP
+Optional, boolean. If \fBTrue\fP, instead of using a real \fBdn\fP LDAP object
+from the directory, the \fBslapacl\fP command will generate a fake DN
+entry with no attributes which can be used to simulate non\-existent LDAP
+objects. This is required by certain backend databases, for example
+\fBcn=config\fP\&.
+.sp
+ACL rules tested against the attributes of the fake DN entry might not be
+accurate, use this only with tests against entries themselves.
+.TP
+.B \fBdebug\fP
+Optional. Enable debugging and set the desired log level as a string.
+Supported log levels can be seen by running the \fBslapd \-d ?\fP
+command, or can be found in the \fI\%slapd\-config(5)\fP <\fBhttps://manpages.debian.org/slapd-config(5)\fP> manual page in the
+\fBolcLogLevel\fP option documentation. In the case of the ACL tests, the
+useful log level can be \fBacl\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given test will be included in
+the generated script. If \fBabsent\fP, the test will not be included in the
+script. If \fBignore\fP, a given configuration entry will not be evaluated by
+the role.
+.sp
+If \fBinit\fP, a given configuration entry will be prepared, but not actually
+included in the generated script. Such entries can then be enabled
+conditionally by another entry with the same \fBname\fP parameter.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with comments about a given tests. The
+comments will be included in the actual script and not displayed otherwise.
+.TP
+.B \fBquery\fP
+Optional. Specify the attribute, optionally an access level and a value to
+which a given \fBdn\fP LDAP object should have access, for example \fBcn/write\fP
+or \fBo/write:Example Org\fP\&. You can also specify \fBentry\fP, to test access to
+a given LDAP object without specific attributes (this is the default if
+\fBquery\fP parameter is not specified) or \fBchildren\fP to specify access to
+child objects of a given LDAP object.
+.TP
+.B \fBpolicy\fP
+Optional. Specify the access policy of a given ACL test. If a given test
+checks particular attribute with a specific access level, for example
+\fBcn/write\fP, you can define the policy using keywords \fBallow\fP,
+\fBallowed\fP, \fBaccept\fP, \fBgrant\fP, \fBpermit\fP to allow access, or
+\fBdisallow\fP, \fBdenied\fP, \fBreject\fP, \fBrevoke\fP, \fBdeny\fP to deny access to
+a given attribute.
+.sp
+If the test checks access policy for an \fBentry\fP, \fBchildren\fP, or if
+a \fBquery\fP parameter is not specified, the \fBpolicy\fP parameter needs to
+have an exact permission set for the script to successfully compare the
+\fBslapacl\fP command output with the desired policy. For example, the
+\fBread\fP access needs to be specified as \fBread(=rscxd)\fP\&. Check the script
+output to see the expected value if you are unsure what needs to be set as
+the \fBpolicy\fP value.
+.TP
+.B \fBqueries\fP
+Optional. A list of YAML dictionaries, each dictionary defines an attribute
+test similar to the \fBquery\fP/\fBpolicy\fP combination. This parameter can be
+used to define more complex ACL rule test cases where different object
+attributes have different access policies. Tests defined using the
+\fBqueries\fP parameter use the \fBdiff\fP command to compare the results.
+.sp
+The \fBqueries\fP parameters from tests with the same \fBname\fP parameters are
+merged together, and their entries can modify each other when they have the
+same \fBname\fP value.
+.sp
+Each test case is defined using specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. The attribute to test, with optional access level and value,
+similar to the \fBquery\fP parameter, for example \fBou/write\fP\&.
+.TP
+.B \fBresult\fP
+Optional. Specify the exact line that contains the result of a given test
+case. You can inspect the output of the test script to find what needs to
+be defined here.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, a given test case will be included
+in the test script. If \fBabsent\fP, a given test case will not be included
+in the test script.
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

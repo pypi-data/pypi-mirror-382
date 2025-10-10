@@ -1,0 +1,318 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DOCKER_REGISTRY" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.docker_registry \- Manage Docker Registry service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/docker_registry\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fBdebops.docker_registry\fP Ansible role can be used to install and manage
+a Docker Registry instance.
+A \fI\%Docker Registry\fP <\fBhttps://docs.docker.com/registry/\fP> is a service which allows you to publish and distribute
+Docker container images. It can be used to create a private, local alternative
+to a Docker Hub.
+.sp
+By default the role installs the Registry using an
+OS package on supported OS releases; on older OS releases without the Registry
+packaged in the repositories the role can download the official upstream
+release from GitHub and build a Go \fBdocker\-registry\fP binary
+automatically.
+.sp
+The role integrates with the \fI\%debops.gitlab\fP and
+\fI\%debops.redis_server\fP Ansible roles to provide backend support for the
+\fI\%GitLab Container Registry\fP <\fBhttps://gitlab.com/help/user/project/container_registry\fP> service. Docker Registry can be installed as
+standalone service, in which case it will be secured using HTTP Basic
+Authentication provided by the \fI\%debops.nginx\fP role.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To install Docker Registry on a host, you need to add it to the
+\fB[debops_service_docker_registry]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname
+
+[debops_service_redis_server]
+hostname
+
+[debops_service_docker_registry]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The support for Redis Server is optional, and not required on the same host.
+.sp
+The \fI\%debops.docker_registry\fP role is designed to integrate well with the
+\fI\%debops.gitlab\fP role, to provide backend support for the GitLab Container
+Registry service. See the role documentation for more details.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.docker_registry\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Docker Registry
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_docker_registry\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq,
+              \(aqrole::nginx\(aq, \(aqrole::docker_registry\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ nginx__keyring__dependent_apt_keys }}\(aq
+      keyring__dependent_gpg_keys:
+        \- \(aq{{ docker_registry__keyring__dependent_gpg_keys }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ golang__apt_preferences__dependent_list | d([]) }}\(aq
+        \- \(aq{{ nginx__apt_preferences__dependent_list }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ docker_registry__etc_services__dependent_list }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq, \(aqrole::docker_registry\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+        \- \(aq{{ docker_registry__python__dependent_packages3 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+        \- \(aq{{ docker_registry__python__dependent_packages2 }}\(aq
+        \- \(aq{{ nginx__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ sudo__ldap__dependent_tasks }}\(aq
+
+    \- role: sudo
+      tags: [ \(aqrole::sudo\(aq, \(aqskip::sudo\(aq ]
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nginx__ferm__dependent_rules }}\(aq
+
+    \- role: nginx
+      tags: [ \(aqrole::nginx\(aq, \(aqskip::nginx\(aq ]
+      nginx__dependent_maps:
+        \- \(aq{{ docker_registry__nginx__dependent_maps }}\(aq
+      nginx__dependent_upstreams:
+        \- \(aq{{ docker_registry__nginx__dependent_upstreams }}\(aq
+      nginx__dependent_htpasswd:
+        \- \(aq{{ docker_registry__nginx__dependent_htpasswd }}\(aq
+      nginx__dependent_servers:
+        \- \(aq{{ docker_registry__nginx__dependent_servers }}\(aq
+
+    \- role: golang
+      tags: [ \(aqrole::golang\(aq, \(aqskip::golang\(aq ]
+      when: docker_registry__upstream|bool
+
+    \- role: docker_registry
+      tags: [ \(aqrole::docker_registry\(aq, \(aqskip::docker_registry\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Authentication
+.sp
+\fI\%docker_registry__basic_auth_except_get\fP allows an easy yet auditable
+write access control to the registry. To use it, set the variable to \fBTrue\fP\&.
+Additionally, you need to define the hosts or networks to require authentication for.
+This is basically a workaround because the Docker Server first does a GET
+request and if it goes though, it will not provide authentication. But we
+always allow read only requests without authentication so we need to force
+authentication like this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nginx__custom_config:
+  \- name: \(aqgeo_force_authentication\(aq
+    custom: |
+      ## This is not security related. It just triggers Docker that it may authenticate itself.
+      geo $force_authentication {
+        default 0;
+        2001:db8:2342::/64 1;
+      }
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Then define the users which should be created and allowed write access:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+docker_registry__basic_auth_users:
+  \- \(aqbuild\-docker\-debian\-base\-image\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Refer to \fI\%debops.secret\fP for details.
+.sp
+You can then use \fBdocker login docker\-registry.example.net\fP to login. This step is manually for now.
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::docker_registry\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.docker_registry\fP
+Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%Docker Registry configuration\fP <\fBhttps://docs.docker.com/registry/configuration/\fP> documentation
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+\fI\%GitLab Container Registry\fP <\fBhttps://gitlab.com/help/user/project/container_registry\fP> documentation
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.docker_registry\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS docker_registry__config
+.sp
+The \fBdocker_registry__*_config\fP variables contain configuration for the
+Docker Registry service. The Docker Registry uses a YAML configuration file
+with multiple level of configuration keys. To allow for better control over the
+configuration file contents, the role uses a list of YAML dictionaries with
+named entries which are recursively merged during configuration file
+generation.
+.SS Examples
+.sp
+Switch the Docker Registry to an Amazon Simple Storage Service (S3) backend,
+based on the \fI\%example configuration\fP <\fBhttps://docs.docker.com/registry/storage-drivers/s3/\fP>:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+docker_registry__config:
+
+  # Disable default local filesystem storage
+  \- name: \(aqdefault\-storage\(aq
+    state: \(aqabsent\(aq
+
+  \- name: \(aqstorage\-s3\(aq
+    config:
+      storage:
+        s3:
+          region: \(aqus\-east\-1\(aq
+          bucket: \(aqregistry.example.org\(aq
+      middleware:
+        storage:
+          \- name: \(aqcloudfront\(aq
+            options:
+              baseurl: \(aqhttps://example.cloudfront.net/\(aq
+              privatekey: \(aq/etc/docker/cloudfront/pk\-example.pem\(aq
+              keypairid: \(aqexample\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You should also see the \fI\%docker_registry__original_config\fP and
+\fI\%docker_registry__default_config\fP variables for useful configuration
+examples.
+.SS Syntax
+.sp
+Each entry in the list is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. An identifier of this configuration entry, not used otherwise.
+Configuration entries with the same identifier are merged together, entries
+later on the list can affect the earlier ones.
+.TP
+.B \fBconfig\fP
+Required. An YAML dictionary with Docker Registry configuration options. Each
+\fBconfig\fP dictionary will be merged recursively in the final configuration
+file. You have to specify the entire dictionary structure from the \(dqbase\(dq of
+the configuration file. Refer to the \fI\%Docker Registry documentation\fP <\fBhttps://docs.docker.com/registry/configuration/\fP> for
+details about supported parameters and their values.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration entry will
+be included in the final configuration file. If \fBabsent\fP, the entry will
+not be included in the final configuration file \- this can be used to disable
+configuration entries with specific identifiers. If \fBignore\fP, a given
+configuration entry will not be evaluated by the role.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

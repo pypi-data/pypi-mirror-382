@@ -1,0 +1,667 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.REDIS_SENTINEL" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.redis_sentinel \- Manage Redis Sentinel instances using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/redis_sentinel\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Redis\fP <\fBhttps://redis.io/\fP> is an in\-memory key/value store, usable as
+a persistent database, cache or a message broker.
+\fI\%Redis Sentinel\fP <\fBhttps://redis.io/topics/sentinel\fP> manages the failover and
+high availability of a Redis cluster.
+.sp
+The \fBdebops.redis_sentinel\fP Ansible role can be used to install and manage
+multiple Redis Sentinel instances on Debian/Ubuntu hosts.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+At the initial deployment, the role will disable the default Redis Sentinel instance
+configuration defined by the distribution packages. Next, a new,
+\fBsystemd\fP\-based instance will be created with the configuration like
+TCP ports and UNIX socket the same as the default Redis Sentinel setup. This
+should allow easy creation of additional Redis Sentinel instances when necessary.
+.sp
+Keep in mind that once the \fBsentinel.conf\fP configuration file is
+generated, the role will not modify it. You should design the required Redis
+Sentinel setup in a development environment, and then deploy it in production.
+To reconfigure an instance from scratch, you can remove it by setting its state
+to \fBabsent\fP, and then re\-create it again.
+.SS Access control and authorization
+.sp
+The \fI\%debops.redis_server\fP role configures Redis Server instances with
+a randomly generated password, the same for all instances in the same domain.
+The password is stored in the \fBsecret/\fP directory on the Ansible
+Controller (see \fI\%debops.secret\fP role for details).
+.sp
+The \fI\%debops.redis_sentinel\fP role will use the same password retrieved from
+the \fBsecret/\fP directory for the monitor configuration.
+.sp
+Redis password is also exposed in the Ansible local facts, so that other
+Ansible roles can use it to configure access to Redis by other applications.
+Run the \fB/etc/ansible/facts.d/redis_sentinel.fact\fP script on the remote
+host to see the local fact structure and contents.
+.SS Example inventory
+.sp
+To enable Redis Sentinel configuration on a host, it needs to be added to
+a specific Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_redis_sentinel]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+By default Redis listens only for local connections on the \fBloopback\fP network
+interface. If you want to set up a cluster of Redis instances on different
+hosts that talk to each other, you should configure the default instance to
+bind to all network interfaces, as well as open the TCP ports in the firewall:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Listen to TCP connections on all interfaces
+redis_sentinel__bind: [ \(aq0.0.0.0\(aq, \(aq::\(aq ]
+
+# Allow connections to Redis from specific subnets
+redis_sentinel__allow: [ \(aq192.0.2.0/24\(aq, \(aq2001:db8::/32\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You should also tell the default monitor to use the public IP address of a host
+instead of \fBlocalhost\fP, this address is shared between Sentinel instances
+\- you should ensure that each instance sees has the same \(dqview\(dq of the Redis
+cluster:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis_sentinel__monitors:
+  \- name: \(aqredis\-ha\(aq
+    host: \(aq{{ ansible_fqdn }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.redis_sentinel\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Redis Sentinel service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_redis_sentinel\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare redis_sentinel environment
+      import_role:
+        name: \(aqredis_sentinel\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::redis_sentinel\(aq, \(aqrole::ferm\(aq ]
+
+  roles:
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ redis_sentinel__apt_preferences__dependent_list }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ redis_sentinel__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ redis_sentinel__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::redis_sentinel\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ redis_sentinel__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ redis_sentinel__python__dependent_packages2 }}\(aq
+
+    \- role: redis_sentinel
+      tags: [ \(aqrole::redis_sentinel\(aq, \(aqskip::redis_sentinel\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::redis_sentinel\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.redis_sentinel\fP Ansible
+role:
+.INDENT 0.0
+.IP \(bu 2
+Official \fI\%Redis Sentinel documentation\fP <\fBhttps://redis.io/topics/sentinel\fP>
+.IP \(bu 2
+Example \fI\%Redis Sentinel config file\fP <\fBhttp://download.redis.io/redis-stable/sentinel.conf\fP>
+.UNINDENT
+.SH REDIS SENTINEL CONFIGURATION PIPELINE
+.sp
+The default Redis Sentinel installation in Debian Jessie and Debian Stretch
+supports only 1 instance of Redis per host. The packages in Debian Buster and
+the \fBstretch\-backports\fP repository support multiple instances by using
+a single \fB/etc/redis/sentinel\-<instance>.conf\fP configuration file per
+a \fBsystemd\fP instance. However, due to the Redis modifying its own
+configuration file on the fly, using a single \fBsentinel.conf\fP
+configuration file does not work well with an Ansible\-based approach to
+configuration.
+.sp
+The solution to this problem implemented in \fI\%debops.redis_sentinel\fP role
+is usage of a separate \fB/etc/redis/sentinel\-<instance>/\fP directory for
+each Redis Sentinel instance. This allows usage of multiple configuration files
+and even scripts for each Redis Sentinel instance, with configuration applied
+dynamically at runtime. The \fBsentinel.conf\fP configuration file is
+generated by Ansible at the instance initialization and not touched after that,
+since it is modified directly by Redis. This ensures idempotency and allows
+Ansible and Redis to work together.
+.SS Configuration variables
+.sp
+The \fI\%debops.redis_sentinel\fP Ansible role exposes a set of default
+variables that can be used to define and modify Redis configuration per
+instance.  Configuration defined in each one is merged together in the
+\fI\%redis_sentinel__combined_configuration\fP using a special filter plugin.
+Multiple configuration entries defined in the format of the
+\fI\%redis_sentinel__configuration\fP parameters are merged together,
+therefore there\(aqs no need to copy everything to the Ansible inventory.
+.sp
+The variables are merged in the following order:
+.INDENT 0.0
+.IP \(bu 2
+the \fI\%redis_sentinel__default_base_options\fP and the
+\fI\%redis_sentinel__base_options\fP hold the default parameters applied to
+all of the Redis Sentinel instances on a particular host. These variables can
+be used to override options applied to all instances when needed.
+.IP \(bu 2
+the \fI\%redis_sentinel__default_instances\fP and the all/group/host variant of
+the same variable are used to generate configuration for each instance, which
+is then put in the configuration pipeline via the
+\fI\%redis_sentinel__default_configuration\fP variable. Each instance will
+include the base options defined for all instances, and per\-instance
+configuration like port, UNIX socket path, optional \fBsystemd\fP
+overrides, etc.
+.sp
+Additionally, each instance checks the
+\fI\%redis_sentinel__default_monitors\fP variable and the all/group/host
+variant of the same variable to include any monitors defined in them.
+Monitors that are confined to a particular Redis Sentinel instance are not
+included in others.
+.IP \(bu 2
+the \fI\%redis_sentinel__default_configuration\fP and the all/group/host
+variants include the actual configuration used by the role to generate the
+Redis Sentinel configuration files, \fBsystemd\fP service configuration.
+The variables are joined together in the
+\fI\%redis_sentinel__combined_configuration\fP variable which is used in
+various role tasks and templates. These variables can be used to override
+per\-instance configuration if needed.
+.UNINDENT
+.SS Configuration file structure
+.sp
+The generated configuration file structure contains the following files:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/etc/redis
+├── sentinel\-main/
+│\ \  ├── notify.d/
+│\ \  ├── reconfig.d/
+│\ \  ├── notify.sh*
+│\ \  ├── reconfig.sh*
+│\ \  └── sentinel.conf
+├── sentinel\-second/
+│\ \  ├── notify.d/
+│\ \  ├── reconfig.d/
+│\ \  ├── notify.sh*
+│\ \  ├── reconfig.sh*
+│\ \  └── sentinel.conf
+├── sentinel\-third/
+│\ \  ├── notify.d/
+│\ \  ├── reconfig.d/
+│\ \  ├── notify.sh*
+│\ \  ├── reconfig.sh*
+│\ \  └── sentinel.conf
+└── sentinel.conf
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBsentinel.conf\fP file in each subdirectory is generated by Ansible at
+instance initialization. It will not be touched by Ansible later on, because
+Redis Sentinel modifies it directly.
+.sp
+The \fBreconfig.sh\fP and \fBnotify.sh\fP scripts are hooks for the
+\fBclient\-reconfig\-script\fP and \fBnotification\-script\fP parameters. They will
+run all scripts in their corresponding directories via the \fBrun\-parts\fP
+command. You can put custom scripts in these subdirectories to perform actions
+on certain Redis Sentinel events; see the Sentinel documentation for more
+details.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.redis_sentinel\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS redis_sentinel__instances
+.sp
+The role can manage multiple Redis Sentinel instances on a single host via the
+\fBredis_sentinel__*_instances\fP default variables. Each variable is a list of
+YAML dictionaries, each dictionary defines an instance of Redis Sentinel
+managed by \fBsystemd\fP unit template.
+.sp
+Configuration specified in the instance YAML dictionary is parsed by the role
+and used to generate the final configuration which is then used to manage the
+Redis Sentinel instances (see \fI\%Redis Sentinel configuration pipeline\fP).
+.sp
+Multiple dictionaries with the same \fBname\fP parameter will be merged together;
+this can be used to override previously defined instance configuration without
+copying everything to the Ansible inventory.
+.SS Examples
+.sp
+Define multiple Redis Sentinel instances:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# Configure all Redis Sentinel instances to listen for network connections
+redis_sentinel__bind: [ \(aq0.0.0.0\(aq, \(aq::\(aq ]
+
+# Allow connections from specific subnets to all Redis Sentinel instances
+redis_sentinel__allow: [ \(aq192.0.2.0/24\(aq, \(aq2001:db8::/32\(aq ]
+
+# Define minimal parameters for additional Redis Sentinel instances with
+# autogenerated configuration
+redis_sentinel__instances:
+
+  \- name: \(aqsecond\(aq
+    port: \(aq6380\(aq
+
+  \- name: \(aqthird\(aq
+    port: \(aq6381\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Modify existing instance configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# Change the default bind of the specific Redis Sentinel instance \(aqmain\(aq to
+# listen on all network interfaces and configure it to monitor a distributed
+# Redis setup
+redis_sentinel__instances:
+
+  \- name: \(aqmain\(aq
+    bind: [ \(aq0.0.0.0\(aq, \(aq::\(aq ]
+
+redis_sentinel__monitors:
+
+  \- name: \(aqredis\-ha\(aq
+    host: \(aq{{ ansible_fqdn }}\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each entry can contain specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a given Redis Sentinel instance. This parameter is used
+as an anchor for merging of multiple YAML dictionaries that specify Redis
+Sentinel instances together.
+.sp
+The instance name \fBmain\fP is significant and used in Ansible local fact
+script to denote the \(dqdefault\(dq Redis Sentinel instance if none is specified.
+.TP
+.B \fBport\fP
+Required. The TCP port on which a given instance listens for network
+connections. Only ports defined in the instance list will be included in the
+automatically managed firewall configuration.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given Redis Sentinel instance
+will be created or managed by the role. If \fBabsent\fP, a given instance will
+be removed by the role. If \fBignore\fP, a given instance entry will not be
+included in the configuration.
+.TP
+.B \fBpidfile\fP
+Optional. Absolute path to a PID file of a given Redis Sentinel instance. If
+not specified, the role will generate one based on the instance name.
+.TP
+.B \fBunixsocket\fP
+Optional. Absolute path to an UNIX socket file of a given Redis Sentinel
+instance. If not specified, the role will generate one based on the instance
+name.
+.TP
+.B \fBbind\fP
+Optional. A string or a YAML list of IP addresses to which a given Redis
+Sentinel instance should bind to to listen for network connections. If not
+specified, the instance will bind on the IP addresses specified in the
+\fI\%redis_sentinel__bind\fP variable, by default \fBlocalhost\fP\&.
+.TP
+.B \fBlogfile\fP
+Optional. Absolute path to a log file of a given Redis Sentinel instance. If
+not specified, the role will generate one based on the instance name.
+.TP
+.B \fBsyslog_ident\fP
+Optional. A short string that identifies a given Redis Sentinel instance in
+the syslog stream. If not specified, the role will generate one based on the
+instance name.
+.TP
+.B \fBsystemd_override\fP
+Optional. An YAML text block that contains \fBsystemd\fP unit
+configuration entries. This can be used to override the configuration of
+a Redis Sentinel instance managed by \fBsystemd\fP\&.
+.UNINDENT
+.sp
+Other configuration options for a given Redis Sentinel instance should be
+specified in the \fBredis_sentinel__*_configuration\fP variables. Some of the
+instance parameters like \fBport\fP are used in other parts of the role and
+should be overridden only on the list of instances.
+.SS redis_sentinel__monitors
+.sp
+Redis Sentinel uses \(dqmonitors\(dq to track the state of Redis Server instances.
+The monitors can be defined using the \fBredis_sentinel__*_monitors\fP default
+variables; each variable is a list of YAML dictionaries. Multiple entries with
+the same \fBname\fP parameter are combined together, you don\(aqt need to copy the
+entire entry to the Ansible inventory to modify it.
+.sp
+The Redis Sentinel configuration files are generated only once at the
+initialization of a given instance. After that, Redis Sentinel modifies these
+files directly, therefore Ansible will not try to change them as long as they
+are present. You should prepare an adequate monitor configuration beforehand.
+.SS Examples
+.sp
+Define additional monitors for all Redis Sentinel instances:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+# Enable additional monitors for non\-default Redis Server instances.
+redis_sentinel__monitors:
+
+  \- name: \(aqredis\-ha\-second\(aq
+    host: \(aqredis.example.org\(aq
+    port: \(aq6380\(aq
+    quorum: 2
+    \(aqfailover\-timeout\(aq: 180000
+    \(aqdown\-after\-miliseconds\(aq: 30000
+
+  \- name: \(aqredis\-ha\-third\(aq
+    host: \(aqredis.example.org\(aq
+    port: \(aq6381\(aq
+    quorum: 2
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each Redis Sentinel monitor entry can be defined using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of a given monitor. This parameter is used as an anchor to
+combine multiple entries together.
+.TP
+.B \fBhost\fP
+Required. FQDN or IP address of the Redis Server master which will be
+monitored.
+.TP
+.B \fBport\fP
+Required. The TCP port on which a given Redis Server master listens for
+connections.
+.TP
+.B \fBquorum\fP
+Required. Number of Redis Sentinel instances that are expected to be in
+agreement about the state of Redis Server that is being monitored. It\(aqs
+usually number of Redis Sentinel instances / 2 + 1. This parameter is
+currently not computed automatically.
+.TP
+.B \fBpassword\fP
+Optional. If not specified, the role will set the value of the
+\fI\%redis_sentinel__auth_password\fP as the password used by a given
+monitor to access the Redis Server, as the \fBauth\-pass\fP option.
+.sp
+If \fBFalse\fP, the password is not set automatically for a given monitor.
+.TP
+.B \fBinstance\fP
+Optional. Name of the Redis Sentinel instance in which to define a given
+monitor. If not specified, the monitor will be defined in all instances on
+a given host.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given monitor will be defined by
+the role. If \fBabsent\fP, a given monitor will not be defined in the initial
+configuration file. If \fBignore\fP, a given monitor entry will not be included
+in the configuration and will be ignored by the role.
+.TP
+.B \fBnotification\-script\fP, \fBclient\-reconfig\-script\fP
+These parameters are automatically configured to point to the custom scripts
+inside of a given Redis Sentinel instance configuration directory. You can
+place custom scripts in the corresponding \fBnotify.d/\fP and
+\fBreconfig.d/\fP subdirectories, they will be executed by Redis Sentinel
+using the \fBrun\-parts\fP command.
+.UNINDENT
+.sp
+All other parameters specified in a given monitor entry will be added as\-is in
+the Redis Sentinel configuration file.
+.SS redis_sentinel__configuration
+.sp
+The \fBredis_sentinel__*_configuration\fP variables define the configuration of
+the Redis Sentinel instances. A Redis Sentinel instance consists of a set of
+configuration files in \fB/etc/redis/sentinel\-<instance>/\fP subdirectory, as
+well as \fBsystemd\fP service template configuration.  See
+\fI\%Redis Sentinel configuration pipeline\fP for more details.
+.sp
+The Redis Sentinel configuration files are generated only once at the
+initialization of a given instance. After that, Redis Sentinel modifies these
+files directly, therefore Ansible will not try to change them as long as they
+are present.
+.SS Examples
+.sp
+Define additional instance configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# Copyright (C) 2018 Maciej Delmanowski <drybjed@gmail.com>
+# Copyright (C) 2018 DebOps <https://debops.org/>
+# SPDX\-License\-Identifier: GPL\-3.0\-only
+
+# Modify the configuration of a generated Sentinel instance
+redis_sentinel__configuration:
+
+  \- name: \(aqmain\(aq
+    options:
+
+      # Allow modification of the reconfigure and notify script paths at
+      # runtime. Warning, this might result in a security issue.
+      \- \(aqdeny\-scripts\-reconfig\(aq: False
+
+      # Change the syslog identifier of a particular Sentinel instance. This
+      # parameter needs to be specified with an empty prefix to not prepend the
+      # \(aqsentinel \(aq string.
+      \- name: \(aqsyslog\-ident\(aq
+        value: \(aqsentinel\-main\-instance\(aq
+        prefix: \(aq\(aq
+
+      # Change the reconfiguration script of the default monitor
+      \- name: \(aqclient\-reconfig\-script redis\-ha\(aq
+        value: \(aq/tmp/sentinel\-reconfig.sh\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+Each variable contains a list of YAML dictionaries, each dictionary defines
+a Redis Sentinel instance using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of a given Redis Sentinel instance, should be a short
+alphanumeric string. This parameter is used as an anchor to merge multiple
+instance entries together.
+.TP
+.B \fBport\fP
+Required. The TCP port on which a given instance listens for network
+connections.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given Redis Sentinel instance
+will be created and/or managed on a given host. If \fBabsent\fP, a given Redis
+Sentinel instance will be stopped and its configuration will be removed. If
+\fBignore\fP, a given configuration entry will be ignored by the role during
+the Ansible run; this can be used to conditionally enable or disable instance
+options if needed.
+.TP
+.B \fBsystemd_override\fP
+Optional. An YAML text block that contains \fBsystemd\fP unit
+configuration entries. This can be used to override the configuration of
+a Redis Sentinel instance managed by \fBsystemd\fP\&.
+.TP
+.B \fBoptions\fP
+A list of configuration options for the Redis Sentinel instance. The
+\fBoptions\fP lists from multiple instance configuration entries are merged
+together. Each element of the \fBoptions\fP list is a YAML dictionary with
+specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Redis Sentinel parameter name. Parameter names containing hyphens should be
+quoted to avoid any issues with YAML parsing.
+.TP
+.B \fBvalue\fP
+Redis Sentinel parameter value. It can be a number, a string or a list of
+strings. If a list is used, by default the configuration file will contain
+multiple parameters with the same name and values specified on separate
+lines. you can also use the Python \fBTrue\fP and \fBFalse\fP values to
+represent booleans.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given parameter will be
+present in the generated configuration. If \fBabsent\fP, a given parameter
+will be removed from the configuration.
+.TP
+.B \fBprefix\fP
+Optional. Specify a custom prefix for a given parameter. By default, Redis
+Sentinel configuration options are specified with the \fBsentinel\fP string,
+space as a separator needs to be included as well; some of the
+configuration options related to Redis daemon don\(aqt contain the prefix. If
+you need to add an option without the prefix, set this parameter to an
+empty string.
+.TP
+.B \fBseparator\fP
+Optional, boolean. Add an empty line before a given option. This is
+a cosmetic parameter, which allows for better readability of the
+generated configuration file.
+.TP
+.B \fBmultiple\fP
+Optional, boolean. If \fBFalse\fP, and the parameter is not dynamic, and it\(aqs
+a list, the values will be concatenated into one string, separated by
+spaces. This is required by some of the Redis Server configuration options,
+for example \fBbind\fP\&.
+.UNINDENT
+.sp
+If the \fBname\fP and \fBvalue\fP parameters are not present, each key of the
+YAML dictionary will be interpreted as a separate Redis Sentinel parameter.
+This can be used as a shorthand to define Redis Sentinel parameters, but for
+more complicated parameters (dynamic, with custom requirements), you should
+use the expanded form explained above.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

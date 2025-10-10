@@ -1,0 +1,251 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.NSCD" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.nscd \- Manage Name Service Cache Daemon with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/nscd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The Name Service Cache Daemon is a local service which caches NSS database
+information from remote sources like LDAP, Active Directory or NIS. The service
+is useful in combination with the \fBnslcd\fP (managed by the
+\fI\%debops.nslcd\fP role) to lower the number of queries to the remote
+databases and make system operations faster.
+.sp
+The \fBdebops.nscd\fP Ansible role supports two flavors of the caching service,
+the original \fBnscd\fP implemented by GNU \fBlibc\fP library, as well as
+its drop\-in replacement, \fBunscd\fP, created by the BusyBox project. The
+\fBunscd\fP version is installed by default.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To enable the \fBnscd\fP service on a host, you need to add it to the
+\fB[debops_service_nscd]\fP Ansible inventory group.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_nscd]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A common case is configuration of LDAP authentication in the entire cluster of
+hosts. You can enable \fBdebops.nscd\fP role on all DebOps hosts in the
+Ansible inventory at once:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname1
+hostname2
+
+[debops_service_nscd:children]
+debops_all_hosts
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBnscd\fP service can also be installed and configured by other
+playbooks, for example \fBbootstrap\-ldap.yml\fP\&. In such cases the custom
+playbook will configure the \fBnscd\fP service on a host, but the role
+playbook will not work on a host automatically; you will have to include that
+host in the \fB[debops_service_nscd]\fP Ansible inventory group via one of the
+methods above to be able to change the service configuration.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.nscd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Name Service Cache Daemon
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_nscd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: nscd
+      tags: [ \(aqrole::nscd\(aq, \(aqskip::nscd\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after host is first
+configured to speed up playbook execution, when you are sure that most of the
+configuration has not been changed.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::nscd\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.nscd\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%nscd.conf(5)\fP <\fBhttps://manpages.debian.org/nscd.conf(5)\fP>
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.nscd\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS nscd__configuration
+.sp
+The \fBnscd__*_configuration\fP variables define the contents of the
+\fB/etc/nscd.conf\fP configuration file. The variables are merged in order
+defined by the \fI\%nscd__combined_configuration\fP variable, which allows
+modification of the default configuration through the Ansible inventory. See
+\fI\%nscd.conf(5)\fP <\fBhttps://manpages.debian.org/nscd.conf(5)\fP> for possible configuration parameters and their values.
+.SS Examples
+.sp
+See \fI\%nscd__default_configuration\fP variable for an example of
+existing configuration.
+.SS Syntax
+.sp
+The variables contain a list of YAML dictionaries, each dictionary can have
+specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the NSS service to cache. If the \fBname\fP parameter is set
+to \fB\(aqglobal\(aq\fP, and the \fBoptions\fP parameter is defined, this creates
+a special \(dqglobal\(dq section at the beginning of the configuration file.
+.sp
+The \fBname\fP parameter is used as an anchor to merge multiple configuration
+entries with the same name together.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration section will
+be included in the generated configuration file. If \fBabsent\fP, a given
+configuration section will be removed from the generated file. If
+\fBcomment\fP, the configuration section will be present, but commented out.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with a comment added before a given
+configuration section.
+.TP
+.B \fBoptions\fP
+Optional. A list of configuration options which should be included in a given
+configuration section. This parameter only makes sense in the \(dqglobal\(dq
+section, and otherwise should not be present in configuration entries. See
+the \fI\%nscd.conf(5)\fP <\fBhttps://manpages.debian.org/nscd.conf(5)\fP> manual page for the possible configuration options.
+.sp
+Each list element is defined as a YAML dictionary with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+Required. The configuration option name.
+.TP
+.B \fBvalue\fP
+Required. The configuration option value. Can be defined as a string, an
+integer or a boolean.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration option
+will be included in the generated configuration file. If \fBabsent\fP,
+a given configuration option will be removed from the generated file. If
+\fBcomment\fP, the configuration option will be present, but commented out.
+.UNINDENT
+.UNINDENT
+.sp
+The parameters described below are based on the configuration options defined
+in the \fI\%nscd.conf(5)\fP <\fBhttps://manpages.debian.org/nscd.conf(5)\fP> manual page. All of the parameters are usually
+required for a given configuration section to work; different \fBnscd\fP flavors
+will use different parameters.
+.INDENT 0.0
+.TP
+.B \fBenable_cache\fP
+Boolean. Enable or disable cache for a given NSS service.
+.TP
+.B \fBpositive_time_to_live\fP
+Number of seconds after which an existing entry is removed from cache.
+.TP
+.B \fBnegative_time_to_live\fP
+Number of seconds after which a non\-existent entry is removed from cache.
+.TP
+.B \fBsuggested_size\fP
+Size of the hash that is used to store cached entries. Its value should be
+a prime number.
+.TP
+.B \fBcheck_files\fP
+Boolean. If \fBTrue\fP, the service checks the contents of the
+\fB/etc/passwd\fP, \fB/etc/group\fP and \fB/etc/hosts\fP files and
+invalidates the cached entries if the files changed.
+.TP
+.B \fBpersistent\fP
+Boolean. If \fBTrue\fP, cached entries of a given NSS service will be kept
+between \fBnscd\fP daemon restarts.
+.TP
+.B \fBshared\fP
+Boolean. If \fBTrue\fP, the memory mapped for cache is shared with the service
+clients directly instead of forcing them to talk to the daemon.
+.TP
+.B \fBmax_db_size\fP
+Specify the maximum size of the cache for a given NSS service.
+.TP
+.B \fBauto_propagate\fP
+Boolean. When set to \fBFalse\fP for the \fBpasswd\fP or \fBgroup\fP service, then
+the \fB\&.byname\fP requests are not added to \fBpasswd.byuid\fP or \fBgroup.bygid\fP
+cache. This may help for tables containing multiple records for the same
+\fBid\fP value.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

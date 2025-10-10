@@ -1,0 +1,253 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.GITLAB_RUNNER" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.gitlab_runner \- Manage GitLab Runner instances using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/gitlab_runner\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%GitLab Runner\fP <\fBhttps://gitlab.com/gitlab-org/gitlab-ci-multi-runner\fP> is
+a service written in Go which is used by the \fI\%GitLab CI\fP <\fBhttps://about.gitlab.com/gitlab-ci/\fP>
+to execute software builds on remote hosts. It supports builds executed by
+local shell, over SSH or in a Docker containers.
+.sp
+The \fBdebops.gitlab_runner\fP Ansible role will allow you to install and manage
+GitLab Runner on Debian and Ubuntu hosts. You can use it to create multiple
+Runner instances, each one with distinct configuration. The role will
+automatically register the Runners in GitLab CI management host if a required
+registration token is supplied.
+.SH GETTING STARTED
+.SS GitLab CI registration token
+.sp
+To register a Runner with your GitLab CI instance, you need to provide
+a registration token. It can be found on the \fBhttps://<host>/admin/runners\fP
+page of your GitLab installation.
+.sp
+The registration token is generated randomly on each GitLab startup, and
+unfortunately cannot be accessed using an API. Therefore, the easiest way to
+provide it to the role is to store it in an environment variable. The
+\fBdebops.gitlab_runner\fP checks the value of the \fB$GITLAB_RUNNER_TOKEN\fP system
+variable and uses the token found there.
+.sp
+The registration token is required to perform changes on the GitLab server
+itself, ie. registration and removal of Runners. It\(aqs not required for the role
+to manage the Runners on the host \- the Runner tokens are saved in local
+Ansible facts and reused if necessary.
+.sp
+An example way to run \fBdebops\fP so that the role registers the Runners in
+GitLab CI:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+GITLAB_RUNNER_TOKEN=<random\-token> debops run service/gitlab_runner
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To change the environment variable that holds the registration token, or save
+the token in Ansible inventory, you can use the \fI\%gitlab_runner__token\fP
+variable.
+.sp
+In case that you don\(aqt want to expose the registration token via the Ansible
+inventory directly, you can store it it in the
+\fBansible/secret/credentials/\fP directory managed by the
+\fI\%debops.secret\fP role in a predetermined location.
+.sp
+To create the path and file to store the GitLab Token execute this commands in
+the root of the DebOps project directory with the relevant GitLab domain:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mkdir \-pv ansible/secret/credentials/code.example.org/gitlab/runner
+editor ansible/secret/credentials/code.example.org/gitlab/runner/token
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In the editor, paste the GitLab registration token and save the file. Then add
+the \fI\%gitlab_runner__token\fP variable to your inventory.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+gitlab_runner__token: \(aq{{ lookup(\(dqpassword\(dq, secret
+                        + \(dq/credentials/\(dq + gitlab_runner__api_fqdn
+                        + \(dq/gitlab/runner/token chars=ascii_letters,numbers\(dq) }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This allows the token to be safely stored outside of the inventory but
+accessible at runtime.
+.SS Initial configuration
+.sp
+By default, \fBdebops.gitlab_runner\fP will configure a single Runner instance
+which uses a shell executor. If a Docker installation is detected via Ansible
+local facts, the role will disable the shell executor and configure two Docker
+executors \- one unprivileged, and one privileged. The executors will have a set
+of tags that identify them, shell executors will have additional tags that
+describe the host\(aqs architecture, OS release, etc.
+.sp
+If the \fBdebops.lxc\fP role has been used to configure LXC support on the host,
+the \fBdebops.gitlab_runner\fP will install the \fBvagrant\-lxc\fP package and
+configure \fBsudo\fP support for it. Using a shell executor you can start
+and stop Vagrant Boxes using LXC containers and execute commands inside them.
+.sp
+If the \fBdebops.libvirtd\fP role has been used to configure libvirt support on
+the host, the \fBdebops.gitlab_runner\fP will install the \fBvagrant\-libvirt\fP
+package and configure \fBsudo\fP support for it. Using a shell executor
+you can start and stop Vagrant Boxes using libvirt and execute commands inside
+them.
+.sp
+The Runner instances can be configured with variables specified as the keys of
+the dictionary that holds the specific Runner configuration. If any required
+keys are not specified, the value of the global variable will be used instead.
+.sp
+Some of the variables will be added together (Docker volumes, for example), so
+that you can define a list of global values included in all of the Runner
+instances.
+.SS Environment variables
+.sp
+You can use \fI\%gitlab_runner__environment\fP default variable to specify a custom
+set of environment variables to configure in a GitLab Runner instance. You can
+use the global variable, or set the environment at the instance level by
+specifying it as \fBitem.environment\fP variable.
+.sp
+The environment variables can be specified in a different ways:
+.INDENT 0.0
+.IP \(bu 2
+a single variable as a string:
+.INDENT 2.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+gitlab_runner__environment: \(aqVARIABLE=value\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP \(bu 2
+a list of environment variables:
+.INDENT 2.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+gitlab_runner__environment:
+  \- \(aqVARIABLE1=value1\(aq
+  \- \(aqVARIABLE2=value2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP \(bu 2
+a YAML dictionary with variable names as keys and their values as values:
+.INDENT 2.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+gitlab_runner__environment:
+  VARIABLE1: \(aqvalue1\(aq
+  VARIABLE2: \(aqvalue2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+Different specifications cannot be mixed together.
+.SS Example inventory
+.sp
+To install GitLab Runner service on a host, it needs to be added to the
+\fB[debops_service_gitlab_runner]\fP inventory host group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_gitlab_runner]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook that can be used to enable and manage the GitLab
+Runner service on a set of hosts:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage GitLab Runner service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_gitlab_runner\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::gitlab_runner\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ gitlab_runner__keyring__dependent_apt_keys }}\(aq
+
+    \- role: gitlab_runner
+      tags: [ \(aqrole::gitlab_runner\(aq, \(aqskip::gitlab_runner\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

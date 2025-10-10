@@ -1,0 +1,405 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.KEEPALIVED" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.keepalived \- Manage keepalived service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/keepalived\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%keepalived\fP <\fBhttps://keepalived.org/\fP> service can be used to provide simple load balancing and
+high availability services in a Linux cluster. The service uses the \fI\%Virtual
+Router Redundancy Protocol\fP <\fBhttps://en.wikipedia.org/wiki/Virtual_Router_Redundancy_Protocol\fP> for communication between the nodes in a cluster
+and can perform specified actions on the nodes \- create or remove IP addresses,
+start or stop services, and more.
+.sp
+The \fBdebops.keepalived\fP Ansible role can be used to install and configure the
+\fBkeepalived\fP service on Debian and Ubuntu hosts. The role allows Jinja
+expressions to be used in the \fI\%keepalived.conf(5)\fP <\fBhttps://manpages.debian.org/keepalived.conf(5)\fP> configuration file to
+augment generated configuration files as needed.
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+To install and configure \fBkeepalived\fP on a given host, it should be included in
+a specific Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+hostname   ansible_host=hostname.example.org
+
+[debops_service_keepalived]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Of course, installing \fBkeepalived\fP on a single host does not provide
+any benefits, so it\(aqs better to create a cluster instead:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+node1   ansible_host=node1.example.org
+node2   ansible_host=node2.example.org
+node3   ansible_host=node3.example.org
+
+[debops_service_keepalived]
+node1
+node2
+node3
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can also create multiple separate \fBkeepalived\fP clusters in
+a single Ansible inventory by using separate host groups. Each host group can
+have its own configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+node1   ansible_host=node1.example.org
+node2   ansible_host=node2.example.org
+node3   ansible_host=node3.example.org
+node4   ansible_host=node4.example.org
+
+[cluster_group_one]
+node1
+node2
+
+[cluster_group_two]
+node3
+node4
+
+[debops_service_keepalived:children]
+cluster_group_one
+cluster_group_two
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Check the \fI\%Floating IP address using keepalived\fP documentation section to see
+how the role can be configured to utilize separate inventory groups.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.keepalived\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Advanced Package Manager
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_keepalived\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: sysctl
+      tags: [ \(aqrole::sysctl\(aq, \(aqskip::sysctl\(aq ]
+      sysctl__dependent_parameters:
+        \- \(aq{{ keepalived__sysctl__dependent_parameters }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ keepalived__ferm__dependent_rules }}\(aq
+
+    \- role: keepalived
+      tags: [ \(aqrole::keepalived\(aq, \(aqskip::keepalived\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::keepalived\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.keepalived\fP Ansible role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%keepalived(8)\fP <\fBhttps://manpages.debian.org/keepalived(8)\fP>, \fI\%keepalived.conf(5)\fP <\fBhttps://manpages.debian.org/keepalived.conf(5)\fP>
+.IP \(bu 2
+Lots of configuration examples can be found in the
+\fB/usr/share/doc/keepalived/samples/\fP directory, provided with the
+\fBkeepalived\fP APT package.
+.IP \(bu 2
+Example of \fI\%floating IP address configuration with keepalived\fP <\fBhttps://www.centlinux.com/2018/08/keepalived-configure-floating-ip-centos-7.html\fP>\&. Based on
+CentOS, however the service configuration is the same on different operating
+systems.
+.IP \(bu 2
+Example of \fI\%extending keepalived functionality through scripts\fP <\fBhttps://tobru.ch/keepalived-check-and-notify-scripts/\fP>\&.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.keepalived\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS keepalived__configuration
+.sp
+The \fBkeepalived__*_configuration\fP variables define the contents of the
+\fB/etc/keepalived/keepalived.conf\fP configuration file. The syntax is
+farily simple and consists of blocks of the \fI\%keepalived.conf(5)\fP <\fBhttps://manpages.debian.org/keepalived.conf(5)\fP>
+configuration data which can be enabled or disabled conditionally and allow use
+of Jinja expressions to generate the desired configuration.
+.SS Examples
+.SS Floating IP address using \fBkeepalived\fP
+.sp
+Create a floating IP address configuration distributed among a number of nodes
+in a specific Ansible inventory group. Each node has a decreasing priority,
+first node will be elected MASTER by default.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/cluster
+
+[debops_all_hosts]
+node1   ansible_host=node1.example.org
+node2   ansible_host=node2.example.org
+node3   ansible_host=node3.example.org
+
+[floating_ip_cluster]
+node1
+node2
+node3
+
+[debops_service_keepalived:children]
+floating_ip_cluster
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# ansible/inventory/group_vars/floating_ip_cluster/keepalived.yml
+
+# Allow communication between keepalived nodes
+keepalived__group_allow: [ \(aq192.0.2.0/24\(aq ]
+
+# Name of the cluster Ansible inventory group
+keepalived__host_group: \(aqfloating_ip_cluster\(aq
+
+# keepalived configuration for all nodes
+keepalived__group_configuration:
+
+  \- name: \(aqvrrp_instance_1\(aq
+    raw: |
+      vrrp_instance VI_1 {
+          state {{ \(aqMASTER\(aq if (keepalived__host_index|int == 0) else \(aqBACKUP\(aq }}
+          priority {{ (100 \- (keepalived__host_index|int * 10)) }}
+          interface eth0
+          virtual_router_id 51
+          advert_int 1
+          authentication {
+              auth_type PASS
+              auth_pass 12345678
+          }
+          virtual_ipaddress {
+              192.0.2.10/24
+          }
+      }
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can find more configuration examples (notably, \fBglobal_defs\fP options) in
+the \fI\%keepalived__default_configuration\fP variable definition.
+.SS Syntax
+.sp
+The \fBkeepalived__*_configuration\fP variables are defined using a list of YAML
+dictionaries. Each dictionary defines a configuration section using specific
+parameters parsed via the \fI\%Universal Configuration\fP filters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of a given configuration entry, not used otherwise.
+Configuration entries with the same name are merged together during execution
+and can affect each other.
+.TP
+.B \fBraw\fP
+Required. YAML text block with \fI\%keepalived.conf(5)\fP <\fBhttps://manpages.debian.org/keepalived.conf(5)\fP> configuration
+options, added as\-is in the generated configuration file. You can use Jinja
+expressions to create more dynamic configuration.
+.sp
+The \fBraw\fP parameters in merged configuration entries override each other in
+order of appearance.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with comments about a given configuration
+section, included in the generated configuration file.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration section will
+be included in the generated configuration file. If \fBabsent\fP, a given
+configuration section will not be included in the generated configuration
+file. If \fBignore\fP, the configuration entry will not be evaluated during
+role execution.
+.UNINDENT
+.SS keepalived__scripts
+.sp
+Functionality of the \fBkeepalived\fP service can be extended via scripts
+executed at certain events (see \fI\%keepalived.conf\fP <\fBhttps://manpages.debian.org/keepalived.conf\fP> manual for more
+details). The \fI\%debops.keepalived\fP provides a set of variables which can
+be used to add or modify scripts (or other files, for example private keys or
+certificates) stored in the \fB/etc/keepalived/\fP directory. These files can
+then be references in the \fB/etc/keepalived/keepalived.conf\fP configuration
+file to perform various functions.
+.SS Examples
+.sp
+Use a script to start or stop services as needed on \fBkeepalived\fP
+cluster state changes:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+keepalived__configuration:
+
+  \- name: \(aqvrrp_vi_1\(aq
+    raw: |
+      vrrp_instance vi_1 {
+          notify /etc/keepalived/vi_1_notify.sh
+      }
+
+keepalived__scripts:
+
+ \- name: \(aqvi_1_notify.sh\(aq
+   content: |
+     #!/bin/bash
+
+     TYPE=$1   # GROUP / INSTANCE
+     NAME=$2   # name of group or instance
+     STATE=$3  # MASTER / BACKUP / FAULT
+
+     case $STATE in
+             \(dqMASTER\(dq) systemctl start nginx.service
+                       exit 0
+                       ;;
+             \(dqBACKUP\(dq) systemctl stop nginx.service
+                       exit 0
+                       ;;
+             \(dqFAULT\(dq)  systemctl stop nginx.service
+                       exit 0
+                       ;;
+             *)        printf \(dqunknown state\en\(dq
+                       exit 1
+                       ;;
+     esac
+   state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Syntax
+.sp
+The \fBkeepalived__*_scripts\fP variables define additional files that should be
+included in the \fB/etc/keepalived/\fP directory through a list of YAML
+dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP or \fBdest\fP
+Required. The name of the script or a file stored in the
+\fB/etc/keepalived/\fP directory. The role does not create any required
+subdirectories automatically; it\(aqs best to keep all files and scripts
+confined in one directory.
+.TP
+.B \fBsrc\fP
+Path of the file located on Ansible Controller which should be copied to the
+remote host under a specified filename. This parameter shouldn\(aqt be used with
+the \fBcontent\fP parameter in the same file definition.
+.TP
+.B \fBcontent\fP
+YAML text block with the contents of the generated file. This parameter
+shouldn\(aqt be used with the \fBsrc\fP parameter in the same file definition.
+.TP
+.B \fBowner\fP
+Optional. Specify the UNIX account which should be the owner of the script or
+file managed by the role. If not specified, \fBroot\fP is used by default.
+.TP
+.B \fBgroup\fP
+Optional. Specify the UNIX group which should be the main group of the script
+or file managed by the role. If not specified, \fBroot\fP is used by default.
+.TP
+.B \fBmode\fP
+Optional. Specify the UNIX permissions mode for the generated file. If not
+specified, the role will use the \fB0755\fP mode by default, meant for
+executable scripts.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given file is copied or
+generated to the remote host. If \fBabsent\fP, a given file will be removed
+from the remote host.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

@@ -1,0 +1,776 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.UNBOUND" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.unbound \- Manage Unbound, local DNS resolver
+.SH SYNOPSIS
+.sp
+\fBdebops run service/unbound\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Unbound\fP <\fBhttps://unbound.net/\fP> is a local DNS resolver. It supports
+\fI\%DNSSEC\fP <\fBhttps://en.wikipedia.org/wiki/DNSSEC\fP> validation and can be used to
+ensure that DNS queries protected by DNSSEC are signed by the correct DNS root
+zone key, verified locally.
+.SH GETTING STARTED
+.SS Default configuration
+.sp
+If the \fI\%debops.lxc\fP role has set up a LXC environment on the host, the
+\fI\%debops.unbound\fP will configure an internal DNS zone based on the
+configuration provided by the \fI\%debops.lxc\fP Ansible local facts. This can
+be used to access the LXC containers via their DNS names instead of IP
+addresses.
+.SS Usage with internal RFC 1918 private networks
+.sp
+This role does not configure any upstream DNS servers by default (for example
+Google DNS servers). This means that Unbound will try and resolve DNS and
+DNSSEC queries by itself, using the locally provided DNS root keys for DNSSEC
+verification. On the Debian/Ubuntu hosts, when the \fBunbound\fP service starts,
+it replaces the currently configured DNS servers with itself, using the
+\fBresolvconf\fP package.
+.sp
+This means that any private networks the host is connected to won\(aqt be
+resolvable anymore. If the default FQDN of the host is in a private network,
+the host\(aqs hostname and domain won\(aqt be resolvable either \- this affects
+\fBsudo\fP and Ansible operation, among other things.
+.sp
+To avoid that, as long as you have configured local DNS nameserver for an
+internal domain with revDNS records, for example \fBdnsmasq\fP, you can
+add your private network as an insecure, transparent DNS zone:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__zones:
+
+  \- name:       \(aqinternal\-network\(aq
+    zone:       \(aqnat.example.org.\(aq
+    revdns:     \(aq192.0.2.0/24\(aq
+    nameserver: \(aq192.0.2.1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above configuration will tell Unbound to forward all DNS queries for
+\fBnat.example.org.\fP and \fB0.2.0.192.in\-addr.arpa.\fP DNS zones to the
+\fB192.0.2.1\fP nameserver.
+.sp
+If the specified \fBrevdns\fP subnet is in the private IP address range (RFC
+1918), the configuration template will make sure that the specified subnet and
+domain zones are configured as \fBtransparent\fP, which will tell Unbound to
+serve the responses from the upstream DNS server as usual.  These zones will
+also be marked as insecure, to avoid issues with DNSSEC validation.
+.sp
+It\(aqs possible to use a bigger subnet size than \fB/24\fP \- subnets between
+\fB/16\fP and \fB/24\fP will have multiple \fB/24\fP reverse DNS zones pointed to the
+specified nameserver. Bigger subnets however currently don\(aqt work correctly due
+to the \fBnetaddr\fP Python library used to generate the correct DNS zone names
+using only class C addresses (\fB/24\fP CIDR subnets).
+.SS Example inventory
+.sp
+The install and configure Unbound on a host, it needs to be present in the
+\fB[debops_service_unbound]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_unbound]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.unbound\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Unbound, local DNS resolver
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_unbound\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: resolvconf
+      tags: [ \(aqrole::resolvconf\(aq, \(aqskip::resolvconf\(aq ]
+      resolvconf__dependent_services:
+        \- \(aqunbound\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ unbound__apt_preferences__dependent_list }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ unbound__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ unbound__python__dependent_packages2 }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ unbound__etc_services__dependent_list }}\(aq
+
+    \- role: unbound
+      tags: [ \(aqrole::unbound\(aq, \(aqskip::unbound\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::unbound\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+some of \fBdebops.unbound\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS unbound__server
+.sp
+Configuration of the \fBunbound__*_server\fP variables is described in a separate
+document, \fI\%Default variable details: unbound__server\fP\&.
+.SS unbound__zones
+.sp
+The \fBunbound__*_zones\fP lists are used to configure forward or stub DNS zones
+published by Unbound service. Each DNS zone delegation is configured in its own
+\fB/etc/unbound/unbound.conf.d/zone_<name>.conf\fP configuration file.
+.sp
+Each list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Name of the DNS zone, used in the filename. This parameter is used
+as an identifier during the variable parsing.
+.TP
+.B \fBzone\fP
+Optional. If specified, this string will be used as the DNS zone name. With
+this parameter specified, \fBname\fP can be used as a general identifier of
+a particular delegation.
+.TP
+.B \fBtype\fP
+Optional. The zone type to use, either \fBforward\fP (default if not
+specified), \fBlocal\fP or \fBstub\fP\&. See the \fI\%unbound.conf(5)\fP <\fBhttps://manpages.debian.org/unbound.conf(5)\fP> for details
+about stub and forward zones.
+.TP
+.B \fBlocal_zone_type\fP
+Optional. If the \fBtype\fP parameter is set to \fBlocal\fP, this parameter can
+be used to define the type of the local zone (\fBstatic\fP (default),
+\fBtransparent\fP, etc. See \fI\%unbound.conf(5)\fP <\fBhttps://manpages.debian.org/unbound.conf(5)\fP> manual page, \fBlocal\-zone:\fP
+keyword for the details about local zone types.
+.TP
+.B \fBlocal_zone_data\fP
+Optional. If the \fBtype\fP parameter is set to \fBlocal\fP, this parameter can
+be used to define the data of a given local zone. This is a YAML list of
+entries, each entry can specify a DNS Resource Record as a string. See the
+examples section for an example local zone configuration.
+.TP
+.B \fBnameserver\fP, \fBnameservers\fP
+Optional. IP address or list of IP addresses of the DNS nameservers of
+a particular zone. You can specify the port using the @ character, for
+example \fB192.0.2.1@5353\fP\&.
+.TP
+.B \fBrevdns\fP
+Optional. Specify a CIDR subnet or multiple subnets for a given DNS zone. If
+specified, a revDNS zones will be included in the generated zone file; each
+revDNS zone will use the same nameserver IP addresses and other options
+specified for the main DNS zone. Currently only IPv4 C\-class subnets (\fB/16\fP
+to \fB/24\fP) are supported best.
+.sp
+If specified subnet is in a RFC 1918 private network range, the main DNS zone
+and revDNS zones will be set as local, insecure zones to avoid issues with
+DNSSEC. This can be overridden by setting the \fBprivate_domain\fP,
+\fBdomain_insecure\fP and/or \fBlocal_zone\fP parameters to \fBFalse\fP\&.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the zone file will be generated.
+.sp
+If \fBabsent\fP, the configuration file will be removed.
+.sp
+If \fBignore\fP, the given entry will not be evaluated by the role, and no
+changes will be done to the preceding parameters with the same name. This can
+be used to conditionally activate entries with different configuration.
+.sp
+If \fBappend\fP, the given entry will be evaluated only if an entry with the
+same name already exists. The current state will not be changed.
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML dictionary with additional comments for a given
+DNS zone.
+.TP
+.B \fBoptions\fP
+Optional. List of configuration options for a particular zone. The format is
+the same as \fI\%Default variable details: unbound__server\fP configuration options. For a list of
+supported options, see the stub zone and forward zone sections of the
+\fI\%unbound.conf(5)\fP <\fBhttps://manpages.debian.org/unbound.conf(5)\fP> manual page.
+.TP
+.B \fBserver_options\fP
+Optional. List of \fBserver:\fP configuration options associated with
+a particular zone. The format is the same as \fI\%Default variable details: unbound__server\fP
+configuration options.
+.UNINDENT
+.SS Examples
+.sp
+Forward all queries to external Google DNS servers:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+unbound__zones:
+
+  # https://en.wikipedia.org/wiki/Google_Public_DNS
+  \- name: \(aqforward\-all\-to\-google\(aq
+    comment: \(aqForward all DNS queries to Google Public DNS\(aq
+    zone: \(aq.\(aq
+    nameservers: [ \(aq8.8.8.8\(aq, \(aq8.8.4.4\(aq,
+                   \(aq2001:4860:4860::8888\(aq,
+                   \(aq2001:4860:4860::8844\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Create custom forward zone for internal network:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__zones:
+
+  \- name: \(aqinternal\-net\(aq
+    zone: \(aqnat.example.org\(aq
+    revdns: \(aq192.0.2.0/24\(aq
+    nameserver: \(aq192.0.2.1\(aq
+    options:
+      \- \(aqforward\-first\(aq: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a local DNS entry \fBexample.test.\fP with a few resource records:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__zones:
+
+  \- name: \(aqexample.test\(aq
+    zone: \(aqexample.test.\(aq
+    type: \(aqlocal\(aq
+    local_zone_type: \(aqstatic\(aq
+    local_zone_data:
+      \- \(aqNS localhost.\(aq
+      \- \(aqSOA localhost. nobody.invalid. 1 3600 1200 604800 10800\(aq
+      \- \(aqPTR localhost.\(aq
+      \- \(aqA 192.0.2.1\(aq
+      \- \(aqAAAA 2001:db8::1\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure Unbound to support a stub DNS zone using an external DNS server, for
+example a home router with \fBdnsmasq\fP nameserver. Ensure that both
+normal and reverse lookups work as expected. The local zone is not signed with
+DNSSEC so we need to mark it as insecure.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__zones:
+
+  \- name: \(aqexample.net\(aq
+    zone: \(aqexample.net.\(aq
+    type: \(aqstub\(aq
+    options:
+      \- \(aqstub\-addr\(aq: \(aq192.0.2.1\(aq
+    server_options:
+      \- \(aqdomain\-insecure\(aq: \(aq\(dqexample.net\(dq\(aq
+      \- \(aqlocal\-zone\(aq:      \(aq\(dqexample.net.\(dq nodefault\(aq
+
+  \- name: \(aq2.0.192.in\-addr.arpa\(aq
+    zone: \(aq2.0.192.in\-addr.arpa.\(aq
+    type: \(aqstub\(aq
+    options:
+      \- \(aqstub\-addr\(aq: \(aq192.0.2.1\(aq
+    server_options:
+      \- \(aqdomain\-insecure\(aq: \(aq\(dq2.0.192.in\-addr.arpa.\(dq\(aq
+      \- \(aqlocal\-zone\(aq:      \(aq\(dq2.0.192.in\-addr.arpa.\(dq nodefault\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS: UNBOUND__SERVER
+.sp
+The \fBunbound__*_server\fP variables are used to define the contents of the
+\fB/etc/unbound/unbound.conf.d/ansible.conf\fP configuration file. The
+variables are YAML lists, concatenated together into
+\fI\%unbound__combined_server\fP variable, which is passed to the
+configuration template. Only the \fBserver\fP section of the configuration is
+managed by these variables.
+.sp
+Each list entry is a YAML dictionary, which can be written in a simple or
+complex form. Entries that control Unbound parameters of the same name will be
+combined together in order of appearance. Since most of the Unbound
+configuration options use dashes in their names, you might want to quote the
+YAML dictionary keys to avoid issues with Jinja templating.
+.SS Simple form of the configuration parameters
+.sp
+Simple form of the Unbound configuration uses the dictionary key as a option
+name, and its value as that option\(aqs parameters:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__server:
+
+  # Option with boolean value
+  \- \(aqextended\-statistics\(aq: True
+
+  # Option with integer value
+  \- verbosity: 1
+
+  # Option with string value
+  \- \(aqprivate\-domain\(aq: \(aqexample.org\(aq
+
+  # Option with multiple values in a list
+  \- \(aqdomain\-insecure\(aq: [ \(aqexample.org\(aq, \(aqexample.com\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in \fB/etc/unbound/unbound.conf.d/ansible.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+server:
+    extended\-statistics:           yes
+    verbosity:                     1
+    private\-domain:                \(dqexample.org\(dq
+    domain\-insecure:               \(dqexample.org\(dq
+    domain\-insecure:               \(dqexample.com\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The parameters in the configuration file will be present in the order they were
+first defined in the variables.
+.SS Complex form of the configuration parameters
+.sp
+Complex form of the Unbound configuration is detected when a dictionary key
+contains a \fBname\fP parameter. In that case, the role will interpret the entry
+using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+The name of the configuration option to manage. This parameter is used as an
+identifier during the variable parsing.
+.TP
+.B \fBvalue\fP
+Required. A value which should be set for a given option. Values can be YAML
+strings, integers, booleans and lists (not dictionaries). Lists can contain
+simple strings, numbers, or YAML dictionaries that describe each value in
+greater detail. See \fI\%Configuration values and their interactions\fP for more details.
+.TP
+.B \fBoption\fP
+Optional. If specified, the option will use this string as the \(dqname\(dq instead
+of the \fBname\fP value. This is useful to create examples in the configuration
+file that have the same name as existing configuration options.
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML dictionary with additional comments for a given
+configuration option.
+.TP
+.B \fBseparator\fP
+Optional, boolean. if \fBTrue\fP, an empty line will be added above a given
+option, useful for readability.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the option will be present in the
+finished configuration file.
+.sp
+If \fBabsent\fP, the option will not be included in the configuration file.
+.sp
+If \fBignore\fP, the given entry will not be evaluated by the role, and no
+changes will be done to the preceding parameters with the same name. This can
+be used to conditionally activate entries with different configuration.
+.sp
+If \fBhidden\fP, the option will not be displayed in the configuration file,
+but any comments will be present. This can be used to add free\-form comments
+in the Postfix configuration file.
+.sp
+If \fBcomment\fP, the option will be present, but it will be commented out.
+This can be used to add examples in the configuration file.
+.sp
+If \fBappend\fP, the given entry will be evaluated only if an entry with the
+same name already exists. The current state will not be changed.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which affects the position of a given
+option in the configuration file. The higher the number, the more a given
+option \(dqweighs\(dq and the lower it will be placed in the finished configuration
+file. Negative numbers make the option \(dqlighter\(dq and it will be placed
+higher.
+.TP
+.B \fBcopy_id_from\fP
+Optional. This is an internal role parameter which can be used to change the
+relative position of a given option in the configuration file. If you specify
+a name of an option, it\(aqs internal \(dqid\(dq number (used for sorting) will be
+copied to the current option. This can be used to move options around to
+different configuration file sections.
+.UNINDENT
+.SS Examples
+.sp
+Define the previous example using complex form:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__server:
+
+  \- name: \(aqextended\-statistics\(aq
+    comment: \(aqEnable extended server statistics\(aq
+    value: True
+
+  \- name: \(aqverbosity\(aq
+    value: 1
+
+  \- name: \(aqprivate\-domain\(aq
+    value: \(aqexample.org\(aq
+
+  \- name: \(aqdomain\-insecure\(aq
+    value: [ \(aqexample.org\(aq, \(aqexample.com\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Unbound supports more complex parameters with arguments. You can define them
+using extended syntax as well:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__server:
+
+  \- \(aqdefine\-tag\(aq: \(aqtag1 tag2 tag3\(aq
+
+  \- name: \(aqaccess\-control\(aq
+    value:
+
+      \- name: \(aq127.0.0.0/8\(aq
+        args: \(aqallow_snoop\(aq
+
+      \- name: \(aq::1/128\(aq
+        args: \(aqallow_snoop\(aq
+
+      \- name: \(aq192.0.2.0/24\(aq
+        args: \(aqallow\(aq
+
+  \- name: \(aqaccess\-control\-tag\(aq
+    value:
+      \- name: \(aq192.0.2.0/24\(aq
+        args: \(aq\(dqtag1 tag2\(dq\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in
+\fB/etc/unbound/unbound.conf.d/ansible.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+server:
+
+    # Enable extended server statistics
+    extended\-statistics:           yes
+    verbosity:                     1
+    private\-domain:                \(dqexample.org\(dq
+    domain\-insecure:               \(dqexample.org\(dq
+    domain\-insecure:               \(dqexample.com\(dq
+    define\-tag:                    \(dqtag1 tag2 tag3\(dq
+    access\-control:                127.0.0.0/8 allow_snoop
+    access\-control:                192.0.2.0/24 allow
+    access\-control:                ::1/128 allow_snoop
+    access\-control\-tag:            192.0.2.0/24 \(dqtag1 tag2\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The parameters in the configuration file will be present in the order they were
+first defined in the variables, unless the \fBweight\fP parameter is added, which
+will change the order.
+.SS Configuration values and their interactions
+.sp
+The \fI\%Unbound configuration file\fP <\fBhttps://unbound.net/documentation/unbound.conf.html\fP>
+uses key\-value format, with values being either strings, numbers, booleans or
+lists. The first three types are handled by the \fBdebops.unbound\fP role as
+normal.
+.sp
+List values are by default concatenated to allow easy extension of existing
+values. The values in a list are either YAML strings, numbers, or can be
+defined as YAML dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP or \fBparam\fP
+Required. The value itself, usually a string.
+.TP
+.B \fBstate\fP
+Optional. If not defined or \fBpresent\fP, the value will be included in the
+list.
+.sp
+If \fBabsent\fP, the value will be removed from the list.
+.sp
+If \fBignore\fP, the given entry will not be evaluated by the role, and will
+not change the state of the value. This can be used to enable or disable
+values conditionally.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number which affects the position of a given
+value in the list. The higher the number, the more a given value \(dqweighs\(dq and
+the lower it will be placed in the finished list. Negative numbers make the
+value \(dqlighter\(dq and it will be placed higher.
+.TP
+.B \fBargs\fP
+Optional. Some Unbound values can have additional arguments. They should be
+added using this parameter which will be appended to a given value \(dqas\-is\(dq.
+Any quotes needed by Unbound (for example, tags) need to be included inside
+the quoted string itself.
+.UNINDENT
+.SS Example list
+.sp
+Define a list with conditional values:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__server:
+
+  \- name: \(aqdomain\-insecure\(aq
+    value:
+
+      \- \(aqexample.com\(aq
+
+      \- name: \(aqexample.org\(aq
+        state: \(aq{{ \(dqpresent\(dq
+                   if (ansible_domain.split(\(dq.\(dq)|count > 1)
+                   else \(dqignore\(dq }}\(aq
+
+      \- name: \(aqexample.net\(aq
+        weight: 100
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Base value replacement
+.sp
+Repeating the string, number or boolean option will result in the latter entry
+replacing the former entry:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__server:
+
+  # Old value
+  \- verbosity: 1
+
+  # New, active value
+  \- verbosity: 2
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in
+\fB/etc/unbound/unbound.conf.d/ansible.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+verbosity:          2
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Lists are merged together
+.sp
+The list parameters behave differently. Specifying the same option multiple
+times, if the preceding option was a list, will add the specified parameters to
+the list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__server:
+
+  \- \(aqdomain\-insecure\(aq: [ \(aqexample.com\(aq, \(aqexample.org\(aq ]
+
+  \- \(aqdomain\-insecure\(aq: [ \(aqexample.net\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in
+\fB/etc/unbound/unbound.conf.d/ansible.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+domain\-insecure:     \(dqexample.org\(dq
+domain\-insecure:     \(dqexample.net\(dq
+domain\-insecure:     \(dqexample.com\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS How to reset a list
+.sp
+If the option was a list, and subsequent option specified a boolean, string or
+a number, the value will replace the previous one, instead of adding to a list.
+This can be used to reset the list instead of appending to it.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__server:
+
+  \- \(aqdomain\-insecure\(aq: [ \(aqexample.com\(aq, \(aqexample.org\(aq ]
+
+  \- \(aqdomain\-insecure\(aq: \(aqexample.net\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in
+\fB/etc/unbound/unbound.conf.d/ansible.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+domain\-insecure:     \(dqexample.net\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Lists don\(aqt add duplicates
+.sp
+The role checks if a given list element is already present, and it won\(aqt add
+a duplicate value to the list:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+unbound__server:
+
+  \- \(aqdomain\-insecure\(aq: [ \(aqexample.org\(aq, \(aqexample.com\(aq ]
+
+  \- \(aqdomain\-insecure\(aq: [ \(aqexample.org\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The result of the above configuration in
+\fB/etc/unbound/unbound.conf.d/ansible.conf\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+domain\-insecure:       \(dqexample.org\(dq
+domain\-insecure:       \(dqexample.com\(dq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

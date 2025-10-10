@@ -1,0 +1,142 @@
+---
+# Copyright (C) 2014-2017 Maciej Delmanowski <drybjed@drybjed.net>
+# Copyright (C) 2015-2017 Robin Schneider <ypid@riseup.net>
+# Copyright (C) 2014-2017 DebOps <https://debops.org/>
+# SPDX-License-Identifier: GPL-3.0-only
+
+- name: Make sure configuration directory exists
+  file:
+    path: '/etc/nginx/conf.d'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  tags: [ 'role::nginx:servers' ]
+
+- name: Remove nginx maps if requested
+  file:
+    dest: '/etc/nginx/conf.d/map_{{ item.name }}.conf'
+    state: 'absent'
+  with_flattened:
+    - '{{ nginx__maps }}'
+    - '{{ nginx__default_maps }}'
+    - '{{ nginx__dependent_maps }}'
+    - '{{ nginx_maps |d([]) }}'
+    - '{{ nginx_default_maps | d([]) }}'
+    - '{{ nginx_dependent_maps | d([]) }}'
+  notify: [ 'Test nginx and reload' ]
+  when: (item.name|d() and
+         ((item.state|d() and item.state == 'absent') or
+          (item.delete|d() and item.delete|bool)))
+  tags: [ 'role::nginx:servers' ]
+
+- name: Configure nginx maps
+  template:
+    src: 'etc/nginx/conf.d/map.conf.j2'
+    dest: '/etc/nginx/conf.d/map_{{ item.name }}.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  with_flattened:
+    - '{{ nginx__maps }}'
+    - '{{ nginx__default_maps }}'
+    - '{{ nginx__dependent_maps }}'
+    - '{{ nginx_maps |d([]) }}'
+    - '{{ nginx_default_maps | d([]) }}'
+    - '{{ nginx_dependent_maps | d([]) }}'
+  notify: [ 'Test nginx and reload' ]
+  when: (item.name|d() and item.state|d('present') != 'absent' and
+         (item.delete is undefined or not item.delete|bool))
+  tags: [ 'role::nginx:servers' ]
+
+- name: Remove nginx upstreams if requested
+  file:
+    dest: '/etc/nginx/conf.d/upstream_{{ item.name }}.conf'
+    state: 'absent'
+  with_flattened:
+    - '{{ nginx__upstreams }}'
+    - '{{ nginx__default_upstreams }}'
+    - '{{ nginx__dependent_upstreams }}'
+    - '{{ nginx_upstreams | d([]) }}'
+    - '{{ nginx_default_upstreams | d([]) }}'
+    - '{{ nginx_dependent_upstreams | d([]) }}'
+  notify: [ 'Test nginx and reload' ]
+  when: (item.name|d() and
+         ((item.state|d('present') == 'absent') or
+          (item.delete|d() and item.delete|bool)))
+  tags: [ 'role::nginx:servers' ]
+
+- name: Configure nginx upstreams
+  template:
+    src: 'etc/nginx/conf.d/upstream_{{ item.type | d("default") }}.conf.j2'
+    dest: '/etc/nginx/conf.d/upstream_{{ item.name }}.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  with_flattened:
+    - '{{ nginx__upstreams }}'
+    - '{{ nginx__default_upstreams }}'
+    - '{{ nginx__dependent_upstreams }}'
+    - '{{ nginx_upstreams | d([]) }}'
+    - '{{ nginx_default_upstreams | d([]) }}'
+    - '{{ nginx_dependent_upstreams | d([]) }}'
+  notify: [ 'Test nginx and reload' ]
+  when: (item.name|d() and item.state|d('present') != 'absent' and
+         (item.delete is undefined or not item.delete|bool))
+  tags: [ 'role::nginx:servers' ]
+
+- name: Remove nginx log_format if requested
+  file:
+    dest: '/etc/nginx/conf.d/log_{{ item.name }}.conf'
+    state: 'absent'
+  with_flattened:
+    - '{{ nginx__log_format }}'
+    - '{{ nginx__dependent_log_format }}'
+  notify: [ 'Test nginx and reload' ]
+  when: (item.name|d() and
+         ((item.state|d('present') == 'absent') or
+          (item.delete|d() and item.delete|bool)))
+  tags: [ 'role::nginx:servers' ]
+
+- name: Configure nginx log_format
+  template:
+    src: 'etc/nginx/conf.d/log_format.conf.j2'
+    dest: '/etc/nginx/conf.d/log_{{ item.name }}.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  with_flattened:
+    - '{{ nginx__log_format }}'
+    - '{{ nginx__dependent_log_format }}'
+  notify: [ 'Test nginx and reload' ]
+  when: (item.name|d() and item.state|d('present') != 'absent' and
+         (item.delete is undefined or not item.delete|bool))
+  tags: [ 'role::nginx:servers' ]
+
+- name: Remove custom nginx configuration if requested
+  file:
+    dest: '/etc/nginx/conf.d/{{ item.filename | d("custom_" + item.name + ".conf") }}'
+    state: 'absent'
+  with_flattened:
+    - '{{ nginx__custom_config }}'
+    - '{{ nginx_custom_config | d([]) }}'
+  notify: [ 'Test nginx and reload' ]
+  when: (item.name|d() and
+         ((item.state|d() and item.state == 'absent') or
+          (item.delete|d() and item.delete|bool)))
+  tags: [ 'role::nginx:servers' ]
+
+- name: Add custom nginx configuration
+  template:
+    src: 'etc/nginx/conf.d/custom.conf.j2'
+    dest: '/etc/nginx/conf.d/{{ item.filename | d("custom_" + item.name + ".conf") }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  with_flattened:
+    - '{{ nginx__custom_config }}'
+    - '{{ nginx_custom_config | d([]) }}'
+  notify: [ 'Test nginx and reload' ]
+  when: (item.name|d() and item.state|d('present') != 'absent' and
+         (item.delete is undefined or not item.delete|bool))
+  tags: [ 'role::nginx:servers' ]

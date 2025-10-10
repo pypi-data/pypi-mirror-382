@@ -1,0 +1,405 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.NULLMAILER" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.nullmailer \- Manage nullmailer SMTP server with Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/nullmailer\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%nullmailer\fP <\fBhttp://untroubled.org/nullmailer/\fP> package can be used to
+setup a forwarding SMTP relay. It does not provide support for local mail, but
+forwards all messages to one or more remote SMTP servers for processing.
+.sp
+The \fBdebops.nullmailer\fP role installs and configures the \fBnullmailer\fP
+service, optionally with a network access from remote hosts on port 25.
+.sp
+The role can detect other Mail Transport Agents installed on the managed host,
+and if an MTA from a configurable list is found, the role will automatically
+disable itself to allow easy switch to different SMTP servers.
+.SH GETTING STARTED
+.SS Correct DNS configuration is recommended
+.sp
+The \fBdebops.nullmailer\fP role uses the \fBansible_fqdn\fP and \fBansible_domain\fP
+variables to create correct values for the \fBnullmailer\fP service. It\(aqs
+recommended that the hosts which use \fBnullmailer\fP have the proper DNS
+configuration, which means that they should be resolvable in the DNS by their
+Fully Qualified Domain Name (hostname + domain name). The FQDN doesn\(aqt need to
+be accessible from the Internet when the hosts are on a private network, but
+it\(aqs recommended to select a subdomain of your main DNS domain and configure
+the DNS servers to advertise it on your private subnets.
+.SS No local mail by default
+.sp
+The \fBnullmailer\fP service does not provide support for local mail \- all mail
+is forwarded to the configured SMTP servers for further processing. If you need
+more advanced SMTP configuration, you should check out the \fI\%debops.postfix\fP
+role which can configure the Postfix MTA. This also means that in a new
+environment, you should prepare at least 1 host as the central mail hub for
+your network, or use an already existing SMTP server for relaying mail
+messages.
+.sp
+The \fBdebops.nullmailer\fP role is designed to allow automatic switch to
+a different SMTP server \- if it detects a \fBpostfix\fP package installed on
+a host, it will automatically disable configuration of the \fBnullmailer\fP
+service to not interfere with existing Postfix configuration.
+.sp
+All mail directed to the local recipients will be forwarded to the \fBroot\fP
+UNIX account on the upstream SMTP mail relay \- if it\(aqs Postfix, then this will
+be a local UNIX account. There you can deal with the e\-mail messages as you see
+fit \- forward them to a virtual \fBroot@<domain>\fP account, or to other people,
+filter them, etc.
+.sp
+Local sender and recipient addresses without specified FQDN domain will have
+the host\(aqs FQDN set in their e\-mail address \(dqdomain\(dq part. This might be not
+desirable when you use multiple hosts behind a mail relay and send messages to
+external recipients. In that case, in the Postfix service on the mail relay you
+can configure \fI\%domain masquerading\fP <\fBhttp://www.postfix.org/ADDRESS_REWRITING_README.html#masquerade\fP> to mask the internal hostnames.
+.sp
+If you use the \fI\%debops.postfix\fP role to manage the mail relay, you can do
+that with the following configuration in the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+postfix__maincf:
+
+  \- name: \(aqmasquerade_domains\(aq
+    value: [ \(aqexample.org\(aq ]
+
+  \- name: \(aqlocal_header_rewrite_clients\(aq
+    value: [ \(aqpermit_inet_interfaces, \(aqpermit_mynetworks\(aq,
+             \(aqpermit_sasl_authenticated\(aq ]
+
+  \- name: \(aqmasquerade_exceptions\(aq
+    value: [ \(aqMAILER\-DAEMON\(aq, \(aqpostmaster\(aq, \(aqroot\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This will mask \fBany.thing.example.org\fP in the e\-mail addresses of senders and
+recipients and will convert them to \fBexample.org\fP\&. The exceptions will ensure
+that the mail from \fBroot\fP account is not rewritten and points to the correct
+host.
+.SS Default SMTP relay
+.sp
+The role detects the preferred upstream SMTP relay by using
+\fI\%DNS SRV Records\fP for the following service:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+_smtp._tcp.{{ nullmailer__domain }} (default port 25)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+At the moment, only a single SRV resource record is supported.
+.sp
+If the SRV record is not found, the role will fall back to using static domain
+names, based on the host domain (\fI\%nullmailer__domain\fP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+SMTP:  smtp.example.org:25
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For details on how to configure DNS SRV records, see
+\fI\%DNS SRV Records\fP\&. Alternatively, you can override the SRV based
+detection by defining a relay host in the Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# ansible/inventory/group_vars/all/nullmailer.yml
+
+nullmailer__relayhost: \(aq<FQDN address of mail server>\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+See \fI\%Overriding DNS SRV Queries\fP for more details.
+.SS LDAP integration
+.sp
+If the \fI\%LDAP environment\fP is configured on the host, the
+\fI\%debops.nullmailer\fP role will automatically use it to create an LDAP
+service account in the directory. The relayhost configuration will have SMTP
+authentication enabled with the \fBnullmailer@<host.example.org>\fP username,
+which can then be used by the relay server via SASL authentication to find the
+corresponding \fBnullmailer\fP account in the LDAP directory and authenticate the
+service.
+.sp
+See the \fI\%debops.postldap\fP Ansible role documentation for details about
+configuring Postfix mail relay with LDAP directory support.
+.SS Example inventory
+.sp
+The \fBdebops.nullmailer\fP role is included by default in the \fBcommon\fP DebOps
+playbook and you don\(aqt need to add a host to a custom inventory group to
+activate it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.nullmailer\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage nullmailer SMTP server
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_nullmailer\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare nullmailer environment
+      import_role:
+        name: \(aqnullmailer\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::nullmailer\(aq, \(aqrole::ferm\(aq, \(aqrole::tcpwrappers\(aq ]
+
+  roles:
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::ldap\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ ldap__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ ldap__python__dependent_packages2 }}\(aq
+
+    \- role: ldap
+      tags: [ \(aqrole::ldap\(aq, \(aqskip::ldap\(aq ]
+      ldap__dependent_tasks:
+        \- \(aq{{ nullmailer__ldap__dependent_tasks }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ nullmailer__ferm__dependent_rules }}\(aq
+
+    \- role: tcpwrappers
+      tags: [ \(aqrole::tcpwrappers\(aq, \(aqskip::tcpwrappers\(aq ]
+      tcpwrappers__dependent_allow:
+        \- \(aq{{ nullmailer__tcpwrappers__dependent_allow }}\(aq
+
+    \- role: nullmailer
+      tags: [ \(aqrole::nullmailer\(aq, \(aqskip::nullmailer\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.nullmailer\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS nullmailer__remotes
+.sp
+This list, as well as \fI\%nullmailer__default_remotes\fP, is used to configure
+where \fBnullmailer\fP should forward all mail messages. Each element of a list
+can be either a string that defines the exact line in the
+\fB/etc/nullmailer/remotes\fP configuration file, or a YAML dictionary with
+following parameters:
+.INDENT 0.0
+.TP
+.B \fBhost\fP
+Required. DNS hostname of the SMTP server to which all messages will be
+forwarded.
+.TP
+.B \fBprotocol\fP
+Optional. Specify the daemon from \fB/usr/lib/nullmailer/\fP which should be
+used to send the mail messages. Either \fBsmtp\fP (default) or \fBqmtp\fP\&.
+.TP
+.B \fBport\fP
+Optional. Specify the port to connect. If not specified, \fB25\fP will be used
+as default.
+.TP
+.B \fBstarttls\fP
+Optional, boolean. If not specified and \fI\%nullmailer__starttls\fP is enabled,
+each configured SMTP server will be asked to provide encrypted connection
+using \fBSTARTTLS\fP command. If \fBitem.ssl\fP or \fBitem.options\fP parameters
+are specified, the \fBSTARTTLS\fP support is not enabled by default.
+.TP
+.B \fBssl\fP
+Optional, boolean. If enabled, new connections to this SMTP server will
+automatically be encrypted using SSL. This usually requires a different port
+for communication, typically \fB465\fP\&.
+.TP
+.B \fBinsecure\fP
+Optional, boolean. By default when encrypted connections are used,
+\fBnullmailer\fP checks the validity of the X.509 certificate provided by the
+server. If this parameter is enabled, the validity checks won\(aqt be performed.
+.TP
+.B \fBx509cafile\fP
+Optional. Specify absolute path to the X.509 Certificate Authority
+certificate which should be used to validate the certificate of a given SMTP
+server. If not specified, the system\-wide CA database will be used.
+.TP
+.B \fBx509certfile\fP
+Optional. Specify absolute path to the X.509 certificate which should be
+presented to the remote SMTP server for authentication.
+.TP
+.B \fBx509crlfile\fP
+Optional. Specify absolute path to the CRL file which should be used to
+validate the certificate provided by the remote SMTP server.
+.TP
+.B \fBx509fmtder\fP
+Optional, boolean. If enabled, indicates that the specified certificates are
+in DER format (PEM otherwise).
+.TP
+.B \fBauth\fP or \fBauth_login\fP
+Optional, boolean. If enabled, indicates that the specified sever requires
+user authentication before accepting forwarded mail messages.
+.TP
+.B \fBuser\fP
+Optional. Specify the username which should be used to login to the remote
+SMTP server.
+.TP
+.B \fBpass\fP or \fBpassword\fP
+Optional. Specify the password which should be used to login to the remote
+SMTP server.
+.TP
+.B \fBoptions\fP
+Optional. Custom list of options recognized by the \fBnullmailer\fP protocol
+modules. Check the usage information in the \fB/usr/lib/nullmailer/*\fP
+commands to see possible options, and examples below to see how they can be
+used.
+.UNINDENT
+.SS Examples
+.sp
+Configure a remote SMTP server without TLS encryption:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nullmailer__remotes:
+  \- host: \(aqmx.example.org\(aq
+    starttls: False
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure a remote SMTP server with mail messages delivered via \fBsubmission\fP
+protocol:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nullmailer__remotes:
+  \- host: \(aqmail.example.org\(aq
+    port: \(aq587\(aq
+    auth: True
+    user: \(aqusername\(aq
+    pass: \(aqpassword\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Configure GMail as remote SMTP server with options specified manually:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nullmailer__remotes:
+  \- host: \(aqsmtp.gmail.com\(aq
+    options: [ \(aq\-\-starttls\(aq, \(aq\-\-port=587\(aq, \(aq\-\-auth\-login\(aq,
+               \(aq\-\-user=username\(aq, \(aq\-\-pass=password\(aq ]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS nullmailer__configuration_files
+.sp
+This list, as well as \fI\%nullmailer__private_configuration_files\fP,
+manages configuration files used by the \fBnullmailer\fP service. Each entry in
+the list is a YAML dictionary with parameters:
+.INDENT 0.0
+.TP
+.B \fBdest\fP
+Required. Absolute path to the configuration file.
+.TP
+.B \fBcontent\fP
+File contents which should be placed in the configuration file. If it results
+in an empty string, file will be empty. Not needed if \fBitem.src\fP is
+specified.
+.TP
+.B \fBsrc\fP
+Absolute path to the source file located on the Ansible Controller.
+Not needed if \fBitem.content\fP is specified.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration file will be
+created. If \fBabsent\fP, the configuration file will be removed.
+.TP
+.B \fBowner\fP
+Optional. Specify an user account which should be the owner of the
+configuration file. The user account must already exist.
+.TP
+.B \fBgroup\fP
+Optional. Specify what group the configuration file belongs to. The group
+must already exist.
+.TP
+.B \fBmode\fP
+Optional. Specify the file attributes which should be set for the
+configuration file.
+.UNINDENT
+.sp
+You can find the usage examples of these lists in the role
+\fBdefaults/main.yml\fP file.
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

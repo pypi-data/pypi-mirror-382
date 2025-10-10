@@ -1,0 +1,219 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.JOURNALD" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.journald \- Manage systemd-journald service using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/journald\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.sp
+\fBdebops run service/journald \-\-tags role::journald:fss:verify\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The Journal, part of the \fI\%systemd\fP <\fBhttps://www.freedesktop.org/wiki/Software/systemd/\fP> project, is a syslog replacement. On
+systems that use \fBsystemd\fP as the init daemon, the
+\fBsystemd\-journald\fP service takes care of receiving, storing and
+routing the log messages received via the \fB/dev/log\fP device, the
+\fI\%logger(1)\fP <\fBhttps://manpages.debian.org/logger(1)\fP> command or from services managed by the \fBsystemd\fP
+init daemon.
+.sp
+The \fBdebops.journald\fP Ansible role can be used to manage the Journal
+configuration, enable or disable persistent log storage and configure Forward
+Secure Sealing on the managed hosts.
+.SH GETTING STARTED
+.SS Forward Secure Sealing
+.sp
+When the persistent logs are enabled, the \fI\%debops.journald\fP role
+configures Forward Secure Sealing functionality of the Journal by default. The
+verification keys are saved in the \fBsecret/journald/fss/\fP directories on
+the Ansible Controller. The role can be used in an \(dqalternative\(dq mode where
+Ansible checks the log integrity by running the command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+debops run service/journald \-\-tags role::journald:fss:verify
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+With this tag, only the task that verifies the logs will be executed.
+.SS Example inventory
+.sp
+The \fBdebops.journald\fP role is included by default in the \fBcommon.yml\fP
+DebOps playbook; you don\(aqt need to add hosts to any Ansible groups to enable
+it.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.journald\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage systemd journal service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_all_hosts\(aq, \(aqdebops_service_journald\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: journald
+      tags: [ \(aqrole::journald\(aq, \(aqskip::journald\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::journald\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::journald:fss:verify\fP
+The role can be used with this tag to use the Forward Secure Sealing
+functionality to verify the consistency of the logs stored on the host(s).
+No other tasks will be performed when this tag is used.
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of the \fBdebops.journald\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation and
+examples for them.
+.SS journald__configuration
+.sp
+The \fBjournald__*_configuration\fP default variables define the contents of the
+\fB/etc/systemd/journald.conf.d/ansible.conf\fP configuration file. This file
+will be automatically parsed by the \fBsystemd\-journald\fP service and any
+active options will override the defaults defined in the
+\fB/etc/systemd/journald.conf\fP configuration file. You can read the
+\fI\%journald.conf(5)\fP <\fBhttps://manpages.debian.org/journald.conf(5)\fP> manual page for more details about supported options.
+.SS Examples
+.sp
+Configure disable persistent storage for the journal logs, using the simple
+syntax:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+journald__configuration:
+
+  \- \(aqStorage\(aq: \(aqvolatile\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can check the \fI\%journald__default_configuration\fP variable for the
+default contents of the configuration file.
+.SS Syntax
+.sp
+Each configuration entry in the list is a YAML dictionary. The simple form of
+the configuration uses the dictionary keys as the parameter names, and
+dictionary values as the parameter values. Remember that the parameter names
+need to be specified in the exact case they are used in the documentation (e.g.
+\fBTTYPath\fP, \fBReadKMsg\fP), otherwise they will be duplicated in the generated
+configuration file. It\(aqs best to use a single YAML dictionary per configuration
+option.
+.sp
+If the YAML dictionary contains the \fBname\fP key, the configuration switches to
+the complex definition mode, with configuration options defined by specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. Specify the name of the Journal configuration file parameter. The
+case is important and should be the same as specified in the configuration
+file or the \fI\%journald.conf(5)\fP <\fBhttps://manpages.debian.org/journald.conf(5)\fP> manual page, otherwise the configuration
+entries will be duplicated.
+.sp
+Multiple configuration entries with the same \fBname\fP parameter are merged
+together in order of appearance. This can be used to modify parameters
+conditionally.
+.TP
+.B \fBvalue\fP
+Required. The value of a given configuration option. It can be a string,
+number, \fBTrue\fP/\fBFalse\fP boolean or an empty string.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, a given configuration parameter
+will be present in the generated configuration file. If \fBabsent\fP, a given
+parameter will be removed from the configuration file. If \fBcomment\fP, the
+parameter will be present but commented out.
+.sp
+If the state is \fBinit\fP, the parameter will be \(dqprimed\(dq in the configuration
+pipeline, but it will be commented out in the generated configuration file.
+Any subsequent configuration entry with the same \fBname\fP will switch the
+state to \fBpresent\fP \- this is used to define the default parameters in the
+role which can be changed via the Ansible inventory.
+.sp
+If the state is \fBignore\fP, a given configuration entry will not be evaluated
+during role execution. This can be used to activate configuration entries
+conditionally.
+.UNINDENT
+.SH SEE ALSO
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%systemd\-journald.service(8)\fP <\fBhttps://manpages.debian.org/systemd-journald.service(8)\fP>, \fI\%journald.conf(5)\fP <\fBhttps://manpages.debian.org/journald.conf(5)\fP>, \fI\%journalctl(1)\fP <\fBhttps://manpages.debian.org/journalctl(1)\fP>
+.IP \(bu 2
+\fI\%\(dqIntroducing the Journal\(dq (2011)\fP <\fBhttps://docs.google.com/document/pub?id=1IC9yOXj7j6cdLLxWEBAGRL6wl97tFxgjLUEHIX3MSTs\fP>
+.IP \(bu 2
+\fI\%\(dqsystemd for System Administrators, Part XVII\(dq (2012)\fP <\fBhttp://0pointer.de/blog/projects/journalctl.html\fP>
+.IP \(bu 2
+\fI\%LWN: \(dqForward Secure Sealing\(dq (2012)\fP <\fBhttps://lwn.net/Articles/512895/\fP>
+.IP \(bu 2
+\fI\%Arch Linux Wiki: systemd/Journal\fP <\fBhttps://wiki.archlinux.org/index.php/Systemd/Journal\fP>
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

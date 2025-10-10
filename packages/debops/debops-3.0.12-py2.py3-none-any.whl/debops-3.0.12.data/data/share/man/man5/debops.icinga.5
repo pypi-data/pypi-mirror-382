@@ -1,0 +1,724 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.ICINGA" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.icinga \- Manage Icinga 2 Agent using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/icinga\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%Icinga\fP <\fBhttps://www.icinga.com/\fP> project is a monitoring solution which can be used to monitor
+infrastructure hosts and services. Icinga can use variety of remote agents as
+well as SNMP to monitor remote hosts.
+.sp
+DebOps provides support for Icinga 2, split into several roles:
+.INDENT 0.0
+.IP \(bu 2
+the \fI\%debops.icinga\fP role is the Icinga 2 Agent role, usually installed
+on all hosts in the cluster that should be monitored. Different instances can
+function as masters, satellites or clients depending on the configuration.
+.IP \(bu 2
+the \fI\%debops.icinga_db\fP role can be used to configure the database
+support for Icinga 2, used by the web interface. Both PostgreSQL and MariaDB
+databases are supported.
+.IP \(bu 2
+the \fI\%debops.icinga_web\fP role manages the Icinga 2 Web interface,
+including installation of external modules like Icinga 2 Director.
+.UNINDENT
+.SH GETTING STARTED
+.SS Example inventory
+.sp
+The \fBdebops.icinga\fP role is not included in the \fBcommon.yml\fP playbook and
+needs to be activated by adding a host to a specific Ansible inventory group.
+The role is designed to be used on all hosts in the cluster, therefore the
+easiest way to do this is to include the main DebOps group in the Icinga
+inventory group.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+icinga\-master
+hostname1
+hostname2
+
+[debops_service_icinga:children]
+debops_all_hosts
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+See the \fI\%Deployment guide\fP documentation for more details about
+deploying Icinga in DebOps.
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses the \fBdebops.icinga\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure Icinga service
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_icinga\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  pre_tasks:
+
+    \- name: Prepare icinga environment
+      import_role:
+        name: \(aqicinga\(aq
+        tasks_from: \(aqmain_env\(aq
+      tags: [ \(aqrole::icinga\(aq, \(aqrole::secret\(aq ]
+
+  roles:
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::icinga\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ icinga__keyring__dependent_apt_keys }}\(aq
+
+    \- role: secret
+      tags: [ \(aqrole::secret\(aq, \(aqrole::icinga\(aq ]
+      secret__directories:
+        \- \(aq{{ icinga__secret__directories | d([]) }}\(aq
+
+    \- role: apt_preferences
+      tags: [ \(aqrole::apt_preferences\(aq, \(aqskip::apt_preferences\(aq ]
+      apt_preferences__dependent_list:
+        \- \(aq{{ icinga__apt_preferences__dependent_list }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ icinga__etc_services__dependent_list }}\(aq
+
+    \- role: unattended_upgrades
+      tags: [ \(aqrole::unattended_upgrades\(aq, \(aqskip::unattended_upgrades\(aq ]
+      unattended_upgrades__dependent_origins: \(aq{{ icinga__unattended_upgrades__dependent_origins }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ icinga__ferm__dependent_rules }}\(aq
+
+    \- role: icinga
+      tags: [ \(aqrole::icinga\(aq, \(aqskip::icinga\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::icinga\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::icinga:register\fP
+This tag can be used to register an Icinga 2 instance in the Icinga Director
+via the REST API. Already registered nodes are not registered again.
+.UNINDENT
+.SH DEPLOYMENT GUIDE
+.SS Deployment design
+.sp
+The Icinga 2 support in DebOps is designed around installation of Icinga Agents
+on all hosts and presence of 1 master/director node. The Icinga 2 Director is
+not mandatory, without it the \fBdebops.icinga\fP role can be used to configure
+Icinga 2 nodes manually, either through Ansible inventory or via role dependent
+variables. However, with Icinga Director, the role can register new Icinga
+nodes automatically as long as the specified host templates are prepared
+beforehand.
+.sp
+It\(aqs advisable to test the deployment in a development environment before
+applying it in production. This should let you find out possible issues with
+DNS and PKI configuration you might encounter.
+.SS Icinga 2 inter\-node communication and PKI
+.sp
+You might need to allow connections to the Icinga API interface, by default on
+port 5665, through the firewall. You can do this by setting the
+\fI\%icinga__allow\fP or its group or host equivalent in the inventory.
+Usually only the master host needs the access opened, unless you plan to
+initiate connections from the master to the clients.
+.sp
+Icinga 2 uses X.509 certificates for internal communication between the nodes,
+therefore the correct DNS records for the hosts are required. When DNS is not
+configured properly beforehand, communication between the cluster nodes can be
+disrupted.
+.sp
+At the moment, the \fI\%debops.icinga\fP role uses the PKI infrastructure
+maintained by the \fI\%debops.pki\fP role to provide X.509 certificates for
+Icinga 2 agents. Due to that, automatic registration of the Icinga 2 agents
+external to the cluster in the Icinga 2 CA is not possible at this time. It can
+be implemented later if there\(aqs demand for it.
+.SS DNS SRV records
+.sp
+The role detects the master and director servers by using
+\fI\%DNS SRV Records\fP for the following services:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+_icinga\-master._tcp.{{ icinga__domain }} (default port 5665)
+_icinga\-director._tcp.{{ icinga__domain }} (default port 443)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+There can be multiple master and director DNS SRV records. The role will
+configure multiple master nodes in the \fBzones.conf\fP configuration file,
+however only one director node will be used.
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+The role uses the DNS SRV resource records to determine if a given
+host should be configured as the \(dqmaster\(dq host, or a client host
+that should register itself with the \(dqmaster\(dq. Therefore, you should
+create the DNS SRV records \fIbeforehand\fP, as all the Icinga 2 nodes
+will see themselves as \(dqmaster\(dq nodes otherwise, and won\(aqt connect
+to the \(dqmaster\(dq node.
+.UNINDENT
+.UNINDENT
+.sp
+For details on how to configure DNS SRV records, see
+\fI\%DNS SRV Records\fP\&.
+.SS Manual override
+.sp
+If SRV records are not feasible or you don\(aqt want to publish them everywhere,
+you can specify the required information using Ansible inventory. For example,
+to define the master and director nodes for all hosts in the Ansible inventory,
+you can add the variables below in the
+\fBansible/inventory/group_vars/all/icinga.yml\fP configuration file:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+# Icinga Masters
+icinga__master_nodes:
+  \- target: \(aqicinga.example.org\(aq
+    port: \(aq5665\(aq
+
+# Icinga Directors
+icinga__director_nodes:
+  \- target: \(aqicinga.example.org\(aq
+    port: \(aq443\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+With this information, the role can correctly resolve the needed host and port
+details to use in other variables.
+.SS Initial deployment
+.sp
+This is an example Ansible inventory for deployment of the full Icinga \(dqstack\(dq
+in DebOps environment. The \fI\%debops.icinga\fP role is applied on all hosts in
+the environment, however the \fI\%debops.icinga_db\fP and
+\fI\%debops.icinga_web\fP are applied only on the master host.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_all_hosts]
+icinga\-master
+hostname1
+hostname2
+
+[debops_service_icinga:children]
+debops_all_hosts
+
+[debops_service_postgresql_server]
+icinga\-master
+
+[debops_service_icinga_db]
+icinga\-master
+
+[debops_service_icinga_web]
+icinga\-master
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+By default the web interface is configured on the \fBicinga.\fP subdomain, you
+can change this by setting the \fI\%icinga_web__fqdn\fP variable.
+.sp
+It\(aqs best to start the deployment on the Icinga master node, by setting up the
+local Icinga 2 Agent, and the web interface with the Icinga Director. You can
+login to the web interface using the \fBroot\fP username and the password stored
+in the
+\fBsecret/icinga_web/auth/<inventory_hostname>/credentials/root/password\fP
+file (see \fI\%debops.secret\fP for more details).
+.sp
+After logging in, and if you haven\(aqt already done so, try applying the
+\fI\%debops.icinga\fP role to some other host which is to be monitored. If
+everything is configured correctly, the role should automatically register the
+new host in Icinga via the Director REST API.  Subsequent execution of the role
+will not change the status of the host in Icinga, but if you remove the host
+from the web interface and re\-run the \fI\%debops.icinga\fP role, the host will
+be registered again.
+.sp
+By default, the role will automatically create two host templates,
+\fBgeneric\-host\fP and \fBicinga\-agent\-host\fP (the latter depending on the former)
+as part of the host registration process and will register new hosts using the
+\fBicinga\-agent\-host\fP template.  See
+\fI\%icinga_web__director_templates\fP for more details. Note that
+if you delete these templates they will, by default, be recreated every time a
+host is (re\-)registered with the Director.
+.sp
+You can define the list of templates automatically applied during registration
+using the \fBicinga__director_register_*_templates\fP default variables.
+.SH USAGE AS A ROLE DEPENDENCY
+.sp
+The \fBdebops.icinga\fP role can be used as a dependency by other Ansible roles
+to manage contents of the \fB/etc/icinga2/\fP directory idempotently.
+Configuration options from multiple roles can be merged together and included
+in the Icinga 2 configuration, or removed conditionally.
+.SS Dependent role variable
+.sp
+The role exposes the \fI\%icinga__dependent_configuration\fP variable which
+can be used to define Icinga configuration files by other Ansible roles through
+the role dependent variables.
+.sp
+The variable is an YAML list with YAML dictionaries as entries. A short
+format of the configuration uses the dictionary key as a name of the dependent
+role and dictionary value as that role\(aqs configuration, in the format defined
+by \fI\%icinga__configuration\fP variable, respectively (see playbook
+excerpt below):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roles:
+
+  \- role: icinga
+    icinga__dependent_configuration:
+      \- role_name: \(aq{{ role_name__icinga__dependent_configuration }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The extended version of the configuration uses YAML dictionaries with specific
+parameters:
+.INDENT 0.0
+.TP
+.B \fBrole\fP
+Required. Name of the role, used to save its configuration in a YAML
+dictionary on the Ansible Controller. Shouldn\(aqt be changed once selected,
+otherwise the configuration will be desynchronized.
+.TP
+.B \fBconfig\fP
+Required. YAML list with definition of the Icinga configuration files in the
+same format defined by \fI\%icinga__configuration\fP variables.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the configuration will be included
+in the generated configuration files. If \fBabsent\fP, the configuration will
+be removed from the configuration files. If \fBignore\fP, a given configuration
+entries will be skipped during data evaluation and won\(aqt affect any existing
+entries.
+.UNINDENT
+.sp
+An example extended configuration (playbook excerpt):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+roles:
+
+  \- role: icinga
+    icinga__dependent_configuration:
+      \- role: \(aqrole_name\(aq
+        config: \(aq{{ role_name__icinga__dependent_configuration }}\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above configuration layout allows for use of the multiple role dependencies
+in one playbook by providing configuration of each role in a separate
+configuration entry.
+.SS Dependent configuration storage and retrieval
+.sp
+The dependent configuration from other roles is stored in the \fBsecret/\fP
+directory on the Ansible Controller (see \fI\%debops.secret\fP for more details)
+in a JSON file (one for each variable), with each role configuration in
+a separate dictionary. The \fBdebops.icinga\fP role reads these files when
+Ansible local facts indicate that the Icinga support is installed, otherwise
+empty files are created. This ensures that the stale configuration is not
+present on a new or re\-installed host.
+.sp
+The YAML dictionaries from different roles are merged with the main
+configuration in the \fI\%icinga__combined_configuration\fP variable that are
+used to generate the final configuration. The merge order of the different
+\fBicinga__*_configuration\fP variables allows to further affect the dependent
+configuration through Ansible inventory if necessary, therefore the Ansible
+roles that use this method don\(aqt need to provide additional variables for this
+purpose themselves.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.icinga\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS icinga__configuration
+.sp
+The \fBicinga__*_configuration\fP variables specify the contents of the Icinga
+2 configuration located in the \fB/etc/icinga2/\fP directory. The variables
+are combined together using the \fI\%icinga__combined_configuration\fP
+variable, which means that users don\(aqt need to copy entire values to the
+inventory to change it.
+.sp
+Because Icinga 2 configuration language is extensive, the role is focused only
+on conditional activation of the specific files and sections inside. You will
+want to read the \fI\%upstream documentation\fP <\fBhttps://www.icinga.com/docs/icinga2/latest/doc/04-configuring-icinga-2/\fP> to learn how to configure Icinga
+2 using its DSL.
+.sp
+The variables contain lists of YAML dictionaries, each dictionary can be defined
+using specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the file located in the \fB/etc/icinga2/\fP
+directory, for example \fBicinga2.conf\fP\&. This can also include
+subdirectories, for example \fBconf.d/templates.conf\fP\&. Missing subdirectories
+will be automatically created by the role.
+.sp
+This parameter is used as a handle for merging multiple configuration entries
+together.
+.TP
+.B \fBfilename\fP
+Optional. Alternative filename with optional subdirectories. Can be used to
+override the filename specified in the \fBname\fP parameter. Usually not used.
+.TP
+.B \fBdivert\fP
+Optional, boolean. When defined and \fBTrue\fP, the original file will be
+diverted or reverted depending on the \fBstate\fP parameter to simplify package
+upgrades. Diverted files will have a \fB\&.dpkg\-divert\fP suffix and are ignored
+by Icinga 2.
+.TP
+.B \fBstate\fP
+Optional. Specify the desired state of a given configuration file. Possible
+states:
+.INDENT 7.0
+.IP \(bu 2
+\fBpresent\fP: default if not defined. The configuration file will be
+generated, any original files will be diverted to preserve them.
+.IP \(bu 2
+\fBabsent\fP: the file will be removed. Any diverted files will be returned
+to their original state.
+.IP \(bu 2
+\fBinit\fP: the configuration of a given file will be primed, but will not be
+actually implemented by the role. This can be used to prepare configuration
+files to be activated conditionally.
+.IP \(bu 2
+\fBignore\fP: a given configuration entry will be ignored during template
+generation. This can be used to disable specific configuration entries
+conditionally.
+.IP \(bu 2
+\fBdivert\fP: only divert a given configuration file without generating
+a custom one. The files will be reverted back when the state is set to
+\fBabsent\fP\&.
+.IP \(bu 2
+\fBfeature\fP: only enable/disable the feature state in the
+\fB/etc/icinga2/features\-enabled/\fP directory.
+.UNINDENT
+.TP
+.B \fBfeature_name\fP
+Optional. Specify name of the symlink managed in the
+\fB/etc/icinga2/features\-enabled/\fP directory, without the \fB\&.conf\fP
+suffix. This should be only used with configuration files located in the
+\fBfeatures\-available/\fP subdirectory, otherwise the generated symlinks
+will be broken.
+.sp
+The \fBname\fP parameter is not correlated with the \fBfeature_name\fP, and is
+used only for configuration merging.
+.TP
+.B \fBfeature_state\fP
+Optional. If set and \fBpresent\fP, the symlink to a particular feature file
+will be created. If \fBabsent\fP, the symlink to a particular feature will be
+removed, thus disabling it.
+.TP
+.B \fBowner\fP
+Optional. Specify the UNIX account owner of the configuration file. If not
+specified, \fBroot\fP will be the owner.
+.TP
+.B \fBgroup\fP
+Optional. Specify the UNIX group of the configuration file. If not specified,
+\fBroot\fP will be the group.
+.TP
+.B \fBmode\fP
+Optional. Specify the file attributes. If not specified, \fB0644\fP will be
+used by default.
+.TP
+.B \fBno_log\fP
+Optional, boolean. If set and \fBTrue\fP, Ansible will not log the generation
+of a given configuration file. This might be useful for files with sensitive
+data like passwords.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with a comment, included in the beginning
+of the configuration file.
+.TP
+.B \fBvalue\fP
+Optional. String or YAML text block that contains the Icinga 2 configuration,
+specified using \fI\%Icinga 2 DSL\fP <\fBhttps://www.icinga.com/docs/icinga2/latest/doc/17-language-reference/\fP>\&. It will be included in the configuration
+file as\-is.
+.TP
+.B \fBoptions\fP
+Optional. List of configuration snippets that will be included in the file.
+It\(aqs an alternative to a single \fBvalue\fP entry which can be used to
+conditionally enable or disable parts of the configuration file. Options
+lists from different configuration entries are merged together and can affect
+each other.
+.sp
+Each list element is a YAML dictionary with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+An element identifier, it is used for merging \fBoptions\fP lists from
+different configuration entries and is ignored otherwise. It should be an
+unique string.
+.TP
+.B \fBvalue\fP
+Required. String or YAML text block with Icinga 2 configuration written in
+is DSL. Will be included as\-is in the configuration file.
+.TP
+.B \fBcomment\fP
+Optional. String or YAML text block with a comment which will be added
+before a given element.
+.TP
+.B \fBstate\fP
+Optional. If not set or \fBpresent\fP, the configuration option will be
+included in the generated file. If \fBabsent\fP, the configuration option
+will not be included in the generated file. If \fBignore\fP, a given list
+element is not evaluated by Ansible and will be ignored. If \fBcomment\fP,
+the configuration option will be included in the configuration file, but
+commented out.
+.TP
+.B \fBweight\fP
+Optional. A positive or negative number that affects the order of the
+elements in the options list. It can be used to move configuration lower or
+higher in the configuration file.
+.UNINDENT
+.UNINDENT
+.SS Examples
+.sp
+Many examples can be found in the role \fBdefaults/main.yml\fP file.
+.sp
+Add simple host checks in separate directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+icinga__configuration:
+
+  \- name: \(aqconf.d/hosts/host1.{{ ansible_domain }}/host.conf\(aq
+    comment: \(aqCustom host configuration\(aq
+
+    options:
+
+      \- name: \(aqhost\(aq
+        value: |
+          object Host \(dqhost1.{{ ansible_domain }}\(dq {
+            address = \(dqhost1.{{ ansible_domain }}\(dq
+            check_command = \(dqhostalive\(dq
+          }
+        state: \(aqpresent\(aq
+
+  \- name: \(aqconf.d/hosts/host2.{{ ansible_domain }}/host.conf\(aq
+    value: |
+      object Host \(dqhost2.{{ ansible_domain }}\(dq {
+        address = \(dqhost2.{{ ansible_domain }}\(dq
+        check_command = \(dqhostalive\(dq
+      }
+    state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Define a set of services and apply them to hosts in a specific zone:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+icinga__configuration:
+
+  \- name: \(aqzones.d/master/services.conf\(aq
+    state: \(aqpresent\(aq
+    options:
+
+      \- name: \(aqservice_load\(aq
+        value: |
+          apply Service \(dqload\(dq {
+            import \(dqgeneric\-service\(dq
+            check_command = \(dqload\(dq
+            command_endpoint = host.vars.client_endpoint
+            assign where host.vars.client_endpoint
+          }
+        state: \(aqpresent\(aq
+
+      \- name: \(aqservice_procs\(aq
+        value: |
+          apply Service \(dqprocs\(dq {
+            import \(dqgeneric\-service\(dq
+            check_command = \(dqprocs\(dq
+            command_endpoint = host.vars.client_endpoint
+            assign where host.vars.client_endpoint
+          }
+        state: \(aqpresent\(aq
+
+  \- name: \(aqzones.d/master/host1.{{ ansible_domain }}.conf\(aq
+    options:
+
+      \- name: \(aqobject_zone\(aq
+        value: |
+          object Zone \(dqhost1.{{ ansible_domain }}\(dq {
+            endpoints = [ \(dqhost1.{{ ansible_domain }}\(dq ]
+            parent = \(dqmaster\(dq
+          }
+        state: \(aqpresent\(aq
+
+      \- name: \(aqobject_endpoint\(aq
+        value: |
+          object Endpoint \(dqhost1.{{ ansible_domain }}\(dq {
+            host = \(dqhost1.{{ ansible_domain }}\(dq
+          }
+        state: \(aqpresent\(aq
+
+      \- name: \(aqobject_host\(aq
+        value: |
+          object Host \(dqhost1.{{ ansible_domain }}\(dq {
+            import \(dqgeneric\-host\(dq
+            address = \(dqhost1.{{ ansible_domain }}\(dq
+            vars.notification[\(dqmail\(dq] = {
+              groups = [ \(dqicingaadmins\(dq ]
+            }
+            vars.client_endpoint = name
+          }
+        state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS icinga__custom_files
+.sp
+The \fBicinga__*_custom_files\fP variables can be used to copy additional hosts
+to hosts managed with the \fBdebops.icinga\fP role. The variables are lists, each
+list entry is a YAML dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBcontent\fP
+String or YAML text block with file contents. Cannot be set with the \fBsrc\fP
+parameter at the same time.
+.TP
+.B \fBsrc\fP
+Absolute path to the file located on the Ansible Controller which will be
+copied to the remote host. Cannot be set with the \fBcontent\fP parameter at
+the same time.
+.TP
+.B \fBdest\fP
+Required. Absolute path where the file will be placed on the remote host.
+.TP
+.B \fBowner\fP
+Optional. Specify the owner of the file. If not specified, \fBroot\fP will be
+the owner.
+.TP
+.B \fBgroup\fP
+Optional. Specify the default group of the file. If not specified, \fBroot\fP
+will be the default group.
+.TP
+.B \fBmode\fP
+Optional. Specify the file attributes. If not specified, \fB0755\fP will be set
+(by default the role assumes that the managed custom files are scripts).
+.TP
+.B \fBforce\fP
+Optional, boolean. If \fBTrue\fP (default), the role will override already
+existing file. If \fBFalse\fP, the role will not override an existing file.
+.TP
+.B \fBstate\fP
+Optional. If not set or \fBpresent\fP, the file will be copied to the remote
+host. This can be used to conditionally copy files depending on other
+factors.
+.UNINDENT
+.SS Examples
+.sp
+Add a simple hello world script in Icinga 2 \fBscripts/\fP directory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+icinga__custom_files:
+  \- content: |
+      #!/bin/sh
+
+      echo \(dqHello, world!\(dq
+    dest: \(aq/etc/icinga2/scripts/hello\-world.sh\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

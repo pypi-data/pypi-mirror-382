@@ -1,0 +1,355 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.DOCKER_SERVER" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.docker_server \- Manage Docker server using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/docker_server\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+\fI\%Docker\fP <\fBhttps://docker.com/\fP> is a lightweight virtualization platform based on Linux kernel
+features that allow creation and management of isolated application
+environments.
+.sp
+The \fBdebops.docker_server\fP role can be used to install and configure Docker
+service on Debian/Ubuntu hosts. To role supports installation of Docker from OS
+distribution repositories, as well as from the upstream repository.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+Docker is available in two editions. Community Edition (CE) and Enterprise
+Edition (EE). Docker EE is not supported on Debian distributions. See also:
+\fI\%Docker variants\fP <\fBhttps://docs.docker.com/install/overview/\fP>\&.
+.sp
+The Docker package from distribution repositories will be installed by default
+(on Jessie it means that the \fBjessie\-backports\fP repository needs to be
+available, which is the default in DebOps). You can install the upstream
+version of Docker by setting the \fBdocker_server__upstream: True\fP variable in
+Ansible’s inventory. Upstream Docker is installed on Debian Stretch by default,
+since this release does not provide included Docker packages.
+.sp
+A Docker server managed by DebOps does not listen on any TCP ports by default.
+You can set \fI\%docker_server__tcp\fP to \fBTrue\fP if you need remote access
+to the Docker server. You will also need to tweak your firewall in this case,
+which is easily done with \fI\%docker_server__tcp_allow\fP\&. It is recommended
+to use the \fI\%debops.pki\fP role to secure the connection between the client
+and the Docker server.
+.sp
+On hosts with \fBferm\fP firewall support enabled, a special post\-hook
+script will be installed that restarts the Docker daemon after \fBferm\fP
+is restarted.
+.sp
+The \fBdocker\-compose\fP script will be installed on hosts with upstream
+Docker, in a Python virtualenv. It will be automatically available system\-wide
+via a symlink in \fB/usr/local/bin/\fP directory.
+.sp
+To let the docker daemon trust a private registry with self\-signed
+certificates, add the root CA used to sign the registry\(aqs certificate through
+the \fI\%debops.pki\fP role.
+.sp
+This role does not support switching from Docker CE to Docker EE on an already
+installed machine. It does support switching from distribution repository to
+upstream. However, it is recommended to start with a clean machine if possible.
+.sp
+The \fI\%debops.docker_server\fP role relies on configuration managed by
+\fI\%debops.core\fP, \fI\%debops.ferm\fP, and \fI\%debops.pki\fP Ansible roles.
+.SS Useful variables
+.sp
+This is a list of role variables which you most likely want to define in
+Ansible inventory to customize Docker:
+.INDENT 0.0
+.TP
+.B \fI\%docker_server__tcp\fP
+Enable or disable listening for TLS connections on the Docker TCP port.
+.TP
+.B \fI\%docker_server__tcp_allow\fP
+List of IP addresses or subnets that can connect to Docker daemon remotely
+over TLS.
+.TP
+.B \fI\%docker_server__admins\fP
+List of UNIX accounts that have access to Docker daemon socket.
+.UNINDENT
+.SS Example inventory
+.sp
+To configure Docker on a given remote host, it needs to be added to the
+\fB[debops_service_docker_server]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_docker_server]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+Here\(aqs an example playbook that can be used to manage Docker:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Manage Docker server
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_docker_server\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: resolvconf
+      tags: [ \(aqrole::resolvconf\(aq, \(aqskip::resolvconf\(aq ]
+      resolvconf__enabled: True
+
+    \- role: keyring
+      tags: [ \(aqrole::keyring\(aq, \(aqskip::keyring\(aq, \(aqrole::docker_server\(aq ]
+      keyring__dependent_apt_keys:
+        \- \(aq{{ docker_server__keyring__dependent_apt_keys }}\(aq
+
+    \- role: etc_services
+      tags: [ \(aqrole::etc_services\(aq, \(aqskip::etc_services\(aq ]
+      etc_services__dependent_list:
+        \- \(aq{{ docker_server__etc_services__dependent_list }}\(aq
+
+    \- role: ferm
+      tags: [ \(aqrole::ferm\(aq, \(aqskip::ferm\(aq ]
+      ferm__dependent_rules:
+        \- \(aq{{ docker_server__ferm__dependent_rules }}\(aq
+
+    \- role: python
+      tags: [ \(aqrole::python\(aq, \(aqskip::python\(aq, \(aqrole::docker_server\(aq ]
+      python__dependent_packages3:
+        \- \(aq{{ docker_server__python__dependent_packages3 }}\(aq
+      python__dependent_packages2:
+        \- \(aq{{ docker_server__python__dependent_packages2 }}\(aq
+
+    \- role: docker_server
+      tags: [ \(aqrole::docker_server\(aq, \(aqskip::docker_server\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible tags
+.sp
+You can use Ansible \fB\-\-tags\fP or \fB\-\-skip\-tags\fP parameters to limit what
+tasks are performed during Ansible run. This can be used after a host was first
+configured to speed up playbook execution, when you are sure that most of the
+configuration is already in the desired state.
+.sp
+Available role tags:
+.INDENT 0.0
+.TP
+.B \fBrole::docker_server\fP
+Main role tag, should be used in the playbook to execute all of the role
+tasks as well as role dependencies.
+.TP
+.B \fBrole::docker_server:config\fP
+Run tasks related to Docker configuration.
+.TP
+.B \fBrole::docker_server:admins\fP
+Manage access to Docker daemon by UNIX accounts.
+.UNINDENT
+.SS Other resources
+.sp
+List of other useful resources related to the \fBdebops.docker_server\fP Ansible
+role:
+.INDENT 0.0
+.IP \(bu 2
+Manual pages: \fI\%docker(1)\fP <\fBhttps://manpages.debian.org/docker(1)\fP>, \fI\%docker\-run(1)\fP <\fBhttps://manpages.debian.org/docker-run(1)\fP>, \fI\%Dockerfile(5)\fP <\fBhttps://manpages.debian.org/Dockerfile(5)\fP>,
+\fI\%docker\-compose(1)\fP <\fBhttps://manpages.debian.org/docker-compose(1)\fP>
+.IP \(bu 2
+\fI\%Docker\fP <\fBhttps://wiki.debian.org/Docker\fP> page on Debian Wiki
+.IP \(bu 2
+\fI\%Docker\fP <\fBhttps://wiki.archlinux.org/index.php/Docker\fP> page on Arch Linux Wiki
+.IP \(bu 2
+\fI\%Docker documentation page\fP <\fBhttps://docs.docker.com/\fP>
+.IP \(bu 2
+\fI\%Docker guide for Ansible\fP <\fBhttps://docs.ansible.com/ansible/latest/scenario_guides/guide_docker.html\fP>
+.IP \(bu 2
+Official DebOps image in the Docker Hub: \fI\%debops/debops\fP <\fBhttps://hub.docker.com/r/debops/debops\fP> (see also
+\fI\%Quick start with Docker\fP)
+.UNINDENT
+.SH DOCKER VIRTUALENV SUPPORT
+.SS Python and Docker relationship
+.sp
+Docker can be expanded or managed by a few additional Python\-based tools. The
+company behind Docker provides a \fBdocker\-compose\fP Python script which
+can be used to manage multiple Docker containers at a time. Ansible provides
+a few Docker\-related modules as well. Therefore a correctly configured Python
+environment is very useful on a Docker host.
+.sp
+The \fBdebops.docker_server\fP Ansible role maintains a separate Python
+\fBvirtualenv\fP environment just for Docker\-related Python packages. This
+is done so that Python modules used by upstream Docker, don\(aqt affect the host
+Python environment. The Docker \fBvirtualenv\fP environment is by default
+located in the \fB/usr/local/lib/docker/virtualenv/\fP directory but it can
+be changed if needed.
+.sp
+The \fBdocker\-compose\fP script will be symlinked in the host environment,
+in \fB/usr/local/bin/docker\-compose\fP, so that the command can be used from
+the host\(aqs shell.
+.sp
+The Python interpreter located in the Docker \fBvirtualenv\fP environment
+will be exposed in the host environment as
+\fB/usr/local/bin/docker\-python\fP\&. That way you can use it in the Python
+scripts executed in the host environment. To use the Docker Python interpreter
+in a script, define it\(aqs shebang line as:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+#!/usr/bin/env docker\-python
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Ansible modules and Docker virtualenv
+.sp
+The default host does not have any Docker\-related Python modules available,
+therefore Ansible modules that interact with Docker, like \fBdocker\fP,
+\fBdocker_container\fP, \fBdocker_image\fP, etc. will not work out of the box in
+normal Ansible playbooks and roles. To solve that, you can use the
+\fBansible_python_interpreter\fP variable defined at the playbook level. Playbook
+variables cannot be templated by Jinja, therefore a static value must be used,
+and relates to the \fBdocker\-python\fP command exposed earlier.
+.sp
+Here\(aqs an example playbook that uses a Python interpreter from the Docker
+\fBvirtualenv\fP environment:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Set up a Redis Docker container
+  collections: [ \(aqdebops.debops\(aq ]
+  hosts: \(aqdocker\-host\(aq
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  vars:
+
+    # Use Python from Docker virtualenv
+    ansible_python_interpreter: \(aq/usr/bin/env docker\-python\(aq
+
+  tasks:
+
+    \- name: Manage redis container
+      docker_container:
+        name: \(aqlocal\-redis\(aq
+        image: \(aqredis\(aq
+        published_ports: [ \(aq127.0.0.1:6379:6379\(aq ]
+        restart_policy: \(aqalways\(aq
+        state: \(aqstarted\(aq
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Keep in mind that more extensive playbooks that use Ansible roles or modules
+other than the Docker\-related ones might need to be executed in their own
+separate plays, to use the host Python interpreter instead of the one
+maintained in the Docker \fBvirtualenv\fP environment. Alternatively, you
+need to ensure that the Docker \fBvirtualenv\fP environment contains all
+needed Python modules.
+.SS How to access the Docker virtualenv
+.sp
+To enter the Docker \fBvirtualenv\fP environment on a host, execute the
+commands on the \fBroot\fP account:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+cd /usr/local/lib/docker/virtualenv
+source bin/activate
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+After that you can execute usual \fBpip\fP commands to manage Python
+packages inside the environment.
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.docker_server\fP default variables have more extensive
+configuration than simple strings or lists, here you can find documentation
+and examples for them.
+.SS docker_server__pip_packages
+.sp
+The \fI\%docker_server__default_pip_packages\fP and
+\fI\%docker_server__pip_packages\fP list variables define what PyPI packages
+will be installed in the Python virtualenv environment controlled by the
+\fBdebops.docker_server\fP role. You can specify either package names as string,
+or YAML dictionaries with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the PyPI package to install.
+.TP
+.B \fBversion\fP
+Optional. If specified, install the specified version of the PyPI package
+instead of the latest one.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the package will be installed in
+the Python virtualenv. If \fBabsent\fP, the package will be removed from the
+Python virtualenv.
+.TP
+.B \fBpath\fP and \fBsrc\fP
+Optional. If specified together, the role will create a symlink at the
+\fBpath\fP location (should specify an absolute path) to the \fBsrc\fP file or
+directory.
+.UNINDENT
+.sp
+For example usage, see the default variables mentioned above.
+.SH AUTHOR
+Maciej Delmanowski, Robin Schneider, Imre Jonk
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.

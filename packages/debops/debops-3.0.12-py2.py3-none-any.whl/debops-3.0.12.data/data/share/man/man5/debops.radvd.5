@@ -1,0 +1,481 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "DEBOPS.RADVD" "5" "Oct 09, 2025" "v3.0.12" "DebOps"
+.SH NAME
+debops.radvd \- Manage Router Advertisement Daemon using Ansible
+.SH SYNOPSIS
+.sp
+\fBdebops run service/radvd\fP [\fB\-\-limit\fP \fIgroup,host,\fP\&...] [\fB\-\-diff\fP] [\fB\-\-check\fP] [\fB\-\-tags\fP \fItag1,tag2,\fP\&...] [\fB\-\-skip\-tags\fP \fItag1,tag2,\fP\&...] [<\fBansible\-playbook\fP options>] ...
+.SH DESCRIPTION
+.sp
+The \fI\%radvd\fP <\fBhttps://en.wikipedia.org/wiki/Radvd\fP>, Router Advertisement
+Daemon, is used to publish IPv6 subnets, routes, DNS configuration to other
+hosts on the local network. It\(aqs required for the hosts to use SLAAC
+autoconfiguration.
+.sp
+The \fBdebops.radvd\fP Ansible role can be used to install and configure the
+\fBradvd\fP service. It will detect and automatically configure any
+network bridges with IPv6 networking enabled.
+.SH GETTING STARTED
+.SS Initial configuration
+.sp
+The default \fBradvd\fP installation does not set up any configuration
+file, and the service does not start correctly without proper configuration in
+place.
+.sp
+The \fBdebops.radvd\fP role will try and autogenerate a \fBradvd\fP
+configuration based on the host environment. Any bridge interfaces with global
+IPv6 addresses will be enabled by default and included in the configuration. If
+you don\(aqt have any valid bridges with IPv6 addresses, the role execution will
+fail because the role will try and restart \fBradvd\fP service on
+configuration changes.
+.sp
+To avoid the issues with initial configuration, you should ensure that hosts on
+which you install \fBradvd\fP have proper network configuration. You can
+use the \fI\%debops.ifupdown\fP role to create a virtual network bridge or,
+alternatively, create \fBradvd\fP configuration for any existing
+interfaces. For example, to offer Router Advertisements on a private, internal
+network, you can add this configuration to your Ansible inventory:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+radvd__interfaces:
+
+  \- name: \(aqeth1\(aq
+    options:
+      \- \(aqAdvSendAdvert\(aq: True
+      \- \(aqIgnoreIfMissing\(aq: True
+    prefixes:
+      \- name: \(aq::/64\(aq
+        options:
+          \- \(aqAdvOnLink\(aq: True
+          \- \(aqAdvAutonomous\(aq: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+See \fI\%radvd__interfaces\fP for information about interface configuration.
+.SS Example inventory
+.sp
+To enable \fBradvd\fP configuration on a host, it needs to be added to the
+\fB[debops_service_radvd]\fP Ansible inventory group:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[debops_service_radvd]
+hostname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example playbook
+.sp
+If you are using this role without DebOps, here\(aqs an example Ansible playbook
+that uses \fBdebops.radvd\fP role:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+\-\-\-
+
+\- name: Configure Router Advertisement Daemon
+  collections: [ \(aqdebops.debops\(aq, \(aqdebops.roles01\(aq,
+                 \(aqdebops.roles02\(aq, \(aqdebops.roles03\(aq ]
+  hosts: [ \(aqdebops_service_radvd\(aq ]
+  become: True
+
+  environment: \(aq{{ inventory__environment | d({})
+                   | combine(inventory__group_environment | d({}))
+                   | combine(inventory__host_environment  | d({})) }}\(aq
+
+  roles:
+
+    \- role: radvd
+      tags: [ \(aqrole::radvd\(aq, \(aqskip::radvd\(aq ]
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH DEFAULT VARIABLE DETAILS
+.sp
+Some of \fBdebops.radvd\fP default variables have more extensive configuration
+than simple strings or lists, here you can find documentation and examples for
+them.
+.SS radvd__interfaces
+.sp
+The \fBradvd__*_interfaces\fP variables contain the \fBradvd\fP interface
+configuration. Each entry represents one interface in the form of a YAML
+dictionary with specific parameters:
+.INDENT 0.0
+.TP
+.B \fBname\fP
+Required. The name of the network interface to configure. This parameter is
+used to merge multiple interface configurations with the same name together.
+.TP
+.B \fBcomment\fP
+Optional. String or a YAML text block with comments about a particular
+interface.
+.TP
+.B \fBstate\fP
+Optional. If not specified or \fBpresent\fP, the interface configuration will
+ge included in the \fB/etc/radvd.conf\fP configuration file. If \fBabsent\fP,
+the configuration will be removed from the configuration file.
+.sp
+If \fBinit\fP, a given entry will be prepared but not actually included in the
+finished configuration, this can be used to prepare interface configuration
+and activate it conditionally.
+.sp
+If \fBignore\fP, a given entry will not be taken into account during
+configuration file generation.
+.TP
+.B \fBoptions\fP
+Optional. List with \fI\%radvd.conf(5)\fP <\fBhttps://manpages.debian.org/radvd.conf(5)\fP> interface specific options. Each
+list entry is a YAML dictionary. You can use a simple form, where
+a dictionary key is an option name, and the dictionary value is its value
+(use YAML booleans as \fBon\fP/\fBoff\fP values):
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+radvd__interfaces:
+  \- name: \(aqeth1\(aq
+    options:
+
+      \- \(aqAdvSendAdvert\(aq: True
+      \- \(aqIgnoreIfMissing\(aq: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+You can also use an extended form of configuration options with parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The name of a given option.
+.TP
+.B \fBvalue\fP
+The value of a given option.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the option will be included in the
+configuration file; if \fBabsent\fP, the option will be removed from the
+configuration file.
+.UNINDENT
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+radvd__interfaces:
+  \- name: \(aqeth1\(aq
+    options:
+
+      \- name: \(aqAdvSendAdvert\(aq
+        value: True
+
+      \- name: \(aqIgnoreIfMissing\(aq
+        value: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBoptions\fP parameters from multiple configuration entries with the same
+name are merged together.
+.TP
+.B \fBprefix\fP or \fBprefixes\fP
+Optional. List of IPv6 subnets to advertise on this interface. You can
+specify either a simple string, or a YAML dictionary with specific options:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The prefix to manage on this network interface.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the prefix will be included in the
+configuration. If \fBabsent\fP, prefix will be removed from the
+configuration.
+.TP
+.B \fBoptions\fP
+Custom \fBradvd.conf\fP options for a given prefix. The format is the
+same as the \fBoptions\fP parameter of the interface configuration.
+.UNINDENT
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+radvd__interfaces:
+  \- name: \(aqeth1\(aq
+    prefixes:
+
+      \- \(aq2001:db8:aaa::/64\(aq
+
+      \- name: \(aq2001:db8:bbb::/64\(aq
+        options:
+          \- \(aqAdvOnLink\(aq: True
+          \- \(aqAdvAutonomous\(aq: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBprefix\fP or \fBprefixes\fP parameters from multiple configuration entries
+with the same name are NOT merged together.
+.TP
+.B \fBclient\fP or \fBclients\fP
+Optional. List of client IPv6 link\-local addresses which will be sent
+advertisements (if not specified, advertisements are sent to all hosts on the
+local network). You can specify either strings of IPv6 addresses, or use YAML
+dictionary with specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The IPv6 link\-local address of the client.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the client will be included in the
+configuration. If \fBabsent\fP, the client will be removed from the
+configuration.
+.UNINDENT
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+radvd__interfaces:
+  \- name: \(aqeth1\(aq
+    clients:
+
+      \- \(aqfe80::21f:16ff:fe06:3aab\(aq
+
+      \- name: \(aqfe80::21d:72ff:fe96:aaff\(aq
+        state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBclient\fP or \fBclients\fP parameters from multiple configuration entries
+with the same name are NOT merged together.
+.TP
+.B \fBroute\fP or \fBroutes\fP
+Optional. List of IPv6 routes to advertise on this interface. You can specify
+either a simple string, or a YAML dictionary with specific options:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The route to manage on this network interface.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the route will be included in the
+configuration. If \fBabsent\fP, route will be removed from the
+configuration.
+.TP
+.B \fBoptions\fP
+Custom \fBradvd.conf\fP options for a given route. The format is the
+same as the \fBoptions\fP parameter of the interface configuration.
+.UNINDENT
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+radvd__interfaces:
+  \- name: \(aqeth1\(aq
+    routes:
+
+      \- \(aq2001:db8:ccc::/64\(aq
+
+      \- name: \(aq2001:db8:ddd::/64\(aq
+        options:
+          \- \(aqAdvRoutePreference\(aq: \(aqlow\(aq
+          \- \(aqRemoveRoute\(aq: True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBroute\fP or \fBroutes\fP parameters from multiple configuration entries
+with the same name are NOT merged together.
+.TP
+.B \fBrdnss\fP
+Optional. List of IPv6 nameservers to advertise to the clients. You can
+specify the addresses as simple strings or use a YAML dictionary with
+specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The IPv6 address of the nameserver.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the nameserver will be included in the
+configuration. If \fBabsent\fP, nameserver will be removed from the
+configuration.
+.UNINDENT
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+radvd__interfaces:
+  \- name: \(aqeth1\(aq
+    rdnss:
+
+      \- \(aq2001:db8::53\(aq
+
+      \- name: \(aq2001:db8::5353\(aq
+        state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBrdnss\fP parameters from multiple configuration entries with the same
+name are NOT merged together.
+.TP
+.B \fBrdnss_options\fP
+Optional. Specify custom RDNSS options. The format is the same as the
+\fBoptions\fP parameter of the interface configuration. The \fBrdnss_options\fP
+parameters from multiple configuration entries with the same name are NOT
+merged together.
+.TP
+.B \fBdnssl\fP
+Optional. List of DNS search domains to advertise to the clients. You can
+specify the search domains as simple strings or use a YAML dictionary with
+specific parameters:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The DNS search domain to manage.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the search domain will be included in the
+configuration. If \fBabsent\fP, search domain will be removed from the
+configuration.
+.UNINDENT
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+radvd__interfaces:
+  \- name: \(aqeth1\(aq
+    dnssl:
+
+      \- \(aqexample.org\(aq
+
+      \- name: \(aqother.example.org\(aq
+        state: \(aqpresent\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBdnssl\fP parameters from multiple configuration entries with the same
+name are NOT merged together.
+.TP
+.B \fBdnssl_options\fP
+Optional. Specify custom DNSSL options. The format is the same as the
+\fBoptions\fP parameter of the interface configuration. The \fBdnssl_options\fP
+parameters from multiple configuration entries with the same name are NOT
+merged together.
+.TP
+.B \fBabro\fP
+Optional. List of Authoritative Border Router Option definitions. You can
+specify either a simple string, or a YAML dictionary with specific options:
+.INDENT 7.0
+.TP
+.B \fBname\fP
+The IPv6 address of the router to manage.
+.TP
+.B \fBstate\fP
+If not specified or \fBpresent\fP, the given ABRO options will be included in
+the configuration. If \fBabsent\fP, the ABRO options will be removed from the
+configuration.
+.TP
+.B \fBoptions\fP
+Custom \fBradvd.conf\fP options for a given ABRO configuration. The
+format is the same as the \fBoptions\fP parameter of the interface
+configuration.
+.UNINDENT
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+radvd__interfaces:
+  \- name: \(aqeth1\(aq
+    abro:
+
+      \- \(aqfe80::a200:0:0:1\(aq
+
+      \- name: \(aqfe80::a200:0:0:2\(aq
+        options:
+          \- \(aqAdvVersionLow\(aq: \(aq10\(aq
+          \- \(aqAdvVersionHigh\(aq: \(aq2\(aq
+          \- \(aqAdvValidLifetime\(aq: \(aq2\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBabro\fP parameters from multiple configuration entries with the same
+name are NOT merged together.
+.UNINDENT
+.SH AUTHOR
+Maciej Delmanowski
+.SH COPYRIGHT
+2014-2024, Maciej Delmanowski, Nick Janetakis, Robin Schneider and others
+.\" Generated by docutils manpage writer.
+.
