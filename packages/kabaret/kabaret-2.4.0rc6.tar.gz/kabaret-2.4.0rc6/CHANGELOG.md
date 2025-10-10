@@ -1,0 +1,454 @@
+# Changelog
+
+## [2.4.0rc6] - 2025-10-09
+
+### Added
+
+* The `KabaretStandaloneGUISession` session now keeps track of the currently selected object oid
+    * This can be retrieved using the session's `current_oid_selected()` method
+    * Whenever the current selection changes, a `select_changed` event is dispatched with the oid and ID of the source view
+
+### Fixed
+
+* Force the GUI to use the dark mode color scheme
+* Sometimes, widgets from a `FlowLayout` can briefly appear in a dialog during the process of unparenting them
+* Focus tracking now supports all view types
+
+## [2.4.0rc5] - 2025-08-01
+
+### Changed
+
+* For custom pages, actions are now visible according to their hidden status in `Object._fill_ui(ui)`
+
+## [2.4.0rc4] - 2025-07-30
+
+### BREAKING CHANGES
+
+* Pyside2 can no longer be used, version 6 is now the minimum requirement.
+
+### Added
+
+* You can now use `KabaretSession` command line arguments from environment variables.
+    * Priority is still given to arguments.
+    * `--session`: `KABARET_SESSION`
+    * `--host`: `KABARET_REDIS_HOST`
+    * `--port`: `KABARET_REDIS_PORT`
+    * `--cluster`: `KABARET_REDIS_CLUSTER`
+    * `--db`: `KABARET_REDIS_DB`
+    * `--password`: `KABARET_REDIS_PASSWORD`
+    * `--read_replica_host`: `KABARET_READ_REPLICA_HOST`
+    * `--read_replica_port`: `KABARET_READ_REPLICA_PORT`
+    * `--debug`: `KABARET_DEBUG`
+
+### Changed
+
+* `FlowView` focus tracking has been drastically improved.
+    * The dock title bar now indicates whether the view is currently in focus.
+    * Many scenarios now handle updating the focus. Such as from child widgets, dock actions or goto oid.
+
+### Fixed
+
+* Remove any invalid layout presets that could cause a `KabaretStandaloneGUISession` not to show up at launch.
+
+## [2.4.0rc3] - 2024-09-06
+
+### Fixed
+
+issue #130 - Redis connection error raised by the `Cluster.connect_from_env()` command when the replica port exists in the environment as an empty string (as set by the `Cluster.connect()` command).
+
+## [2.4.0rc2] - 2024-06-21
+
+### Fixed
+
+* Support of redis replica for showcase session.
+
+### Removed
+
+* Register the `kabaret.script_view` view type on showcase session, as this is now done automatically in version 1.2.0 of the plugin. If you have manually registered on your session, you should remove it. This will avoid problems caused by a double plugin registration.
+
+## [2.4.0rc1] - 2024-06-20
+
+### Added
+
+issue #123 - A read replica of a redis cluster can now be used to reduce latency. You need to specify the host and port of the replica with the `--read_replica_host` and `--read_replica_port` command line arguments. The environnement variables `KABARET_READ_REPLICA_HOST` and `KABARET_READ_REPLICA_PORT` can be used for command line sessions.
+
+## [2.3.0] - 2024-06-20
+
+### ! Python version support breaking change !
+
+From this version, **only python 3.7 and up is supported !**
+
+### Added
+
+issue #94 - New ui options `dialog_size`, `dialog_min_size` and `dialog_max_size` to respectively set the default, minimum and maximum sizes (in pixels) of an action dialog window. If `dialog_size` is not provided, the window is resized according to its content and the size limits when provided.
+
+issue #104 - The type of the manager of all instances of an `Object` subclass can be redefined with the class attribute `_MANAGER_TYPE`. The class attribute `_PROPAGATE_MANAGER_TYPE` can also be used to control the propagation of the manager type in the sub-tree objects: a boolean value indicates if the manager type of the object must be propagated, while a `None` value is equivalent to using the value set in the parent class. Eventually, any relation of an object can now be retrieved through the manager's `get_relation` method.
+
+issue #120 - New `path` editor which allows to select one or more file paths through the file explorer.
+
+issue #121 - New `image` editor which allows to load an image to the base64 format and display it. The image can be selected through the file explorer or dragged and dropped.
+
+issue #117 - The `KabaretStandaloneGUISession` session now keeps track of the `FlowView` currently focused, which can be retrieved using the session's `current_view()` method. Whenever the current view changes, a `focus_changed` event is dispatched with the ID of the new current view.
+
+issue #122 - Layout preset tools on the `SessionToolBar` view have been improved to handle additional view state data such as size, position, navigation history and also window geometry.
+For now, presets are stored locally in `.json` files on the user session and structured by cluster. You can specify a different folder path with `--layout-savepath` command line argument.
+The upcoming 'Users' actor will extend storage possibilities, such as store presets in the redis database.
+Activation of layout tools is done on the `KabaretStandaloneGUISession` session and new command line arguments are here for easy disabling if needed.
+A session layout autosave feature can be enabled, making backups of the last five sessions in their most recent state.
+
+issue #127 - Documentation for `sort_order` option for maps in showcase `dev_studio.flow.unittest_project.showcase.maps`.
+
+issue #128 - Main window can be resized to a specific width and height with `resize` function in the main window manager.
+
+### Changed
+
+issue #112 - Versioneer is now used for versioning control system. You can access kabaret version using : `import kabaret; print(kabaret.__version__)`. Versioneer will be more usefull for releases.
+
+issue #118 - Logging has been improved for more readability. Disable `logging.propagate` to avoid double messages in custom project flows. Remove ICCP chunk on `.png` files to clear a libpng error.
+
+### Fixed
+
+Remove a stretch in layout when using Custom Page. Caused problems for resizing and fully expanding the page size.
+
+issue #124 - `FlowPage` of a `FlowDialogView` is now updated once on init.
+
+issue #125 - Parse ui options for action parent to a map.
+
+issue #126 - An action dialog now appears from the center of the main window, regardless its size.
+
+issue #129 - Layout tools command line arguments are now on the `KabaretStandaloneGUISession` session. A non-GUI session is no longer affected by this feature.
+
+Widgets from a custom page or `FlowLayout` should now be properly deleted and avoid ghosting and UI flickering behaviour.
+
+## [2.2.0] - 2023-02-01
+
+### ! Python version support !
+
+2.2 is the last version of Kabaret supporting Python 2. Incoming versions starting from 2.3 will exclusively support Python 3.
+
+### ! Breaking changes !
+
+The return value of the `session.cmds.Flow.ls()` command has changed to also include the related oid. This is needed by the
+introduction of the new `Relative` relation with which you can no longer assume that a related object's id is
+`<relation_owner_id>/<related_name>`. 
+
+If you were using `ls` in automation scripts, you will need to update its returned value unpacking.
+
+Previous return value:
+`(relation_name, relation_type, is_action, is_map, ui_config), mapped_names`
+
+New return value:
+`(related_oid, relation_name, relation_type, is_action, is_map, ui_config), mapped_names`
+
+### Added
+
+issue #88 - Mapped items "background_color" does show in GUI.
+
+issue #99 & #100 - New plugin system to allow code-less intallation of third party extensions. See new "Plugin"
+section of the documentation: https://kabaret.readthedocs.io/en/stable/plugin_system.html
+
+PePy download badge in README
+
+issue #79 - New Flow command `session.cmds.Flow.set_home_oid(my_oid)` to configure the "Home" action.
+
+issue #83 - New ui option `navigation_bar`. If set to `False`, the flow page will hide the navigation bar.
+See example usages in showcase `dev_studio.flow.unittest_project.showcase.ui_config`. 
+Also added an entry in the FlowView "Options" menu to toggle the navigation bar visible/hidden.
+
+issue #78 - View titles can be formated by using a `view_id` like `<formater>|<view_id>` where formater
+is used like `formater.format(some_title)`. This particularly interesting to control the title of views 
+created by using `goto_target` in the return value of a `flow.Action.run()`.
+
+issue #71 - Action menus for Relation and Map items can contain sub-menus based on the Action group. 
+Use `relation.ui(action_submenus=True)` and/or `relation.ui(items_action_submenus=True)`.
+
+issue #60 - Any session created is accessible with `kabaret.app.get_session(my_session_uid)`. You can
+get the last created one with `kabaret.app.get_session()`.
+
+issue #73 - `choice` editor support arbitrary icon for each choice using the `choice_icons` option.
+
+issue #11 - `textarea` editor now correctly shows when edited and is correctly auto-applied in action dialogs.
+A 'Cancel' button was added to revert to the last loaded value. The 'Apply' and 'Cancel' buttons are now hidden
+until an edit is made. A new option `buttons_side` was added to specify the buttons side.
+
+issue #31 - Added the ability to access other projects in the flow with `self.root().project('OtherProjectName')`
+
+issue #74 - Added `injectable()` method on `Child` relations (and sub relations) which let developer inject their Object types inside someone else flow using the `kabaret.flow.injection` module. See the documentation at https://kabaret.readthedocs.io/en/latest/tutorials/injection.html for details.
+
+issue #70 - Customizable double click behaviour on `Map` items. See usage and example in `dev_studio.flow.unittest_project.showcase.maps.map_actions`, and here: https://gitlab.com/kabaretstudio/kabaret/-/issues/70#note_409303471
+
+issue #66 - Added a new relation `Relative` which gives access to any Object in the flow given an `oid` relative to its parent. See usage and code example in `dev_studio.flow.unittest_project.showcase.relations`.
+
+issue #68 - Added `kabaret.flow.Connection.allow_cross_project()` to allow Connection / Ref to
+an object inside another project.
+
+merge !101 - New GUI Style in `kabaret.app.ui.gui.styles.gray.GrayStyle()`
+
+### Changed
+
+merge !128 - The LabelEditor text is now selectable.
+issue #72 - The target view of a `flow.Action.run()` is automatically made visible / active tab.
+
+issue #70 - You can no longer create a Mapped Item with a name used in
+the Map class or its ancestor classes.
+
+issue #56 - Use scrollbar rather than submenu when having many items in NavigationBar context menus
+
+merge !106 - Change ChoiceValueEditor from QToolButton to QComboBox
+
+### Fixed
+
+issue #93 - Injections produce too many messages (info messages are now debug only message)
+
+issue #95 - Kabaret didn't work with python 3.9
+
+issue #30 - Removed the `redis<3.0.0` restriction in `install_requires`.
+
+issue #72 - Fixed a bug when the return value of a `flow.Action.run()` has a `goto_target_type` and no `goto_target`.
+
+issue #63 - In FlowView: Action buttons, Mapped items and Reference fields where inside the last Relation instead of at view toplevel.
+
+issue #77 - 10 times faster FlowView page loading.
+
+issue #67 - `KabaretSession.session_uid()` may return a unique id that is rejected by Redis. 
+
+issue #45 - "Internal C++ object already deleted" error when navigating to a page before current page
+loading is finished.
+
+issue #53 - Bug in corner case scenarii when listing Object Actions.
+
+issue #52 - When a Ref source was updated, it would not be updated for user who already loaded it.
+
+issue #57 - Connections relations were always displayed first in GUI.
+
+merge !102 - Scroll in MapField does not work in python3 + Fixed MappedItem background and foreground styling
+
+merge !103 - MultiChoiceValueEditor maximum height / scrollbar + Check multiple choices at once
+
+merge !104 - Support unicode data in Param (default editor and textarea editor)
+
+issue #28 - Dialogless Actions inside an Action dialog closes the parent Action dialog.
+
+issue #56 - Navigation Bar drag'n'drop start sensibility and preview.
+
+## [2.1.12] - 2020-02-28
+
+### Fixed
+
+issue #64 - Thumbnail Sequence player fails when image is missing
+
+
+## [2.1.11] - 2020-02-18
+
+### Fixed
+
+issue #62 - Failling "computed value" showcase in dev_studio.flow.unittest_project.UnittestProject
+
+fixing DarkStyle css not showing the error background for Computed value fields.
+
+## [2.1.10] - 2020-02-03
+
+### Fixed
+
+issue #50 - FlowView: Map is expanded when there's only one Map in the current oid
+
+This is intended and used to be cool. But now that we have 'expanded' and 'expandable' options on Relation.ui() it is annoying.
+
+## [2.1.9] - 2020-02-03
+
+### Fixed
+
+issue #58 - Flow page messed up layout 
+
+Parent relations were causing horizontal alignment glitchs in FlowView
+with PyQt5 and PySide2.
+
+### Added
+
+issue #7  - Support an "expandable" and "expanded" option on Relation.ui()
+
+issue #55 - Popup menus in Navigation bar now has Copy and Paste items.
+  
+## [2.1.8] - 2019-08-25
+
+### Fixed
+
+fixed missing CHANGELOG.md in distribution.
+
+## [2.1.7] - 2019-08-22
+
+### Fixed
+
+issue #51 - Could not hide a relation by setting `ui['hidden'] = True` in Ojbect._fill_ui()
+
+## [2.1.6] - 2019-08-14
+
+### Fixed
+
+issue #50 - GUI does not show any icon on Map fields
+ 
+## [2.1.5] - 2019-08-14
+
+### Fixed
+
+issue #49 - Custom Page not usable on Custom Home
+
+## [2.1.4] - 2019-08-09
+
+### Added
+
+issue #12 - Dynamic UI Properties
+
+Any property set on a `Relation.ui()` can now be overridden per Object instance by overridding `Object._fill_ui(ui)`
+This has been a long request, especially to have dynamic value for the `icon` and `hidden` properties.
+
+issue #48 - Custom UI Page
+
+It is now possible to provide an arbitrary widget to display/edit an Object in the Flow view.
+
+This can be specified at the relation's level with `Relation(...).ui(custom_page='my_module.MyWidget')`.
+Or at the Object level by overridding `Object._fill_ui(ui)`.
+
+See `dev_studio.flow.unittest_project.UnittestProject` "Custom Page" for details and example.
+
+### Fixed
+
+issue #12 - When expanding a Connection relation in GUI, sub fields don't update.
+issue #12 - (correlated) When showing not-child item in DynamicMap (a.k.a Map as View), items don't update.
+
+issue #47 - Fix Map item styling consistency
+
+The `style` dict in `Map._fill_row_style` now accepts 'foreground_color' as well as 'foreground-color' etc... And
+the value may be in the form (255,255,255) as well as '#FFFFFF'
+
+## [2.1.3] - 2019-07-15
+
+### Fixed
+
+issue #43 - MapField summary refresh after touch().
+
+issue #44 - Maya lose QMenu reference when using QMenu.addMenu.
+
+### Added
+
+Support per row as well as per column color properties in Map row style (see !73)
+
+## [2.1.2] - 2019-04-09
+
+### Changed
+
+Documentation minor improvements: issue #36 #38 #39 #40
+
+### Fixed
+
+issue #24 - Ctrl+Click on map item works only once.
+issue #37 - dev_studio UnittestProject wouldn't work without kabaret.ingrid installed.
+
+## [2.1.1] - 2019-03-05
+
+### Changed
+
+Dropped the beta status because why not.
+
+### Added
+
+issue #29 - Added context based GUI filtering for flow.Action
++ updated dev_studio.unittest_project.showcase with doc and examples.
+
+## [2.1.0b3] - 2019-02-05
+
+### Fixed
+
+python 3 compatibility
+
+## [2.1.0b1] - 2019-01-18
+
+### Changed
+
+issue #25 - Refactor View class hierarchy to be able to have Toolbar and Dialog views
+issue #26 - View management RFE
+issue #13 - Add an option in flow.Action.get_result() to force a "goto" in a new view
+
+- Added deprecation warnings (stdout printed) for view system changes. You should update
+your code as soon as possible.
+Once your code is updated, you should also update your install_requires with 'kabaret>=2.1'
+
+- Added a built-in 'SessionToolBar' view with user/session/cluster info and layout preset tools.
+The layout preset tools won't be useful without the upcoming 'Users' actor. Once this actor is
+built-in, the SessionToolBar will be added to the default Standalone GUI Session.
+
+### Fixed
+
+issue #23 - Dialog inside another Dialog
+
+## [2.0.0b17] - 2019-01-07
+
+### Changed
+
+install_requires now specify redis version <3.0.0
+
+## [2.0.0b15] - 2018-12-17
+
+### Fixed
+
+issue #2: support for file drop in PythonValueEditor
+
+## [2.0.0b15] - 2018-12-11
+
+### Fixed
+
+Removed Action buttons in FlowPage.
+
+## [2.0.0b14] - 2018-11-16
+
+### Fixed
+
+issue #22: Error in action dialog with sub-fields
+
+## [2.0.0b13] - 2018-11-15
+
+### Fixed
+
+issue #21: Potential event buffer over-growth in Cluster Actor
+
+### Added
+
+new icons.gui resource: kabaret_logo_vector.svg
+
+## [2.0.0b12] - 2018-10-22
+
+### Fixed
+
+issue #10: Project reload related
+
+## [2.0.0b11] - 2018-10-18
+
+### Fixed
+
+issue #14: Unable to watch a Connection related Ref
+
+issue #15: Map.add may sometimes mess up the ValueStore
+
+issue #9: Map.add(name) doesn't raise if the name is already used
+
+Label editor not showing error
+
+Fail to log exception raised in session.tick() dispatch
+
+## [2.0.0b10] - 2018-10-02
+
+### Fixed
+- Flow actor related bugs
+
+## [2.0.0b8] - 2018-09-30
+
+### Changed
+- Flow actor's Home can now be overriden by a custom one.
+
+## [2.0.0b7] - 2018-09-27
+
+### Added
+- Changelog
+
+### Fixed
+- Wrong python requires preventing pip install on python 2.7
