@@ -1,0 +1,72 @@
+---
+title: Overview
+description: Neural architecture and module layout
+---
+
+Neural provides a clean, modular architecture to build trading systems on prediction markets. The platform is organized into three stacks:
+
+## Stacks
+
+### 1) Data Collection (`neural.data_collection`)
+
+Purpose: Collect historical and real-time market data
+Includes:
+- Kalshi REST helpers and authenticated clients
+- Streaming adapters (REST polling, WebSocket)
+- Transformers, registries, and the multi-source aggregator
+
+**Example:**
+
+```python
+from neural.auth.http_client import KalshiHTTPClient
+
+client = KalshiHTTPClient()
+markets = client.get("/markets", params={"series_ticker": "KXNFLGAME", "status": "open", "limit": 5})
+client.close()
+```
+
+### 2) Analysis (`neural.analysis`)
+
+Purpose: Research, backtest, risk, and execution modelling
+Includes:
+- Strategy base class and presets
+- Backtester with fee/slippage modelling
+- Position sizing helpers and sentiment toolkit
+- Order manager bridge
+
+**Example:**
+
+```python
+from neural.analysis.strategies.mean_reversion import MeanReversionStrategy
+from neural.analysis.backtesting.engine import Backtester
+
+strategy = MeanReversionStrategy(initial_capital=10_000)
+engine = Backtester(initial_capital=10_000)
+# engine.backtest(strategy, start_date="2023-01-01", end_date="2023-02-01", markets=[...])
+```
+
+### 3) Trading (`neural.trading`)
+
+Purpose: Execute orders with production-ready clients
+Includes:
+- `TradingClient` (REST), `KalshiWebSocketClient`, and FIX connectors
+- Paper trading simulators and reporting helpers
+- Streaming market data adapters
+
+**Example:**
+
+```python
+from neural.trading.paper_client import PaperTradingClient
+
+paper = PaperTradingClient(initial_capital=10_000, save_trades=False)
+# await paper.place_order(market_id="KXNFLGAME-…", side="yes", quantity=25)
+```
+
+## Design Principles
+
+- Clear public APIs via `__all__` exports in each package
+- Environment-first credential loading with helpful errors
+- Optional dependencies are imported lazily so partial installs never crash the SDK
+- Integration tests skip gracefully when credentials are absent for reliable CI
+
+Keep this mental model handy and jump to `architecture/start-here` or `workflows/build-first-bot` for the end-to-end orientation.

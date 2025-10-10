@@ -1,0 +1,125 @@
+---
+title: 'Ticker Pattern Quick Tips'
+description: 'Practical shorthand for reading Kalshi sports tickers and avoiding common mistakes.'
+---
+
+Kalshi sports tickers encode the sport, event date, teams, and outcome in a fixed pattern. This guide captures the shortcuts we use daily plus the edge cases that have tripped us up.
+
+## Core Template
+
+```
+[PREFIX]-[EVENT]-[OUTCOME]
+```
+
+Sports events expand the middle segment:
+
+```
+[SPORT_PREFIX]-[YYMMMDD][AWAY][HOME]-[OUTCOME]
+```
+
+- `SPORT_PREFIX` distinguishes the series (`KXNFLGAME`, `KXNBA`, `KXNCAAFGAME`, …).
+- `YYMMMDD` uses a two-digit year and three-letter month (`25SEP22`).
+- Team codes concatenate without separators.
+- The trailing part is the outcome code you trade (`SEA`, `DET`, `YES`, etc.).
+
+## NFL (KXNFLGAME)
+
+```
+KXNFLGAME-25SEP22DETBAL-BAL
+↑          ↑       ↑   ↑
+│          │       │   └─ Outcome: BAL wins
+│          │       └──── Home/Away teams (DET @ BAL)
+│          └──────────── Date: 2025-09-22
+└──────────────────────── NFL game series
+```
+
+| Full Ticker | Event Segment | Outcome | Meaning |
+|-------------|---------------|---------|---------|
+| `KXNFLGAME-25SEP22DETBAL-DET` | `KXNFLGAME-25SEP22DETBAL` | `DET` | Detroit to win |
+| `KXNFLGAME-25SEP22DETBAL-BAL` | `KXNFLGAME-25SEP22DETBAL` | `BAL` | Baltimore to win |
+| `KXNFLGAME-25SEP25SEAARI-SEA` | `KXNFLGAME-25SEP25SEAARI` | `SEA` | Seattle to win |
+
+
+> Away/home order nearly always matches reading order (`DETBAL` → Detroit @ Baltimore). Double-check the market title before assuming.
+
+
+### Quick rules
+
+- Date segment is `YYMMMDD` (months: JAN … DEC).
+- Standard team codes use three letters; Los Angeles/New York teams may use two when there is no ambiguity.
+- Outcomes mirror the team code (`BAL`, `SEA`) rather than `YES/NO` for head-to-head markets.
+
+## NBA (KXNBA)
+
+```
+KXNBA-25OCT15LALNYK-LAL
+```
+
+Same structure as NFL; the prefix changes to `KXNBA`. Common team codes:
+
+| Team | Code | Team | Code |
+|------|------|------|------|
+| Lakers | LAL | Knicks | NYK |
+| Warriors | GSW | Nets | BKN |
+| Celtics | BOS | Heat | MIA |
+| Bucks | MIL | Suns | PHX |
+| Nuggets | DEN | Mavericks | DAL |
+
+## College Football (KXNCAAFGAME)
+
+College tickers follow the template but the team abbreviations are less consistent.
+
+```
+KXNCAAFGAME-25SEP15OHIMICH-MICH
+```
+
+| School | Seen as | School | Seen as |
+|--------|---------|--------|---------|
+| Ohio State | `OHI`, `OSU`, `OHIOST` | Michigan | `MICH`, `UM`, `UMICH` |
+| Alabama | `ALA` | Georgia | `UGA` |
+| Texas | `TEX` | Oklahoma | `OU` |
+| Notre Dame | `ND` | USC | `USC` |
+
+<Warning>
+College data sources disagree on abbreviations. When searching, include all known variants and fall back to the market title if automated parsing fails.
+</Warning>
+
+## Lessons learned
+
+1. **Validate the date block first.** `YYMMMDD` typos are the fastest way to miss a market because the API treats unknown prefixes as different events.
+2. **Keep a mapping file for team aliases.** Especially useful for NCAA and cities with multiple teams.
+3. **Outcome codes mirror the market structure.** Head-to-head markets end in team codes, “Will X happen?” markets end in `YES/NO`.
+4. **Always read the market title.** Tickers are concise but the title confirms home/away ordering and clarifies special props.
+
+## Helper: parse a ticker quickly
+
+```python
+def parse_ticker(ticker: str) -> dict:
+    parts = ticker.split('-')
+    if len(parts) < 2:
+        return {'error': 'Invalid ticker format'}
+
+    result = {
+        'full_ticker': ticker,
+        'prefix': parts[0],
+        'event': parts[1],
+        'outcome': parts[2] if len(parts) > 2 else None,
+        'is_sports': parts[0].startswith('KX'),
+    }
+
+    if result['is_sports'] and len(parts[1]) >= 7:
+        event = parts[1]
+        result['date_code'] = event[:7]
+        teams = event[7:]
+        if len(teams) >= 6:
+            mid = len(teams) // 2
+            result['team1'] = teams[:mid]
+            result['team2'] = teams[mid:]
+
+    return result
+
+# Example
+print(parse_ticker('KXNFLGAME-25SEP22DETBAL-BAL'))
+```
+
+Use this helper as a starting point, then overlay your own alias tables or validation rules to match the sports you trade most often.
