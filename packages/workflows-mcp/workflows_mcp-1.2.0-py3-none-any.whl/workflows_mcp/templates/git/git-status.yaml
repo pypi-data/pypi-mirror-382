@@ -1,0 +1,79 @@
+name: git-status
+description: Check git repository status and information
+version: "1.0"
+author: "mcp-workflows"
+tags: [git, "git", "status", "version-control"]
+inputs:
+  repo_path:
+    type: string
+    description: "Path to git repository"
+    default: "."
+
+blocks:
+  - id: check_git_status
+    type: BashCommand
+    inputs:
+      command: "git status --short --branch"
+      working_dir: "${repo_path}"
+      timeout: 30
+
+  - id: check_git_branch
+    type: BashCommand
+    inputs:
+      command: "git rev-parse --abbrev-ref HEAD"
+      working_dir: "${repo_path}"
+      timeout: 30
+    depends_on:
+      - check_git_status
+
+  - id: check_uncommitted_changes
+    type: BashCommand
+    inputs:
+      command: "git diff --stat"
+      working_dir: "${repo_path}"
+      timeout: 30
+      check_returncode: false
+    depends_on:
+      - check_git_branch
+
+  - id: check_recent_commits
+    type: BashCommand
+    inputs:
+      command: "git log --oneline -5"
+      working_dir: "${repo_path}"
+      timeout: 30
+    depends_on:
+      - check_uncommitted_changes
+
+  - id: get_changes_status
+    type: BashCommand
+    inputs:
+      command: "test -n '${check_uncommitted_changes.stdout}' && echo 'Yes' || echo 'No'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - check_uncommitted_changes
+
+  - id: summary
+    type: EchoBlock
+    inputs:
+      message: |
+        Git Repository Status:
+        Branch: ${check_git_branch.stdout}
+        Status: ${check_git_status.stdout}
+        Uncommitted Changes: ${get_changes_status.stdout}
+        Recent Commits:
+        ${check_recent_commits.stdout}
+    depends_on:
+      - check_git_status
+      - check_git_branch
+      - get_changes_status
+      - check_recent_commits
+
+outputs:
+  current_branch: "${check_git_branch.stdout}"
+  status: "${check_git_status.stdout}"
+  uncommitted_changes: "${check_uncommitted_changes.stdout}"
+  recent_commits: "${check_recent_commits.stdout}"
+  summary: "${summary.echoed}"
+  execution_time_ms: "${check_recent_commits.execution_time_ms}"

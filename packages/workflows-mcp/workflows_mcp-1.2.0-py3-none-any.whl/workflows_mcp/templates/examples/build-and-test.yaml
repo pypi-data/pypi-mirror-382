@@ -1,0 +1,157 @@
+name: build-and-test
+description: Complete build and test workflow demonstrating BashCommand usage
+version: "1.0"
+author: "mcp-workflows"
+tags: [test, "build", "test", "validation", "example", "bash"]
+inputs:
+  project_dir:
+    type: string
+    description: "Project directory to build and test"
+    default: "."
+
+  python_version:
+    type: string
+    description: "Python version to check"
+    default: "3.12"
+
+blocks:
+  # Validation phase
+  - id: check_python_version
+    type: BashCommand
+    inputs:
+      command: "python --version"
+      working_dir: "${project_dir}"
+      timeout: 10
+
+  - id: check_git_status
+    type: BashCommand
+    inputs:
+      command: "git status --short"
+      working_dir: "${project_dir}"
+      timeout: 10
+      check_returncode: false
+    depends_on:
+      - check_python_version
+
+  # Setup phase
+  - id: install_dependencies
+    type: BashCommand
+    inputs:
+      command: "uv sync"
+      working_dir: "${project_dir}"
+      timeout: 300
+    depends_on:
+      - check_git_status
+
+  # Test phase (parallel)
+  - id: run_unit_tests
+    type: BashCommand
+    inputs:
+      command: "uv run pytest tests/ -v --tb=short"
+      working_dir: "${project_dir}"
+      timeout: 300
+    depends_on:
+      - install_dependencies
+
+  - id: run_linting
+    type: BashCommand
+    inputs:
+      command: "uv run ruff check src/"
+      working_dir: "${project_dir}"
+      timeout: 120
+      check_returncode: false
+    depends_on:
+      - install_dependencies
+
+  - id: run_type_check
+    type: BashCommand
+    inputs:
+      command: "uv run mypy src/"
+      working_dir: "${project_dir}"
+      timeout: 120
+      check_returncode: false
+    depends_on:
+      - install_dependencies
+
+  # Get result statuses
+  - id: get_git_status_display
+    type: BashCommand
+    inputs:
+      command: "test -n '${check_git_status.stdout}' && echo 'Modified files' || echo 'Clean'"
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - check_git_status
+
+  - id: get_tests_display
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${run_unit_tests.exit_code}" -eq 0 ]; then
+          echo "PASSED ✓"
+        else
+          echo "FAILED ✗"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - run_unit_tests
+
+  - id: get_linting_display
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${run_linting.exit_code}" -eq 0 ]; then
+          echo "PASSED ✓"
+        else
+          echo "FAILED ✗"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - run_linting
+
+  - id: get_type_check_display
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${run_type_check.exit_code}" -eq 0 ]; then
+          echo "PASSED ✓"
+        else
+          echo "FAILED ✗"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - run_type_check
+
+  # Validation phase
+  - id: validate_results
+    type: EchoBlock
+    inputs:
+      message: |
+        Build and Test Results:
+        ========================
+        Python: ${check_python_version.stdout}
+        Git Status: ${get_git_status_display.stdout}
+
+        Tests: ${get_tests_display.stdout}
+        Linting: ${get_linting_display.stdout}
+        Type Check: ${get_type_check_display.stdout}
+
+        Total Time: ${run_unit_tests.execution_time_ms + run_linting.execution_time_ms + run_type_check.execution_time_ms}ms
+    depends_on:
+      - get_git_status_display
+      - get_tests_display
+      - get_linting_display
+      - get_type_check_display
+
+outputs:
+  python_version: "${check_python_version.stdout}"
+  git_status: "${check_git_status.stdout}"
+  tests_passed: "${run_unit_tests.success}"
+  linting_passed: "${run_linting.success}"
+  type_check_passed: "${run_type_check.success}"
+  all_checks_passed: "${run_unit_tests.success and run_linting.success and run_type_check.success}"
+  summary: "${validate_results.echoed}"
+  total_execution_time_ms: "${validate_results.execution_time_ms}"

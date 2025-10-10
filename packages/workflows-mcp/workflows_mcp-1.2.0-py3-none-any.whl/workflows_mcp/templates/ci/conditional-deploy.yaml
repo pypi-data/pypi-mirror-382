@@ -1,0 +1,304 @@
+name: conditional-deploy
+description: Conditional deployment workflow with environment-specific logic and validation
+version: "1.0"
+author: Workflows MCP Team
+tags: [test, ci, deployment, conditional, multi-environment, validation]
+inputs:
+  environment:
+    type: string
+    description: Target environment (dev, staging, production)
+    default: "dev"
+
+  deploy_path:
+    type: string
+    description: Deployment directory or path
+    default: "./deploy"
+
+  run_tests_first:
+    type: boolean
+    description: Run tests before deployment
+    default: true
+
+  require_approval:
+    type: boolean
+    description: Require manual approval (production only)
+    default: false
+
+  build_artifacts:
+    type: boolean
+    description: Build artifacts before deployment
+    default: true
+
+  venv_path:
+    type: string
+    description: Virtual environment path for test execution
+    default: ""
+
+  auto_install:
+    type: boolean
+    description: Automatically install testing tools if not found
+    default: false
+
+blocks:
+  # Validate environment
+  - id: validate_env
+    type: EchoBlock
+    inputs:
+      message: "Validating deployment to ${environment} environment"
+
+  # Run pre-deployment tests
+  - id: run_tests
+    type: ExecuteWorkflow
+    inputs:
+      workflow: "run-pytest"
+      inputs:
+        working_dir: "."
+        test_path: "tests/"
+        coverage_threshold: 80
+        verbose: false
+        venv_path: "${venv_path}"
+        auto_install: "${auto_install}"
+    depends_on:
+      - validate_env
+    condition: "${run_tests_first}"
+
+  # Build artifacts
+  - id: build_artifacts
+    type: BashCommand
+    inputs:
+      command: "python -m build"
+      working_dir: "."
+      timeout: 300
+      check_returncode: false
+    depends_on:
+      - run_tests
+    condition: "${build_artifacts} and (not ${run_tests_first} or ${run_tests.success})"
+
+  # Development deployment
+  - id: deploy_dev
+    type: BashCommand
+    inputs:
+      command: "echo 'Deploying to DEV environment at ${deploy_path}' && mkdir -p ${deploy_path}/dev"
+      working_dir: "."
+      timeout: 120
+    depends_on:
+      - build_artifacts
+    condition: "${environment} == 'dev' and (not ${build_artifacts} or ${build_artifacts.exit_code} == 0)"
+
+  # Staging deployment
+  - id: deploy_staging
+    type: BashCommand
+    inputs:
+      command: "echo 'Deploying to STAGING environment at ${deploy_path}' && mkdir -p ${deploy_path}/staging"
+      working_dir: "."
+      timeout: 300
+    depends_on:
+      - build_artifacts
+    condition: "${environment} == 'staging' and (not ${build_artifacts} or ${build_artifacts.exit_code} == 0)"
+
+  # Production deployment (requires approval)
+  - id: production_check
+    type: EchoBlock
+    inputs:
+      message: "Production deployment requires approval: ${require_approval}"
+    depends_on:
+      - build_artifacts
+    condition: "${environment} == 'production'"
+
+  - id: deploy_production
+    type: BashCommand
+    inputs:
+      command: "echo 'Deploying to PRODUCTION environment at ${deploy_path}' && mkdir -p ${deploy_path}/production"
+      working_dir: "."
+      timeout: 600
+    depends_on:
+      - production_check
+    condition: "${environment} == 'production' and not ${require_approval} and (not ${build_artifacts} or ${build_artifacts.exit_code} == 0)"
+
+  # Post-deployment verification
+  - id: verify_deployment
+    type: BashCommand
+    inputs:
+      command: "ls -la ${deploy_path}/${environment} 2>/dev/null || echo 'Deployment directory not found'"
+      working_dir: "."
+      timeout: 30
+      check_returncode: false
+    depends_on:
+      - deploy_dev
+      - deploy_staging
+      - deploy_production
+
+  # Generate status displays
+  - id: get_test_display_passed
+    type: BashCommand
+    inputs:
+      command: "echo '✓ PASSED'"
+      timeout: 5
+      check_returncode: false
+    condition: "${run_tests_first} and ${run_tests.success}"
+    depends_on:
+      - run_tests
+
+  - id: get_test_display_failed
+    type: BashCommand
+    inputs:
+      command: "echo '✗ FAILED'"
+      timeout: 5
+      check_returncode: false
+    condition: "${run_tests_first} and not ${run_tests.success}"
+    depends_on:
+      - run_tests
+
+  - id: get_test_display_skipped
+    type: BashCommand
+    inputs:
+      command: "echo '⊘ SKIPPED'"
+      timeout: 5
+      check_returncode: false
+    condition: "not ${run_tests_first}"
+    depends_on:
+      - run_tests
+
+  - id: get_test_display
+    type: BashCommand
+    inputs:
+      command: |
+        STATUS_PASSED="${get_test_display_passed.stdout}"
+        STATUS_FAILED="${get_test_display_failed.stdout}"
+        STATUS_SKIPPED="${get_test_display_skipped.stdout}"
+        if [ -n "$STATUS_PASSED" ]; then
+          echo "$STATUS_PASSED"
+        elif [ -n "$STATUS_FAILED" ]; then
+          echo "$STATUS_FAILED"
+        else
+          echo "$STATUS_SKIPPED"
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - get_test_display_passed
+      - get_test_display_failed
+      - get_test_display_skipped
+
+  - id: get_artifacts_display
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${build_artifacts}" = "true" ]; then
+          if [ ${build_artifacts.exit_code} -eq 0 ]; then
+            echo '✓ SUCCESS'
+          else
+            echo '✗ FAILED'
+          fi
+        else
+          echo '⊘ SKIPPED'
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - build_artifacts
+
+  - id: get_dev_display
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${environment}" = "dev" ]; then
+          if [ ${deploy_dev.exit_code} -eq 0 ]; then
+            echo '✓ DEPLOYED'
+          else
+            echo '✗ FAILED'
+          fi
+        else
+          echo '⊘ N/A'
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - deploy_dev
+
+  - id: get_staging_display
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${environment}" = "staging" ]; then
+          if [ ${deploy_staging.exit_code} -eq 0 ]; then
+            echo '✓ DEPLOYED'
+          else
+            echo '✗ FAILED'
+          fi
+        else
+          echo '⊘ N/A'
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - deploy_staging
+
+  - id: get_production_display
+    type: BashCommand
+    inputs:
+      command: |
+        if [ "${environment}" = "production" ]; then
+          if [ "${require_approval}" = "true" ]; then
+            echo '⊘ APPROVAL REQUIRED'
+          else
+            if [ ${deploy_production.exit_code} -eq 0 ]; then
+              echo '✓ DEPLOYED'
+            else
+              echo '✗ FAILED'
+            fi
+          fi
+        else
+          echo '⊘ N/A'
+        fi
+      timeout: 5
+      check_returncode: false
+    depends_on:
+      - deploy_production
+
+  # Generate deployment report
+  - id: deployment_report
+    type: EchoBlock
+    inputs:
+      message: |
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Deployment Report
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Environment: ${environment}
+        Tests Run: ${get_test_display.stdout}
+        Artifacts Built: ${get_artifacts_display.stdout}
+        Deployment Status:
+          - Dev: ${get_dev_display.stdout}
+          - Staging: ${get_staging_display.stdout}
+          - Production: ${get_production_display.stdout}
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Verification: ${verify_deployment.stdout}
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    depends_on:
+      - get_test_display
+      - get_artifacts_display
+      - get_dev_display
+      - get_staging_display
+      - get_production_display
+      - verify_deployment
+
+outputs:
+  # Deployment status
+  deployed: "${(${environment} == 'dev' and ${deploy_dev.exit_code} == 0) or (${environment} == 'staging' and ${deploy_staging.exit_code} == 0) or (${environment} == 'production' and not ${require_approval} and ${deploy_production.exit_code} == 0)}"
+  environment: "${environment}"
+
+  # Test results
+  tests_passed: "not ${run_tests_first} or ${run_tests.success}"
+
+  # Build results
+  artifacts_built: "not ${build_artifacts} or ${build_artifacts.exit_code} == 0"
+
+  # Environment-specific status
+  dev_deployed: "${environment} == 'dev' and ${deploy_dev.exit_code} == 0"
+  staging_deployed: "${environment} == 'staging' and ${deploy_staging.exit_code} == 0"
+  production_deployed: "${environment} == 'production' and not ${require_approval} and ${deploy_production.exit_code} == 0"
+  production_approval_required: "${environment} == 'production' and ${require_approval}"
+
+  # Report
+  report: "${deployment_report.echoed}"
+  verification_output: "${verify_deployment.stdout}"
