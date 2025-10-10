@@ -1,0 +1,42 @@
+{% load thumbnail cms_tags apphooks_config_tags aldryn_newsblog %}
+
+<article class="article
+    {% if article.is_featured %} featured{% endif %}
+    {% if not article.published %} unpublished{% endif %}">
+
+    {# The image is only shown on the detail view by using the condition "and detail_view" #}
+    {% if article.featured_image_id %}
+        {% prepend_prefix_if_exists "includes/article_featured_image_in_list.html" as article_template_name %}
+        {% include article_template_name %}
+    {% endif %}
+
+    {% if article.categories.exists %}
+        <p class="category">
+            {% for category in article.categories.all %}
+                <a href="{% namespace_url 'article-list-by-category' category.slug namespace=namespace default='' %}">{{ category.name }}</a>
+                {% if not forloop.last %}, {% endif %}
+            {% endfor %}
+        </p>
+    {% endif %}
+
+    <h2 class="article-title">
+        <a href="{% namespace_url 'article-detail' article.slug namespace=namespace default='' %}">{% render_model article "title" %}</a>
+    </h2>
+
+    <div class="meta">
+        <p class="date">{{ article.publishing_date|date }}</p>
+        {% prepend_prefix_if_exists "includes/author.html" as author_template_name %}
+        {% include author_template_name with author=article.author %}
+        {% if article.tags %}
+            <p class="tags">
+                {% for tag in article.tags.all %}
+                    <a href="{% namespace_url 'article-list-by-tag' tag=tag.slug namespace=namespace default='' %}">{{ tag.name }}</a>
+                {% endfor %}
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="lead">
+        {% render_model article "lead_in" "" language "truncatechars_html:180" %}
+    </div>
+</article>
