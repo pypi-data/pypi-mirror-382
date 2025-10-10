@@ -1,0 +1,56 @@
+name: Test, Build, and Publish
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  lint:
+    name: Lint & Types
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/configure-uv
+
+      - uses: astral-sh/ruff-action@v3
+
+      - name: Type Checks
+        run: uv run mypy .
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/configure-uv
+
+      - name: Run tests with Tox
+        run: tox
+
+  publish:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    environment: test
+    needs: [lint, test]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/configure-uv
+
+      - name: Build
+        run: uv build
+
+      - name: Publish to PyPI
+        env:
+          PYPI_TOKEN: ${{ secrets.pypi_token }}
+        run: uv publish --index test-pypi --dry-run --token $PYPI_TOKEN

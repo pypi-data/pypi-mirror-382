@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Lint & Types
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/configure-uv
+
+      - uses: astral-sh/ruff-action@v3
+
+      - name: Type Checks
+        run: uv run mypy .
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/configure-uv
+
+      - name: Run tests with Tox
+        run: tox
+
+  publish:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    environment: release
+    needs: [lint, test]
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - uses: ./.github/actions/configure-uv
+
+      - name: Get version from uv
+        id: version
+        run: echo "version=$(uv version --short)" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: uv build
+
+      - name: Publish to PyPI
+        env:
+          PYPI_TOKEN: ${{ secrets.pypi_token }}
+        run: uv publish --index pypi --token $PYPI_TOKEN
+
+      - name: GitHub Release
+        uses: ncipollo/release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          artifacts: "dist/pylemetry-*.tar.gz,dist/pylemetry-*.whl"
+
+      - name: Bump Version
+        run: uv version --bump patch --bump alpha
+
+      - name: Get New Version Branch Name
+        id: bump_version
+        run: echo "branch_name=feature/bump_version_$(uv version --short)" >> $GITHUB_OUTPUT
+
+      - name: Commit Version Bump
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "Bump project version following release"
+          default_author: github_actions
+          new_branch: ${{ steps.bump_version.outputs.branch_name }}
+
+      - name: Raise Pull Request
+        run: gh pr create -B develop -H ${{ steps.bump_version.outputs.branch_name }} --title "Update version to v$(uv version --short)" --body 'Created by GitHub Actions in the Release pipeline'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
