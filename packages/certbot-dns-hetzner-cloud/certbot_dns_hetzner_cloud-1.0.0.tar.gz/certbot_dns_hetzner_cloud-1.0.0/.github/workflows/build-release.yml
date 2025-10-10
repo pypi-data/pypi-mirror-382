@@ -1,0 +1,56 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+jobs:
+  test-with-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: "Install Dependencies"
+        run: |
+          python -m pip install -U pip
+          pip install -e .[dev]
+
+      - name: "Test with coverage"
+        run: |
+          pytest --cov --cov-branch --cov-report=xml
+
+      - name: "Upload coverage"
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  release-build:
+    needs: test-with-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: "Build release"
+        run: |
+          python -m pip install build
+          python -m build
+
+      - name: "Upload release artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dists
+          path: dist/**
+          if-no-files-found: error
+          retention-days: 1
