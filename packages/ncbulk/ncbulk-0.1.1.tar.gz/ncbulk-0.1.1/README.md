@@ -1,0 +1,148 @@
+## nextcloud-bulk-users-utils (PyPI: ncbulk)
+
+CLI: `nextcloud-bulk` · Python >= 3.12
+
+### Why
+- Bulk create/update Nextcloud users from CSV via the OCS Provisioning API.
+
+
+Bulk creation and updates of Nextcloud users via the OCS Provisioning API.
+
+### Features
+- Create users from CSV.
+- Group list in a single CSV field (`groups` or `group`), multiple groups separated by a configurable delimiter.
+- Default quota and language via CLI/TUI or per-row via `quota` and `language` columns.
+- Welcome mode (no password) – sends a welcome email (requires user email).
+- Update existing users: email, displayname, quota, and add to groups.
+- Dry-run, verbose logging, timeouts and retries.
+- Flexible input/output CSV paths and delimiters.
+- Step-by-step terminal wizard: delimiter auto-detection and CSV preview.
+
+### Environment
+Set admin credentials via environment variables (see `example.env`):
+
+```bash
+export NEXTCLOUD_URL="https://cloud.example.com"
+export NEXTCLOUD_ADMIN_USERNAME="admin"
+export NEXTCLOUD_ADMIN_PASSWORD="secret"
+```
+
+You may put them into a local `.env` file; the tool reads values from the environment. An example file is provided as `example.env`.
+Security note: `.env` may contain plaintext password and is git-ignored. Keep it local and protected.
+
+### CSV Format
+CSV must include a header. Minimal columns: `username;email;displayname;group`
+
+Optional columns: `groups` (instead of `group`), `quota`, `language`.
+
+Default delimiter is `;` (you can change it). Example:
+
+```text
+username;email;displayname;groups;quota;language
+alice;alice@example.org;Alice A;Students,Math;10GB;en
+```
+
+If present, `address` column is ignored.
+
+### Install
+
+Requires Python >= 3.12.
+
+Local install:
+
+```bash
+pip install .
+```
+
+Via pipx (recommended isolation):
+
+```bash
+pipx install .
+```
+
+From PyPI:
+
+```bash
+pip install ncbulk
+```
+
+### Usage
+
+Run the interactive step-by-step wizard:
+
+```bash
+# installed entry point (recommended)
+nextcloud-bulk
+
+# or run module directly (development)
+python -m ncbulk.main
+```
+
+Run the CLI directly:
+
+```bash
+nextcloud-bulk --input list.csv --quota 10GB --language en --output users_passwds.csv
+```
+
+Key options:
+- `--quota 10GB` – default quota (overridden by row `quota`).
+- `--language en` – default language (overridden by row `language`).
+- `--delimiter ";"` – CSV delimiter.
+- `--groups-delimiter ","` – delimiter inside the groups field.
+- `--welcome` – do not set password, send welcome email.
+- `--password-length 12` – generated password length (when not in welcome mode).
+- `--dry-run` – simulate without changes.
+- `--verbose` – verbose HTTP attempts.
+- `--timeout 15` – HTTP timeout in seconds.
+- `--retries 2` – retry attempts.
+- `--update-existing` – update existing users.
+- `--input`, `--output` – input and report CSV paths.
+
+### Output Report
+The report file (default `users_passwds.csv`) has the columns:
+
+```text
+Username;Email;Displayname;Groups;Password;Status
+```
+
+Password is empty when `--welcome` is used. `Status` is one of `Created`, `Updated`, `Skipped`.
+
+### Examples
+
+1) Basic creation with default quota and language:
+```bash
+nextcloud-bulk --input list.csv --quota 10GB --language en
+```
+
+2) Multiple groups and per-row quota/language from CSV:
+```text
+username;email;displayname;groups;quota;language
+bob;bob@example.org;Bob B;HR,Onboarding;5GB;en
+```
+```bash
+nextcloud-bulk --input list.csv
+```
+
+3) Welcome mode and update existing users:
+```bash
+nextcloud-bulk --input list.csv --welcome --update-existing
+```
+
+4) Dry-run:
+```bash
+nextcloud-bulk --input list.csv --dry-run --verbose
+```
+
+### API Notes
+- Create: `POST /ocs/v2.php/cloud/users` – params: `userid`, optional `password`, repeated `groups[]`, optional `language`.
+- Update fields: `PUT /ocs/v2.php/cloud/users/{userid}` with `key`/`value` for `email`, `displayname`, `quota`, etc.
+
+Docs: [Nextcloud User provisioning API](https://docs.nextcloud.com/server/latest/admin_manual/configuration_user/instruction_set_for_users.html)
+
+### Wizard
+- Clear, step-by-step terminal prompts with validation at each step.
+- Auto-detects CSV delimiter and shows a small preview.
+- You can still run the CLI directly via `nextcloud-bulk`.
+
+### License
+Apache-2.0 © 2025 Jaguar Kovalev
