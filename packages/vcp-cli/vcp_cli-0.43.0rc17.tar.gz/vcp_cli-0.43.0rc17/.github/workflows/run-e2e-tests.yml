@@ -1,0 +1,67 @@
+name: E2E Tests
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      APP_ENV:
+        description: "Environment (staging)"
+        required: false
+        default: "staging"
+
+jobs:
+  e2e-tests:
+    name: E2E tests (${{ github.event.inputs.APP_ENV && github.event.inputs.APP_ENV || 'staging' }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: ${{ github.event.inputs.APP_ENV && github.event.inputs.APP_ENV || 'staging' }}
+    env:
+      APP_ENV: ${{ github.event.inputs.APP_ENV && github.event.inputs.APP_ENV || 'staging' }}
+      VCP_API_BASE_URL: ${{ secrets.VCP_API_BASE_URL }}
+      DATA_API_BASE_URL: ${{ secrets.DATA_API_BASE_URL }}
+      USER_POOL_ID: ${{ secrets.USER_POOL_ID }}
+      CLIENT_ID: ${{ secrets.CLIENT_ID }}
+      CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+      AUTH_BASE_URL: ${{ secrets.AUTH_BASE_URL }}
+      VCP_ADMIN_USERNAME: ${{ secrets.VCP_ADMIN_USERNAME }}
+      VCP_ADMIN_PASSWORD: ${{ secrets.VCP_ADMIN_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          required_vars=(
+            "VCP_API_BASE_URL"
+            "DATA_API_BASE_URL"
+            "USER_POOL_ID"
+            "CLIENT_ID"
+            "CLIENT_SECRET"
+            "AUTH_BASE_URL"
+            "VCP_ADMIN_USERNAME"
+            "VCP_ADMIN_PASSWORD"
+          )
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "$var must be configured as a repository secret." >&2
+              exit 1
+            fi
+          done
+
+      - name: Install the latest version of uv and set the python version to 3.10
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.10'
+          run: uv pip install --python=3.10 pip
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Run E2E tests
+        run: APP_ENV=${{ env.APP_ENV }} uv run pytest tests/e2e -n auto -q

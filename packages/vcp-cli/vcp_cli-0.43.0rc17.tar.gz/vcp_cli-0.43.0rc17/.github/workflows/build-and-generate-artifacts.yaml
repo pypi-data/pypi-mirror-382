@@ -1,0 +1,56 @@
+name: Build and Generate Artifacts
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-generate-artifacts:
+    runs-on: ubuntu-latest
+    env:
+      UV_FROZEN: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Generate config
+        env:
+          VCP_API_BASE_URL: ${{ vars.VCP_API_BASE_URL }}
+          DATA_API_BASE_URL: ${{ vars.DATA_API_BASE_URL }}
+          COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ vars.COGNITO_CLIENT_ID }}
+          COGNITO_DOMAIN: ${{ vars.COGNITO_DOMAIN }}
+        run: uv run python ci/generate_config.py
+
+      - name: Build artifact
+        run: uv build
+
+      - name: Upload Python distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: |
+            dist/*.whl
+            dist/*.tar.gz

@@ -1,0 +1,145 @@
+name: Publish to PyPi
+
+on:
+  release:
+    types: [published]
+  # For testing/debugging purposes, you make changes to this workflow on a branch and then trigger the workflow manually from the Github Actions tab.
+  # You can update the "version" field in pyproject.toml to a ".dev#"- or "rc#"-suffixed version, if desired.
+  # "rc" versions will be published to production PyPI, while "dev" versions will only be published to Test PyPI.
+  # WARNING: Using test.pypi.org is NOT RECOMMENDED, since the package resolution at install time may not work as expected if dependencies are are installed from both test.pypi.org and pypi.org. See https://docs.astral.sh/uv/concepts/indexes/#searching-across-multiple-indexes for more details.
+  workflow_dispatch:
+
+
+jobs:
+  publish-pypi:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # to authenticate as Trusted Publisher to pypi.org
+    env:
+      # Whether `uv` is allowed to regenerate the lock file
+      # `true` allows `uv` to update the lock file if needed (e.g. if a dependency version is updated in pyproject.toml), not relying on the checked-in lock file
+      # TODO: Commit the updated lock file so that the build is reproducible via git history
+      UV_FROZEN: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          activate-environment: false
+          # Disable caching between workflow runs to avoid any issues with stale caches (e.g. with `uv version` not reflecting latest version in pyproject.toml)
+          # TODO: Re-enable caching once we are confident that it works reliably (be sure to reinstate a `cache-dependency-glob` section here)
+          enable-cache: false
+
+      - name: Generate config
+        env:
+          VCP_API_BASE_URL: ${{ vars.VCP_API_BASE_URL }}
+          DATA_API_BASE_URL: ${{ vars.DATA_API_BASE_URL }}
+          COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ vars.COGNITO_CLIENT_ID }}
+          COGNITO_DOMAIN: ${{ vars.COGNITO_DOMAIN }}
+        run: |
+          make generate-config
+
+      - name: Install dependencies
+        run: uv sync --group build
+
+      - name: Build package
+        run: uv build
+
+      - name: Compute variables
+        id: variables
+        # Behavior:
+        #   - dev versions (#.#.#.dev#) are released to test.pypi
+        #   - rc versions (#.#.#rc#) and stable versions (#.#.#) are released to (prod) pypi
+        #
+        # Note: "rc" releases will not be prefaced with a dot (.), but ".dev" releases will be.
+        # Note: For pre-release versions, we specify an explicit version, since `pip install --pre` does not appear to be working as expected and does not "see" the pre-release versions otherwise.
+        # Note: For stable release versions, we specify only the "latest" version (i.e. no explicit version) to ensure that the newly published version is in fact the latest version.
+        run: |
+          VERSION=$(uv version --short)
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          if [[ `echo "${VERSION}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+[^0-9]+.*$'` ]]; then
+            echo "PRE_RELEASE=true" >> $GITHUB_OUTPUT
+            echo "PACKAGE_SPECIFIER=vcp-cli==${VERSION}" >> $GITHUB_OUTPUT
+            if [[ `echo "${VERSION}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+rc[0-9]+$'` ]]; then
+              echo "PUBLISH_PROD_PYPI=true" >> $GITHUB_OUTPUT
+            else
+              echo "PUBLISH_PROD_PYPI=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "PRE_RELEASE=false" >> $GITHUB_OUTPUT
+            echo "PACKAGE_SPECIFIER=vcp-cli" >> $GITHUB_OUTPUT
+            if [[ ("${{ github.event_name }}" == 'release' && "${{ github.ref }}" == refs/tags/v*) ]]; then
+              echo "PUBLISH_PROD_PYPI=true" >> $GITHUB_OUTPUT
+            else
+              echo "PUBLISH_PROD_PYPI=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Display variables
+        run: |
+          echo "Publishing version: ${{ steps.variables.outputs.VERSION }} from ${{ github.ref }} for event ${{ github.event_name }}"
+          echo "Pre-release: ${{ steps.variables.outputs.PRE_RELEASE }}"
+          echo "Package specifier: ${{ steps.variables.outputs.PACKAGE_SPECIFIER }}"
+          echo "Publish to production PyPI: ${{ steps.variables.outputs.PUBLISH_PROD_PYPI }}"
+
+      - name: Publish to TestPyPI
+        if: steps.variables.outputs.PUBLISH_PROD_PYPI == 'false'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          # Useful if prod pypi publish failed (below), and this workflow is re-run (otherwise would fail and stop here for re-runs)
+          skip-existing: true
+          verbose: true
+
+      - name: Confirm publish to Test PyPI
+        if: steps.variables.outputs.PUBLISH_PROD_PYPI == 'false'
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 15
+          timeout_seconds: 30
+          polling_interval_seconds: 5
+          command: uv run pip index versions --pre --index-url https://test.pypi.org/simple/ "vcp-cli" | grep "Available.*${{ steps.variables.outputs.VERSION }}"
+
+      - name: Install and Test Package from Test PyPI
+        if: steps.variables.outputs.PUBLISH_PROD_PYPI == 'false'
+        run: |
+          python -m venv venv-testpypi-install
+          source venv-testpypi-install/bin/activate
+          # Note: We install using standard pip (not `uv pip`) to test installation from TestPyPI, since this is what we instruct users to use.
+          # Note: Use --extra-index-url so that any dependencies not on TestPyPI are installed from PyPI. For example, anndata >= 0.9.0 is not on TestPyPI, so it is installed from PyPI
+          pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple ${{ steps.variables.outputs.PACKAGE_SPECIFIER }}
+          python -c "from vcp import __version__"
+          pip show vcp-cli | grep "Version: ${{ steps.variables.outputs.VERSION }}"
+          deactivate
+
+      - name: Publish to PyPI
+        if: steps.variables.outputs.PUBLISH_PROD_PYPI == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          # Useful if prod pypi publish failed (below), and this workflow is re-run (otherwise would fail and stop here for re-runs)
+          #   skip-existing: true
+
+      - name: Confirm publish to PyPI
+        if: steps.variables.outputs.PUBLISH_PROD_PYPI == 'true'
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 15
+          timeout_seconds: 30
+          polling_interval_seconds: 5
+          command: uv run pip index versions --pre --index-url https://pypi.org/simple/ vcp-cli | grep "Available.*${{ steps.variables.outputs.VERSION }}"
+
+      - name: Install and test package from PyPI
+        if: steps.variables.outputs.PUBLISH_PROD_PYPI == 'true'
+        run: |
+          python -m venv venv-prod-pypi-install
+          source venv-prod-pypi-install/bin/activate
+           # Note: We install using standard pip (not `uv pip`) to test installation from TestPyPI, since this is what we instruct users to use.
+          pip install --index-url https://pypi.org/simple/  ${{ steps.variables.outputs.PACKAGE_SPECIFIER }}
+          python -c "from vcp import __version__"
+          pip show vcp-cli | grep "Version: ${{ steps.variables.outputs.VERSION }}"
+          deactivate
