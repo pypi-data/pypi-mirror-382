@@ -1,0 +1,212 @@
+# Copyright (c) 2015 Hewlett-Packard Development Company, L.P.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+- name: "Update Package Cache"
+  apt:
+    update_cache: yes
+  when: ansible_os_family == 'Debian'
+
+- name: "Enable EPEL repositories for known EL distributions"
+  when:
+    - enable_epel | bool
+    - ansible_distribution in ["AlmaLinux", "CentOS", "Rocky"]
+  block:
+    - name: "Enable powertools repository for EL8"
+      command: dnf config-manager --set-enabled powertools
+      when: ansible_distribution_version|int == 8
+
+    - name: "Enable crb repository for EL9"
+      command: dnf config-manager --set-enabled crb
+      when: ansible_distribution_version|int == 9
+
+    - name: "Enable EPEL repository for EL7/8/9"
+      ansible.builtin.dnf:
+        name: epel-release
+        state: latest
+
+    - name: "Enable EPEL-next repository for Centos 9-Stream"
+      ansible.builtin.dnf:
+        name: epel-next-release
+        state: latest
+      when:
+        - ansible_distribution == 'CentOS'
+        - ansible_distribution_version|int == 9
+
+- name: "Enable EPEL repository for RHEL 9"
+  when:
+    - enable_epel | bool
+    - ansible_distribution == "RedHat"
+    - ansible_distribution_version|int >= 9
+  command: dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+  args:
+    creates: /etc/yum.repos.d/epel.repo
+
+- name: "Install system packages"
+  package:
+    name: "{{ required_packages }}"
+    state: present
+
+- name: "Install python packages (in venv)"
+  include_role:
+    name: bifrost-pip-install
+  vars:
+    package: "{{ item }}"
+  with_items:
+    - passlib
+    - pymysql
+
+- name: "Install Nginx"
+  import_role:
+    name: bifrost-nginx-install
+    tasks_from: install
+
+# NOTE(TheJulia) While we don't necessarily require /opt/stack any longer
+# and it should already be created by the Ansible setup, we will leave this
+# here for the time being.
+- name: "Ensure /opt/stack is present"
+  file:
+    name: /opt/stack
+    state: directory
+    owner: root
+    group: root
+
+- name: "IPA-builder - Install"
+  include_role:
+    name: bifrost-pip-install
+  vars:
+    package: ironic-python-agent-builder
+    sourcedir: "{{ ipa_builder_git_folder }}"
+    source_install: true
+  when: install_dib | bool
+
+# NOTE(mgoddard): IPA-builder has a dependency on diskimage-builder. Install
+# DIB last to ensure it is installed from source rather than PyPI.
+- name: "Diskimage-builder - Install"
+  include_role:
+    name: bifrost-pip-install
+  vars:
+    package: diskimage-builder
+    sourcedir: "{{ dib_git_folder }}"
+    source_install: true
+  when: install_dib | bool
+
+- name: Ensure required packages are installed
+  package:
+    name: "{{ dib_host_required_packages | select | list }}"
+    state: present
+  when:
+    - install_dib | bool
+
+- name: "sushy - Install"
+  include_role:
+    name: bifrost-pip-install
+  vars:
+    package: sushy
+    sourcedir: "{{ sushy_git_folder }}"
+    source_install: "{{ sushy_source_install }}"
+
+- name: "Install vendor dependencies"
+  import_tasks: vendor_deps.yml
+
+- name: "Ironic Client - Install"
+  include_role:
+    name: bifrost-pip-install
+  vars:
+    package: python-ironicclient
+    sourcedir: "{{ ironicclient_git_folder }}"
+    source_install: "{{ ironicclient_source_install }}"
+
+# NOTE(dtantsur): no much value in installing metalsmith from source - it does
+# not change often, and nothing in bifrost depends on it.
+- name: "metalsmith - Install"
+  include_role:
+    name: bifrost-pip-install
+  vars:
+    package: metalsmith
+    source_install: false
+
+- name: "Install extra packages for ironic"
+  include_role:
+    name: bifrost-pip-install
+  vars:
+    package: "{{ item }}"
+  loop: "{{ ironic_extra_packages }}"
+
+- name: "Install Ironic using pip"
+  include_role:
+    name: bifrost-pip-install
+  vars:
+    package: ironic
+    sourcedir: "{{ ironic_git_folder }}"
+    source_install: true
+
+- name: "Install ironic-inspector to permit use of inspection interface"
+  include_tasks: inspector_install.yml
+  when: enable_inspector | bool
+
+- name: "Install ironic-staging-drivers"
+  include_tasks: staging_install.yml
+  when: staging_drivers_include | bool
+
+- name: "Install openstacksdk"
+  include_role:
+    name: bifrost-pip-install
+  vars:
+    package: openstacksdk
+    sourcedir: "{{ openstacksdk_git_folder }}"
+    source_install: "{{ openstacksdk_source_install }}"
+
+- name: "Install Ironic Prometheus Exporter"
+  include_tasks: prometheus_exporter_install.yml
+  when: enable_prometheus_exporter | bool
+
+- name: "Create a temporary directory for unpacking grub2 and shim"
+  tempfile:
+    state: directory
+  register: efi_unpack_dir
+
+- block:
+    - name: "Create a binary cache directory"
+      file:
+        path: /usr/lib/ironic
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: "Download grub2 and shim binaries"
+      import_role:
+        name: bifrost-download-packages
+      vars:
+        download_packages:
+          - "{{ grub_efi_package }}"
+          - "{{ shim_efi_package }}"
+        download_dest: "{{ efi_unpack_dir.path }}"
+
+    - name: "Copy grub2 and shim into cache"
+      copy:
+        src: "{{ efi_unpack_dir.path }}/{{ item.src }}"
+        remote_src: true
+        dest: "/usr/lib/ironic/{{ item.dest }}"
+      loop:
+        - src: "{{ grub_efi_package }}/{{ grub_efi_binary }}"
+          dest: grub-efi
+        - src: "{{ shim_efi_package }}/{{ shim_efi_binary }}"
+          dest: shim-efi
+  always:
+    - name: "Delete the temporary directory"
+      file:
+        path: "{{ efi_unpack_dir.path }}"
+        state: absent

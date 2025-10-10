@@ -1,0 +1,119 @@
+# Example command line to use:
+# Create a VM:
+# ansible-playbook -vvvv -i inventory/localhost test-bifrost-create-vm.yaml
+# Set BIFROST_INVENTORY_SOURCE
+# export BIFROST_INVENTORY_SOURCE=/tmp/baremetal.json
+# Execute the installation and VM startup test.
+# ansible-playbook -vvvv -i inventory/bifrost_inventory.py test-bifrost.yaml -e download_custom_deploy_image=true -e testing_user=cirros
+---
+- name: "Prepare testing environment"
+  hosts: localhost
+  connection: local
+  become: no
+  gather_facts: yes
+  tasks:
+    - name: "Set testing to true"
+      set_fact:
+         testing: true
+    - when: lookup('env', 'ZUUL_BRANCH') | length > 0
+      block:
+      - name: "Set variables if running in the CI"
+        set_fact:
+           custom_deploy_image_upstream_url: file:///opt/cache/files/cirros-0.5.3-x86_64-disk.img
+           copy_from_local_path: true
+           git_url_root: "{{ lookup('env', 'WORKSPACE') }}"
+      - name: "Check if openstacksdk is cloned"
+        stat:
+           path: "{{ git_url_root }}/openstack/openstacksdk"
+        register: sdk_path
+      - name: "Use openstacksdk from source if it's cloned"
+        set_fact:
+           openstacksdk_source_install: true
+        when: sdk_path.stat.exists
+
+- import_playbook: install.yaml
+
+- import_playbook: enroll-dynamic.yaml
+
+- name: "Test introspection data"
+  hosts: baremetal
+  connection: local
+  become: no
+  roles:
+    - role: bifrost-test-inspection
+      when: inspect_nodes | default(false) | bool
+
+- import_playbook: deploy-dynamic.yaml
+
+- name: "Prepare for deployment verification"
+  hosts: baremetal
+  connection: local
+  become: no
+  serial: 1
+  roles:
+    - role: bifrost-prepare-for-test-dynamic
+
+# The testvm Host group is added by bifrost-prepare-for-test based
+# on the contents of the JSON file.
+- name: "Tests connectivity to the VM"
+  hosts: test
+  become: no
+  gather_facts: no
+  remote_user: "{{ testing_user }}"
+  serial: 1
+  any_errors_fatal: yes
+  max_fail_percentage: 0
+  roles:
+    - role: bifrost-test-vm
+
+- import_playbook: redeploy-dynamic.yaml
+  when: redeploy_nodes | default(false) | bool
+
+- name: "Unprovisions the test node"
+  hosts: baremetal
+  connection: local
+  become: no
+  gather_facts: no
+  roles:
+    - role: bifrost-unprovision-node-dynamic
+      wait_for_node_undeploy: true
+    - role: ironic-delete-dynamic
+
+# The following tasks are intended to test DHCP functionality
+- name: "Start VMs that were not enrolled to ironic"
+  hosts: localhost
+  connection: local
+  become: yes
+  vars:
+    not_enrolled_data_file: /tmp/baremetal.json.rest
+  tasks:
+    # NOTE(TheJulia): Moved the power ON of the excess VMs until after
+    # the other test VMs have been shutdown, in order to explicitly
+    # validate that the dhcp config is working as expected and not
+    # serving these requests.
+  - name: Power on remaining test VMs
+    virt:
+      name: "{{ item.key }}"
+      state: running
+    with_dict: "{{ lookup('file', not_enrolled_data_file) | from_json }}"
+    ignore_errors: yes
+    when: inventory_dhcp | bool
+  - name: Wait 30 seconds
+    pause:
+      seconds: 30
+    when: inventory_dhcp | bool
+
+- name: "Executes DHCP test script"
+  hosts: localhost
+  connection: local
+  become: yes
+  gather_facts: yes
+  vars:
+    inventory_dhcp: "{{ inventory_dhcp | bool }}"
+    inventory_dhcp_static_ip: "{{ inventory_dhcp_static_ip | bool }}"
+  roles:
+    - { role: bifrost-test-dhcp, when: inventory_dhcp | bool }
+  environment:
+    http_proxy: "{{ lookup('env','http_proxy') }}"
+    https_proxy: "{{ lookup('env','https_proxy') }}"
+

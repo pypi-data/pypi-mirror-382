@@ -1,0 +1,74 @@
+---
+- name: "Install Ironic on the target host."
+  hosts: target
+  become: yes
+  gather_facts: yes
+  vars:
+    bifrost_venv_dir: "{{ lookup('env', 'VENV') or '/opt/stack/bifrost' }}"
+    ansible_python_interpreter: "/usr/bin/env python3"
+  pre_tasks:
+    - name: install pip (and venv) to system
+      package:
+        name: "{{ packages | select | list }}"
+      vars:
+        packages:
+          - python3-pip
+          - "{{ (ansible_facts['os_family'] == 'Debian') | ternary('python3-venv', '') }}"
+
+    - name: create venv
+      command: python3 -m venv {{ bifrost_venv_dir }}
+      args:
+        creates: "{{ bifrost_venv_dir }}/bin/python3"
+
+    # NOTE(ebbex): (in case it's missing, which it shouldn't normally be)
+    - name: install setuptools in venv
+      command: "{{ bifrost_venv_dir }}/bin/pip3 install setuptools"
+      args:
+        creates: "{{ bifrost_venv_dir }}/lib/python*/site-packages/setuptools"
+
+    - name: override ansible_python_interpreter to venv
+      set_fact:
+        ansible_python_interpreter: "{{ bifrost_venv_dir + '/bin/python3' }}"
+
+  roles:
+    - role: bifrost-prep-for-install
+      when: not (skip_install | default(false) | bool)
+    - bifrost-keystone-install
+    - bifrost-ironic-install
+    - bifrost-logrotate-install
+    - role: bifrost-keystone-client-config
+      user: "{{ ansible_env.SUDO_USER | default(ansible_user_id) }}"
+      clouds:
+        bifrost:
+          config_username: "{{ ironic.keystone.default_username }}"
+          config_password: "{{ ironic.keystone.default_password }}"
+          config_project_name: "baremetal"
+          config_region_name: "{{ keystone.bootstrap.region_name }}"
+          config_auth_url: "{{ keystone.bootstrap.public_url }}"
+        bifrost-admin:
+          config_username: "{{ keystone.bootstrap.username }}"
+          config_password: "{{ keystone.bootstrap.password }}"
+          config_project_name: "{{ keystone.bootstrap.project_name }}"
+          config_region_name: "{{ keystone.bootstrap.region_name }}"
+          config_auth_url: "{{ keystone.bootstrap.public_url }}"
+          config_system_scope: true
+    - role: bifrost-create-dib-image
+      dib_imagename: "{{ http_boot_folder }}/ipa"
+      build_ramdisk: false
+      dib_os_element: "{{ ipa_dib_os_element|default('debian') }}"
+      dib_elements: "ironic-python-agent-ramdisk {{ ipa_extra_dib_elements | default('') }}"
+      when: create_ipa_image | bool
+    - role: bifrost-create-dib-image
+      dib_imagename: "{{ deploy_image }}"
+      dib_imagetype: "qcow2"
+      dib_elements: >
+        {{ dib_image_type|default('vm') }}
+        {% if default_boot_mode != "bios" %}block-device-efi{% endif %}
+        enable-serial-console
+        {{ dib_init_element|default('simple-init') }}
+        {{ extra_dib_elements|default('') }}
+      when: create_image_via_dib | bool
+  environment:
+    http_proxy: "{{ lookup('env','http_proxy') }}"
+    https_proxy: "{{ lookup('env','https_proxy') }}"
+    no_proxy: "{{ lookup('env', 'no_proxy') }}"
