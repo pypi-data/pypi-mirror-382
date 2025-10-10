@@ -1,0 +1,73 @@
+Metadata-Version: 2.4
+Name: codex-as-mcp
+Version: 2025.10.9.1
+Summary: MCP server for delegating tasks to Codex CLI subagents
+Project-URL: Homepage, https://github.com/kky42/codex-as-mcp
+Project-URL: Repository, https://github.com/kky42/codex-as-mcp
+Project-URL: Issues, https://github.com/kky42/codex-as-mcp/issues
+Author-email: kky <kky42@example.com>
+Keywords: ai,code-generation,codex,mcp
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.11
+Requires-Dist: mcp[cli]>=1.12.4
+Description-Content-Type: text/markdown
+
+# codex-as-mcp
+
+[中文版](./README.zh-CN.md)
+
+**MCP server for delegating tasks to Codex CLI subagents.**
+
+Spawn autonomous Codex agents from Claude Desktop, Cursor, or any MCP-compatible AI tool. Each subagent runs `codex e --full-auto` with complete autonomy in a specified directory. Perfect for Plus/Pro/Team subscribers leveraging GPT-5 capabilities.
+
+## Setup
+
+### 1. Install Codex CLI
+
+**⚠️ Requires Codex CLI >= 0.46.0**
+
+```bash
+npm install -g @openai/codex@latest
+codex login
+
+# Verify installation
+codex --version
+```
+
+### 2. Configure MCP
+
+Add to your `.mcp.json`:
+```json
+{
+  "mcpServers": {
+    "codex": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["codex-as-mcp@latest"]
+    }
+  }
+}
+```
+
+Or use Claude Desktop commands:
+```bash
+claude mcp add codex-as-mcp -- uvx codex-as-mcp@latest
+```
+
+## Tool
+
+- `spawn_agent(prompt, work_directory)` - Spawns an autonomous Codex subagent in the specified directory
+
+## How It Works
+
+The MCP server spawns Codex CLI subagents using `codex e --full-auto`, providing complete task autonomy. Each subagent receives your prompt and executes independently within the specified directory.
+
+## Local test
+```shell
+uv run mcp dev src/codex_as_mcp/server.py
+```

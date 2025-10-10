@@ -1,0 +1,164 @@
+"""
+Minimal MCP server (v2) exposing a single tool: `spawn_agent`.
+
+Tool: spawn_agent(prompt: str, work_directory: str) -> str
+- Runs the Codex CLI agent and returns its final response as the tool result.
+
+Command executed:
+    codex e --cd {work_directory} --skip-git-repo-check --full-auto {prompt}
+
+Notes:
+- No Authorization headers or extra auth flows are used.
+- Uses a generous default timeout to allow long-running agent sessions.
+- Designed to be run via: `uv run python -m codex_as_mcp`
+"""
+
+import asyncio
+import shutil
+import subprocess
+import time
+import tempfile
+import os
+
+from mcp.server.fastmcp import FastMCP, Context
+
+
+# Default timeout (seconds) for the spawned agent run.
+# Chosen to be long to accommodate non-trivial editing tasks.
+DEFAULT_TIMEOUT_SECONDS: int = 8 * 60 * 60  # 8 hours
+
+
+mcp = FastMCP("codex-as-mcp-v2")
+
+
+def _resolve_codex_executable() -> str:
+    """Resolve the `codex` executable path or raise a clear error.
+
+    Returns:
+        str: Absolute path to the `codex` executable.
+
+    Raises:
+        FileNotFoundError: If the executable cannot be found in PATH.
+    """
+    codex = shutil.which("codex")
+    if not codex:
+        raise FileNotFoundError(
+            "Codex CLI not found in PATH. Please install it (e.g. `npm i -g @openai/codex`) "
+            "and ensure your shell PATH includes the npm global bin."
+        )
+    return codex
+
+
+
+
+
+@mcp.tool()
+async def spawn_agent(ctx: Context, prompt: str, work_directory: str) -> str:
+    """Spawn a Codex agent to work inside a directory.
+
+    Args:
+        prompt: All instructions/context the agent needs for the task.
+        work_directory: Absolute path to the working directory for the task.
+
+    Returns:
+        The agent's final response (clean output from Codex CLI).
+    """
+    # Basic validation to avoid confusing UI errors
+    if not isinstance(prompt, str) or not isinstance(work_directory, str):
+        return "Error: 'prompt' and 'work_directory' must be strings."
+    if not prompt.strip():
+        return "Error: 'prompt' is required and cannot be empty."
+    if not work_directory.strip():
+        return "Error: 'work_directory' is required and cannot be empty."
+
+    try:
+        codex_exec = _resolve_codex_executable()
+    except FileNotFoundError as e:
+        return f"Error: {e}"
+
+    # Create temp file for clean output
+    # Codex CLI detects non-TTY and outputs only the final response
+    temp_fd, temp_path = tempfile.mkstemp(suffix=".txt", prefix="codex_output_")
+    
+    try:
+        # Quote the prompt so Codex CLI receives it wrapped in "..."
+        quoted_prompt = '"' + prompt.replace('"', '\\"') + '"'
+
+        cmd = [
+            codex_exec,
+            "e",
+            "--cd",
+            work_directory,
+            "--skip-git-repo-check",
+            "--full-auto",
+            quoted_prompt,
+        ]
+
+        # Initial progress ping
+        try:
+            await ctx.report_progress(0, None, "Launching Codex agent...")
+        except Exception:
+            pass
+
+        # Run with stdout redirected to temp file
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=temp_fd,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except Exception as e:
+            return f"Error: Failed to launch Codex agent: {e}"
+
+        # Send periodic heartbeats while process runs
+        last_ping = time.monotonic()
+        while True:
+            try:
+                returncode = await asyncio.wait_for(proc.wait(), timeout=2.0)
+                break
+            except asyncio.TimeoutError:
+                now = time.monotonic()
+                if now - last_ping >= 2.0:
+                    last_ping = now
+                    try:
+                        await ctx.report_progress(1, None, "Codex agent running...")
+                    except Exception:
+                        pass
+
+        # Read the clean output from temp file
+        with open(temp_path, "r") as f:
+            output = f.read().strip()
+
+        if returncode != 0:
+            # Read stderr for error details
+            stderr = ""
+            if proc.stderr:
+                stderr_bytes = await proc.stderr.read()
+                stderr = stderr_bytes.decode(errors="replace")
+            
+            return (
+                "Error: Codex agent exited with a non-zero status.\n"
+                f"Command: {' '.join(cmd)}\n"
+                f"Exit Code: {returncode}\n"
+                f"Stderr: {stderr}\n"
+                f"Output: {output}"
+            )
+
+        return output
+
+    finally:
+        # Clean up temp file
+        try:
+            os.close(temp_fd)
+            os.unlink(temp_path)
+        except Exception:
+            pass
+
+
+def main() -> None:
+    """Entry point for the MCP server v2."""
+    mcp.run()
+
+
+if __name__ == "__main__":
+    main()
