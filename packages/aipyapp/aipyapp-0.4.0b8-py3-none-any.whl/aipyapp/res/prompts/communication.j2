@@ -1,0 +1,114 @@
+{# 通信规则模版 #}
+<communication_rules>
+<output_format>
+The output must be in structured Markdown format and adhere to the following rules:
+
+<code_block_markup>
+1. Code blocks must be enclosed within a pair of HTML comment markers, formatted as follows:
+   - Start: `<!-- Block-Start: {"name": "code block name", "path": "optional file path for the code block"} -->`
+   - Body: Wrapped in a Markdown code block (e.g., ```python)
+   - End: `<!-- Block-End: {"name": same as in Block-Start} -->`
+
+2. `path` specifies the local file path for saving the code block, which may include directories. Relative paths default to the current or user-specified directory.
+3. Multiple code blocks can be defined in a single output message.
+
+Notes:
+- Always wrap code using the defined markup.
+- `name` must be consistent between Block-Start and Block-End.
+- `path` is optional but required if the code block is to be executed (see below).
+- All JSON must be **compact and one-line** (no pretty-printed/multiline JSON).
+- ALWAYS use the `path` attribute to create static files.
+</code_block_markup>
+
+<tool_call_commands>
+Tools are predefined commands you can call them to perform specific actions.
+Every tool call must be wrapped in a HTML comment as shown below:
+
+  <!-- ToolCall: {"id": "toocall_1", "name": "Exec", "arguments": {"name": "block_name_to_execute"}} -->
+  <!-- ToolCall: {"id": "toocall_2", "name": "Edit", "arguments": {"name": "block_name", "old": "code_to_replace", "new": "replacement_code", "replace_all": false}} -->
+  <!-- ToolCall: {"id": "toocall_3", "name": "SubTask", "arguments": {"instruction": "task_instruction", "title": "optional_title"}} -->
+
+- `name` is the tool name, one of: `Exec`, `Edit`, `SubTask`.
+- `id` is a unique identifier for this ToolCall within the current message.
+- `arguments` is a JSON object containing the parameters for the tool.
+
+Rules:
+- Multiple ToolCall commands can be used in a single message and will be processed in order. 
+- Use `id` field to identify a ToolCall command and its result.
+
+Available tools and their parameters:
+
+<exec_tool>
+Execute a code block
+- `name`: Code block name to execute (string, required)
+
+Only these code block types (languages) can be executed:
+- `python` (always executable)
+- `html`, `bash`, `powershell`, `applescript`, `javascript` (must specify `path`)
+
+Platform restrictions:
+- `bash`: Linux or macOS only
+- `powershell`: Windows only
+- `applescript`: macOS only
+
+</exec_tool>
+
+<edit_tool>
+Modify existing code blocks incrementally
+- `name`: Code block name to edit (string, required)
+- `old`: Exact string to find and replace (string, required, must match exactly including whitespace)
+- `new`: Replacement string (string, required, can be empty for deletion)
+- `replace_all`: Replace all occurrences (boolean, optional, default: false)
+  - `false`: Replace only the first occurrence (safer, prevents accidental multiple replacements)
+  - `true`: Replace all occurrences (use when you want to replace multiple instances)
+
+Benefits of editing vs. rewriting full blocks:
+- More efficient (smaller messages, less tokens)
+- Clearer intent (shows exactly what changed)
+- Preserves context (LLM doesn't need to regenerate entire block)
+
+Error handling:
+- If `old` string is not found: Edit fails with error message
+- If `old` string appears multiple times and `replace_all` is false: Edit fails with error message
+- Always provide sufficient context in `old` string to ensure unique matching
+</edit_tool>
+
+<subtask_tool>
+**SubTask Tool**: Create and execute an independent subtask with in an isolated context
+- `instruction`: The instruction/task for the subtask to execute (string, required)
+- `title`: Optional descriptive title for the subtask (string, optional)
+
+</subtask_tool>
+</tool_call_commands>
+
+<good_example>
+Example 1 - Creating and executing a code block:
+<!-- Block-Start: {"name": "fetch_data", "path": "fetch.py"} -->
+```python
+import requests
+resp = requests.get("https://example.com")
+print(resp.text)
+```
+<!-- Block-End: {"name": "fetch_data"} -->
+
+<!-- ToolCall: {"id": "exec_fetch_data", "name": "Exec", "arguments": {"name": "fetch_data"}} -->
+
+Example 2 - Editing an existing code block:
+<!-- ToolCall: {"id": "edit_fetch_data", "name": "Edit", "arguments": {"name": "fetch_data", "old": "https://example.com", "new": "https://httpbin.org/json"}} -->
+
+Example 3 - Multiple operations in sequence:
+<!-- ToolCall: {"id": "edit_fetch_data", "name": "Edit", "arguments": {"name": "fetch_data", "old": "print(resp.text)", "new": "print(resp.json())"}} -->
+<!-- ToolCall: {"id": "exec_fetch_data", "name": "Exec", "arguments": {"name": "fetch_data"}} -->
+
+Example 4 - Editing with replace_all:
+<!-- ToolCall: {"id": "edit_fetch_data", "name": "Edit", "arguments": {"name": "fetch_data", "old": "resp", "new": "response", "replace_all": true}} -->
+
+Example 5 - Creating a subtask:
+<!-- ToolCall: {"id": "sub_task_1", "name": "SubTask", "arguments": {"instruction": "Calculate the factorial of 5 and explain the mathematical steps", "title": "Factorial Calculation"}} -->
+</good_example>
+
+</output_format>
+
+{% include "task_status_header.j2" %}
+
+</communication_rules>
