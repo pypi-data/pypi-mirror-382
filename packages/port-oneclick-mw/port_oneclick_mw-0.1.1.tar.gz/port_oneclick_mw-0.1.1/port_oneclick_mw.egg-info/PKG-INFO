@@ -1,0 +1,265 @@
+Metadata-Version: 2.4
+Name: port-oneclick-mw
+Version: 0.1.1
+Summary: A Python middleware service for managing Port.io guides (blueprints, actions, mappings, widgets)
+Author-email: Erioluwa Asiru <your.email@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/yourusername/port-oneclick-mw
+Project-URL: Documentation, https://github.com/yourusername/port-oneclick-mw/blob/main/README.md
+Project-URL: Repository, https://github.com/yourusername/port-oneclick-mw
+Project-URL: Issues, https://github.com/yourusername/port-oneclick-mw/issues
+Keywords: port,port.io,middleware,blueprints,automation
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.31.0
+Requires-Dist: python-dotenv>=1.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Dynamic: license-file
+
+# Port OneClick Middleware
+
+A Python middleware service for managing Port.io resources including blueprints, actions, mappings, and widgets.
+
+## Installation
+
+### From PyPI (Recommended)
+
+```bash
+pip install port-oneclick-mw
+```
+
+### From Source
+
+```bash
+git clone https://github.com/yourusername/port-oneclick-mw.git
+cd port-oneclick-mw
+pip install -e .
+```
+
+## Quick Start
+
+### 1. Create Your Configuration
+
+After installation, you need to provide two things:
+
+#### a. Environment Variables (`.env` file)
+
+Create a `.env` file in your project directory with your Port.io credentials:
+
+```env
+PORT_CLIENT_ID=your_client_id_here
+PORT_CLIENT_SECRET=your_client_secret_here
+
+# Optional: Custom directory paths (defaults shown)
+BLUEPRINTS_DIR=setup/blueprints
+ACTIONS_DIR=setup/actions
+MAPPINGS_DIR=setup/mappings
+WIDGETS_DIR=setup/widgets
+
+# Optional: Specify what to process (all, blueprints, actions, mappings, widgets)
+ACTION=all
+```
+
+#### b. Setup Directory Structure
+
+Create a `setup/` directory with your Port.io resource definitions:
+
+```
+setup/
+├── blueprints/     # Blueprint JSON files
+├── actions/        # Action JSON files
+├── mappings/       # Mapping JSON files
+└── widgets/        # Widget/Dashboard JSON files
+```
+
+**Example structure:**
+```
+my-project/
+├── .env
+├── setup/
+│   ├── blueprints/
+│   │   ├── service.json
+│   │   └── deployment.json
+│   ├── actions/
+│   │   └── deploy-service.json
+│   ├── mappings/
+│   │   └── github-mapping.json
+│   └── widgets/
+│       └── services-dashboard.json
+```
+
+### 2. Use Example Templates
+
+The package includes example files to help you get started. Check the `examples/` directory:
+
+```bash
+# Copy examples to your setup directory
+cp -r examples/blueprints setup/blueprints
+cp -r examples/actions setup/actions
+cp -r examples/widgets setup/widgets
+```
+
+Or view them in the package installation:
+```bash
+python -c "import site; print(site.getsitepackages())"
+# Then navigate to port-oneclick-mw/examples/
+```
+
+### 3. Run the Middleware
+
+```bash
+# Run from command line
+port-oneclick
+
+# Or run the Python module directly
+python main.py
+```
+
+## Configuration Options
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT_CLIENT_ID` | Your Port.io client ID | **Required** |
+| `PORT_CLIENT_SECRET` | Your Port.io client secret | **Required** |
+| `BLUEPRINTS_DIR` | Path to blueprints directory | `setup/blueprints` |
+| `ACTIONS_DIR` | Path to actions directory | `setup/actions` |
+| `MAPPINGS_DIR` | Path to mappings directory | `setup/mappings` |
+| `WIDGETS_DIR` | Path to widgets directory | `setup/widgets` |
+| `ACTION` | What to process: `all`, `blueprints`, `actions`, `mappings`, or `widgets` | `all` |
+
+### Directory Structure
+
+Each directory should contain JSON files defining your Port.io resources:
+
+- **blueprints/**: Blueprint definitions
+- **actions/**: Self-service action definitions
+- **mappings/**: Integration mapping configurations
+- **widgets/**: Dashboard widget definitions
+
+## JSON File Format
+
+### Blueprint Example (`setup/blueprints/service.json`)
+
+```json
+{
+  "identifier": "service",
+  "title": "Service",
+  "icon": "Microservice",
+  "schema": {
+    "properties": {
+      "name": {
+        "type": "string",
+        "title": "Service Name"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["active", "inactive"],
+        "title": "Status"
+      }
+    },
+    "required": ["name"]
+  }
+}
+```
+
+### Action Example (`setup/actions/deploy.json`)
+
+```json
+{
+  "identifier": "deploy_service",
+  "title": "Deploy Service",
+  "icon": "Deployment",
+  "trigger": {
+    "type": "self-service",
+    "operation": "DAY-2",
+    "userInputs": {
+      "properties": {
+        "environment": {
+          "type": "string",
+          "title": "Environment",
+          "enum": ["development", "staging", "production"]
+        }
+      }
+    },
+    "blueprintIdentifier": "service"
+  }
+}
+```
+
+See the `examples/` directory for more complete examples.
+
+## Features
+
+- ✅ **Blueprint Management**: Create and update Port.io blueprints
+- ✅ **Action Management**: Configure self-service actions
+- ✅ **Mapping Management**: Set up integration mappings
+- ✅ **Widget Management**: Create dashboard widgets
+- ✅ **Merge Strategy**: Safely updates existing resources without overwriting
+- ✅ **Confirmation Prompts**: Review changes before applying
+- ✅ **Detailed Logging**: Clear feedback on all operations
+
+## Development
+
+### For Package Development
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/port-oneclick-mw.git
+cd port-oneclick-mw
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install in editable mode with dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Format code
+black .
+```
+
+## Important Notes
+
+⚠️ **Security**: Never commit your `.env` file or Port.io credentials to version control!
+
+⚠️ **Setup Directory**: The `setup/` directory is specific to your organization and should NOT be included in the PyPI package. Keep it in your private repository.
+
+## Getting Port.io Credentials
+
+1. Log in to your Port.io account
+2. Navigate to Settings → Credentials
+3. Create a new client ID and secret
+4. Copy these values to your `.env` file
+
+## Support & Documentation
+
+- **Examples**: See the `examples/` directory in the package
+- **Configuration Guide**: See `CONFIG.md` for detailed configuration options
+- **Issues**: Report issues on GitHub
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
