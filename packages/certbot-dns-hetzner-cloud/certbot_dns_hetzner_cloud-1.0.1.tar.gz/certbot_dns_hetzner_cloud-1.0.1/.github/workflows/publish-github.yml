@@ -1,0 +1,85 @@
+name: Publish to GitHub
+
+on:
+  workflow_run:
+    workflows: [ "Build Release" ]
+    types: [ completed ]
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  github-release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Download release artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: "Extract Version from Tag"
+        id: extract_tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+
+      - name: "Extract Version from Tag"
+        id: extract_tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+
+            // 1) Run-Details des auslösenden Workflow-Runs holen
+            const runId = context.payload.workflow_run?.id ?? ${{ github.event.workflow_run.id }};
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner, repo, run_id: runId
+            });
+
+            const headSha = run.head_sha;
+            if (!headSha) {
+              throw new Error("No head_sha on workflow_run.");
+            }
+
+            // 2) Tags holen und den Tag finden, dessen Commit auf head_sha zeigt
+            // Hinweis: listTags -> t.commit.sha ist der Commit, auf den das Tag zeigt
+            const allTags = [];
+            let page = 1;
+            while (true) {
+              const { data } = await github.rest.repos.listTags({
+                owner, repo, per_page: 100, page
+              });
+              if (!data.length) break;
+              allTags.push(...data);
+              page++;
+            }
+
+            const match = allTags.find(t => t.commit?.sha === headSha);
+            if (!match) {
+              // Fallback: Wenn der Upstream-Run ein Tag-Push war, ist head_branch oft schon der Tag-Name
+              if (run.head_branch && /^v?\d+\.\d+\.\d+/.test(run.head_branch)) {
+                core.setOutput("tag_name", run.head_branch);
+              } else {
+                throw new Error("Could not determine tag for head_sha " + headSha);
+              }
+            } else {
+              core.setOutput("tag_name", match.name);
+            }
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.extract_tag.outputs.tag_name }}
+          name: ${{ steps.extract_tag.outputs.tag_name }}
+          generate_release_notes: true
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/SHA256SUMS.txt
