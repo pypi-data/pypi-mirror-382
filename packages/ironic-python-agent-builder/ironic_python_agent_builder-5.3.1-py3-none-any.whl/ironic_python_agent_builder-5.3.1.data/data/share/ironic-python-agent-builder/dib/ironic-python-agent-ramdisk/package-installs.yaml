@@ -1,0 +1,111 @@
+curl:
+# dmidecode does not exist for ppc* arches so we use lshw
+dmidecode:
+    not-arch: ppc64,ppc64el,ppc64le
+iptables:
+lshw:
+ipmitool:
+qemu-utils:
+# NOTE(dtantsur): gcc is not build-only because dkms requires it
+gcc:
+python:
+parted:
+hdparm:
+util-linux:
+genisoimage:
+gdisk:
+kmod:
+psmisc:
+dosfstools:
+mdadm:
+efibootmgr:
+    not-arch: ppc64,ppc64el,ppc64le
+efivar:
+    not-arch: ppc64,ppc64el,ppc64le
+chrony:
+e2fsprogs:
+nvme-cli:
+# This provides iscsistart which is required for iBFT support
+open-iscsi:
+# smartctl is required for ATA secure erase.
+smartmontools:
+
+libffi-dev:
+    build-only: true
+libssl-dev:
+    build-only: true
+python-dev:
+    build-only: true
+
+# The base minimum element uninstalls firmware, but it's needed for bare metal.
+linux-firmware:
+  phase: post-install.d
+  when: IPA_DISTRO_FAMILY = rh
+
+firmware-linux-free:
+  when: DISTRO_NAME = debian
+firmware-misc-nonfree:
+  when:
+    - DISTRO_NAME = debian
+    - IPA_DEBIAN_NONFREE = true
+intel-microcode:
+  arch: x86_64
+  when:
+    - DISTRO_NAME = debian
+    - IPA_DEBIAN_NONFREE = true
+amd64-microcode:
+  arch: x86_64
+  when:
+    - DISTRO_NAME = debian
+    - IPA_DEBIAN_NONFREE = true
+
+# Packages that should not normally be present on IPA images
+cloud-init:
+    phase: post-install.d
+    uninstall: true
+teamd:
+    phase: post-install.d
+    uninstall: true
+    when: IPA_DISTRO_FAMILY = rh
+tuned:
+    phase: post-install.d
+    uninstall: true
+    when: IPA_DISTRO_FAMILY = rh
+
+# Unnecessary packages to remove. We run all removals in pre-install phase, to
+# avoid breaking installs that happen in install phase.
+git:
+    phase: pre-install.d
+    uninstall: true
+man-db:
+    phase: pre-install.d
+    uninstall: true
+rsync:
+    phase: pre-install.d
+    uninstall: true
+
+# Distro-specific uninstalls
+kernel-debug-devel:
+    phase: pre-install.d
+    uninstall: true
+    when: IPA_DISTRO_FAMILY = rh
+mozjs60:
+    phase: pre-install.d
+    uninstall: true
+    when: IPA_DISTRO_FAMILY = rh
+plymouth:
+    phase: pre-install.d
+    uninstall: true
+    when: IPA_DISTRO_FAMILY = rh
+python3-cairo:
+    phase: pre-install.d
+    uninstall: true
+    when: IPA_DISTRO_FAMILY = rh
+python3-gobject-base:
+    phase: pre-install.d
+    uninstall: true
+    when: IPA_DISTRO_FAMILY = rh
+yum:
+    phase: pre-install.d
+    uninstall: true
+    when: DISTRO_NAME = fedora
