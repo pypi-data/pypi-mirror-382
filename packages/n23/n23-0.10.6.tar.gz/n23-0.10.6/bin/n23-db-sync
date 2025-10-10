@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+#
+# n23 - data acquisition and processing framework
+#
+# Copyright (C) 2013-2023 by Artur Wroblewski <wrobell@riseup.net>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+"""
+Synchronize N23 databases.
+"""
+
+import argparse
+import asyncio
+import asyncpg  # type: ignore
+import asyncpg.cursor  # type: ignore
+import logging
+import typing as tp
+import sys
+import dataclasses as dtc
+from collections.abc import Iterable
+from datetime import datetime
+from functools import partial, singledispatch
+from itertools import product
+
+from n23.storage.pg.core import to_db_uri, connect
+
+logger = logging.getLogger()
+
+EPOCH = datetime.utcfromtimestamp(0)
+
+# number of rows to fetch from source table in a single iteration
+DEFAULT_CHUNK_SIZE = 10 ** 5
+
+@dtc.dataclass
+class SynchronizeTable:
+    source: str
+    target: str
+    table: str
+    limit: int
+
+@dtc.dataclass
+class SynchronizeSegment(SynchronizeTable):
+    segment: str
+    value: str
+
+fetch_data_fmt = 'select * from {} where time > $1 order by time limit $2'.format
+fetch_data_segment_fmt = 'select * from {} where time > $1 and {} = $2 order by time limit $3'.format
+
+fetch_last_time_fmt = 'select max(time) from {}'.format
+fetch_last_time_segment_fmt = 'select max(time) from {} where {} = $1'.format
+
+async def set_postgis_types(conn: asyncpg.Connection) -> None:
+    """
+    Add optional PostGIS support.
+    """
+    try:
+        await conn.set_type_codec(
+            'geometry',  # also works for 'geography'
+            encoder=lambda v: v,
+            decoder=lambda v: v,
+            format='binary',
+        )
+    except ValueError as ex:
+        if str(ex).startswith('unknown type: '):
+            logger.info('postgis not enabled, skipping type registration')
+        else:
+            raise
+
+@singledispatch
+async def fetch_last_time(
+        sync: SynchronizeTable | SynchronizeSegment,
+        conn: asyncpg.Connection,
+    ) -> datetime:
+    raise NotImplementedError('Unknown type: {}'.format(type(sync)))
+
+@fetch_last_time.register
+async def _fetch(sync: SynchronizeTable, conn: asyncpg.Connection) -> datetime:
+    query = fetch_last_time_fmt(sync.table)
+    last = await extract_last_time(conn, query)
+    logger.info( 'last timestamp in table {}: {}'.format(sync.table, last))
+    return last
+
+@fetch_last_time.register
+async def _fetch_segment(
+        sync: SynchronizeSegment,
+        conn: asyncpg.Connection,
+    ) -> datetime:
+    query = fetch_last_time_segment_fmt(sync.table, sync.segment)
+    last = await extract_last_time(conn, query, sync.value)
+    logger.info( 'last timestamp in table {} for segment {}={}: {}'.format(
+        sync.table, sync.segment, sync.value, last
+    ))
+    return last
+
+async def extract_last_time(
+        conn: asyncpg.Connection, query: str, *args: tp.Any
+    ) -> datetime:
+    data = await conn.fetchrow(query, *args)
+    last = data[0] if data[0] else EPOCH
+    return last
+
+@singledispatch
+async def read_data(
+        sync: SynchronizeTable | SynchronizeSegment,
+        conn: asyncpg.Connection,
+        last: datetime,
+    ) -> asyncpg.cursor.Cursor:
+    raise NotImplementedError('Unknown type: {}'.format(type(sync)))
+
+@read_data.register
+async def _read_data(
+        sync: SynchronizeTable,
+        conn: asyncpg.Connection,
+        last: datetime,
+    ) -> asyncpg.cursor.Cursor:
+    query = fetch_data_fmt(sync.table)
+    return await conn.cursor(query, last, sync.limit)
+
+@read_data.register
+async def _read_data_segment(
+        sync: SynchronizeSegment,
+        conn: asyncpg.Connection,
+        last: datetime,
+    ) -> asyncpg.cursor.Cursor:
+    query = fetch_data_segment_fmt(sync.table, sync.segment)
+    return await conn.cursor(query, last, sync.value, sync.limit)
+
+async def write_data(
+        sync: SynchronizeTable | SynchronizeSegment,
+        conn: asyncpg.Connection,
+        data: asyncpg.cursor.Cursor,
+        size: int,
+    ) -> None:
+    columns = None
+    save_data = partial(conn.copy_records_to_table, sync.table)
+
+    while rows := await data.fetch(size, timeout=120):
+        if not columns:
+            columns = tuple(n for n in rows[0].keys())
+            logger.info('table {} columns: {}'.format(sync.table, ', '.join(columns)))
+
+        await save_data(records=rows, columns=columns)
+        logger.info('stored {} rows in {}'.format(len(rows), sync.table))
+
+async def copy_data(
+        sync: tp.Union[SynchronizeTable, SynchronizeSegment], chunk: int
+    ) -> None:
+    async with connect(sync.source) as s_conn, connect(sync.target) as t_conn:  # type: ignore
+        await set_postgis_types(s_conn)
+        await set_postgis_types(t_conn)
+
+        last = await fetch_last_time(sync, t_conn)
+        data = await read_data(sync, s_conn, last)
+        await write_data(sync, t_conn, data, chunk)
+
+    logger.info('data sync for {} is successful'.format(sync.table))
+
+async def synchronize(args: argparse.Namespace) -> None:
+    source = to_db_uri(args.source)
+    target = to_db_uri(args.target)
+    segment, *segment_value = args.segment
+
+    if segment and not segment_value:
+        raise SystemError(
+            'segment parameter requires at least two arguments'
+        )
+
+    sync: Iterable[SynchronizeSegment | SynchronizeTable]
+    if segment:
+        ctor_seg = partial(SynchronizeSegment, source, target, limit=args.limit)
+        items = product(args.table, segment_value)
+        sync = (ctor_seg(table=t, segment=segment, value=v) for t, v in items)
+    else:
+        ctor_tab = partial(SynchronizeTable, source, target, limit=args.limit)
+        sync = (ctor_tab(table=t) for t in args.table)
+
+    tasks = (copy_data(s, args.chunk_size) for s in sync)
+
+    # use connection pool in the future and run in parallel; add script
+    # parameter specifying how many parallel connections/executions are
+    # allowed
+    for t in tasks:
+        await t
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--verbose', default=False, action='store_true')
+parser.add_argument(
+    '-c', '--chunk-size', type=int, default=DEFAULT_CHUNK_SIZE,
+    help='size of rows chunk fetched from source table',
+)
+parser.add_argument('-l', '--limit', type=int, default=sys.maxsize)
+parser.add_argument('-s', '--segment', nargs='+', default=[None])
+parser.add_argument('source')
+parser.add_argument('table', nargs='+')
+parser.add_argument('target')
+
+args = parser.parse_args()
+
+level = logging.DEBUG if args.verbose else logging.WARN
+logging.basicConfig(level=level)
+
+asyncio.run(synchronize(args))
+
+# vim: sw=4:et:ai

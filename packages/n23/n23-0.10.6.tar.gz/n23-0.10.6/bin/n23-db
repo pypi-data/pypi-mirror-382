@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+#
+# n23 - data acquisition and processing framework
+#
+# Copyright (C) 2013-2025 by Artur Wroblewski <wrobell@riseup.net>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+"""
+Create N23 database DDL file.
+"""
+
+import argparse
+import binascii
+import logging
+import typing as tp
+
+from n23.storage.config import read_db_config, Entity, Column
+
+logger = logging.getLogger(__name__)
+
+META_DDL = """
+create schema if not exists n23db_meta;
+create table if not exists n23db_meta.changelog (
+    version varchar(12),
+    applied_on timestamptz,
+    checksum char(8),
+    primary key (version)
+);
+"""
+
+class Printer:
+    def __init__(self) -> None:
+        self.crc = 0
+
+    def __call__(self, fmt: str, *args: tp.Any, end: str=';') -> None:
+        ddl = fmt.format(*args) if args else fmt
+        to_print = ddl + end
+        print(to_print)
+
+        self.crc = binascii.crc32(to_print.encode(), self.crc)
+
+    def checksum(self) -> str:
+        return '{:08x}'.format(self.crc)
+
+print_ddl = Printer()
+
+def print_ddl_columns(columns: list[Column]) -> None:
+    """
+    Print DDL statements for table columns.
+    """
+    nullable = lambda c: '' if c.nullable else ' not null'
+    items = (
+            '{} {}{}'.format(c.name, c.type, nullable(c))  # type: ignore[no-untyped-call]
+        for c in columns
+    )
+    ddl = ',\n    '.join(items)
+    print_ddl('    ' + ddl, end=',')
+
+def print_ddl_pk(table: Entity) -> None:
+    if table.partition_by:
+        print_ddl('    primary key ({}, time)'.format(table.partition_by), end='')
+    else:
+        print_ddl('    primary key (time)', end='')
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--verbose', action='store_true', default=False,
+    help='Explain what is being done',
+)
+parser.add_argument('path', help='Resource path to database definition file')
+
+args = parser.parse_args()
+
+level = logging.DEBUG if args.verbose else logging.WARN
+logging.basicConfig(level=level)
+
+config = read_db_config(args.path)
+role = config.storage.role
+extensions = config.storage.extensions
+
+print_ddl(r'\set ON_ERROR_STOP true', end='')
+for ext in extensions:
+    print_ddl('create extension if not exists "{}"', ext)
+
+is_timescaledb = 'timescaledb' in extensions
+
+print_ddl("""\
+select 'create role "{role}" with login'
+where not exists (
+    select from pg_catalog.pg_roles where rolname = '{role}'
+)\\gexec
+""".format(role=role))
+
+print_ddl(META_DDL, end='')
+
+for table in config.entities:
+    chunk = table.chunk
+    print_ddl('\n-- table: {}', table.name, end='')
+    print_ddl('create table if not exists "{}" (', table.name, end='')
+    print_ddl('    time timestamptz not null,', end='')
+    print_ddl_columns(table.columns)
+    print_ddl_pk(table)
+    if is_timescaledb:
+        print_ddl(') with (', end='')
+        print_ddl('    tsdb.hypertable', end=',')
+        print_ddl('    tsdb.partition_column=\'time\'', end=',')
+        if chunk != 'none':
+            print_ddl('    tsdb.chunk_interval=\'{}\'', chunk, end=',')
+        if table.partition_by:
+            print_ddl('    tsdb.segment_by=\'{}\'', table.partition_by, end=',')
+        print_ddl('    tsdb.order_by=\'time desc\'', end='')
+    print_ddl(')')
+
+    print_ddl(
+        'grant select, insert on table "{}" to "{}"',
+        table.name,
+        role,
+    )
+
+    if chunk != 'none':
+        print_ddl(
+            'call add_columnstore_policy(\'{}\', after => interval \'{}\', if_not_exists => true)',
+            table.name,
+            chunk,
+        )
+
+if config.sql:
+    print_ddl('\n{}', config.sql, end='')
+
+print_ddl('\n-- last line included in checksum', end='')
+
+print_ddl("""
+insert into n23db_meta.changelog (version, applied_on, checksum)
+values ('{version}', now(), '{csum}')
+on conflict (version) do update
+    set applied_on = now(), checksum = '{csum}'""".format(
+        version=config.storage.version, csum=print_ddl.checksum()
+))
+
+# vim: sw=4:et:ai
