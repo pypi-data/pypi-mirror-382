@@ -1,0 +1,1 @@
+sphinx-autobuild -E source build/html %*

@@ -1,0 +1,39 @@
+name: build and deploy 
+on: 
+  push:
+    branches:
+      - master
+jobs: 
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps: 
+      # 
+      # checkout the repository
+      #
+      - uses: actions/checkout@v3
+  
+      #
+      # setup python environment
+      #
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' 
+
+      - run: pip install sphinx myst_parser beautifulsoup4
+
+      #
+      # build the document
+      #
+      - run: make html
+        working-directory: ./docs
+
+      #
+      # publish
+      # 
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        if: success() && github.ref == 'refs/heads/master'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/build/html
+
