@@ -1,0 +1,146 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/izumi/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/izumi"]
+
+[tool.hatch.build]
+exclude = [
+    "tests/",
+    "demo/",
+    "debug/",
+    "scripts.py",
+    "pyrightconfig.json",
+    "uv.lock",
+    ".venv/",
+    ".pytest_cache/",
+    "__pycache__/",
+]
+
+[project]
+name = "chibi-izumi"
+dynamic = ["version"]
+requires-python = ">=3.12.0"
+dependencies = [
+    "beartype>=0.19.0",
+]
+authors = [
+    { name="Pavel Shirshov", email="pavel@7mind.io" },
+]
+description = "Simplified implementation of Staged Dependency Injection from Scala's distage library of Izumi Project"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+
+[project.urls]
+Homepage = "https://github.com/7mind/izumi-chibi-py"
+Issues = "https://github.com/7mind/izumi-chibi-py/issues"
+
+[dependency-groups]
+dev = [
+    "build>=1.0.0",
+    "deptry>=0.23.1",
+    "hatchling>=1.27.0",
+    "mypy>=1.17.1",
+    "pyright>=1.1.405",
+    "ruff>=0.12.10",
+    "twine>=6.0.0",
+    #
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "pytest-mock>=3.14.1",
+    "pytest-xdist>=3.8.0",
+    "phmdoctest>=1.4.0",
+]
+
+# Development scripts
+# Run: uv run python scripts.py <command>
+# Available commands: check, test, lint, typecheck
+
+
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "UP",    # pyupgrade
+    "ARG",   # flake8-unused-arguments
+    "SIM",   # flake8-simplify
+    "B008",  # do not perform function calls in argument defaults
+    "W191",  # indentation contains tabs
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+# Parallel execution settings
+# Note: Using conservative defaults. Use test_parallel.sh for different modes
+addopts = [
+    "-v",                      # Verbose output
+    "--strict-markers",        # Enforce marker registration
+    "--tb=short",             # Shorter traceback format
+    "--dist=worksteal",       # Dynamic test distribution (better than default 'load')
+    "-n", "4",                # Use 4 workers by default (good balance)
+    "--maxprocesses=8",       # Cap at 8 processes to avoid resource exhaustion
+]
+# Test markers for selective execution
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "gpu: marks tests that require GPU",
+]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_unimported = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+check_untyped_defs = true
+strict_equality = true
+ignore_missing_imports = false
+exclude_gitignore = true
+strict = true
+exclude = [
+    "tests/",
+    "demo/",
+    "debug/",
+]
+
+[[tool.mypy.overrides]]
+module = [
+]
