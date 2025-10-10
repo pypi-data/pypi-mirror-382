@@ -1,0 +1,785 @@
+// protolint:disable MAX_LINE_LENGTH
+
+// Frequenz Dispatch Automation API
+//
+// Copyright:
+// Copyright 2022 Frequenz Energy-as-a-Service GmbH
+//
+// License:
+// MIT
+
+syntax = "proto3";
+
+package frequenz.api.dispatch.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+import "frequenz/api/common/v1alpha8/microgrid/electrical_components/electrical_components.proto";
+import "frequenz/api/common/v1alpha8/pagination/pagination_info.proto";
+import "frequenz/api/common/v1alpha8/pagination/pagination_params.proto";
+import "frequenz/api/common/v1alpha8/streaming/event.proto";
+import "frequenz/api/common/v1alpha8/types/interval.proto";
+
+// Service providing operations related to dispatching microgrid components.
+//
+// #### Overview
+//
+// The API serves to automate the process of electricity dispatches for microgrids.
+// In the context of the energy industry, a 'dispatch' refers to the act of routing electrical power
+// between different components within a microgrid or between a microgrid and the main grid.
+// This could be for the purpose of supply (sending electricity to the grid or components within the microgrid),
+// or demand (drawing electricity from the grid or from other components like batteries and solar arrays).
+//
+// #### Objective
+//
+// The primary objective of this API is to streamline and automate the complex task of electricity dispatching,
+// making it easier to manage local electricity supply and demand efficiently.
+//
+// #### Key Features
+//
+// - Dispatching Electricity: Comprehensive CRUD operations for dispatching microgrid components.
+// - Automation: Support for one-time as well as recurring dispatches based on flexible recurrence rules.
+// - Fine-grained control: Dispatch individual microgrid components or entire component categories.
+//
+// #### Example Use Cases
+//
+// - Charging or discharging a battery based on optimal time-of-use rates.
+// - Limiting the output of a Photovoltaic (PV) array during periods of low demand.
+// - Invoking Frequency Containment Reserves (FCR) or Automatic Frequency Restoration Reserves (aFRR) to
+//    support grid operations.
+// - Adjusting the output of electric vehicle charging stations to match grid availability or to avoid peak pricing.
+//
+// #### Target Audience
+//
+// This API is designed for application developers in the energy sector who focus on the tasks of optimizing microgrid
+// electricity flows. Its design aims to be as developer-friendly as possible, requiring no prior knowledge in
+// electrical engineering and systems.
+//
+// #### Security
+//
+// ALL requests to this service must be signed. The key and signature
+// should be added to the request metadata (HTTP headers). The signature
+// should be computed using the HMAC-SHA256 algorithm and the user's secret key.
+//
+// ALL requests to this service must be made over HTTPS.
+service MicrogridDispatchService {
+  // Returns a list of all dispatches
+  rpc ListMicrogridDispatches(ListMicrogridDispatchesRequest) returns (ListMicrogridDispatchesResponse);
+
+  // Streaming RPC for receiving dispatch updates for a given microgrid
+  rpc StreamMicrogridDispatches(StreamMicrogridDispatchesRequest) returns (stream StreamMicrogridDispatchesResponse);
+
+  // Create a new dispatch
+  rpc CreateMicrogridDispatch(CreateMicrogridDispatchRequest) returns (CreateMicrogridDispatchResponse);
+
+  // Update a dispatch
+  rpc UpdateMicrogridDispatch(UpdateMicrogridDispatchRequest) returns (UpdateMicrogridDispatchResponse);
+
+  // Get a single dispatch
+  rpc GetMicrogridDispatch(GetMicrogridDispatchRequest) returns (GetMicrogridDispatchResponse);
+
+  // Delete a given dispatch
+  rpc DeleteMicrogridDispatch(DeleteMicrogridDispatchRequest) returns (DeleteMicrogridDispatchResponse);
+}
+
+// Subscribe to a stream of microgrid dispatch requests.
+// This method provides real-time updates on newly or updated dispatch requests for edge-based
+// realtime decision making.
+message StreamMicrogridDispatchesRequest {
+  // ID of the microgrid to subscribe to
+  uint64 microgrid_id = 1;
+}
+
+// Response to a subscription request for a stream of microgrid dispatches.
+// Real-time information on dispatches affecting a certain microgrid are pushed through this response.
+message StreamMicrogridDispatchesResponse {
+  // Dispatch record returned.
+  Dispatch dispatch = 1;
+
+  // Which event this response was triggered by
+  frequenz.api.common.v1alpha8.streaming.Event event = 2;
+}
+
+// Represents a dispatches data, including its type, start time, duration,
+// and target microgrid components.
+//
+// This `DispatchData` message describes a single dispatch instance. If a dispatch is set to recur,
+// each occurrence is defined by `DispatchData` in combination with `RecurrenceRule`.
+//
+// !!! note "Indefinite Durations"
+//     This API allows dispatches to have an indefinite duration if the `duration` field
+//     is not set. Indefinite means:
+//     - There is no predefined end time known at dispatch creation.
+//     - The dispatch could, in theory, run indefinitely if no external conditions stop it.
+//     - External logic or changing conditions may end the dispatch at any time. For example,
+//       once a certain operational goal is met (like reaching a particular state-of-charge),
+//       the dispatch may end, or it may be allowed to continue if conditions warrant it.
+//     - Indefinite durations apply to each occurrence individually—every instance of a recurring
+//       dispatch can also be indefinite.
+//
+//     For instance, a dispatch might aim to keep a battery’s SoC stable. If conditions never
+//     change, it could theoretically run forever. Conversely, another indefinite dispatch might
+//     end as soon as a particular SoC goal is reached.
+//
+// !!! note "Recurring Indefinite Dispatches"
+//     How recurring indefinite dispatches are managed is implementation-dependent.
+//     A key consideration is how to handle overlapping occurrences. For example, if a new
+//     dispatch is scheduled to start while a previous one is still running, the system
+//     needs a strategy to manage this.
+//
+//     Commonly used approaches include:
+//     1.  **Start a new instance:** Each dispatch occurrence creates a new, independent
+//         instance that runs in parallel with any existing ones. This can lead to
+//         multiple dispatches "stacking up" if not managed carefully.
+//     2.  **Overwrite existing instances:** A new dispatch can replace an existing one
+//         based on certain criteria, such as having the same `type` or `target`
+//         components. This prevents multiple dispatches from running for the same
+//         purpose simultaneously.
+//
+//     The chosen strategy is critical for preventing resource contention and ensuring
+//     predictable behavior, especially with indefinite, recurring dispatches.
+//
+// !!! note "Timestamps"
+//     Timestamps are in UTC. It is the responsibility of the receiver to translate UTC
+//     to respective local timezone.
+//
+message DispatchData {
+  // The dispatch type.
+  // Contains user-defined information about what "type" of dispatch this is.
+  // Downstream applications that consume the dispatch API are responsible for
+  // understanding and processing this field.
+  string type = 1;
+
+  // The dispatch start time in UTC.
+  // For reoccuring dispatches this is when the first time execution occurs. When
+  // creating a dispatch, ensure that the starting timestamp is set to the current
+  // time or any future time. Timestamps earlier than the current time are not allowed.
+  google.protobuf.Timestamp start_time = 2;
+
+  // Duration in seconds
+  // The duration of the dispatch in seconds. If the duration is not set, the dispatch
+  // will be considered to have an indefinite duration.
+  //
+  // A duration of 0 seconds is also valid, indicating a dispatch that
+  // immediately starts and ends, e.g. switching a component on and off.
+  //
+  // Indefinite durations do not guarantee an eventual end; they continue until external logic changes it.
+  optional uint32 duration = 3;
+
+  // The components this dispatch should apply to.
+  TargetComponents target = 4;
+
+  // The "active" status
+  // An active dispatch is eligible for processing, either immediately or at a scheduled
+  // time in the future, including recurring dispatches. If a dispatch is set to
+  // inactive, it won't be processed even if it matches all other conditions, allowing
+  // for temporary disabling of dispatches without deletion.
+  bool is_active = 5;
+
+  // The "dry run" status
+  // A dry run dispatch is executed for logging and monitoring purposes
+  // without affecting the microgrid components. This is useful, for example,
+  // in scenarios where a user may want to test dispatch behavior without
+  // actually affecting any component states.
+  // Notably, a dispatch can be both "dry run" and "active," allowing for
+  // the system to generate logs and observe behavior without making actual changes.
+  bool is_dry_run = 6;
+
+  // The dispatch payload.
+  //
+  // Note!!!
+  //     The payload field allows for flexible JSON data to be associated with this dispatch.
+  //     The payload must adhere to the following constraints:
+  //      - Maximum JSON nesting depth: 5 levels.
+  //      - The data should not contain executable code or scripts.
+  //      - Ensure all data is properly sanitized and encoded.
+  //      - The total size of the payload should not exceed 50 KB.
+  //
+  // The payload is expected to follow a specific format that the downstream applications consuming the dispatch API
+  // are responsible for understanding and processing.
+  //
+  // Example JSON payload:
+  // {
+  //   "settings": {
+  //     "power_max": 10,   // Maximum power level for the dispatch (in kW)
+  //     "soc_min": 20,     // Minimum state of charge for battery storage (in %)
+  //     "soc_max": 80      // Maximum state of charge for battery storage (in %)
+  //   }
+  // }
+  //
+  // In this example, a microgrid could use this payload to set operational parameters such as the maximum power output
+  // of a solar PV array or the charge/discharge limits of a battery storage system. This flexibility allows the microgrid
+  // to dynamically adjust its behavior based on the current needs or conditions, such as optimizing battery usage or
+  // limiting PV output during low demand periods.
+  google.protobuf.Struct payload = 7;
+
+  // The recurrence rule
+  RecurrenceRule recurrence = 8;
+}
+
+// Represents a dispatch, including its metadata
+message Dispatch {
+  // Dispatch Metadata (id, create time, etc)
+  DispatchMetadata metadata = 1;
+
+  // The dispatch data
+  DispatchData data = 2;
+}
+
+// Represents the metadata of a dispatch
+message DispatchMetadata {
+  // Unique identifier of the microgrid dispatch.
+  uint64 dispatch_id = 1;
+
+  // UTC Timestamp when the order was created.
+  google.protobuf.Timestamp create_time = 2;
+
+  // UTC time of the last update to the order.
+  google.protobuf.Timestamp update_time = 3;
+
+  // UTC Timestamp when the dispatch will stop working.
+  //
+  // Will be calculated internally based on the given: start_time,
+  // duration and `RecurrenceRule` settings. If the duration is not set (indefinite duration),
+  // there may be no calculable `end_time`. This means the dispatch does not have a
+  // predetermined stopping point and might run indefinitely. External logic, changes in
+  // conditions, or achieving certain operational goals may lead to its termination. If no
+  // such terminating condition occurs, it may effectively continue "forever."
+  //
+  // None if dispatch duration time is unset and this value can't be calculated.
+  google.protobuf.Timestamp end_time = 4;
+}
+
+// Parameters for filtering the dispatch list
+message DispatchFilter {
+  // Recurrence filters
+  //
+  // The fields are left commented out for now as the exact definition and requirements
+  // for recurrence filtering are still being finalized.
+  message RecurrenceFilter {
+    // The frequency specifier of this recurring dispatch
+    //optional RecurrenceRule.Frequency freq = 1;
+
+    //// How often this dispatch should recur, based on the frequency
+    //// Example:
+    //// - Every 2 hours:
+    ////   freq = FREQUENCY_HOURLY
+    ////   interval = 2
+    //// Valid values typically range between 1 and 10_000, depending on the implementation.
+    //optional uint32 interval = 2;
+
+    //// When this dispatch should end.
+    //// A dispatch can either recur a fixed number of times, or until a given timestamp.
+    //// If this field is not set, the dispatch will recur indefinitely.
+    //optional EndCriteria end_criteria = 3;
+
+    //// On which minute(s) of the hour does the event occur
+    //repeated uint32 byminutes = 4;
+
+    //// On which hour(s) of the day does the event occur
+    //repeated uint32 byhours = 5;
+
+    //// On which day(s) of the week does the event occur
+    //repeated RecurrenceRule.Weekday byweekdays = 6;
+
+    //// On which day(s) of the month does the event occur. Valid values are 1 to 31 or -31 to -1.
+    ////
+    //// For example, -10 represents the tenth to the last day of the month.
+    //// The bymonthdays rule part MUST NOT be specified when the FREQ rule part is set to WEEKLY.
+    //repeated int32 bymonthdays = 7;
+
+    //// On which month(s) of the year does the event occur
+    //repeated uint32 bymonths = 8;
+  }
+
+  // Optional filter by component ID or category.
+  repeated TargetComponents targets = 1;
+
+  // Optional filter by active status.
+  // If this field is not set, dispatches of any active status will be included.
+  optional bool is_active = 2;
+
+  // Optional filter by dry run status.
+  // If this field is not set, dispatches of any dry run status will be included.
+  optional bool is_dry_run = 3;
+
+  // Optional filter by recurrence fields.
+  oneof recurrence {
+    // Filter by recurring status
+    // True: Only recurring dispatches will be returned.
+    // False: Only non-recurring dispatches will be returned.
+    // Examples:
+    // - To retrieve only recurring dispatches:
+    //   filter { recurrence { is_recurring: true } }
+    // - To retrieve only non-recurring dispatches:
+    //   filter { recurrence { is_recurring: false } }
+    // - To retrieve all dispatches:
+    //   filter { recurrence {} }
+    // For advanced recurrence filtering, use the `filter` field.
+    bool is_recurring = 4;
+
+    // Filter by recurrence details
+    // Examples:
+    // - To retrieve only recurring dispatches with a specific frequency:
+    //   filter { recurrence { filter { freq: FREQUENCY_DAILY } } }
+    // - To retrieve recurring dispatches with a specific frequency and interval:
+    //   filter { recurrence { filter { freq: FREQUENCY_HOURLY, interval: 2 } } }
+    // - To retrieve recurring dispatches that end after a specific criteria:
+    //   filter { recurrence { filter { end_criteria: { count: 10 } } } }
+    // - To retrieve recurring dispatches at specific minutes of the hour:
+    //   filter { recurrence { filter { byminutes: [0, 15, 30, 45] } } }
+    // - To retrieve recurring dispatches at specific hours of the day:
+    //   filter { recurrence { filter { byhours: [8, 12, 16] } } }
+    // - To retrieve recurring dispatches on specific days of the week:
+    //   filter { recurrence { filter { byweekdays: [WEEKDAY_MONDAY, WEEKDAY_WEDNESDAY] } } }
+    // - To retrieve recurring dispatches on specific days of the month:
+    //   filter { recurrence { filter { bymonthdays: [1, 15, 30, -1] } } }
+    // - To retrieve recurring dispatches in specific months of the year:
+    //   filter { recurrence { filter { bymonths: [1, 6, 12] } } }
+    RecurrenceFilter filter = 5;
+  }
+
+  // Optional filter by start time.
+  // If no interval is provided, all dispatches will be returned.
+  frequenz.api.common.v1alpha8.types.Interval start_time_interval = 6;
+
+  // Optional filter by end time
+  // Filter dispatches based on their explicit end time.
+  frequenz.api.common.v1alpha8.types.Interval end_time_interval = 7;
+
+  // Optional filter by update time
+  frequenz.api.common.v1alpha8.types.Interval update_time_interval = 8;
+
+  // Optional filter by dispatch IDs.
+  // If this field is not set, dispatches with any ID will be included.
+  // Multiple IDs are combined with an OR relationship.
+  repeated uint64 dispatch_ids = 9;
+
+  // Optional free-text search filter.
+  //
+  // This filter is applied to the dispatch `id` and `type` fields.
+  // The `queries` filter combines multiple queries with an OR relationship.
+  //
+  // ID tokens are preceded by a `#` so we can tell if an id is intended or a type.
+  //
+  // - input of [`#4`] will match only the record with id of `4`
+  // - input of [`bar`] will match `bar` and `foobar`
+  // - input of [`#4`, `#24`, `bar`, `foo`] will match ids of `4` and `24` and types `foo` `bar` `foobar` `foolish bartender`
+  repeated string queries = 10;
+}
+
+// Parameter for controlling which components a dispatch applies to
+// either a set of component IDs, or a set of component categories (with optional type).
+// Examples:
+// - To dispatch to a set of component IDs:
+//   components { component_ids { ids: [1, 2, 3] } }
+// - To dispatch to a set of component categories:
+//   components {
+//     component_categories {
+//       categories: [
+//         {category: COMPONENT_CATEGORY_BATTERY, type: BATTERY_TYPE_LI_ION},
+//         {cateogry: COMPONENT_CRYPTO_MINER}
+//       ]
+//     }
+//   }
+message TargetComponents {
+  // Wrapper for controlling dispatches with a set of component IDs
+  // Required as we can't use `repeated` directly in a `oneof`
+  message IdSet {
+    // Set of component IDs
+    repeated uint64 ids = 1;
+  }
+
+  // Deprecated: Use `CategoryTypeSet` instead
+  message CategorySet {
+    option deprecated = true;
+    // Set of component categories
+    repeated frequenz.api.common.v1alpha8.microgrid.electrical_components
+        .ElectricalComponentCategory categories = 1;
+  }
+
+  // Wrapper for controlling dispatches with a set of component categories and optional types
+  // Required as we can't use `repeated` directly in a `oneof`
+  message CategoryTypeSet {
+    // Set of component categories
+    repeated CategoryAndType categories = 1;
+  }
+
+  // A tuple of a required category and an optional type
+  // If a type is specified, it must be a valid type for the given category and
+  // only components of that type will be targeted.
+  message CategoryAndType {
+    // The category of the target component (required)
+    frequenz.api.common.v1alpha8.microgrid.electrical_components
+        .ElectricalComponentCategory category = 1;
+
+    // The type of the target component (optional)
+    oneof type {
+      // The type of battery
+      // Only applicable if the category is COMPONENT_CATEGORY_BATTERY
+      frequenz.api.common.v1alpha8.microgrid.electrical_components.BatteryType
+          battery = 2;
+
+      // The type of solar array
+      // Only applicable if the category is COMPONENT_CATEGORY_INVERTER
+      frequenz.api.common.v1alpha8.microgrid.electrical_components.InverterType
+          inverter = 3;
+
+      // The type of EV charger
+      // Only applicable if the category is COMPONENT_CATEGORY_EV_CHARGER
+      frequenz.api.common.v1alpha8.microgrid.electrical_components.EvChargerType
+          ev_charger = 4;
+    }
+  }
+
+  oneof components {
+    // Set of component IDs
+    IdSet component_ids = 1;
+
+    // Deprecated: Component categories
+    // Use `CategoryTypeSet` instead
+    // In future versions, this field will be removed.
+    CategorySet component_categories = 2 [deprecated = true];
+
+    // Component categories with optional types
+    CategoryTypeSet component_categories_types = 3;
+  }
+}
+
+// Ruleset governing when and how a dispatch should re-occur.
+//
+// Timezone Note: Timestamps are in UTC. It is the responsibility of each microgrid to translate UTC
+// to its local timezone.
+//
+// This definition tries to adhere closely to the iCalendar specification ([RFC5545]),
+// particularly for recurrence rules. For advanced use-cases or further clarifications,
+// refer to [RFC5545].
+//
+// [RFC5545]: https://tools.ietf.org/html/rfc5545
+//
+// #### Examples
+//
+// ##### Every 6 months
+//
+// ```proto
+// message RecurrenceRule {
+//   Frequency freq = FREQUENCY_MONTHLY;
+//   uint32 interval = 6;
+// }
+// ```
+//
+// ##### Weekends only
+//
+// ```proto
+// message RecurrenceRule {
+//   Frequency freq = FREQUENCY_WEEKLY;
+//   repeated Weekday byweekdays = [WEEKDAY_SATURDAY, WEEKDAY_SUNDAY];
+// }
+// ```
+//
+// ##### At midnight
+//
+// Every day at midnight.
+//
+// ```proto
+// message RecurrenceRule {
+//   Frequency freq = FREQUENCY_DAILY;
+//   repeated uint32 byhours = [0];
+// }
+// ```
+//
+// ##### Nightly
+//
+// Assuming "night" means from 8 PM to 6 AM.
+//
+// ```proto
+// message RecurrenceRule {
+//   Frequency freq = FREQUENCY_DAILY;
+//   repeated uint32 byhours = [20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
+// }
+// ```
+message RecurrenceRule {
+  // Enum representing the day of the week
+  enum Weekday {
+    WEEKDAY_UNSPECIFIED = 0;
+    WEEKDAY_MONDAY = 1;
+    WEEKDAY_TUESDAY = 2;
+    WEEKDAY_WEDNESDAY = 3;
+    WEEKDAY_THURSDAY = 4;
+    WEEKDAY_FRIDAY = 5;
+    WEEKDAY_SATURDAY = 6;
+    WEEKDAY_SUNDAY = 7;
+  }
+
+  // Enum representing the frequency of the recurrence
+  enum Frequency {
+    FREQUENCY_UNSPECIFIED = 0;
+    FREQUENCY_MINUTELY = 1;
+    FREQUENCY_HOURLY = 2;
+    FREQUENCY_DAILY = 3;
+    FREQUENCY_WEEKLY = 4;
+    FREQUENCY_MONTHLY = 5;
+    FREQUENCY_YEARLY = 6;
+  }
+
+  // Controls when a recurring dispatch should end
+  message EndCriteria {
+    oneof count_or_until {
+      // The number of times this dispatch should recur.
+      // If this field is set, the dispatch will recur the given number of times.
+      // Valid values are 1 to 4096.
+      uint32 count = 1;
+
+      // The end time of this dispatch in UTC.
+      // If this field is set, the last recurrence event will start before this
+      // timestamp.
+      // Note that the duration of the event is not considered in this value,
+      // so the dispatch may end after the timestamp.
+      google.protobuf.Timestamp until_time = 2;
+    }
+  }
+
+  // The frequency specifier of this recurring dispatch
+  Frequency freq = 1;
+
+  // How often this dispatch should recur, based on the frequency
+  // Example:
+  // - Every 2 hours:
+  //   freq = FREQUENCY_HOURLY
+  //   interval = 2
+  // Valid values typically range between 1 and 10_000, depending on the implementation.
+  uint32 interval = 2;
+
+  // When this dispatch should end.
+  // A dispatch can either recur a fixed number of times, or until a given timestamp.
+  // If this field is not set, the dispatch will recur indefinitely.
+  EndCriteria end_criteria = 3;
+
+  // On which minute(s) of the hour does the event occur
+  repeated uint32 byminutes = 4;
+
+  // On which hour(s) of the day does the event occur
+  repeated uint32 byhours = 5;
+
+  // On which day(s) of the week does the event occur
+  repeated Weekday byweekdays = 6;
+
+  // On which day(s) of the month does the event occur. Valid values are 1 to 31 or -31 to -1.
+  //
+  // For example, -10 represents the tenth to the last day of the month.
+  // The bymonthdays rule part MUST NOT be specified when the FREQ rule part is set to WEEKLY.
+  repeated int32 bymonthdays = 7;
+
+  // On which month(s) of the year does the event occur
+  repeated uint32 bymonths = 8;
+}
+
+// Enum for the fields to by sorted by.
+enum SortField {
+  // UNSPECIFIED: Default, unspecified sort field.
+  SORT_FIELD_UNSPECIFIED = 0;
+
+  // START_TIME: Sort by start time of the dispatch.
+  SORT_FIELD_START_TIME = 1;
+
+  // CREATE_TIME: Sort by creation time of the dispatch.
+  SORT_FIELD_CREATE_TIME = 2;
+
+  // UPDATE_TIME: Sort by last update time of the dispatch.
+  SORT_FIELD_LAST_UPDATE_TIME = 3;
+}
+
+// Enum for sort order.
+enum SortOrder {
+  // UNSPECIFIED: Default, unspecified sort order.
+  SORT_ORDER_UNSPECIFIED = 0;
+
+  // ASCENDING: Results are returned in ascending order.
+  SORT_ORDER_ASCENDING = 1;
+
+  // DESCENDING: Results are returned in descending order.
+  SORT_ORDER_DESCENDING = 2;
+}
+
+// Message defining parameters for sorting list requests.
+//
+// Example Usage:
+// To retrieve dispatches sorted by creation time in descending order:
+// sort_options: { field: CREATE_TIME, order: DESCENDING }
+//
+message SortOptions {
+  // Optional field by which to sort the results.
+  SortField sort_field = 1;
+
+  // Optional Order in which to sort the results.
+  SortOrder sort_order = 2;
+}
+
+// Message for listing dispatches for a given microgrid.
+//
+// Allows retrieval of dispatches for a specified microgrid with optional filtering and sorting.
+// Sorting can be specified by setting 'sort_field' and 'sort_order'. If no sorting is specified,
+// the results will be returned by their create time in a descending order.
+message ListMicrogridDispatchesRequest {
+  // The microgrid ID
+  uint64 microgrid_id = 1;
+
+  // Optional filters to apply
+  DispatchFilter filter = 2;
+
+  // Sorting options for the result
+  SortOptions sort_options = 3;
+
+  // Pagination Parameters
+  // page_size: Amount of items to return per page. Should only be provided in the first request.
+  // page_token: Cursor to specify which page to return. Should not be set in the first request.
+  //             Should be populated in subsequent requests by the `next_page_token` found in
+  //             the `pagination_info` in the response.
+  //             The tokens stays valid indefinitely.
+  frequenz.api.common.v1alpha8.pagination.PaginationParams pagination_params = 4;
+}
+
+// A list of dispatches
+message ListMicrogridDispatchesResponse {
+  // The dispatches
+  repeated Dispatch dispatches = 1;
+
+  // Pagination Info
+  // total_items: Total amount of entries found by the list request.
+  // next_page_token: Token that can be used to request the next page.
+  //                  Will be unset if no further pages exist.
+  frequenz.api.common.v1alpha8.pagination.PaginationInfo pagination_info = 2;
+}
+
+
+// Message to create a new dispatch with the given attributes
+message CreateMicrogridDispatchRequest {
+  // The microgrid identifier
+  uint64 microgrid_id = 1;
+
+  // Content of the dispatch to be created
+  DispatchData dispatch_data = 2;
+
+  // Optional, set start_time to NOW() (server-time) if set
+  optional bool start_immediately = 3;
+}
+
+// Response message for creating a new dispatch
+message CreateMicrogridDispatchResponse {
+  // The created dispatch
+  Dispatch dispatch = 1;
+}
+
+// Message to update the dispatch with the given ID, with the given attributes
+message UpdateMicrogridDispatchRequest {
+  // Message containing the updated dispatch attributes
+  message DispatchUpdate {
+    // Message containing the updated recurrence rule attributes
+    message RecurrenceRuleUpdate {
+      // The frequency specifier of this recurring dispatch
+      optional RecurrenceRule.Frequency freq = 1;
+
+      // How often this dispatch should recur, based on the frequency
+      optional uint32 interval = 2;
+
+      // When this dispatch should end.
+      RecurrenceRule.EndCriteria end_criteria = 3;
+
+      // On which minute(s) of the hour does the event occur
+      repeated uint32 byminutes = 4;
+
+      // On which hour(s) of the day does the event occur
+      repeated uint32 byhours = 5;
+
+      // On which day(s) of the week does the event occur
+      repeated RecurrenceRule.Weekday byweekdays = 6;
+
+      // On which day(s) of the month does the event occur. Valid values are 1 to 31 or -31 to -1.
+      //
+      // For example, -10 represents the tenth to the last day of the month.
+      // The bymonthdays rule part MUST NOT be specified when the FREQ rule part is set to WEEKLY.
+      repeated int32 bymonthdays = 7;
+
+      // On which month(s) of the year does the event occur
+      repeated uint32 bymonths = 8;
+    }
+
+    // The start time in UTC.
+    // When updating a dispatch, ensure that the starting timestamp is set to
+    // the current time or any future time.
+    // Timestamps earlier than the current time are not allowed.
+    google.protobuf.Timestamp start_time = 1;
+
+    // Duration in seconds
+    optional uint32 duration = 2;
+
+    // The target components
+    TargetComponents target = 3;
+
+    // The "active" status
+    optional bool is_active = 4;
+
+    // The dispatch payload
+    google.protobuf.Struct payload = 5;
+
+    // The recurrence rule
+    RecurrenceRuleUpdate recurrence = 6;
+  }
+
+  // ID of the microgrid
+  uint64 microgrid_id = 1;
+
+  // The dispatch identifier
+  uint64 dispatch_id = 2;
+
+  // Field mask specifying which fields should be updated
+  google.protobuf.FieldMask update_mask = 3;
+
+  // The updated dispatch attributes
+  DispatchUpdate update = 4;
+}
+
+// Response message for updating a dispatch
+message UpdateMicrogridDispatchResponse {
+  // The updated dispatch
+  Dispatch dispatch = 1;
+}
+
+// Message to get a single dispatch by its ID
+message GetMicrogridDispatchRequest {
+  // The microgrid ID that the dispatch belongs to
+  uint64 microgrid_id = 1;
+
+  // The dispatch identifier
+  uint64 dispatch_id = 2;
+}
+
+// Response message for getting a single dispatch
+message GetMicrogridDispatchResponse {
+  // The microgrid ID that the dispatch belongs to
+  uint64 microgrid_id = 1;
+
+  // The dispatch
+  Dispatch dispatch = 2;
+}
+
+// Message to delete a single dispatch by its ID
+message DeleteMicrogridDispatchRequest {
+  // The microgrid ID that the dispatch belongs to
+  uint64 microgrid_id = 1;
+
+  // The dispatch identifier
+  uint64 dispatch_id = 2;
+}
+
+// Response message for deleting a single dispatch
+message DeleteMicrogridDispatchResponse {
+  // The microgrid ID that the dispatch belonged to
+  uint64 microgrid_id = 1;
+
+  // The dispatch ID that was deleted
+  uint64 dispatch_id = 2;
+}
