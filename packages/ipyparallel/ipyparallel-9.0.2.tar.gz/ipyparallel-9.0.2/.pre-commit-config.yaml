@@ -1,0 +1,60 @@
+ci:
+  autoupdate_schedule: monthly
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.4
+    hooks:
+      - id: ruff
+        args:
+          - "--fix"
+        exclude_types:
+          - jupyter
+      - id: ruff
+        name: ruff (notebooks)
+        args:
+          - "--fix"
+        types:
+          - jupyter
+      - id: ruff-format
+        # run via nbqa to handle cell magics
+        exclude_types:
+          - jupyter
+  # run ruff via nbqa, which has better and configurable handling of cell magics
+  # than ruff itself
+  # but has trouble with isort rules
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.9.1
+    hooks:
+      - id: nbqa-ruff-format
+      - id: nbqa-ruff-check
+        args:
+          - --fix
+          # isort rules get confused in the temporary files
+          - --ignore=I
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: requirements-txt-fixer
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.19.0
+    hooks:
+      - id: eslint
+        files: \.[jt]sx?$ # *.js, *.jsx, *.ts and *.tsx
+        exclude: ipyparallel/nbextension/.*
+        types: [file]
+        additional_dependencies:
+          - "@typescript-eslint/eslint-plugin@2.27.0"
+          - "@typescript-eslint/parser@2.27.0"
+          - eslint@^6.0.0
+          - eslint-config-prettier@6.10.1
+          - eslint-plugin-prettier@3.1.4
+          - eslint-plugin-react@7.21.5
+          - typescript@4.1.3
