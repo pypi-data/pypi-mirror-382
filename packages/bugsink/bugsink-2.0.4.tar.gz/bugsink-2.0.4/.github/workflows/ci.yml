@@ -1,0 +1,242 @@
+name: Continuous Integration
+
+# we use the fact that MySQL and Postgres are part of the ubuntu image, which saves us from
+# "service container" complexities (but gives no choices in the version); this is also where
+# the confured username/passwords for mysql come from
+# approach inspired by https://blog.healthchecks.io/2020/11/using-github-actions-to-run-django-tests/
+
+on:
+  push:
+    # hardcoded list; GitHub does not support wildcards in branch names AFAICT
+    branches: [ "main", "1.4.x", "1.5.x", "1.6.x", "1.7.x", "2.0.x", "2.1.x", "2.2.x", "2.3.x", "2.4.x", "2.5.x", "2.6.x", "2.7.x", "2.8.x"]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:  # Enables manual invocation via "Run workflow" button in the Actions UI
+    inputs:
+      target_branch:
+        description: 'Branch to run workflow on'
+        required: false
+        default: 'main'
+
+env:
+  DJANGO_SETTINGS_MODULE: "bugsink.settings.development"
+
+jobs:
+  flake8:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: "Set up Python 3.11"
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"  # below 3.12 to avoid false positives inside f-string; https://github.com/PyCQA/pycodestyle/issues/1260
+    - name: Install Flake8
+      run: |
+        python -m pip install --upgrade flake8
+    - name: Run Flake8
+      run: |
+        # We ignore 2 classes of whitespace errors (which are useful in the local context,
+        # but not worth breaking the build).
+        # https://github.com/PyCQA/flake8/issues/515 shows a dead end of doing this "properly"
+        # so we just specify it on the command line
+        flake8 --extend-ignore=E127,E741,E501,E731 `git ls-files | grep py$`
+
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: Install Bandit and Plugins
+        run: |
+          pip install bandit spoils
+
+      - name: Run Bandit and format results
+        shell: bash
+        run: |
+          # set +e disables "exit on any non-zero command" behavior
+          # set +o pipefail disables GH's default "fail the whole pipeline if any stage fails"
+          set +e +o pipefail
+
+          # Note: .py files only; at the time of writing I checked the conf_templates/*.template
+          # also; but they had 2 False positives only (SECRET_KEY lives there by design) and I
+          # don't want to pollute templates that other people deal with with "nosec".
+          bandit_json_output=$( \
+            git ls-files \
+              | grep '\.py$' \
+              | xargs bandit -q -f json --ini .bandit \
+          )
+          bandit_exit_code=$?
+
+          echo "$bandit_json_output" \
+            | jq -r '
+                .results[]
+                | [ .filename
+                  , .line_number
+                  , .test_id
+                  , .issue_confidence
+                  , .issue_severity
+                  , .test_name
+                  ]
+                | @tsv
+              ' \
+            | column -t
+
+          if [[ $bandit_exit_code -ne 0 ]]; then
+            echo "Bandit found issues (exit code $bandit_exit_code)"
+            exit $bandit_exit_code
+          fi
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        db: [sqlite, mysql, postgres]
+        include:
+          - db: mysql
+            db_user: root
+            db_password: root
+          - db: postgres
+            db_user: bugsink
+            db_password: bugsink
+    env:
+      DB: ${{ matrix.db }}
+      DB_USER: ${{ matrix.db_user }}
+      DB_PASSWORD: ${{ matrix.db_password }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Start MySQL If Needed
+      if: matrix.db == 'mysql'
+      run: sudo systemctl start mysql.service
+    - name: Start PostgreSQL
+      if: matrix.db == 'postgres'
+      run: |
+        sudo systemctl start postgresql.service
+        sudo -u postgres psql -c "CREATE ROLE bugsink PASSWORD 'bugsink' NOSUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;" postgres
+    - name: Install build
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+    - name: Build wheel
+      run: |
+        python -m build --wheel
+    - name: Install from wheel
+      run: |
+        python -m pip install dist/*.whl
+    - name: Install development dependencies
+      run: |
+        pip install -r requirements.development.txt
+        pip install mysqlclient psycopg2
+    - name: Check out event-samples
+      uses: actions/checkout@master
+      with:
+        repository: bugsink/event-samples
+        path: "event-samples"
+    - name: Create separate dir to avoid accidentally using non-packaged code
+      run: |
+        mkdir separate_dir
+    - name: Run Makemigrations --check
+      working-directory: separate_dir
+      run: |
+        bugsink-manage makemigrations --check
+    - name: Check bugsink-manage in settingless mode
+      working-directory: separate_dir
+      shell: bash
+      run: |
+        # Run the console entry in the most trivial way (--help), but with DJANGO_SETTINGS_MODULE truly unset
+        env -u DJANGO_SETTINGS_MODULE bugsink-manage --help >/dev/null
+    - name: Run Tests
+      working-directory: separate_dir
+      env:
+        SAMPLES_DIR: "${{ github.workspace }}/event-samples"
+        PYTHONWARNINGS: all
+      run: |
+        # because we're outside the project directory, the test discovery won't find our packages. We simply enumerate
+        # them using some shell-magic. Note that the only non-apps that we still care about are 'bugsink' (project, not
+        # app), and sentry_sdk_extensions, which we mention separately
+        bugsink-manage test `bugsink-manage shell -v0 -c 'from django.conf import settings; print(" ".join(settings.BUGSINK_APPS))'` bugsink sentry_sdk_extensions -v2
+        # bugsink-manage test ${GITHUB_WORKSPACE}  -v2  # fails with the following, which I don't understand:
+        # ImportError: 'tests' module incorrectly imported from '/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/alerts'. Expected '/home/runner/work/bugsink-private/bugsink-private/alerts'. Is this module globally installed? 
+
+  docker:
+    runs-on: ubuntu-latest
+    # Build the Docker image, start it, wait for readiness, log in at /accounts/login/,
+    # and verify that / redirects to /teams/.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t bugsink-ci .
+
+      - name: Run container (admin:admin)
+        run: |
+          docker rm -f bugsink-ci || true
+          docker run -d --name bugsink-ci \
+            -e SECRET_KEY=UtdHATKzQKLkz3izFFpxCKamhEdspeHmCQFvLx1DAwskqEuyKL \
+            -e CREATE_SUPERUSER=admin:admin \
+            -e PORT=8000 \
+            -p 8000:8000 \
+            bugsink-ci
+
+      - name: Wait for health
+        run: |
+          for i in {1..20}; do
+            if curl -sf http://localhost:8000/health/ready >/dev/null; then
+              echo "Service is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Service did not become healthy in time"
+          docker logs bugsink-ci
+          exit 1
+
+      - name: Login via /accounts/login/ and expect redirect from /
+        shell: bash
+        run: |
+          rm -f cookies.txt headers_root.txt
+
+          # 1) Get the login page and receive csrftoken
+          curl -sS -c cookies.txt http://localhost:8000/accounts/login/ >/dev/null
+          CSRF=$(awk '$6=="csrftoken"{print $7}' cookies.txt | tail -n1)
+          if [ -z "$CSRF" ]; then
+            echo "No csrftoken from /accounts/login/"
+            exit 1
+          fi
+
+          # 2) POST credentials (plain Django fields)
+          CODE=$(curl -sS -b cookies.txt -c cookies.txt \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -H "Referer: http://localhost:8000/accounts/login/" \
+            -d "username=admin&password=admin&csrfmiddlewaretoken=${CSRF}&next=/" \
+            -o /dev/null -w "%{http_code}" \
+            http://localhost:8000/accounts/login/)
+
+          if [ "$CODE" != "302" ]; then
+            echo "Login failed (status: $CODE)"
+            exit 1
+          fi
+
+          # 3) HEAD / and check redirect to /teams/
+          curl -sS -b cookies.txt -I http://localhost:8000/ > headers_root.txt
+
+          if ! grep -qi '^Location: /teams/' headers_root.txt; then
+            echo "Expected redirect to /teams/ not found"
+            echo "--- / (status + Location):"
+            sed -n '1p;/^Location:/Ip' headers_root.txt
+            echo "--- cookies (names):"
+            awk '{print $6}' cookies.txt | sort -u || true
+            exit 1
+          fi
+
+          echo "Login OK and / redirects to /teams/"
