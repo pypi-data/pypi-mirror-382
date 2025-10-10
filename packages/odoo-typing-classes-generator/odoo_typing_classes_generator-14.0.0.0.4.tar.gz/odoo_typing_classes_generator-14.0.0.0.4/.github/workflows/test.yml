@@ -1,0 +1,48 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - "14.0"
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Cache uv cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-cache-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-cache-${{ runner.os }}-
+      - name: Cache venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key:
+            venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock')
+            }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ matrix.python-version }}-
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync --all-extras --dev
+      - name: Run tests
+        run: |
+          uv run coverage run -m pytest -v odoo_typing_classes_generator/tests
+          uv run coverage report -m
