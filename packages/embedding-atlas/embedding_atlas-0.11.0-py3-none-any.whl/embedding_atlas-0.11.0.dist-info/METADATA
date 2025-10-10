@@ -1,0 +1,94 @@
+Metadata-Version: 2.4
+Name: embedding-atlas
+Version: 0.11.0
+Summary: A tool for visualizing embeddings
+Project-URL: homepage, https://apple.github.io/embedding-atlas
+Project-URL: source, https://github.com/apple/embedding-atlas
+Author-email: Donghao Ren <donghao.ren@gmail.com>, Halden Lin <halden.lin@gmail.com>, Fred Hohman <fredhohman@apple.com>, Dominik Moritz <domoritz@gmail.com>
+License-Expression: MIT
+Keywords: embedding,visualization
+Requires-Python: >=3.11
+Requires-Dist: accelerate>=1.5.0
+Requires-Dist: click>=7.0.0
+Requires-Dist: duckdb>=1.4.0
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: fastparquet>=2024.0.0
+Requires-Dist: inquirer>=3.0.0
+Requires-Dist: llvmlite>=0.43.0
+Requires-Dist: pandas>=2.2.0
+Requires-Dist: platformdirs>=4.3.0
+Requires-Dist: pyarrow>=18.0.0
+Requires-Dist: sentence-transformers>=3.3.0
+Requires-Dist: tqdm>=4.60.0
+Requires-Dist: umap-learn>=0.5.0
+Requires-Dist: uvicorn>=0.32.0
+Requires-Dist: uvloop>=0.21.0; platform_system != 'Windows'
+Description-Content-Type: text/markdown
+
+# Embedding Atlas
+
+A Python package that provides a command line tool to visualize a dataset with embeddings. It also includes a Jupyter widget and a Streamlit widget.
+
+- Documentation: https://apple.github.io/embedding-atlas
+- GitHub: https://github.com/apple/embedding-atlas
+
+## Installation
+
+```bash
+pip install embedding-atlas
+```
+
+and then launch the command line tool:
+
+```bash
+embedding-atlas [OPTIONS] INPUTS...
+```
+
+## Loading Data
+
+You can load your data in two ways: locally or from Hugging Face.
+
+### Loading Local Data
+
+To get started with your own data, run:
+
+```bash
+embedding-atlas path_to_dataset.parquet
+```
+
+### Loading Hugging Face Data
+
+You can instead load datasets from Hugging Face:
+
+```bash
+embedding-atlas huggingface_org/dataset_name
+```
+
+## Visualizing Embedding Projections
+
+To visual embedding projections, pre-compute the X and Y coordinates, and specify the column names with `--x` and `--y`, such as:
+
+```bash
+embedding-atlas path_to_dataset.parquet --x projection_x --y projection_y
+```
+
+You may use the [SentenceTransformers](https://sbert.net/) package to compute high-dimensional embeddings from text data, and then use the [UMAP](https://umap-learn.readthedocs.io/en/latest/index.html) package to compute 2D projections.
+
+### Using Pre-computed Vectors
+
+If you already have pre-computed embedding vectors (but not the 2D projections), you can specify the column containing the vectors with `--vector`:
+
+```bash
+embedding-atlas path_to_dataset.parquet --vector embedding_vectors
+```
+
+This will apply UMAP dimensionality reduction to your pre-existing vectors without recomputing embeddings. The vectors should be stored as lists or numpy arrays in your dataset.
+
+You may also specify a column for pre-computed nearest neighbors:
+
+```bash
+embedding-atlas path_to_dataset.parquet --x projection_x --y projection_y --neighbors neighbors
+```
+
+The `neighbors` column should have values in the following format: `{"ids": [id1, id2, ...], "distances": [d1, d2, ...]}`.
+If this column is specified, you'll be able to see nearest neighbors for a selected point in the tool.
