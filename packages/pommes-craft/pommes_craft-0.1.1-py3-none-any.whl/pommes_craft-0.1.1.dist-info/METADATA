@@ -1,0 +1,237 @@
+Metadata-Version: 2.4
+Name: pommes_craft
+Version: 0.1.1
+Summary: High-level interface to the POMMES energy system modeling tool
+Author-email: Yassine Abdelouadoud <yassine.abdelouadoud@minesparis.psl.eu>
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENCE.md
+Requires-Dist: polars>=0.18.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: matplotlib>=3.5.0
+Requires-Dist: numpy>=1.20.0
+Requires-Dist: pyarrow
+Requires-Dist: pommes
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.10.0; extra == "dev"
+Dynamic: license-file
+
+# pommes_craft
+
+A high-level interface to the POMMES energy system modeling tool.
+
+## Description
+
+pommes_craft provides an object-oriented framework for creating, configuring, and solving energy system models. It
+allows users to model complex energy systems with various components such as conversion technologies, storage
+technologies, and transportation networks across multiple time periods and operational scenarios.
+
+The library is designed to simplify the process of building energy system models by providing a clean API for defining
+components, their relationships, and constraints. It then handles the conversion of these high-level descriptions into
+optimization problems that can be solved using mathematical programming solvers.
+
+## Features
+
+- Object-oriented API for energy system modeling
+- Support for various energy system components:
+    - Areas (geographical regions)
+    - Conversion technologies (power plants, etc.)
+    - Storage technologies (batteries, pumped hydro, etc.)
+    - Transport technologies (pipelines, power lines, etc.)
+    - Combined technologies
+    - Carbon accounting
+    - Electricity grid tariffs (TURPE)
+- Multi-period modeling (hours, years)
+- Investment and operational optimization
+- Multiple operational modes and resources
+- Integration with mathematical programming solvers
+- Comprehensive result analysis and visualization
+
+## Installation
+
+### Requirements
+
+- Python 3.10 or higher
+
+### Basic Installation
+
+```bash
+pip install pommes_craft
+```
+
+### Development Installation
+
+```bash
+git clone https://git.persee.mines-paristech.fr/energy-alternatives/pommes_craft.git
+cd pommes_craft
+pip install -e ".[dev]"
+```
+
+## Dependencies
+
+- polars >= 0.18.0
+- pyyaml >= 6.0
+- matplotlib >= 3.5.0
+- numpy >= 1.20.0
+- pommes
+
+Development dependencies:
+
+- pytest >= 7.0.0
+- black >= 23.0.0
+- isort >= 5.10.0
+
+## Usage
+
+### Basic Example
+
+```python
+from pommes_craft import (
+    EnergyModel,
+    Area,
+    Demand,
+    ConversionTechnology,
+    EconomicHypothesis,
+    TimeStepManager,
+    LoadShedding,
+)
+import numpy as np
+import polars as pl
+
+rng = np.random.default_rng(seed=0)
+# Create energy model
+energy_model = EnergyModel(
+    name="one_area_conversion_tech",
+    hours=list(range(24)),  # 24-hour period
+    year_ops=[2020, 2040],  # Two operation years
+    year_invs=[2020],  # Single investment year
+    year_decs=[2050],  # Single decommissioning year
+    modes=[],  # No operation mode
+    resources=["electricity", "methane"],  # Basic resources
+)
+
+with energy_model.context():
+    EconomicHypothesis("eco", discount_rate=0., year_ref=2020, planning_step=20)
+    TimeStepManager("ts_m", time_step_duration=1., operation_year_duration=24.)
+    area1 = Area("area1")
+
+    # Create electricity demand profiles
+    electricity_demand_data1 = [
+        {"hour": h, "year_op": y, "demand": 100 * rng.random()}
+        for h in energy_model.hours
+        for y in energy_model.year_ops
+    ]
+    electricity_demand1 = Demand(
+        name="electricity_demand_area1",
+        resource="electricity",
+        demand=pl.DataFrame(electricity_demand_data1),
+
+    )
+    # Add demands to area
+    area1.add_component(electricity_demand1)
+
+    load_shedding = LoadShedding(
+        name="electricity_load_shedding",
+        resource="electricity",
+        max_capacity=0.,
+        cost=0.
+    )
+    area1.add_component(load_shedding)
+
+    # Create gas turbine in area1
+    gas_turbine = ConversionTechnology(
+        name="gas_turbine",
+        factor={
+            "electricity": 1.0,  # Produces electricity
+            "methane": -2.0  # Consumes methane (negative factor)
+        },
+        life_span=30.,
+        variable_cost=70.,
+        invest_cost=800.,
+    )
+
+    # Add conversion technology to area1
+    area1.add_component(gas_turbine)
+
+energy_model.run()
+# Get and analyze results
+power_results = energy_model.get_results("operation", "power")
+capacity_results = energy_model.get_results("operation", "power_capacity")
+
+print(power_results)
+print(capacity_results)
+```
+
+### More Examples
+
+For more complex examples, see the example notebooks in the `pommes_craft/examples/notebooks` directory:
+
+- Cannes Lerins H2 - Case study
+- Island Energy System Transition
+- National Hydrogen Economy Transition
+- Regional Energy Transition with Open Data
+- Renewable Integration for Industrial Decarbonization
+- Urban District Heating Decarbonization
+
+## Testing
+
+Tests are organized in the `pommes_craft/tests` directory:
+
+- `components`: Tests for individual components
+- `core`: Tests for core functionality
+- `systems`: Tests for complete energy systems
+
+To run all tests:
+
+```bash
+python -m pytest
+```
+
+To run a specific test file:
+
+```bash
+python -m pytest pommes_craft/tests/path/to/test_file.py
+```
+
+## Project Organization
+
+The project is organized into several modules:
+
+- `pommes_craft/components`: Contains the components of the energy system model (e.g., Area, Demand, StorageTechnology)
+- `pommes_craft/core`: Contains the core functionality of the model (e.g., EnergyModel)
+- `pommes_craft/data`: Contains data files for the model
+- `pommes_craft/examples`: Contains example usage of the model
+- `pommes_craft/tests`: Contains test files
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Format your code with black and isort:
+   ```bash
+   black pommes_craft
+   isort pommes_craft
+   ```
+4. Run the tests to ensure everything works:
+   ```bash
+   python -m pytest
+   ```
+5. Commit your changes (`git commit -m 'Add some amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+## License
+
+This project is licensed under the terms of the LICENSE file included in the repository.
+
+## Authors
+
+- Yassine Abdelouadoud - [yassine.abdelouadoud@minesparis.psl.eu](mailto:yassine.abdelouadoud@minesparis.psl.eu)
+
+## Acknowledgments
+
+- PERSEE Research Center at Mines Paris - PSL
