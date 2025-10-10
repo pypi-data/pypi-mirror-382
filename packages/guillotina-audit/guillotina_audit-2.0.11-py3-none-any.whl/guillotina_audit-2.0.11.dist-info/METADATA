@@ -1,0 +1,236 @@
+Metadata-Version: 2.1
+Name: guillotina_audit
+Version: 2.0.11
+Summary: elasticsearch audit support for guillotina
+Home-page: https://github.com/guillotinaweb/guillotina_audit
+Author: Nil Bacardit Vinyals
+Author-email: n.bacardit@iskra.cat
+License: GPL version 3
+Keywords: search async guillotina elasticsearch audit
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+License-File: LICENSE
+Requires-Dist: guillotina >=6.0.0a16
+Requires-Dist: pydantic
+Requires-Dist: elasticsearch[async] <=8.12.0,>=8.0.0
+Provides-Extra: test
+Requires-Dist: async-asgi-testclient ; extra == 'test'
+Requires-Dist: pytest >=5.0 ; extra == 'test'
+Requires-Dist: pytest-asyncio ==0.18.3 ; extra == 'test'
+Requires-Dist: coverage ; extra == 'test'
+Requires-Dist: pytest-cov ; extra == 'test'
+Requires-Dist: pytest-docker-fixtures[pg] >=1.3.0 ; extra == 'test'
+Requires-Dist: docker ; extra == 'test'
+
+.. contents::
+
+Guillotina_audit: ElasticSearch Logging for Audit Trail in Guillotina Framework
+===============================================================================
+
+Aim of the package?
+-------------------
+
+The main purpose of this package is to enable auditing and monitoring
+of changes made to Guillotina objects. By integrating Elasticsearch as
+the logging backend, it allows for efficient indexing and searching of
+the audit logs.
+
+When an object is created, modified, or deleted within the Guillotina
+system, the `guillotina_audit` package captures relevant information
+about the event, such as the object ID, the timestamp of the action,
+the type of action (create, update, delete), and any additional
+relevant data.
+
+This information is then sent to Elasticsearch, which stores it in a
+structured format. Elasticsearch provides powerful search
+capabilities, allowing you to query and analyze the audit logs based
+on various criteria, such as object ID, timestamps, action types, and
+more.
+
+By logging changes and events in Elasticsearch, `guillotina_audit`
+facilitates monitoring and tracking of object activities in the
+Guillotina system. It helps in ensuring data integrity, tracking user
+actions, investigating issues, and maintaining a historical record of
+object modifications.
+
+The package provides an essential auditing layer for transparency and
+accountability, helping users gain insights into the changes happening
+within the Guillotina system and enabling effective monitoring and
+analysis of object-level activities.
+
+Installation
+------------
+
+`pip install guillotina-audit`
+
+
+Configuration
+-------------
+
+config.yaml can include elasticsearch section. Add this to your
+guillotina config file
+
+.. code-block:: yaml
+
+    audit:
+      index_name: "audit"
+      connection_settings:
+        hosts:
+          - "http://127.0.0.1:9200"
+        sniffer_timeout: 0.5
+        sniff_on_start: true
+
+
+
+Installation on a site
+----------------------
+
+Guillotina_audit comes as an addon for guillotina. To install it in your site:
+
+"POST", "/db/guillotina/@addons", data=json.dumps({"id": "audit"})
+
+
+Uninstall on a site
+-------------------
+
+"DELETE", "/db/guillotina/@addons", data=json.dumps({"id": "audit"})
+
+Uninstalling will not delete the log entries created in ES.
+
+2.0.11 (2025-10-09)
+-------------------
+
+- Rverting loggers info
+  [nilbacardit26]
+
+
+2.0.10 (2025-10-09)
+-------------------
+
+- Indexing payload as a keyword. Changing mappings
+  [nilbacardit26]
+
+
+2.0.9 (2025-10-09)
+------------------
+
+- Adding audit-migrate command
+  [nilbacardit26]
+
+
+2.0.8 (2025-07-31)
+------------------
+
+- Set action.auto_create_index to false when initializing the utility
+  to prevent the creation of the index when calling log_entry
+  [nilbacardit26]
+
+
+2.0.7 (2025-06-27)
+------------------
+
+- Adding audit_parser as a standalone parser. Decoupling it from
+  search_parser.
+  [nilbacardit26]
+
+
+2.0.6 (2025-03-13)
+------------------
+
+- To enable the audit parser, you need to add search_parser to the
+  configuration file. This parser is utilized when invoking @audit to
+  query the index. If not specified, the default parser will be
+  used. I recommend using the parser from guillotina_elasticsearch, as
+  it has undergone extensive development and refinement.
+  [nilbacardit26]
+
+
+2.0.5 (2024-10-22)
+------------------
+
+- Adding metadata field as an object
+- Adding command audit-update-mappings to update mappings
+- Adding command audit-update-settings to update settings
+  [nilbacardit26]
+
+
+2.0.4 (2024-08-02)
+------------------
+
+- Removing zope.interface dependency in setup.py
+- Removing docker dependency
+
+
+2.0.3 (2024-03-06)
+------------------
+
+- Adding permissions_changed action when permissions are changed
+
+
+2.0.2 (2024-03-06)
+------------------
+
+- Being able to setting up index_permission_changes in settings. If
+  defined as True, it will index all changes in permissions.
+
+
+2.0.1 (2024-03-05)
+------------------
+
+- Being able to decode dates and datetimes when indexing custom
+  payloads from events.
+
+
+2.0.0 (2024-01-23)
+------------------
+
+- Supporting ES version 7 and 8
+- By default the async elasticsearch version is 8.12
+
+
+1.0.6 (2023-12-19)
+------------------
+
+- Changing date by datetime in models.
+- Fixing creation_date was not indexed when login wildcards
+
+
+1.0.5 (2023-12-12)
+------------------
+
+- Adding log_entry method to the utility. Now customized documents can
+  be indexed
+
+  
+1.0.4 (2023-11-16)
+------------------
+
+- Changing requirement of guillotina
+
+
+1.0.3 (2023-11-16)
+------------------
+
+- Adding try except clause in subscribers
+
+
+1.0.2 (2023-11-15)
+------------------
+
+- Adding save_payload parameter in the settings of the utility
+
+
+1.0.1 (2023-11-15)
+------------------
+
+- Solving bugs
+
+
+1.0.0 (2023-11-15)
+------------------
+
+- Initial release
+  [nilbacardit26]
