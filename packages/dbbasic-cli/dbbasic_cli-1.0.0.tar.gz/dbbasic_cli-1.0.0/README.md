@@ -1,0 +1,237 @@
+# dbbasic-cli
+
+Command-line tool for creating and managing DBBasic apps.
+
+## Philosophy
+
+> "Tools, not frameworks. Scripts, not magic."
+
+The Unix way is **small composable tools**. CGI was successful because it was just **scripts in a directory**. No build step, no generators, no magic.
+
+### Design Principles
+
+1. **Unix Tools First**: Use git, cp, sed - not custom generators
+2. **Scripts Over Frameworks**: CLI is thin wrapper around standard tools
+3. **Optional**: Can use dbbasic without CLI
+4. **Extensible**: Modules can add commands (like Django's manage.py)
+5. **No Magic**: Everything is visible, debuggable
+
+## Installation
+
+```bash
+pip install dbbasic-cli
+```
+
+## Quick Start
+
+```bash
+# Create a new blog app
+dbbasic new blog myblog
+
+# Enter the directory
+cd myblog
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run it
+python app.py
+```
+
+## Core Commands
+
+### `dbbasic new <type> <name>`
+
+Creates a new app from a template.
+
+```bash
+dbbasic new blog myblog
+dbbasic new api myapi
+dbbasic new shop myshop
+```
+
+Available templates:
+- `blog` - WordPress-like blog (~200 lines)
+- `microblog` - Twitter-like social app (~300 lines)
+- `api` - REST API (~150 lines)
+- `shop` - E-commerce (~400 lines)
+- `intranet` - Basecamp-like project manager (~500 lines)
+
+### `dbbasic list`
+
+Lists all available templates.
+
+```bash
+dbbasic list
+```
+
+### `dbbasic run`
+
+Runs the app (optional, just `python app.py` works too).
+
+```bash
+dbbasic run
+
+# With options
+dbbasic run --port 8000
+```
+
+### `dbbasic test`
+
+Runs tests.
+
+```bash
+dbbasic test
+```
+
+## Module Commands
+
+Modules can add their own commands! For example:
+
+```bash
+# From dbbasic-queue
+dbbasic queue:worker    # Start queue worker
+dbbasic queue:stats     # Show queue statistics
+
+# From dbbasic-logs
+dbbasic logs:tail       # Tail application logs
+dbbasic logs:search     # Search logs
+
+# From dbbasic-accounts
+dbbasic accounts:create # Create user account
+dbbasic accounts:list   # List all accounts
+```
+
+## Standard Directory Structure
+
+Every dbbasic app follows this structure:
+
+```
+myapp/
+├── app.py              # Main application file
+├── data/               # TSV data files
+│   ├── posts.tsv
+│   └── users.tsv
+├── templates/          # HTML templates
+│   ├── layout.html
+│   ├── home.html
+│   └── posts/
+│       ├── list.html
+│       ├── show.html
+│       └── edit.html
+├── static/             # CSS, JS, images
+│   ├── css/
+│   ├── js/
+│   └── img/
+├── tests/              # Test files
+│   └── test_app.py
+├── requirements.txt    # Python dependencies
+└── README.md           # Documentation
+```
+
+## Extending with Module Commands
+
+Modules can provide CLI commands by including a `cli.py`:
+
+```python
+# dbbasic_yourmodule/cli.py
+
+def hello_command(args):
+    """Say hello"""
+    print("Hello from your module!")
+
+def stats_command(args):
+    """Show statistics"""
+    print("Module statistics here...")
+
+# Register commands
+COMMANDS = {
+    'yourmodule:hello': hello_command,
+    'yourmodule:stats': stats_command,
+}
+```
+
+Now these work automatically:
+
+```bash
+dbbasic yourmodule:hello
+dbbasic yourmodule:stats
+```
+
+## No CLI? No Problem!
+
+You don't need the CLI to use dbbasic. The "pure Unix way":
+
+```bash
+# Clone an example
+git clone https://github.com/askrobots/dbbasic-examples
+cp -r dbbasic-examples/blog myblog
+cd myblog
+rm -rf .git
+
+# Run it
+python app.py
+```
+
+The CLI is just a convenience wrapper around standard Unix commands.
+
+## Comparison
+
+### CGI Way (1993)
+```bash
+mkdir myblog
+cd myblog
+cat > index.cgi << 'EOF'
+#!/bin/bash
+echo "Content-Type: text/html"
+echo ""
+echo "<h1>My Blog</h1>"
+EOF
+chmod +x index.cgi
+```
+
+### Rails Way (2005)
+```bash
+rails new blog  # Generates 50+ files
+rails g model Post
+rails g controller Posts
+```
+
+### dbbasic Way (2025)
+```bash
+dbbasic new blog myblog  # Optional convenience
+# OR just: git clone + cp + python app.py
+```
+
+## Development
+
+```bash
+# Clone the repo
+git clone https://github.com/askrobots/dbbasic-cli
+cd dbbasic-cli
+
+# Install in development mode
+pip install -e .
+
+# Test it
+dbbasic help
+```
+
+## Size
+
+- **Core CLI**: ~200 lines
+- **Total**: ~250 lines with packaging
+- Compare to:
+  - Rails CLI: ~10,000+ lines
+  - Django CLI: ~5,000+ lines
+  - CGI: 0 lines (no CLI needed)
+
+## License
+
+MIT
+
+## Links
+
+- [Specification](http://dbbasic.com/cli-spec)
+- [GitHub](https://github.com/askrobots/dbbasic-cli)
+- [DBBasic Modules](http://dbbasic.com/)
