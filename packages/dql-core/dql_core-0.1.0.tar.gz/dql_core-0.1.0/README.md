@@ -1,0 +1,158 @@
+# dql-core
+
+[![CI](https://github.com/dql-project/dql-core/actions/workflows/ci.yml/badge.svg)](https://github.com/dql-project/dql-core/actions)
+[![PyPI](https://img.shields.io/pypi/v/dql-core)](https://pypi.org/project/dql-core/)
+[![Python](https://img.shields.io/pypi/pyversions/dql-core)](https://pypi.org/project/dql-core/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+Framework-agnostic validation engine for Data Quality Language (DQL).
+
+**[Documentation](https://yourusername.github.io/dql-core/)** | **[PyPI](https://pypi.org/project/dql-core/)** | **[GitHub](https://github.com/dql-project/dql-core)**
+
+`dql-core` provides the abstract validation, cleaner, and executor framework that can be implemented for any Python framework (Django, Flask, FastAPI, SQLAlchemy, Pandas, etc.). It handles the business logic of DQL validation without being tied to any specific data access layer.
+
+## Installation
+
+```bash
+pip install dql-core
+```
+
+## Quick Start
+
+### Creating a Custom Executor
+
+```python
+from dql_core import ValidationExecutor
+from dql_parser import parse_dql
+
+class MyExecutor(ValidationExecutor):
+    """Custom executor for your framework."""
+
+    def get_records(self, model_name: str):
+        # Return records from your data source
+        return my_database.query(model_name).all()
+
+    def filter_records(self, records, condition):
+        # Apply filtering logic
+        return [r for r in records if self.evaluate_condition(r, condition)]
+
+    def count_records(self, records):
+        return len(list(records))
+
+    def get_field_value(self, record, field_name: str):
+        # Get field value from your record type
+        return getattr(record, field_name)
+
+# Parse DQL and execute validation
+dql_text = """
+from Customer
+expect column("email") to_not_be_null
+expect column("age") to_be_between(18, 100)
+"""
+
+ast = parse_dql(dql_text)
+executor = MyExecutor()
+result = executor.execute(ast)
+
+print(f"Validation passed: {result.overall_passed}")
+print(f"Expectations: {result.total_expectations}")
+print(f"Failed: {result.failed_expectations}")
+```
+
+## Features
+
+### Abstract Validation Framework
+
+- **6 Built-in Validators**: `to_be_null`, `to_not_be_null`, `to_match_pattern`, `to_be_between`, `to_be_in`, `to_be_unique`
+- **Custom Validators**: Extend `Validator` base class
+- **Validator Registry**: Register validators for operators
+- **Framework-Agnostic**: Works with any data source (Django ORM, SQLAlchemy, Pandas, raw dicts)
+
+### Abstract Executor
+
+- **Template Method Pattern**: Implement 4 abstract methods, get full validation logic
+- **Multi-Model Support**: Validate multiple models in one DQL file
+- **Rich Results**: Detailed validation results with failure info
+- **Severity Levels**: Support for critical, warning, info
+
+### Cleaner Framework
+
+- **Transaction Safety**: Built-in transaction management template
+- **Registry Pattern**: Register cleaners by name
+- **Decorator Support**: `@register_cleaner` for easy registration
+- **Error Handling**: Automatic rollback on failure
+
+### External API Adapters
+
+- **Adapter Pattern**: Create adapters for external APIs
+- **Rate Limiting**: Built-in rate limiter
+- **Retry Logic**: Exponential backoff retry utilities
+- **Factory Pattern**: APIAdapterFactory for creating adapters
+
+## Built-in Validators
+
+### to_be_null / to_not_be_null
+```python
+expect column("optional_field") to_be_null
+expect column("required_field") to_not_be_null
+```
+
+### to_match_pattern
+```python
+expect column("email") to_match_pattern("^[\\w\\.-]+@[\\w\\.-]+\\.\\w+$")
+expect column("phone") to_match_pattern("^\\d{3}-\\d{3}-\\d{4}$")
+```
+
+### to_be_between
+```python
+expect column("age") to_be_between(18, 120)
+expect column("price") to_be_between(0.0, 9999.99)
+```
+
+### to_be_in
+```python
+expect column("status") to_be_in("active", "inactive", "pending")
+expect column("category") to_be_in("A", "B", "C")
+```
+
+### to_be_unique
+```python
+expect column("email") to_be_unique
+expect column("username") to_be_unique
+```
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Format code
+black dql_core tests
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Documentation
+
+**Full documentation:** https://yourusername.github.io/dql-core/
+
+- [Concepts](https://yourusername.github.io/dql-core/concepts/) - Core architecture
+- [Validator Guide](https://yourusername.github.io/dql-core/validator-guide/) - Create custom validators
+- [Cleaner Guide](https://yourusername.github.io/dql-core/cleaner-guide/) - Write cleaner functions
+- [Executor Guide](https://yourusername.github.io/dql-core/executor-guide/) - Implement framework executors
+- [API Reference](https://yourusername.github.io/dql-core/api-reference/) - Complete API
+
+## Related Packages
+
+- **[dql-parser](https://github.com/dql-project/dql-parser)** - Pure Python DQL parser ([docs](https://yourusername.github.io/dql-parser/))
+- **[django-dqm](https://github.com/dql-project/django-dqm)** - Django integration ([docs](https://yourusername.github.io/django-dqm/))
+
+## Package Selection
+
+Not sure which package to use? See the **[Package Selection Guide](https://yourusername.github.io/django-dqm/package-selection/)**
